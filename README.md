@@ -72,10 +72,13 @@ Tool-using Agent 在完成任务时会产生完整轨迹，包括对话、推理
 
 1. [`docs/00_README_FIRST.md`](docs/00_README_FIRST.md)：启动规则、前三天目标和安全底线；
 2. [`docs/01_PROJECT_NARRATIVE.md`](docs/01_PROJECT_NARRATIVE.md)：完整研究问题、假设、边界和 Go / No-Go 条件；
-3. [`docs/02_HANDS_ON_TODO.md`](docs/02_HANDS_ON_TODO.md)：10 天 POC 的逐日任务；
-4. [`docs/03_PAPERS_AND_CODE_MAP.md`](docs/03_PAPERS_AND_CODE_MAP.md)：第一周必读论文及代码定位；
-5. [`docs/04_EXPERIMENT_LOG.md`](docs/04_EXPERIMENT_LOG.md)：从安装开始持续填写的实验记录模板；
-6. [`CONTRIBUTING.md`](CONTRIBUTING.md)：Git、实验和协作约定。
+3. [`docs/05_TAU_BENCH_POLICY_COMPLIANCE.md`](docs/05_TAU_BENCH_POLICY_COMPLIANCE.md)：理解 τ-bench 已有什么 policy、缺什么 compliance 定义；
+4. [`docs/02_HANDS_ON_TODO.md`](docs/02_HANDS_ON_TODO.md)：10 天 POC 的逐日任务；
+5. [`docs/03_PAPERS_AND_CODE_MAP.md`](docs/03_PAPERS_AND_CODE_MAP.md)：第一周必读论文及代码定位；
+6. [`docs/04_EXPERIMENT_LOG.md`](docs/04_EXPERIMENT_LOG.md)：从安装开始持续填写的实验记录模板；
+7. [`CONTRIBUTING.md`](CONTRIBUTING.md)：Git、实验和协作约定。
+
+完整导航参见 [`docs/README.md`](docs/README.md)。
 
 第一周论文阅读只要求完成文献地图中列出的 6 篇。每篇输出一页问题导向笔记，不做摘要翻译，重点回答：优化什么、反馈来自哪里、怎样接受更新、保存哪些证据，以及它可能怎样学到错误经验。
 
@@ -83,7 +86,7 @@ Tool-using Agent 在完成任务时会产生完整轨迹，包括对话、推理
 
 ### Meeting 后 24 小时内
 
-- 完成上述前 3 份文档的阅读；
+- 完成 `00_README_FIRST`、`01_PROJECT_NARRATIVE` 和 `05_TAU_BENCH_POLICY_COMPLIANCE` 的阅读；
 - 检查 `git`、`uv`、Python 与 Docker 环境；
 - 在实验日志中填写 Environment 和 Current Snapshot；
 - 用自己的话写出当前核心假设与一个可能推翻它的结果；

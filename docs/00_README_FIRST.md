@@ -8,9 +8,10 @@
 第一次打开本项目时，请按下面顺序阅读：
 
 1. `01_PROJECT_NARRATIVE.md`：理解我们在研究什么，以及暂时不研究什么。
-2. `02_HANDS_ON_TODO.md`：照着命令跑，不要先自行重构框架。
-3. `03_PAPERS_AND_CODE_MAP.md`：只读“第一周必读”，其余按需查。
-4. `04_EXPERIMENT_LOG.md`：从第一次安装开始持续记录。
+2. `05_TAU_BENCH_POLICY_COMPLIANCE.md`：理解 τ-bench 的 policy、task reward 与我们要构建的 compliance verifier。
+3. `02_HANDS_ON_TODO.md`：照着命令跑，不要先自行重构框架。
+4. `03_PAPERS_AND_CODE_MAP.md`：只读“第一周必读”，其余按需查。
+5. `04_EXPERIMENT_LOG.md`：从第一次安装开始持续记录。
 
 前三天的目标不是“做出自进化 Agent”，而是拿到四个可检查的产物：
 
