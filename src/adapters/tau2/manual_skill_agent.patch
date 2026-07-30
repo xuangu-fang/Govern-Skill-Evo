@@ -1,0 +1,86 @@
+diff --git a/src/tau2/agent/manual_skill_agent.py b/src/tau2/agent/manual_skill_agent.py
+new file mode 100644
+index 0000000..7c3a64b
+--- /dev/null
++++ b/src/tau2/agent/manual_skill_agent.py
+@@ -0,0 +1,59 @@
++import os
++from pathlib import Path
++from typing import Optional
++
++from tau2.agent.llm_agent import LLMAgent
++from tau2.environment.tool import Tool
++
++SKILL_PATH_ENV = "TAU2_AGENT_SKILL_PATH"
++
++
++def load_skill_body(skill_path: str) -> str:
++    """Load a Skill Markdown body, excluding optional YAML frontmatter."""
++    text = Path(skill_path).expanduser().read_text(encoding="utf-8").strip()
++    if text.startswith("---"):
++        parts = text.split("---", 2)
++        if len(parts) != 3:
++            raise ValueError(f"Invalid Skill frontmatter in {skill_path}")
++        text = parts[2].strip()
++    if not text:
++        raise ValueError(f"Skill is empty: {skill_path}")
++    return text
++
++
++class ManualSkillAgent(LLMAgent):
++    """Standard text agent with an additional execution Skill."""
++
++    def __init__(
++        self,
++        tools: list[Tool],
++        domain_policy: str,
++        skill: str,
++        llm: str,
++        llm_args: Optional[dict] = None,
++    ):
++        super().__init__(
++            tools=tools,
++            domain_policy=domain_policy,
++            llm=llm,
++            llm_args=llm_args,
++        )
++        self.skill = skill
++
++    @property
++    def system_prompt(self) -> str:
++        return f"{super().system_prompt}\n<skill>\n{self.skill}\n</skill>"
++
++
++def create_manual_skill_agent(tools, domain_policy, **kwargs):
++    """Create an agent using the Skill named by TAU2_AGENT_SKILL_PATH."""
++    skill_path = os.environ.get(SKILL_PATH_ENV)
++    if not skill_path:
++        raise ValueError(f"{SKILL_PATH_ENV} must point to a SKILL.md file")
++    return ManualSkillAgent(
++        tools=tools,
++        domain_policy=domain_policy,
++        skill=load_skill_body(skill_path),
++        llm=kwargs.get("llm"),
++        llm_args=kwargs.get("llm_args"),
++    )
+diff --git a/src/tau2/registry.py b/src/tau2/registry.py
+index 86a97a1..2239e38 100644
+--- a/src/tau2/registry.py
++++ b/src/tau2/registry.py
+@@ -14,6 +14,7 @@ from tau2.agent.llm_agent import (
+     create_llm_gt_agent,
+     create_llm_solo_agent,
+ )
++from tau2.agent.manual_skill_agent import create_manual_skill_agent
+ from tau2.data_model.tasks import Task
+ from tau2.domains.airline.environment import (
+     get_environment as airline_domain_get_environment,
+@@ -296,5 +297,8 @@ try:
+     # Agent factories
+     registry.register_agent_factory(create_llm_agent, "llm_agent")
++    registry.register_agent_factory(
++        create_manual_skill_agent, "llm_agent_manual_skill"
++    )
+     registry.register_agent_factory(
+         create_llm_gt_agent,
+         "llm_agent_gt",
