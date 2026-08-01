@@ -1,0 +1,28 @@
+# Question Answering Skill
+
+## Core approach
+- Treat passage-based QA as primarily extractive: identify the question's distinctive anchors first (rare names, titles, dates, numbers, locations, quoted phrases, roles, relationships, or unusual descriptors), then scan the context for the passage with the strongest full-clue overlap, allowing for close paraphrases.
+- For short, descriptive, or Jeopardy-style clues, infer the expected answer type from the wording (person, place, work, character, concept, etc.) before selecting a candidate.
+
+- Extend this to ultra-short, underspecified, quiz-style prompts too. For bare name pairs, comma-separated exemplars, fragmentary category clues, or compressed clue strings without full syntax, infer the latent slot first—such as a shared country, profession, work, group, relation, or category—then answer with that shared attribute rather than one of the named entities.
+
+- For descriptive, elliptical, or clue-style prompts, identify the implicit answer slot and any clue head noun (e.g. `this singer`, `this holiday`, `this language`, `one of these bombs`) to constrain both the answer type and the expected granularity. Reject candidates of the wrong type, and extract only the entity or category that fills the slot rather than a longer descriptive phrase.
+
+- Treat answer-slot wording as a hard extraction constraint. Head nouns and explicit field labels like `last name`, `first name`, `capital city`, `state`, `element`, `novel`, `country`, `city`, `this nation`, `these animals`, `this character`, or `this film`, along with possessive/pronoun cues like `his/her/their`, `this group's`, or `this country's`, determine what kind of answer to return and what granularity to extract. Use these cues before matching topic words, reject candidates of the wrong type or role, and return exactly that field/entity rather than a nearby related name, title, or longer description.
+
+- Also use clue structure as an answer-slot cue, even when no explicit field label is given. Relational templates and fill-in-the-blank forms such as `this author's`, `this daughter/son of`, `this king of`, `X's last name`, `capital of this country`, `preceded/followed ... in the title`, `name of the event that ...`, `came under this country's rule`, `the energy from this is measured by ...`, or partial-title prompts like `the ___ expedition` specify the required role and span. Formatting cues like comma-separated exemplars, quoted fragments, or parenthesized lengths `(4)` can do the same. Resolve that role first, then extract only the minimal filler (`York`, not `Duchess of York`) rather than a related name, work, or longer phrase.
+- In noisy or multi-document contexts, prefer the snippet that matches the most question constraints at once, especially high-signal summary/definition-style lines or explicit statements that directly connect the entities in the question.
+
+- In retrieval-heavy or search-result-like contexts, give extra weight to compact titles or snippets that jointly restate multiple rare anchors from the clue—such as unusual names, exact dates, quoted phrases, distinctive numbers, unique relations, or explicit options from the question. Flashcard/quiz entries, glossary-style definitions, title lines, and terse summary snippets are often more reliable than combining partial matches from longer documents.
+
+- When a flashcard, quiz archive, glossary, dictionary, or title snippet repeats most of the clue nearly verbatim and fills the answer slot, treat that compact restatement as especially strong evidence. In noisy or repetitive results, prefer a single high-overlap snippet that satisfies the full bundle of anchors at once over combining several partial matches; use cross-snippet synthesis mainly as backup when no one snippet covers most constraints.
+- Favor explicit evidence over inference. Look for direct definitional or appositive patterns such as `X is Y`, `X was ...`, `position: ...`, `won ... for ...`, or a sentence that directly restates the clue.
+- If multiple passages or entities look related, verify each candidate against all constraints in the question: entity type, relation/role, ownership/origin, and any time or descriptive clue. If several passages agree, that consensus strengthens the answer.
+- Once the supporting passage is found, extract the minimal answer span that fills the question's missing slot rather than paraphrasing.
+- Return only the shortest clear canonical answer supported by the context, usually just the entity name or title. Omit extra descriptors, explanations, dates, and surrounding clause text unless required for the name itself or disambiguation.
+
+## Learned Rules
+- For short factoid answers, prefer the exact surface form supported by the question and context. Choose the shortest exact span that directly answers the question, and do not normalize to a different variant if a more exact form is available.
+- Preserve number and specificity from the question/context. If the question asks for a plural/common-noun category, answer in plural; avoid adding extra qualifiers like state/country names, generic head nouns, titles, or entity types (e.g., `Island`, `River`, `City`) unless they are necessary to identify the answer uniquely. Keep necessary specificity when it distinguishes the entity.
+- When multiple near-equivalent forms appear, choose the form most likely to match verbatim.
+- When the context mentions several related entities, resolve the answer by intersecting all clues in the question rather than choosing the most prominent nearby phrase. Match all constraints given (relationship, attribute, date, location, etc.) before selecting the answer.

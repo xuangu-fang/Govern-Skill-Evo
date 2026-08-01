@@ -1,0 +1,46 @@
+{
+  "reasoning": "Preserved both failure-driven edits because they address recurring answer-granularity and hidden-slot errors and should take priority. Added success-driven edits that cover distinct patterns not already captured by the failure patches: stronger answer-slot/type-field constraints, partial-title/template completion, stronger preference for single high-overlap compact snippets, and common-noun role-slot extraction. Where success content overlapped with failure guidance about Jeopardy-style hidden slots, I kept the failure version and only retained complementary success details.",
+  "edits": [
+    {
+      "op": "insert_after",
+      "target": "- For descriptive, elliptical, or clue-style prompts, identify the implicit answer slot and any clue head noun (e.g. `this singer`, `this holiday`, `this language`, `one of these bombs`) to constrain both the answer type and the expected granularity. Reject candidates of the wrong type, and extract only the entity or category that fills the slot rather than a longer descriptive phrase.",
+      "content": "- Treat answer-slot wording as a hard extraction constraint. Head nouns and explicit field labels like `last name`, `first name`, `capital city`, `state`, `element`, `novel`, `country`, `city`, `this nation`, `these animals`, `this character`, or `this film`, along with possessive/pronoun cues like `his/her/their`, `this group's`, or `this country's`, determine what kind of answer to return and what granularity to extract. Use these cues before matching topic words, reject candidates of the wrong type or role, and return exactly that field/entity rather than a nearby related name, title, or longer description.",
+      "support_count": 30,
+      "source_type": "success"
+    },
+    {
+      "op": "insert_after",
+      "target": "- For descriptive, elliptical, or clue-style prompts, identify the implicit answer slot and any clue head noun (e.g. `this singer`, `this holiday`, `this language`, `one of these bombs`) to constrain both the answer type and the expected granularity. Reject candidates of the wrong type, and extract only the entity or category that fills the slot rather than a longer descriptive phrase.",
+      "content": "- For short Jeopardy-style clues built around a partial title, stock phrase, or definitional template, identify the exact missing slot first (e.g. `\"Bridge to\" this place` or `this \"bubble\"`). Prefer candidates that complete that template cleanly, and extract only the missing completion rather than the whole source phrase.",
+      "support_count": 5,
+      "source_type": "success"
+    },
+    {
+      "op": "insert_after",
+      "target": "- In retrieval-heavy or search-result-like contexts, give extra weight to compact titles or snippets that jointly restate multiple rare anchors from the clue—such as unusual names, exact dates, quoted phrases, distinctive numbers, unique relations, or explicit options from the question. Flashcard/quiz entries, glossary-style definitions, title lines, and terse summary snippets are often more reliable than combining partial matches from longer documents.",
+      "content": "- When a flashcard, quiz archive, glossary, dictionary, or title snippet repeats most of the clue nearly verbatim and fills the answer slot, treat that compact restatement as especially strong evidence. In noisy or repetitive results, prefer a single high-overlap snippet that satisfies the full bundle of anchors at once over combining several partial matches; use cross-snippet synthesis mainly as backup when no one snippet covers most constraints.",
+      "support_count": 30,
+      "source_type": "success"
+    },
+    {
+      "op": "insert_after",
+      "target": "- For short factoid answers, prefer the exact surface form supported by the question and context. Choose the shortest exact span that directly answers the question, and do not normalize to a different variant if a more exact form is available.",
+      "content": "- Calibrate answer length to the clue's target slot, not by always shortening. Keep a trailing head noun when it is part of the named entity or explicitly supported as the thing being named (`Forbes magazine`, not `Forbes` if the source names the publication that way), but drop trailing descriptive add-ons that merely describe a subtype or usage (`split-level`, not `split-level entry`, when the clue asks for the house type). Prefer the exact standalone phrase that can answer the clue by itself.",
+      "support_count": 5,
+      "source_type": "failure"
+    },
+    {
+      "op": "insert_after",
+      "target": "- Preserve number and specificity from the question/context. If the question asks for a plural/common-noun category, answer in plural; avoid adding extra qualifiers like state/country names, generic head nouns, titles, or entity types (e.g., `Island`, `River`, `City`) unless they are necessary to identify the answer uniquely. Keep necessary specificity when it distinguishes the entity.",
+      "content": "- If the clue's slot is a generic role, addressee, or term rather than a proper name, answer with that common-noun phrase exactly as supported. Do not replace it with a nearby named person, source title, or explanatory phrase just because those are more prominent in the passage.",
+      "support_count": 10,
+      "source_type": "success"
+    },
+    {
+      "op": "append",
+      "content": "- In very short Jeopardy-style or list-like clues, infer the hidden slot before extraction. If the clue enumerates examples (`Minsk, Monrovia, Manama`) or says `this state university`, `this city`, `this journal`, etc., answer with one concrete entity/work that fits the clue—not the broader category (`capital cities`) and not an over-specific campus/branch unless the clue explicitly asks for it. Also match morphological number to the slot: generic definition clues often expect the singular lemma (`tsunami`) even if the evidence sentence discusses plural instances (`tsunamis`).",
+      "support_count": 5,
+      "source_type": "failure"
+    }
+  ]
+}

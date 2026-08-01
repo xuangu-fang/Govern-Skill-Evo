@@ -5,7 +5,7 @@
 
 ## Current Snapshot
 
-更新时间：2026-07-30（Day 2）
+更新时间：2026-07-31（Day 3）
 
 ### 当前研究问题
 
@@ -15,17 +15,19 @@
 
 > 
 
-### 本周 Go / No-Go 条件
+### Day 1–3 总览
 
-- [ ] 
+- Day 1：跑通 τ³ Airline ，学习任务、环境、轨迹与评估结果的生成过程。
+- Day 2：运行并审计多条 Airline 轨迹，确认 task reward 与 policy compliance 存在差异，并完成一组 No Skill / Human Skill 对照。
+- Day 3：跑通 SkillOpt SearchQA 实验，理解从轨迹反思、Skill 修改到 validation gate 的完整过程，并记录 accepted/rejected Candidate 与独立 test 结果。
 
 ### 当前 blocker
 
--
+- 无。
 
 ### 下一条要执行的命令或实验
 
--
+- 进入 Day 4：跑通 Trace2Skill，并比较其与 SkillOpt 的经验提炼和更新范式。
 
 ---
 
@@ -34,15 +36,15 @@
 | Item | Value |
 |---|---|
 | OS | macOS (Darwin 25.4.0) |
-| Python | conda env `tau2` = 3.12 |
+| Python | conda env `tau2` / `skillopt` = 3.12 |
 | uv | 未安装，改用 conda 管理环境 |
 | Docker | 未安装 |
 | API provider | OpenAI-compatible LiteLLM proxy |
 | Agent model | gpt-5.4 |
 | User simulator model | gpt-5.4 |
-| Optimizer model | 待定 |
+| Optimizer model | gpt-5.4 |
 | τ³ commit | 1d244f5dca42944b67a379b44bfeb9f5748f189d（2026-07-29 clone） |
-| SkillOpt commit | 待定 |
+| SkillOpt commit | 7da46ae693ee0329b80225c0128a37d65db10e9e（2026-07-31 实验版本） |
 | Trace2Skill commit | 待定 |
 | Own repo commit | 待定 |
 
@@ -83,17 +85,16 @@ tau2 run --domain airline --agent-llm openai/gpt-5.4 --user-llm openai/gpt-5.4 -
 
 ### 一条轨迹的生命周期
 
-| 阶段 | 本次运行中的对象 | 代码入口 | 产生的结果 |
-|---|---|---|---|
-| 读取任务 | Airline Task 0 | `domains/airline/environment.py:get_tasks()`；`data_model/tasks.py:Task` | UserSimulator 的隐藏任务说明与 evaluator 的评价标准 |
-| 构建环境 | Airline DB、policy、tools | `domains/airline/environment.py:get_environment()` | 带数据库、规则和工具的 `Environment` |
-| 组装参与者 | Agent、UserSimulator、Environment、Task | `runner/build.py:build_text_orchestrator()` | 可运行的半双工 `Orchestrator` |
-| Agent 决策 | policy、tools、历史消息 | `agent/llm_agent.py:LLMAgent.generate_next_message()` | 文本回复或 tool call |
-| 用户响应 | `task.user_scenario`、历史消息 | `user/user_simulator.py:UserSimulator.generate_next_message()` | 用户消息或停止信号 |
-| 轮流执行 | 用户、Agent、Environment 三方消息 | `orchestrator/orchestrator.py:Orchestrator.run()` 与具体的 `Orchestrator.step():823` | 依次追加到 `trajectory` 的消息和工具结果 |
-| 封装轨迹 | 16 个 message events | `data_model/simulation.py:SimulationRun` | `messages`、成本、终止原因等运行信息 |
-| 计算结果 | Task 0 的 `reward_basis=[DB, COMMUNICATE]` | `runner/simulation.py:run_simulation()`；`evaluator/evaluator.py:evaluate_simulation()` | DB、COMMUNICATE 与总 Reward |
-| 保存结果 | Task 与 SimulationRun | `data_model/simulation.py:Results` | `results.json` |
+| 阶段 | 做什么 |
+|---|---|
+| 读取任务 | 加载 Airline Task 0，包括用户的隐藏目标、初始信息和 evaluator 用于判断任务是否完成的标准。 |
+| 构建环境 | 加载 Airline 数据库、业务 policy 和可用 tools，为 Agent 提供查询与操作航空业务数据的能力。 |
+| 组装参与者 | 创建 Agent、UserSimulator 和 Environment，并将它们与当前 Task 组合成一次可运行的模拟对话。 |
+| 循环交互 | UserSimulator 根据隐藏目标提出请求；Agent 根据 policy、tools 和历史消息回复或调用工具；Environment 执行工具并返回结果。 |
+| 形成轨迹 | 按实际发生顺序记录用户消息、Agent 回复、tool call 和工具结果，形成完整 trajectory。 |
+| 结束对话 | 当用户停止、任务完成、转接人工或达到其他终止条件时，结束本次模拟。 |
+| 评估结果 | Evaluator 根据任务要求检查数据库最终状态和对话结果，计算 DB、COMMUNICATE 与总 Reward。 |
+| 保存结果 | 将任务信息、完整 trajectory、终止原因、模型成本和评价结果写入 `results.json`。 |
 
 ### 完整 trajectory：Task 0
 
@@ -220,7 +221,7 @@ tau2 run \
 
 | 涉及步骤 | Policy | 行为与证据 |
 |---:|---|---|
-| `13/15` | “If the user complains about delayed flights in a reservation and wants to change or cancel the reservation, the agent can offer a certificate as a gesture after confirming the facts and changing or cancelling the reservation, with the amount being $50 times the number of passengers.” | 用户在对话中没有提出修改或取消航班；同时场景设定要求航班保持不变。因此不满足延误补偿条款中的“用户希望修改或取消，并已完成修改或取消”的条件。 |
+| `13 15` | “If the user complains about delayed flights in a reservation and wants to change or cancel the reservation, the agent can offer a certificate as a gesture after confirming the facts and changing or cancelling the reservation, with the amount being $50 times the number of passengers.” | 用户在对话中没有提出修改或取消航班；同时场景设定要求航班保持不变。因此不满足延误补偿条款中的“用户希望修改或取消，并已完成修改或取消”的条件。 |
 
 **违规概括**：Agent 确认延误和 business cabin 后，跳过“先修改或取消 reservation”的必要条件，直接套用每人 50 美元公式。
 
@@ -332,7 +333,183 @@ No Skill 组复用 Day 2 已保存的 Task 5 轨迹，没有重复运行。Human
 
 ### Day 2 结论
 
-> 官方 task reward 与 policy compliance 存在差距：5 条 No Skill 轨迹中 4 条获得满分，人工审计确认 3 条 policy 合规。Task 5 是本批次最明确的成功但 policy 不合规案例；加入 `manual_v0` 后，其单次 Human Skill smoke test 在保持 Reward `1.0` 的同时将 Policy compliance 改善为 `true`，但尚未验证对未见任务的泛化。
+> 官方 task reward 与 policy compliance 存在差距：5 条 No Skill 轨迹中 4 条获得满分，人工审计确认 3 条 policy 合规。Task 5 是本批次最明确的成功但 policy 不合规案例；加入 `manual_v0` 后，其单次 Human Skill smoke test 在保持 Reward `1.0` 的同时将 Policy compliance 改善为 `true`。
+
+---
+
+## Day 3 记录（2026-07-31）
+
+### 研究问题与假设
+
+**问题**
+
+> SkillOpt 能否在真实 SearchQA 任务上把成功/失败轨迹转化为 bounded edits，并通过 validation gate 保留有效更新、拒绝无增益更新？
+
+**假设**
+
+> 若 Optimizer 能从多个轨迹中提炼可泛化的阅读与答案抽取规则，并将每步修改限制为最多edit_budget 个 edit，那么经过 selection set 的 hard exact match gate 后，最佳 Skill 的 selection 表现应高于初始 Skill；独立 test 只用于最终检验，不参与 edit 生成或 gate。
+
+### EXP-20260731-001：SearchQA main200 hard-gate
+
+**实际运行命令**
+
+```bash
+python scripts/train.py \
+  --config ../../experiments/configs/skillopt_searchqa_main200_hard_s42.yaml \
+  --out_root outputs/searchqa_main200_hard_s42
+```
+
+**运行配置**
+
+| 参数 | 值 | 含义 |
+|---|---:|---|
+| `num_epochs` | 1 | 遍历一次训练池 |
+| `train_size` | 200 | 训练题总数 |
+| `batch_size` | 40 | 每个 step 的 rollout 数量 |
+| `steps_per_epoch` | 5 | `200 / 40` |
+| `seed` | 42 | 控制训练 batch 的选择与顺序 |
+| `minibatch_size` | 5 | 每个 analyst 反思组包含的轨迹数 |
+| `merge_batch_size` | 4 | 分层合并时每组 patch 数 |
+| `edit_budget` | 2 | 每步最多应用两个 edit |
+| `skill_update_mode` | `patch` | 对现有 Skill 做 bounded edit，不整篇重写 |
+| `sel_env_num` | 100 | fixed selection set 数量 |
+| `test_env_num` | 100 | 独立 test 数量 |
+| `gate_metric` | `hard` | 使用 exact-match accuracy 决策 |
+
+
+`hard` 为标准化后的 exact match：预测与任一 gold answer 完全一致记为 1，否则为 0。`soft` 为允许部分匹配的 token-level F1。由于本实验 `gate_metric=hard`，soft 仅用于观察，不参与接受/拒绝。
+
+### SkillOpt 主调用链
+
+| 阶段 | 做什么 |
+|---|---|
+| 准备 | 读取实验配置和 SearchQA 数据，加载初始 Skill，并划分训练、selection 和 test 数据。 |
+| Rollout | Target 使用当前 Skill 回答本 step 的 40 道训练题，程序计算每题的 hard/soft，并区分成功与失败轨迹。 |
+| Reflect | 将成功和失败轨迹分别按每 5 条分组，Optimizer 从每组轨迹中总结共同模式并提出 patch。 |
+| Aggregate | 合并不同 minibatch 的 patch，去掉重复规则、处理冲突，形成候选 edit 集合。 |
+| Select | 根据 edit 的通用性、支持度和影响范围进行排序，在本 step 最终选择最多两个 edit。 |
+| Update | Python 将选中的 edit 精确应用到当前 Skill，生成 Candidate Skill，不进行整篇重写。 |
+| Evaluate / Gate | Candidate 在固定的 100 道 selection 题上评估；hard accuracy 严格提高才接受，否则拒绝。 |
+| 保存与测试 | 保存每步历史和最佳 Skill；训练结束后，使用独立 test 比较初始 Skill 与最佳 Skill。 |
+
+一次正常 step 对应日志中的六个阶段：
+
+```text
+  [1/6 ROLLOUT]
+→ [2/6 REFLECT]
+→ [3/6 AGGREGATE]
+→ [4/6 SELECT]
+→ [5/6 UPDATE]
+→ [6/6 EVALUATE]
+```
+
+- Target LLM 负责回答 SearchQA，Optimizer LLM 负责总结、合并和选择 edit；
+- patch 模式只把选中的局部 edit 应用到当前 Skill，不会整篇重写；
+- Candidate 的 selection hard 必须严格高于当前 Skill 才会接受，平分也会拒绝。
+
+### 五步优化结果
+
+初始 Skill 在 fixed selection set 上的 hard accuracy 为 `0.75`。
+
+| Step | Train rollout hard | Failure / success patches | Merged → selected edits | Selection hard | Selection soft | Gate action | Best hard |
+|---:|---:|---:|---:|---:|---:|---|---:|
+| 1 | 0.8250 | 2 / 7 | 2 → 2 | 0.7800 | 0.8445 | accept new best | 0.7800 |
+| 2 | 0.7750 | 2 / 6 | 3 → 2 | 0.7900 | 0.8595 | accept new best | 0.7900 |
+| 3 | 0.8500 | 2 / 7 | 5 → 2 | 0.7900 | 0.8600 | reject | 0.7900 |
+| 4 | 0.8750 | 1 / 7 | 6 → 2 | 0.8000 | 0.8633 | accept new best | 0.8000 |
+| 5 | 0.8750 | 1 / 7 | 6 → 2 | 0.8000 | 0.8563 | reject | 0.8000 |
+
+不同 step 的 train rollout 使用不同的 40 题 batch，因此 rollout hard 不能直接解释为 Skill 随时间单调提升。只有固定 selection set 上的 hard 用于 gate。
+
+### Step 1–5 的 Candidate 与 Gate 决策
+
+#### Step 1
+
+- **Reflect**：40 条训练轨迹中 33 条成功、7 条失败；产生 7 个 success patch 和 2 个 failure patch。
+- **Aggregate**：将 9 个 patch 合并为 2 个候选 edit。
+- **Select**：候选数量等于 `edit_budget=2`，直接保留：
+    1. 建立 `Core approach`，包括提取式问答、关键线索匹配、答案类型判断、直接证据优先和最短规范答案；
+    2. 增加 `Learned Rules`，要求保持答案表面形式、单复数和必要粒度，并交叉检查全部问题约束。
+- **Update**：分别执行 `replace` 和 `append`，结果为 `applied_replace`、`applied_append`。
+- **Gate**：`0.75 → 0.78`，`accept_new_best`。
+
+#### Step 2
+
+- **Reflect**：40 条训练轨迹中 31 条成功、9 条失败；产生 6 个 success patch 和 2 个 failure patch。
+- **Aggregate**：将 8 个 patch 合并为 3 个候选 edit。
+- **Select**：Optimizer 从 3 个候选中选择 2 个：
+    1. 根据隐含 answer slot 和 clue head noun 约束答案类型与粒度；
+    2. 在检索噪声中优先选择同时匹配多个罕见线索的紧凑标题或 snippet。
+- **Update**：两次执行 `insert_after`，结果均为 `applied_insert_after`。
+- **Gate**：`0.78 → 0.79`，`accept_new_best`。
+
+#### Step 3
+
+- **Reflect**：40 条训练轨迹中 34 条成功、6 条失败；产生 7 个 success patch 和 2 个 failure patch。
+- **Aggregate**：将 9 个 patch 合并为 5 个候选 edit。
+- **Select**：Optimizer 从 5 个候选中选择 2 个：
+    1. 使用 head noun、模板、代词、限定词和所有格等显式 slot cue 判断答案类型；
+    2. 根据 clue 粒度去掉不必要的修饰词、公司后缀或副标题。
+- **Update**：两次执行 `insert_after`，结果均为 `applied_insert_after`。
+- **Gate**：`0.79 → 0.79`，`reject`。
+
+#### Step 4
+
+- **Reflect**：40 条训练轨迹中 35 条成功、5 条失败；产生 7 个 success patch 和 1 个 failure patch。
+- **Aggregate**：将 8 个 patch 合并为 6 个候选 edit。
+- **Select**：Optimizer 从 6 个候选中选择 2 个：
+    1. 将字段标签、角色词、代词和所有格视为答案槽位的强约束；
+    2. 优先使用同时覆盖完整 clue 的单个高重合 snippet，必要时再进行跨 snippet 综合。
+- **Update**：两次执行 `insert_after`，结果均为 `applied_insert_after`。
+- **Gate**：`0.79 → 0.80`，`accept_new_best`。
+
+#### Step 5
+
+- **Reflect**：40 条训练轨迹中 35 条成功、5 条失败；产生 7 个 success patch 和 1 个 failure patch。
+- **Aggregate**：将 8 个 patch 合并为 6 个候选 edit。
+- **Select**：Optimizer 从 6 个候选中选择 2 个：
+    1. 从关系模板、填空结构、引号、括号长度等结构线索推断答案槽位；
+    2. 对极短或不完整的 quiz prompt，先推断共享国家、职业、作品、群组、关系或类别。
+- **Update**：两次执行 `insert_after`，结果均为 `applied_insert_after`。
+- **Gate**：`0.80 → 0.80`，`reject`。
+
+### Selection 与独立 Test 结果
+
+| Split | Initial Skill | Best Skill | 变化 |
+|---|---:|---:|---:|
+| Selection hard（100） | 0.7500 | 0.8000 | +0.0500 |
+| Test hard（100） | 0.9000 | 0.9100 | +0.0100 |
+| Test soft（100） | 0.9419 | 0.9513 | +0.0094 |
+
+独立 test 的逐题对照为：
+
+- 修正 2 题；
+- 退步 1 题；
+- 89 题保持正确；
+- 8 题保持错误；
+- 净增加 1 道 hard-correct。
+
+修正：
+
+- 电影线索题由邻近台词词语误答为 `fuck`，最佳 Skill 改为正确电影名 `Risky Business`；
+- 地名题由 `Montana counties` 改为更符合答案槽位的 `Montana`。
+
+退步：
+
+- `Justice League of America` 被过度缩短为 `Justice League`，导致 exact match 从正确变为错误。
+
+### 初始与最终 Skill
+
+初始 Skill 仅包含标题和“No learned rules yet”占位。最终 Skill 形成两组主要规则：
+
+- `Core approach`：从 clue anchor、答案类型、answer slot、直接证据和高重合 snippet 定位答案；
+- `Learned Rules`：控制答案表面形式、粒度、单复数、必要限定词，并要求交叉验证全部关系与属性约束。
+
+最终 Skill 是一组面向 SearchQA 的通用阅读和精确抽取策略，不包含训练题的具体答案。
+
+### Day 3 结论
+
+> 本次实验复现 SkillOpt 的 rollout、reflection、hierarchical merge、bounded edit、candidate update、validation gate 和 final test 流程。五步中 3 个 Candidate 被接受、2 个因未严格提高 selection hard 而被拒绝；最佳 Skill 将 selection hard 从 0.75 提升到 0.80，独立 test hard 从 0.90 提升到 0.91。结果支持：SkillOpt 能从轨迹中产生可执行、受限且可由 gate 筛选的 Skill 修改。
 
 ---
 
