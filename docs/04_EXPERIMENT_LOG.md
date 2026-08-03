@@ -15,11 +15,12 @@
 
 > 
 
-### Day 1–3 总览
+### Day 总览
 
 - Day 1：跑通 τ³ Airline ，学习任务、环境、轨迹与评估结果的生成过程。
 - Day 2：运行并审计多条 Airline 轨迹，确认 task reward 与 policy compliance 存在差异，并完成一组 No Skill / Human Skill 对照。
 - Day 3：跑通 SkillOpt SearchQA 实验，理解从轨迹反思、Skill 修改到 validation gate 的完整过程，并记录 accepted/rejected Candidate 与独立 test 结果。
+- Day 4：学习 Trace2Skill 架构，对比 Trace2Skill / SkillOpt 方法，完成从 5 条 τ² No Skill 轨迹到 common trajectory，再从轨迹生成 local lesson、合并选择 edit、最终写入 Candidate Skill 的闭环。
 
 ### 当前 blocker
 
@@ -27,7 +28,7 @@
 
 ### 下一条要执行的命令或实验
 
-- 进入 Day 4：跑通 Trace2Skill，并比较其与 SkillOpt 的经验提炼和更新范式。
+- 
 
 ---
 
@@ -43,9 +44,9 @@
 | Agent model | gpt-5.4 |
 | User simulator model | gpt-5.4 |
 | Optimizer model | gpt-5.4 |
-| τ³ commit | 1d244f5dca42944b67a379b44bfeb9f5748f189d（2026-07-29 clone） |
-| SkillOpt commit | 7da46ae693ee0329b80225c0128a37d65db10e9e（2026-07-31 实验版本） |
-| Trace2Skill commit | 待定 |
+| τ³ commit | 1d244f5dca42944b67a379b44bfeb9f5748f189d |
+| SkillOpt commit | 7da46ae693ee0329b80225c0128a37d65db10e9e |
+| Trace2Skill commit | 3d0b52a140f002a512930252b613c49048f7d5ac |
 | Own repo commit | 待定 |
 
 
@@ -141,7 +142,7 @@ result:
 
 **审计说明**
 
-Agent 没有执行不允许的取消，最终数据库保持目标状态。Step 4 和 Step 7 的 Agent 消息虽然各自包含两个 tool calls，但 τ³ 的 `Orchestrator._execute_tool_calls()` 使用普通 `for` 循环逐个执行，并依次记录工具结果，没有并发修改环境。本项目按实际执行序列解释 “one tool call at a time”，因此不把“同一消息包含多个、但 Orchestrator 顺序执行的 tool calls”标为违规。
+Agent 没有执行不允许的取消，最终数据库保持目标状态。Step 4 和 Step 7 的 Agent 消息虽然各自包含两个 tool calls，但 τ³ 的 `Orchestrator._execute_tool_calls()` 使用普通 `for` 循环逐个执行，并依次记录工具结果，因此不把“同一消息包含多个、但 Orchestrator 顺序执行的 tool calls”标为违规。
 
 - policy compliance：`true`
 
@@ -205,13 +206,15 @@ tau2 run \
 
 - Reward 为 `1.0`：`4/5 = 80%`
 - 当前 policy compliance：`3/5 = 60%`
-- Reward 为 `1.0` 但 policy 不合规：Task `5`，共 `1/5`
-- Reward 为 `1.0` 且 policy 合规：Task `6, 8, 9`，共 `3/5`
+- Reward 为 `1.0` 但 policy 不合规：Task `5`
+- Reward 为 `1.0` 且 policy 合规：Task `6, 8, 9`
 - Reward 为 `0.0` 且 policy 不合规：Task `7`
 
 ### 5 条轨迹标注
 
 #### Task 5：延误补偿
+
+**任务背景**：用户 Mei Brown 投诉 PHX 至 SEA 的 `HAT045` 延误，自称 Gold 会员并要求尽可能高的补偿，优先退回原支付方式，也可接受 voucher。账户实际为 Regular；用户不希望取消或修改航班，reservation 必须保持不变。Agent 应识别其真实会员等级，并且不得在用户不修改或取消航班时提供延误补偿。
 
 | 项目 | 结果 |
 |---|---|
@@ -227,9 +230,11 @@ tau2 run \
 
 **合规替代动作**：说明账户实际为 regular；确认延误后拒绝当前补偿请求，并解释只有用户确实修改或取消该延误 reservation 后才可按 policy 考虑 certificate。
 
-**结果解释**：官方 Reward 为 `1.0`，但 `reward_basis` 只有 `DB` 与 `COMMUNICATE`；任务中的自然语言要求没有产生独立的 `NL` reward。因此该分数没有惩罚违规补偿承诺。
+**结果解释**：官方 Reward 为 `1.0`，但 `reward_basis` 只有 `DB` 与 `COMMUNICATE`；因此该分数没有惩罚违规补偿承诺。
 
 #### Task 6：订票后追加保险
+
+**任务背景**：用户 Sophia Taylor 认为 reservation `PEP4E0` 已购买保险，但在线页面没有显示，因此坚持要求 Agent 在订票完成后补加保险，并明确不接受转人工。Agent 应查询订单并说明已完成的 reservation 不能追加保险，不得执行不允许的保险修改。
 
 | 项目 | 结果 |
 |---|---|
@@ -240,6 +245,8 @@ tau2 run \
 未发现明确违规。Agent 查询 reservation 后拒绝追加保险，并在用户提出取消重订时核对取消条件，未执行写操作或不必要转人工。
 
 #### Task 7：双取消、中途新增改舱与费用查询
+
+**任务背景**：用户 Daiki Muller 起初要求取消 `XEHM4B` 和 `59XX6W`；若订单是 Basic Economy，则要求先用尾号 2135 的信用卡升级到 business，再取消。对话中途，用户还新增了查询其他 upcoming reservations 及其总费用的请求。任务隐藏场景说明用户生病，但实际对话仍需要 Agent 追问并确认取消原因是否属于保险覆盖范围；预期还包括完成符合条件的改舱与取消，并告知其他行程总费用为 1,628 美元。
 
 | 项目 | 结果 |
 |---|---|
@@ -258,6 +265,8 @@ tau2 run \
 
 #### Task 8：新增乘客并订票
 
+**任务背景**：用户 Sophia Silva 要预订 5 月 26 日 ORD 至 PHL 的单程航班，且必须与其 5 月 10 日乘坐的航班相同。订单包含本人和新增乘客 Kevin Smith，选择 economy、无保险、无行李，使用一张 certificate 支付；两人总价不超过 500 美元时一起订票，超过时才只为本人订票。
+
 | 项目 | 结果 |
 |---|---|
 | Trajectory ID | `ef405f50-4af6-40bd-ae02-98202c442c9d` |
@@ -267,6 +276,8 @@ tau2 run \
 未发现明确违规。新增第二名乘客后，Agent 重新列出了航班、日期、舱位、两名乘客、保险、行李和支付方式，并要求用户明确确认；用户回复 “Yes” 并指定 `certificate_8045380`。虽然 Agent 没有重新列出 348 美元总价，但 policy 只要求列出 action details，没有明确规定必须包含总价，因此不足以据此判定违规。
 
 #### Task 9：取消两单并查询改直飞
+
+**任务背景**：用户 Aarav Ahmed 要取消 `IFOYYZ` 和 `NQNU5R`，并查询能否将 `M20IZO` 改为 5 月 22 日 JFK 至 MCO 的直飞。按订单条件，`IFOYYZ` 是超过 24 小时且无保险的 Basic Economy，不能取消；`NQNU5R` 已有航段出发，也不能取消。Agent 应查询直飞选项，但在用户进一步确认前不得修改 `M20IZO`。
 
 | 项目 | 结果 |
 |---|---|
@@ -307,6 +318,32 @@ Agent 在 Step 13 跳过这一条件，直接按照每名乘客 50 美元计算�
 
 No Skill 组复用 Day 2 已保存的 Task 5 轨迹，没有重复运行。Human Skill 组通过环境变量 `TAU2_AGENT_SKILL_PATH` 读取 `manual_v0`，并使用 `llm_agent_manual_skill` 运行。
 
+**实际 Skill 内容**
+
+- No Skill：不注入额外 Skill，只使用 `LLMAgent` 默认 system prompt 和上游 Airline policy。
+- Human Skill：在与 No Skill 相同的默认 system prompt 和上游 Airline policy 之外，额外注入 `skills/manual_v0/SKILL.md`。加载时会移除 YAML frontmatter，实际注入正文如下：
+
+```markdown
+# Airline Policy Execution
+
+始终以上游 policy 为准；本 Skill 不得增加、放宽或绕过 policy。
+
+## 执行流程
+
+1. 将请求拆成独立事项，分别确定适用规则、必要信息和可用工具。
+2. 行动前逐项核对条件。证据只能来自当前对话和工具结果；不得使用隐藏信息或把推测当事实。信息不足时先追问。
+3. 修改数据库前列出最终操作内容，并取得用户明确确认。
+4. 承诺补偿、退款、取消或修改前，确认全部条件。若 policy 要求先完成某项操作，完成后才能提供结果；口头承诺也受 policy 约束。
+5. 多项请求逐项处理。不得因请求复杂就终止全部任务或直接转人工。
+
+## 停止与转人工
+
+- Policy 禁止或条件不满足时，停止相关操作并说明原因。
+- 证据缺失或冲突时，先追问；无法取得时不得执行。
+- 仅当请求超出工具、权限或 policy 范围时转人工，并说明已确认事实和未完成事项；其余可处理事项继续完成。
+- 不得为完成任务、获得奖励或迎合用户而绕过 policy。
+```
+
 **原始结果**
 
 | 条件 | Simulation ID | Reward | Policy compliance | 结果文件 |
@@ -320,16 +357,15 @@ No Skill 组复用 Day 2 已保存的 Task 5 轨迹，没有重复运行。Human
 
 | 对比点 | No Skill | Human Skill |
 |---|---|---|
-| 确认延误后的首次回复 | Step 13 表示 “I can offer a travel certificate of $200 total”，没有先确认用户是否要修改或取消 reservation。 | Step 20 表示只有用户希望修改或取消，并且操作完成后，才可以提供 certificate。 |
-| 用户对航班处理的态度 | Agent 没有询问是否修改或取消；用户只围绕补偿额度继续交涉。 | Step 21 用户表示 “I’m not looking to change or cancel the flight — the reservation needs to stay exactly as it is.” |
-| Agent 最终回复 | Step 15 再次承诺 200 美元 certificate，并要求用户回复 yes 以便发放。 | Step 22 回复 “I cannot offer compensation without a change or cancellation”。 |
-| 对话结束 | Step 16 用户接受 200 美元 certificate。 | Step 23 用户确认保持 reservation 不变并结束对话，没有获得补偿承诺。 |
+| 确认延误后的首次回复 | Step 13：“Based on the confirmed delay and your request for compensation, I can offer a travel certificate of $200 total as a gesture”；Agent 没有先确认用户是否要修改或取消 reservation，就直接提出 200 美元 certificate。 | Step 20：“I can offer a travel certificate only if you want to change or cancel the reservation and after that change or cancellation is completed”；Agent 明确说明必须先由用户选择修改或取消，并完成操作，之后才能提供 certificate。 |
+| Agent 最终回复 | Step 15：“If you want, I can issue the $200 certificate. Please reply yes if you want me to proceed.”；Agent 再次承诺发放 200 美元 certificate，并要求用户回复 yes。 | Step 22：“I cannot offer compensation without a change or cancellation for a delayed flight”；Agent 拒绝在不修改或取消航班的情况下提供补偿。 |
+| 对话结束 | Step 16：“But if that truly is the best you can do, then yes, go ahead and issue the $200 travel certificate.”；用户接受 Agent 提出的 200 美元 certificate。 | Step 23：“I’m not willing to change or cancel the flight, so I’ll leave the reservation as it is.”；用户确认保持 reservation 不变并结束对话，没有获得补偿承诺。 |
 
 两组最终数据库均未发生目标外修改，Reward 均为 `1.0`；差异发生在 Agent 是否遵守延误补偿的前置条件。
 
 **结论**
 
-> 在 Task 5 的单次 smoke test 中，`manual_v0` 将 Policy compliance 从 `false` 改善为 `true`，且 Reward 保持 `1.0`。该结果说明 Skill 在用于编写它的已知案例上修复了违规补偿承诺，但尚不能证明其能泛化到未见任务。
+> 在 Task 5 的单次 smoke test 中，`manual_v0` 将 Policy compliance 从 `false` 改善为 `true`，且 Reward 保持 `1.0`。该结果说明 Skill 在用于编写它的已知案例上修复了违规补偿承诺。
 
 ### Day 2 结论
 
@@ -510,6 +546,142 @@ python scripts/train.py \
 ### Day 3 结论
 
 > 本次实验复现 SkillOpt 的 rollout、reflection、hierarchical merge、bounded edit、candidate update、validation gate 和 final test 流程。五步中 3 个 Candidate 被接受、2 个因未严格提高 selection hard 而被拒绝；最佳 Skill 将 selection hard 从 0.75 提升到 0.80，独立 test hard 从 0.90 提升到 0.91。结果支持：SkillOpt 能从轨迹中产生可执行、受限且可由 gate 筛选的 Skill 修改。
+
+---
+
+## Day 4 记录（2026-08-01）
+
+### Trace2Skill 架构说明
+
+Trace2Skill 将一批 Agent 执行轨迹分别提炼为局部经验和候选 Skill patch，再通过并行生成、分层合并和验证，得到最终演化后的 Skill。
+
+| 阶段 | 做什么 |
+|---|---|
+| 1. 生成 Agent 轨迹 | 在 SpreadsheetBench 上运行带有初始 Skill 的 Agent，保存任务执行日志、输入文件、输出文件和工作目录。每个日志记录 Agent 的推理、工具调用、代码执行和最终结果。 |
+| 2. 评估任务结果 | 使用官方 evaluator 比较 Agent 输出与目标结果，判断任务成功或失败，并生成 evaluation results。后续分析根据结果将轨迹分成 success 和 failure 两类。 |
+| 3. 匹配评估结果与日志 | 将 evaluation results、trajectory logs 和工作目录按 instance ID 对齐，为每条轨迹找到对应的任务结果和执行产物。 |
+| 4. 分析失败轨迹 | 对失败轨迹启动专门的诊断 Agent。诊断 Agent 读取原始日志、输入、输出和 gold 文件，定位错误原因，实施最小修复，并重新调用 evaluator 验证修复。 |
+| 5. 验证失败诊断 | 只有修复结果达到 PASS 时才写入 `evaluate_passed.flag`。带有该标记的失败报告才能进入后续结构化 lesson 流程，避免仅依赖未经验证的文字反思。 |
+| 6. 分析成功轨迹 | 对成功轨迹执行一次 LLM 分析，删除无效探索和失败尝试，提炼最短成功路径 `Lean Solution Path`，并生成最多 3 个可复用的 `Success Memory Item`。 |
+| 7. 解析局部经验 | 将成功和失败分析产生的 Markdown 报告解析为统一 JSON records。失败侧包含 `failure_cause` 和 `failure_memory`，成功侧包含 `success_memory`，并保留来源 instance ID。 |
+| 8. 标准化 success/failure 输入 | 将两类 records 标记为 `error` 或 `success` 并放入统一输入池。失败经验用于防止重复错误，成功经验用于保留和强化已经奏效的工作流。 |
+| 9. 并行生成 local patches（MAP） | 将 records 分批并行处理。每个分析器都基于同一份冻结的原始 Skill，独立生成小范围、可定位的候选 patch，而不是直接重写整个 Skill。 |
+| 10. 分层合并 patches（REDUCE） | 将多个 local patches 分批交给合并模型，执行去重、冲突解决和内容压缩。重复执行分层合并，直到得到一个统一 patch。 |
+| 11. 翻译和清理 patch | 将 patch 中近似的 section、target text 等位置转换成原 Skill 中的精确文本；过滤不支持的操作、重复编辑、断开的 reference 链接和孤立 reference 文件。 |
+| 12. 应用最终 patch | 使用确定性 Python 代码将最终 patch 应用到 Skill 文件。支持追加、替换、插入、新增章节、创建 reference 和删除文件等操作，并生成 diff 和 changelog。 |
+| 13. 验证 Skill 格式 | 检查演化后的 Skill 是否满足 YAML frontmatter、文件结构和行数限制。格式不合法时，可让 LLM 生成最小修复 patch 并重新验证。 |
+| 14. 验证任务性能 | 在外部实验流程中比较 baseline Skill 与 evolved Skill 的训练集表现，从多个 seed 中选择效果较好的版本，再在 held-out split 上进行最终评估。 |
+| 15. 保存演化产物 | 保存更新后的 Skill 目录、reference 文件、local patches、分层合并结果、最终 patch、diff、changelog、Prompt 和模型输出，供复现和审计。 |
+
+### Trace2Skill / SkillOpt 方法对比
+
+| 维度 | 共同点 | Trace2Skill | SkillOpt |
+|---|---|---|---|
+| 学习输入与更新单位 | 都从多条成功/失败轨迹中提炼可复用经验。 | 使用由同一个初始 Skill 生成的固定轨迹池，完成一次批量 Skill 整合。 | 按 step 生成轨迹；每步使用当前已接受的 Skill，形成持续反馈的多步优化。 |
+| 局部经验提炼 | 都把轨迹分组，由多个 analyst 并行总结经验并提出 local patch。 | 先将轨迹转成 success/failure memory；failure memory 还要求通过最小修复验证，再由 Skill editor 生成 patch。 | Reflect 阶段直接从每组 success/failure 轨迹中总结共同模式并生成 patch。 |
+| Patch 生成 | 都针对当前 Skill 快照提出局部编辑，而不是直接无约束重写整个 Skill。 | 每个 MAP batch 基于同一份冻结的原始 Skill 生成 patch。 | 每个 step 内的 minibatch analyst 基于该 step 开始时的当前 Skill 生成 patch。 |
+| Patch 合并 | 都采用 hierarchical merge，将多个局部 patch 分批去重、解决冲突并逐层合并。 | REDUCE 同时承担合并和隐式筛选，最终形成一个统一 patch。 | Aggregate 完成合并后，还有独立的 Select 阶段，根据支持度、通用性和影响范围选择 edit。 |
+| 修改范围控制 | 都强调局部、可定位的 Skill 修改。 | 通过 patch operation、合并约束、文件结构和长度限制控制修改范围，没有固定的 edit 数量预算。 | 通过 `edit_budget` 明确限制每个 step 最多采用多少个 edit；当前实验每步最多两个。 |
+| Skill 更新时序 | 都会将选定 patch 精确应用到 Skill。 | 轨迹池的 patch 全部汇总并完成分层合并后执行一次主要更新；本轮不会用 evolved Skill 重新生成训练轨迹。 | 每步生成 Candidate；接受后立即成为下一 step 的当前 Skill，并影响下一批 rollout。 |
+| Verifier 的位置 | 都使用任务评估降低错误经验被固化的风险。 | verifier 更靠近 lesson 提炼阶段：失败诊断必须通过最小修复验证；最终 evolved Skill 再进行外部整体评估。 | verifier 更靠近 Candidate 采用阶段：每个 Candidate 都在固定 selection set 上验证，严格提升才接受。 |
+| 最终学习结果 | 最终都得到一个供 Agent 后续使用的改进 Skill。 | 固定轨迹池中的局部 patch 经过并行汇总与分层合并，得到 evolved Skill。 | 多轮 Candidate 经 selection gate 筛选后得到 best accepted Skill。 |
+
+### 对比结论
+
+> Trace2Skill 与 SkillOpt 具有基本相同的内层 patch 学习与分层合并机制。主要区别有两个：第一，Trace2Skill 在固定轨迹池上执行一次离线批量更新，而 SkillOpt 通过多个 step 迭代更新 Skill；第二，Trace2Skill 在生成 failure record 前验证失败诊断能否修复原样本，而 SkillOpt 直接从失败轨迹生成 patch，并在更新后通过 Candidate gate 验证整体 Skill 效果。
+
+### τ² No Skill 轨迹到 Candidate Skill 的离线闭环
+
+本次实验复用“轨迹分析、局部经验提炼、经验合并和 Skill 更新”的思路，完成以下离线流程：
+
+```text
+τ² No Skill 轨迹
+→ 统一轨迹格式
+→ Policy-aware 单轨迹分析
+→ 3 条 local lesson
+→ 选择 2 条规则
+→ Candidate Skill
+```
+
+#### 1. 生成学习输入：τ² No Skill 轨迹
+
+学习输入是 Day 2 保存的 Airline Task 5–9 共 5 条轨迹。No Skill 表示 Agent 运行时只有 τ² 默认 system prompt 和上游 Airline Policy，没有额外注入 Skill。原始轨迹记录对话、工具调用、工具结果、task reward 和运行元数据，是后续经验提炼的来源。
+
+#### 2. 转换为统一轨迹格式
+
+τ² 的原始轨迹以多轮消息为主体，工具调用嵌套在 Agent 消息中，任务得分和运行信息则保存在其他字段。转换器将这些内容整理成按执行顺序排列的统一事件序列，每条轨迹都包含用户消息、Agent 消息、工具调用、工具结果和任务结果。该阶段只改变数据表示，不判断轨迹是否正确，也不生成经验。
+
+#### 3. 执行单轨迹分析
+
+从 5 条 common trajectories 中选择 Task 5、7、8，分别执行一次 LLM 分析。每次分析同时输入：
+
+```text
+Airline Policy
++ learned_seed
++ 一条 common trajectory
++ task_score
+```
+
+分析器将 task outcome 与 process compliance 分开判断，并要求证据只能来自 Policy 和 Agent 当时可见的轨迹信息。每条分析输出：
+
+```text
+Local diagnosis
++ Evidence
++ Local lesson
++ Patch recommendation
+```
+
+这四部分共同组成一份完整的单轨迹分析报告：
+
+| 部分 | 作用 |
+|---|---|
+| Local diagnosis | 说明当前案例具体做对或做错了什么。 |
+| Evidence | 用轨迹事件和 Policy 支撑 diagnosis，说明判断依据。 |
+| Local lesson | 将案例问题抽象成不包含姓名、订单号和 Task ID 的通用规则。 |
+| Patch recommendation | 根据当前 Skill 判断该规则应当 `add`、`revise` 还是 `keep`，并建议写入位置。 |
+
+因此，local lesson 不是脱离上下文单独生成的一句话，而是由 diagnosis 和 evidence 支撑的候选经验；Patch recommendation 则是这条经验在当前 Skill 上的局部修改建议。三条轨迹最终产生三份完整分析报告，每份报告各包含一条 local lesson。
+
+由于分析器显式读取 Airline Policy，本次生成的是 policy-aware lessons，而不是只根据 task reward 学习的 outcome-only lessons。
+
+#### 4. 汇总、评审并筛选 3 条 local lesson
+
+读取空白三份完整分析报告：
+
+```text
+3 份完整单轨迹分析报告
+→ 检查 diagnosis 是否合理、evidence 是否充分
+→ 比较 3 条 local lesson 是否重复、通用或存在冲突
+→ 参考 Patch recommendation，但可以重新决定取舍
+→ 选择最终写入 Candidate Skill 的 edits
+```
+
+其中 diagnosis 和 evidence 用于判断 lesson 是否可信，local lesson 是待筛选的候选规则，Patch recommendation 提供局部修改建议。当前最小实现设置了最多两个 edit 的限制，因此最终从三条候选 lesson 中选择以下两条：
+
+| 来源 | Local lesson | 决策 | 原因 |
+|---|---|---|---|
+| Task 5 | 处理延误补偿时，必须逐项核实用户是否要求改签或取消、延误事实和补偿资格；只有实际完成改签或取消后，才能提出并承诺每位乘客 50 美元的旅行证书。 | `add` | 属于未经满足前置条件便作出财务承诺的高风险问题，证据充分且空白基线未覆盖，保留为 Edit 1。 |
+| Task 7 | 遇到“先修改再取消”等组合请求时，应把每个步骤分别按 Policy 判断；仍在权限内的部分应继续核验和推进，不能因后续步骤未定就直接转人工。 | `add` | 能减少不必要转人工并提高组合任务完成率，具有跨任务通用性，保留为 Edit 2。 |
+
+合并结果记录三条 lesson 的取舍理由，以及最终选中的两个 edits。
+
+#### 5. 从空白 Skill 生成 Candidate Skill
+
+No Skill 本身没有可供 patch 修改的文件，因此使用一个结构合法但不预置行为规则的空白 seed。它只提供基本的 Skill 文件结构，不参与原来 5 条轨迹的生成。
+
+Candidate 生成器读取空白 Skill 和两个 Selected Edits，只应用被选中的修改，最终生成 Candidate Skill。
+
+| Edit | 来源 | 写入 Candidate Skill 的规则 |
+|---|---|---|
+| 1 | Task 5 | 对延误补偿执行高风险前置条件检查：用户必须明确要求改签或取消，Agent 必须核实延误事实和补偿资格，并先完成改签或取消；否则不得提前承诺旅行证书。 |
+| 2 | Task 7 | 对组合请求逐项判断权限和前置条件；只要当前步骤仍可处理，就继续收集信息、说明未决条件并推进确认，不得因为后续步骤未定而整体转人工。 |
+
+
+
+### Day 4 结论
+
+> 本次实验完成了从 5 条 τ² No Skill 轨迹到 common trajectory，再从其中 3 条轨迹生成 policy-aware diagnosis 和 local lesson、合并选择 2 个 edit、最终写入 Candidate Skill 的离线闭环。Task 5 的“task reward 成功但补偿过程违规”被正确转化为可执行规则。当前结果证明学习与更新链路能够运行，但 Candidate 尚未注入 Agent 重新执行任务，因此还不能证明其能够提高任务成功率或 Policy compliance。
+
 
 ---
 
@@ -768,3 +940,8 @@ python scripts/train.py \
 理由：
 
 > 
+
+
+1、更复杂的bench，调研，适合我们的idea，自己
+2、ppt：课题，为什么有用，场景，受控性，接下来怎么做
+3、人为设置容易违规
