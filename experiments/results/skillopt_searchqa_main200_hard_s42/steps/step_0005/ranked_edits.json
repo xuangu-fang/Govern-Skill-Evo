@@ -1,0 +1,26 @@
+{
+  "reasoning": "Kept both failure-driven edits because they address exact-match and noisy-snippet mistakes and do not conflict with current guidance. Included all success-driven edits that add new coverage: latent-slot inference for ultra-short prompts, richer structural answer-slot cues, quoted-fragment/work-title handling, and abstraction-level control for category/work/series answers. No success edit directly conflicts with a failure edit; where snippet-preference themes overlap, the failure edit is preserved and the success edits are kept because they add distinct details rather than replace it. [optimizer-ranked: selected 2/6 edits]",
+  "edits": [
+    {
+      "op": "insert_after",
+      "target": "- Treat answer-slot wording as a hard extraction constraint. Head nouns and explicit field labels like `last name`, `first name`, `capital city`, `state`, `element`, `novel`, `country`, `city`, `this nation`, `these animals`, `this character`, or `this film`, along with possessive/pronoun cues like `his/her/their`, `this group's`, or `this country's`, determine what kind of answer to return and what granularity to extract. Use these cues before matching topic words, reject candidates of the wrong type or role, and return exactly that field/entity rather than a nearby related name, title, or longer description.",
+      "content": "- Also use clue structure as an answer-slot cue, even when no explicit field label is given. Relational templates and fill-in-the-blank forms such as `this author's`, `this daughter/son of`, `this king of`, `X's last name`, `capital of this country`, `preceded/followed ... in the title`, `name of the event that ...`, `came under this country's rule`, `the energy from this is measured by ...`, or partial-title prompts like `the ___ expedition` specify the required role and span. Formatting cues like comma-separated exemplars, quoted fragments, or parenthesized lengths `(4)` can do the same. Resolve that role first, then extract only the minimal filler (`York`, not `Duchess of York`) rather than a related name, work, or longer phrase.",
+      "support_count": 10,
+      "source_type": "success"
+    },
+    {
+      "op": "insert_after",
+      "target": "- For short, descriptive, or Jeopardy-style clues, infer the expected answer type from the wording (person, place, work, character, concept, etc.) before selecting a candidate.",
+      "content": "- Extend this to ultra-short, underspecified, quiz-style prompts too. For bare name pairs, comma-separated exemplars, fragmentary category clues, or compressed clue strings without full syntax, infer the latent slot first—such as a shared country, profession, work, group, relation, or category—then answer with that shared attribute rather than one of the named entities.",
+      "support_count": 10,
+      "source_type": "success"
+    }
+  ],
+  "ranking_details": {
+    "reasoning": "Top priority goes to edits that generalize answer-slot inference beyond explicit labels, because wrong slot/granularity selection is a broad recurring failure mode. Edit 1 systematically expands the existing extraction-constraint rule to relational templates, fill-in-the-blank structures, and formatting cues, making it highly complementary and broadly actionable. Next is edit 0, which covers ultra-short, underspecified quiz-style prompts where the main challenge is inferring the latent shared attribute/category rather than picking one mentioned entity; this fills a clear gap in the current guidance and applies across many short-clue tasks. Other edits are useful but more overlapping with existing retrieval/snippet-preference rules or narrower normalization advice.",
+    "selected_indices": [
+      1,
+      0
+    ]
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "reasoning": "Kept both failure-driven edits because they address exact-match and noisy-snippet mistakes and do not conflict with current guidance. Included all success-driven edits that add new coverage: latent-slot inference for ultra-short prompts, richer structural answer-slot cues, quoted-fragment/work-title handling, and abstraction-level control for category/work/series answers. No success edit directly conflicts with a failure edit; where snippet-preference themes overlap, the failure edit is preserved and the success edits are kept because they add distinct details rather than replace it.",
+  "edits": [
+    {
+      "op": "insert_after",
+      "target": "- For short, descriptive, or Jeopardy-style clues, infer the expected answer type from the wording (person, place, work, character, concept, etc.) before selecting a candidate.",
+      "content": "- Extend this to ultra-short, underspecified, quiz-style prompts too. For bare name pairs, comma-separated exemplars, fragmentary category clues, or compressed clue strings without full syntax, infer the latent slot first—such as a shared country, profession, work, group, relation, or category—then answer with that shared attribute rather than one of the named entities.",
+      "support_count": 10,
+      "source_type": "success"
+    },
+    {
+      "op": "insert_after",
+      "target": "- Treat answer-slot wording as a hard extraction constraint. Head nouns and explicit field labels like `last name`, `first name`, `capital city`, `state`, `element`, `novel`, `country`, `city`, `this nation`, `these animals`, `this character`, or `this film`, along with possessive/pronoun cues like `his/her/their`, `this group's`, or `this country's`, determine what kind of answer to return and what granularity to extract. Use these cues before matching topic words, reject candidates of the wrong type or role, and return exactly that field/entity rather than a nearby related name, title, or longer description.",
+      "content": "- Also use clue structure as an answer-slot cue, even when no explicit field label is given. Relational templates and fill-in-the-blank forms such as `this author's`, `this daughter/son of`, `this king of`, `X's last name`, `capital of this country`, `preceded/followed ... in the title`, `name of the event that ...`, `came under this country's rule`, `the energy from this is measured by ...`, or partial-title prompts like `the ___ expedition` specify the required role and span. Formatting cues like comma-separated exemplars, quoted fragments, or parenthesized lengths `(4)` can do the same. Resolve that role first, then extract only the minimal filler (`York`, not `Duchess of York`) rather than a related name, work, or longer phrase.",
+      "support_count": 10,
+      "source_type": "success"
+    },
+    {
+      "op": "insert_after",
+      "target": "- When a flashcard, quiz archive, glossary, dictionary, or title snippet repeats most of the clue nearly verbatim and fills the answer slot, treat that compact restatement as especially strong evidence. In noisy or repetitive results, prefer a single high-overlap snippet that satisfies the full bundle of anchors at once over combining several partial matches; use cross-snippet synthesis mainly as backup when no one snippet covers most constraints.",
+      "content": "- For very short quiz-bowl/Jeopardy/crossword-style clues, first scan for a terse snippet that mirrors the clue's wording template almost exactly—often flashcards, quiz archives, glossary entries, Q/A pages, or title lines. If it also supplies an answer of the correct type, prefer it over longer passages about adjacent topics. Quoted fragments from lyrics, dialogue, subtitles, or clue text are especially high-signal anchors; when the clue asks for the work containing the quote, return the work's title, not the quoted words.",
+      "support_count": 10,
+      "source_type": "success"
+    },
+    {
+      "op": "insert_after",
+      "target": "- When multiple near-equivalent forms appear, choose the form most likely to match verbatim.",
+      "content": "- Be conservative about name and term normalization: if the clue/context supports a shortened, partial, parenthetical, initial-only, or inflected form, prefer copying that supported surface form over expanding to a fuller canonical variant or lemmatizing. For example, prefer `George Bush` over `George H. W. Bush` when that is the form used, `C` over `vitamin C` when the slot is just the letter/name core, surname-only or parenthetical surname forms when the clue asks for that granularity, and a directly attested derived form like `Meandering` over the base lemma `meander` when the clue is phrased that way.",
+      "support_count": 5,
+      "source_type": "failure"
+    },
+    {
+      "op": "append",
+      "content": "- In noisy search-result contexts with many weakly related snippets, do not answer from a plausible nearby phrase unless it directly fits the clue's answer slot. Re-check whether one compact trivia/quiz snippet restates the question almost verbatim; if so, extract the answer from that snippet rather than from a more topical but less directly matching passage.",
+      "support_count": 5,
+      "source_type": "failure"
+    },
+    {
+      "op": "append",
+      "content": "- For very short definitional or category prompts (often just a noun phrase), treat the best matching glossary, title, or lead line as an equative clue and return the compact term naming the role or category rather than a longer descriptive phrase.\n- Use clue head nouns like `film series`, `franchise`, `novel`, `song`, `author`, or `city` to set the answer's abstraction level. If evidence mentions a specific installment, adaptation, or descriptive expansion, strip back to the parent series/title/entity when that is what the clue asks for.",
+      "support_count": 10,
+      "source_type": "success"
+    }
+  ]
+}

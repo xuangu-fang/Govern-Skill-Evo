@@ -1,0 +1,26 @@
+{
+  "reasoning": "Preserved both failure-driven edits because they address recurring answer-granularity and hidden-slot errors and should take priority. Added success-driven edits that cover distinct patterns not already captured by the failure patches: stronger answer-slot/type-field constraints, partial-title/template completion, stronger preference for single high-overlap compact snippets, and common-noun role-slot extraction. Where success content overlapped with failure guidance about Jeopardy-style hidden slots, I kept the failure version and only retained complementary success details. [optimizer-ranked: selected 2/6 edits]",
+  "edits": [
+    {
+      "op": "insert_after",
+      "target": "- For descriptive, elliptical, or clue-style prompts, identify the implicit answer slot and any clue head noun (e.g. `this singer`, `this holiday`, `this language`, `one of these bombs`) to constrain both the answer type and the expected granularity. Reject candidates of the wrong type, and extract only the entity or category that fills the slot rather than a longer descriptive phrase.",
+      "content": "- Treat answer-slot wording as a hard extraction constraint. Head nouns and explicit field labels like `last name`, `first name`, `capital city`, `state`, `element`, `novel`, `country`, `city`, `this nation`, `these animals`, `this character`, or `this film`, along with possessive/pronoun cues like `his/her/their`, `this group's`, or `this country's`, determine what kind of answer to return and what granularity to extract. Use these cues before matching topic words, reject candidates of the wrong type or role, and return exactly that field/entity rather than a nearby related name, title, or longer description.",
+      "support_count": 30,
+      "source_type": "success"
+    },
+    {
+      "op": "insert_after",
+      "target": "- In retrieval-heavy or search-result-like contexts, give extra weight to compact titles or snippets that jointly restate multiple rare anchors from the clue—such as unusual names, exact dates, quoted phrases, distinctive numbers, unique relations, or explicit options from the question. Flashcard/quiz entries, glossary-style definitions, title lines, and terse summary snippets are often more reliable than combining partial matches from longer documents.",
+      "content": "- When a flashcard, quiz archive, glossary, dictionary, or title snippet repeats most of the clue nearly verbatim and fills the answer slot, treat that compact restatement as especially strong evidence. In noisy or repetitive results, prefer a single high-overlap snippet that satisfies the full bundle of anchors at once over combining several partial matches; use cross-snippet synthesis mainly as backup when no one snippet covers most constraints.",
+      "support_count": 30,
+      "source_type": "success"
+    }
+  ],
+  "ranking_details": {
+    "reasoning": "Edit 0 ranks first because it adds a broad, high-impact principle: treating answer-slot wording, field labels, and possessive/pronoun cues as hard extraction constraints. That addresses a common failure mode across many QA tasks and complements the existing skill by making slot/granularity control more explicit and actionable. Edit 2 ranks second because it strengthens retrieval-time evidence selection in noisy search-style contexts by prioritizing a single high-overlap compact snippet over synthesizing partial matches, which is a recurring and general failure pattern not fully spelled out in the current skill. The remaining edits are narrower edge cases, lower-support refinements, or more duplicative of existing guidance.",
+    "selected_indices": [
+      0,
+      2
+    ]
+  }
+}
