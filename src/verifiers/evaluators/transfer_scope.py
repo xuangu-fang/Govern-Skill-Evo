@@ -1,4 +1,4 @@
-"""Evaluate transfer-scope semantic judgments against human Gold."""
+"""Evaluate transfer-scope judgments against Human Gold."""
 
 from __future__ import annotations
 
@@ -7,13 +7,13 @@ import json
 from pathlib import Path
 from typing import Any
 
-from src.verifiers.transfer_scope_verifier import (
+from src.verifiers.handlers.semantic.transfer_scope import (
     RULE_ID,
     TransferScopeJudgmentDataset,
 )
 
 
-EVALUATION_VERSION = "0.2.0"
+EVALUATION_VERSION = "0.3.0"
 
 
 def load_gold(gold_path: Path) -> dict[str, Any]:
@@ -32,11 +32,11 @@ def load_gold(gold_path: Path) -> dict[str, Any]:
     return gold
 
 
-def evaluate_judge(
+def evaluate_transfer_scope(
     judgments: TransferScopeJudgmentDataset,
     gold: dict[str, Any],
 ) -> dict[str, Any]:
-    """Compare only semantic should_transfer predictions with human Gold."""
+    """Compare semantic rule decisions with Human Gold."""
     if judgments.rule_id != RULE_ID:
         raise ValueError(f"judgments must target {RULE_ID}")
 
@@ -69,7 +69,7 @@ def evaluate_judge(
     unexpected = set(predicted_by_id) - set(gold_by_id)
     if missing or unexpected:
         raise ValueError(
-            "judge coverage must exactly match Gold; "
+            "semantic judgment coverage must exactly match Gold; "
             f"missing={sorted(missing)}, unexpected={sorted(unexpected)}"
         )
 
@@ -132,8 +132,8 @@ def evaluate_judge(
         "evaluation_version": EVALUATION_VERSION,
         "rule_id": RULE_ID,
         "gold_version": gold.get("gold_version"),
-        "judge_name": judgments.judge_name,
-        "judge_version": judgments.judge_version,
+        "model_name": judgments.model_name,
+        "semantic_version": judgments.semantic_version,
         "metrics": metrics,
         "cases": cases,
     }
@@ -148,7 +148,7 @@ def evaluate_file(
     judgments = TransferScopeJudgmentDataset.model_validate_json(
         judgment_path.read_text(encoding="utf-8")
     )
-    report = evaluate_judge(judgments, load_gold(gold_path))
+    report = evaluate_transfer_scope(judgments, load_gold(gold_path))
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
         json.dumps(report, ensure_ascii=False, indent=2),
@@ -158,12 +158,11 @@ def evaluate_file(
 
 
 def main() -> None:
-    """Evaluate a completed judge run against human Gold."""
+    """Evaluate transfer-scope decisions against Human Gold."""
     parser = argparse.ArgumentParser(
         description=(
-            "Compare transfer-scope Judge predictions with human Gold. "
-            "This command does not call a model or run the transfer-scope "
-            "verifier."
+            "Compare transfer-scope decisions with Human Gold. "
+            "This command does not call a model."
         )
     )
     parser.add_argument("--judgments", required=True, type=Path)

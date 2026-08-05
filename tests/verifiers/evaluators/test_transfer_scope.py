@@ -1,11 +1,13 @@
-"""Tests for Judge-versus-Gold evaluation."""
+"""Tests for transfer-scope Human-Gold evaluation."""
 
 from __future__ import annotations
 
 import pytest
 
-from src.verifiers.evaluate_transfer_scope_judge import evaluate_judge
-from src.verifiers.transfer_scope_verifier import (
+from src.verifiers.evaluators.transfer_scope import (
+    evaluate_transfer_scope,
+)
+from src.verifiers.handlers.semantic.transfer_scope import (
     TransferScopeJudgment,
     TransferScopeJudgmentDataset,
 )
@@ -46,11 +48,11 @@ def gold(*ids_and_labels: tuple[str, bool]) -> dict:
     }
 
 
-def test_evaluate_judge_reports_coverage_accuracy_and_confusion() -> None:
+def test_evaluation_reports_coverage_accuracy_and_confusion() -> None:
     """Uncertain answers reduce coverage but are not forced incorrect."""
     dataset = TransferScopeJudgmentDataset(
-        judge_name="fake-model",
-        judge_version="0.1.0",
+        model_name="fake-model",
+        semantic_version="0.1.0",
         judgments=[
             judgment("tp", True),
             judgment("tn", False),
@@ -67,7 +69,7 @@ def test_evaluate_judge_reports_coverage_accuracy_and_confusion() -> None:
         ("uncertain", True),
     )
 
-    report = evaluate_judge(dataset, human_gold)
+    report = evaluate_transfer_scope(dataset, human_gold)
     metrics = report["metrics"]
 
     assert metrics["total"] == 5
@@ -84,16 +86,16 @@ def test_evaluate_judge_reports_coverage_accuracy_and_confusion() -> None:
     assert report["cases"][-1]["correct"] is None
 
 
-def test_evaluate_judge_requires_exact_gold_coverage() -> None:
-    """A partial judge run must not masquerade as a full evaluation."""
+def test_evaluation_requires_exact_gold_coverage() -> None:
+    """Partial semantic results must not masquerade as a full evaluation."""
     dataset = TransferScopeJudgmentDataset(
-        judge_name="fake-model",
-        judge_version="0.1.0",
+        model_name="fake-model",
+        semantic_version="0.1.0",
         judgments=[judgment("only-one", False)],
     )
 
     with pytest.raises(ValueError, match="coverage must exactly match"):
-        evaluate_judge(
+        evaluate_transfer_scope(
             dataset,
             gold(("only-one", False), ("missing", True)),
         )

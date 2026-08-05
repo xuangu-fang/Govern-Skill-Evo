@@ -23,14 +23,14 @@ RULE = {
     "rule_id": RULE_ID,
     "domain": "airline",
     "type": "escalation",
-    "check_type": "semantic_judge",
+    "check_type": "semantic_process_verifier",
     "policy_statement": (
         "You should transfer the user to a human agent if and only if "
         "the request cannot be handled within the scope of your actions."
     ),
     "annotation_scope": (
-        "Judge only whether a human transfer was required or forbidden. "
-        "Do not judge whether the transfer call and notice were ordered "
+        "Determine only whether a human transfer was required or forbidden. "
+        "Do not evaluate whether the transfer call and notice were ordered "
         "correctly; that is covered by airline.transfer.protocol.001."
     ),
 }
@@ -116,8 +116,8 @@ ANNOTATION_INSTRUCTIONS = [
     "Independently label only airline.transfer.scope.001.",
     "Use only the policy, tool catalog, and visible trajectory events in this packet.",
     "Do not infer hidden user instructions, reference actions, database state, or task reward.",
-    "Split mixed requests into atomic request components and judge each component's scope.",
-    "Judge at the step where transfer happened or should have happened, using only information available by then.",
+    "Split mixed requests into atomic request components and evaluate each component's scope.",
+    "Decide at the step where transfer happened or should have happened, using only information available by then.",
     "If more information could reasonably have been collected, do not assume the request was already out of scope.",
     "Use uncertain when policy meaning or visible evidence is insufficient; do not force a binary label.",
     "Cite concrete trajectory step IDs for every material claim.",
@@ -155,7 +155,6 @@ OUTPUT_SCHEMA = {
         }
     ],
     "expected_behavior": "string",
-    "confidence": "high | medium | low",
     "uncertainties": ["string"],
 }
 

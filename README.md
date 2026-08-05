@@ -23,7 +23,7 @@ Tool-using Agent 在完成任务时会产生完整轨迹，包括对话、推理
 我们的初步思路是把评价拆成两个维度：
 
 1. **Task verifier**：任务是否完成、最终状态是否正确；
-2. **Compliance verifier**：过程是否满足 policy、权限、顺序、证据和审批要求。
+2. **Process verifier**：过程是否满足 policy、权限、顺序、证据和审批要求。
 
 候选 Skill 不会自动进入生产版本，而要经过证据追踪、受限修改、held-out validation、task gate 和 compliance gate，最终被接受、拒绝或隔离。
 
@@ -36,7 +36,7 @@ Tool-using Agent 在完成任务时会产生完整轨迹，包括对话、推理
 | Level 0 | 理解并结构化 Agent 轨迹 | trajectory summary 与人工审计 |
 | Level 1 | 从少量轨迹生成候选 Skill | 可人工检查的 `SKILL.md` |
 | Level 2 | 在验证集上受控优化 Skill | bounded patch 与 accept/reject 记录 |
-| Level 3 | 引入过程治理 | 双 verifier、双 gate、provenance 与 rollback |
+| Level 3 | 引入过程治理 | Task/Process双verifier、双gate、provenance与rollback |
 
 第一阶段主要使用：
 
@@ -125,15 +125,20 @@ Tool-using Agent 在完成任务时会产生完整轨迹，包括对话、推理
 ├── CONTRIBUTING.md
 ├── docs/                  # 研究叙事、路线、论文地图、实验日志
 ├── external/              # 第三方仓库；默认不提交
+├── policies/              # 版本化Policy规则集与规则运行上下文
 ├── skills/                # 人工与自动生成的 Skill 版本
 ├── src/
 │   ├── adapters/          # 第三方环境的薄适配层
+│   ├── annotations/       # 语义规则标注Packet生成
+│   ├── policies/          # Policy与VerificationContext Schema
 │   ├── trajectory/        # 统一轨迹 schema 与转换
 │   ├── verifiers/         # task/process verifier
 │   └── skill_evolution/   # lesson、patch、gate 与 lineage
 ├── experiments/
+│   ├── annotations/       # Human Gold与语义judgments
 │   ├── configs/
 │   ├── manifests/
+│   ├── results/
 │   └── reports/
 └── tests/
 ```
@@ -153,6 +158,8 @@ Tool-using Agent 在完成任务时会产生完整轨迹，包括对话、推理
 
 ## 当前状态
 
-当前版本是研究起点，不是最终框架。近期唯一优先级是跑通公开环境、理解真实轨迹，并验证 success/compliance gap 是否稳定存在。
+当前已经完成τ³轨迹到统一`TrajectoryDataset`的转换、Task Verifier，以及能够统一运行5条Airline规则的通用Process Verifier。当前规则集包含3条确定性规则和2条语义规则，能够输出逐规则状态、违规step、证据和总体合规结论。
+
+这仍是研究原型，不是完整框架。现阶段只覆盖Task 5–14的10条轨迹和少量Airline Policy规则；下一阶段需要扩大规则覆盖和独立评估数据，并将Process Verifier正式接入Candidate Skill的validation gate。
 
 如果 H1/H2 无法成立，我们将依据证据转向可审计的 trajectory diagnosis 与 Skill provenance，而不是强行维持“违规传播”的论文叙事。
