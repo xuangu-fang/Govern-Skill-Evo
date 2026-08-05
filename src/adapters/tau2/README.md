@@ -1,6 +1,25 @@
-# τ³ Manual Skill Adapter
+# τ³ Adapter
 
-本目录保存让 τ³ Agent 读取项目内人工 Skill 的本地适配补丁。
+本目录负责将τ³接入本项目，包括轨迹格式转换和让Agent读取项目内人工Skill的本地适配补丁。
+
+## 文件说明
+
+| 文件 | 作用 |
+|---|---|
+| `tau2_to_common.py` | 将τ³ `results.json`直接转换为正式`TrajectoryDataset`。 |
+| `manual_skill_agent.patch` | 为外部τ³代码增加读取本地`SKILL.md`的Agent。 |
+
+## 转换轨迹
+
+从项目根目录运行：
+
+```bash
+python -m src.adapters.tau2.tau2_to_common \
+  --input path/to/results.json \
+  --output path/to/common_trajectories.json
+```
+
+转换器会保留原始payload，并使用`src/trajectory/schema.py`校验输出。新轨迹应直接使用该转换器，不需要再经过旧格式迁移脚本。
 
 ## 补丁内容
 

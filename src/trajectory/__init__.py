@@ -1,0 +1,1 @@
+"""Common trajectory data models and utilities."""
