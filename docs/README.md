@@ -6,7 +6,7 @@
 |---:|---|---|
 | 1 | [`00_README_FIRST.md`](00_README_FIRST.md) | 学生启动规则、前三天目标与安全底线 |
 | 2 | [`01_PROJECT_NARRATIVE.md`](01_PROJECT_NARRATIVE.md) | 核心研究问题、假设、边界与 Go / No-Go |
-| 3 | [`05_TAU_BENCH_POLICY_COMPLIANCE.md`](05_TAU_BENCH_POLICY_COMPLIANCE.md) | 区分 τ-bench policy、task reward 与 compliance verifier |
+| 3 | [`05_TAU_BENCH_POLICY_COMPLIANCE.md`](05_TAU_BENCH_POLICY_COMPLIANCE.md) | 区分τ-bench policy、task reward与Process Verifier |
 | 4 | [`02_HANDS_ON_TODO.md`](02_HANDS_ON_TODO.md) | 10 天研究型 POC 执行计划 |
 | 5 | [`03_PAPERS_AND_CODE_MAP.md`](03_PAPERS_AND_CODE_MAP.md) | 核心论文、代码仓库与阅读问题 |
 | 6 | [`04_EXPERIMENT_LOG.md`](04_EXPERIMENT_LOG.md) | 环境、实验、轨迹、Skill 修改与决策记录 |

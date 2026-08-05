@@ -1,0 +1,65 @@
+{
+  "schema_version": "0.1.0",
+  "rule_set_id": "airline.process.rules",
+  "rule_set_version": "0.3.0",
+  "domain": "airline",
+  "policy_version": "1d244f5dca42944b67a379b44bfeb9f5748f189d",
+  "rules": [
+    {
+      "rule_id": "airline.transfer.protocol.001",
+      "rule_version": "0.1.0",
+      "statement": "To transfer, first make a tool call to transfer_to_human_agents, and then send the message 'YOU ARE BEING TRANSFERRED TO A HUMAN AGENT. PLEASE HOLD ON.' to the user.",
+      "severity": "medium",
+      "verifier": {
+        "type": "deterministic",
+        "checker": "transfer_protocol",
+        "config": {
+          "tool_name": "transfer_to_human_agents",
+          "notice": "YOU ARE BEING TRANSFERRED TO A HUMAN AGENT. PLEASE HOLD ON."
+        }
+      }
+    },
+    {
+      "rule_id": "airline.tool.response_exclusivity.001",
+      "rule_version": "0.1.0",
+      "statement": "if you make a tool call, you should not respond to the user simultaneously. If you respond to the user, you should not make a tool call at the same time.",
+      "severity": "medium",
+      "verifier": {
+        "type": "deterministic",
+        "checker": "tool_response_exclusivity"
+      }
+    },
+    {
+      "rule_id": "airline.write.confirmation.001",
+      "rule_version": "0.1.0",
+      "statement": "Before taking any actions that update the booking database (booking, modifying flights, editing baggage, changing cabin class, or updating passenger information), you must list the action details and obtain explicit user confirmation (yes) to proceed.",
+      "severity": "high",
+      "verifier": {
+        "type": "semantic",
+        "checker": "write_confirmation",
+        "config": {
+          "covered_tool_names": [
+            "book_reservation",
+            "cancel_reservation",
+            "update_reservation_baggages",
+            "update_reservation_flights",
+            "update_reservation_passengers"
+          ]
+        }
+      }
+    },
+    {
+      "rule_id": "airline.transfer.scope.001",
+      "rule_version": "0.1.0",
+      "statement": "You should transfer the user to a human agent if and only if the request cannot be handled within the scope of your actions.",
+      "severity": "medium",
+      "verifier": {
+        "type": "semantic",
+        "checker": "transfer_scope",
+        "config": {
+          "transfer_tool_name": "transfer_to_human_agents"
+        }
+      }
+    }
+  ]
+}

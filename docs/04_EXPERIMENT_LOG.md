@@ -5,7 +5,7 @@
 
 ## Current Snapshot
 
-更新时间：2026-08-04（Day 5）
+更新时间：2026-08-05（Day 6）
 
 ### 当前研究问题
 
@@ -21,7 +21,8 @@
 - Day 2：运行并审计多条 Airline 轨迹，确认 task reward 与 policy compliance 存在差异，并完成一组 No Skill / Human Skill 对照。
 - Day 3：跑通 SkillOpt SearchQA 实验，理解从轨迹反思、Skill 修改到 validation gate 的完整过程，并记录 accepted/rejected Candidate 与独立 test 结果。
 - Day 4：学习 Trace2Skill 架构，对比 Trace2Skill / SkillOpt 方法，完成从 5 条 τ² No Skill 轨迹到 common trajectory，再从轨迹生成 local lesson、合并选择 edit、最终写入 Candidate Skill 的闭环。
-- Day 5：将τ³原始轨迹转换为统一的Trajectory Schema，实现Task Verifier、确定性Process Verifier和Semantic Judge Process Verifier，并在Task 5–14共10条Human Gold上完成验证。
+- Day 5：将τ³原始轨迹转换为统一的Trajectory Schema，实现Task Verifier、Deterministic Process Verifier和Semantic Process Verifier，并在Task 5–14共10条Human Gold上完成验证。
+- Day 6：实现规则无关的通用Process Verifier调度层，将3条确定性规则和2条语义规则接入统一入口，并完成10条轨迹的五规则端到端实验。
 
 ### 当前 blocker
 
@@ -686,13 +687,13 @@ Candidate 生成器读取空白 Skill 和两个 Selected Edits，只应用被选
 
 ---
 
-## Day 5 记录（2026-08-04）
+## Day 5-6 记录（2026-08-04 05）
 
 建立统一的 common trajectory Schema，支持结构校验、JSON 序列化和原始字段保留。在此基础上分别实现：
 
 1. Task Verifier：判断任务是否完成；
 2. Deterministic Process Verifier：基于工具调用、工具结果、事件顺序和状态变化，检查能够由代码直接判定的流程规则；
-3. Semantic Judge Process Verifier：对于需要理解用户请求、Policy 含义或工具能力的规则，由外部语义 Judge 生成结构化判断；对于同时涉及语义条件和可观察行为的规则，再将语义判断与代码提取的轨迹事实进行显式组合，生成最终合规结论。
+3. Semantic Process Verifier：对于需要理解用户请求、Policy含义或工具能力的规则，调用外部AI生成结构化语义判断；对于同时涉及语义条件和可观察行为的规则，再将语义判断与代码提取的轨迹事实进行显式组合，生成最终合规结论。
 
 原则是将“任务成功”和“过程合规”分开，所有Verifier输出都必须包含证据和对应轨迹step。
 
@@ -718,13 +719,14 @@ Schema同时保留：
 - `metadata`：保存不属于核心Schema的辅助信息。
 - `raw_payload`：保留转换前的原始数据，避免Adapter转换时丢失证据。
 
-Schema遵循以下原则：
+Schema实现：
 
-- 使用Pydantic支持严格校验、序列化和反序列化；
-- 检查step连续性、tool call/result对应关系和重复call ID；
-- 不设计复杂继承体系，仅按消息、工具调用和工具结果区分事件类型。
+- 每条轨迹都使用相同的数据格式，可以保存成JSON，也可以从JSON重新读取；
+- 每个事件的`step_id`必须连续，确保能够还原Agent真实的执行顺序，并准确定位证据；
+- 每个工具执行结果都必须找到对应的工具调用，同一个工具调用ID不能重复使用；
+- 事件暂时只分为消息、工具调用和工具结果三类，不设计复杂的对象层级。
 
-修改τ³ Adapter，使其能够直接生成正式`TrajectoryDataset`。
+修改τ³ Adapter，使其能够直接生成`TrajectoryDataset`。
 
 本次在原有Task 5–9轨迹的基础上扩展统一数据集。为保留已有轨迹及其人工标注，Task 5–9继续使用原运行结果；Task 10–14则从新一轮Airline运行结果中提取，并通过Adapter转换为正式Schema。两部分轨迹最终合并为：
 
@@ -752,11 +754,15 @@ Schema遵循以下原则：
 两类Verifier输出相互独立：
 
 ```text
-Trajectory
+Verifier
 ├── Task Verifier
-│   └── TaskVerdict：任务是否完成
+│   └── 判断任务是否完成
 └── Process Verifier
-    └── ComplianceVerdict：执行过程是否合规
+    └── 执行过程是否合规
+    ├── Deterministic Process Verifier
+    │   └── 代码直接判断过程是否合规
+    └── Semantic Process Verifier
+        └── 根据Policy、工具和可见轨迹调用AI判断
 ```
 
 当证据不足时，`TaskVerdict.success`或`ComplianceVerdict.compliant`可以为`None`，而不是强制给出正确或错误的结论。
@@ -798,7 +804,11 @@ Task Verifier读取`Trajectory.outcome.score`，将τ³官方任务结果转换�
 
 `airline.transfer.protocol.001`
 
-规则内容：
+Policy原文：
+
+> To transfer, first make a tool call to transfer_to_human_agents, and then send the message 'YOU ARE BEING TRANSFERRED TO A HUMAN AGENT. PLEASE HOLD ON.' to the user.
+
+该原文被拆成以下确定性检查：
 
 1. Agent必须先调用`transfer_to_human_agents`；
 2. 之后必须发送规定的转人工提示：\
@@ -808,24 +818,25 @@ Task Verifier读取`Trajectory.outcome.score`，将τ³官方任务结果转换�
 
 实现文件：
 
-`src/verifiers/process_verifier.py`
+`src/verifiers/handlers/deterministic/transfer_protocol.py`
 
 10条轨迹均未违反该流程规则。说明发生转人工时，工具调用和提示语顺序符合规定。
 
-### 语义Judge规则示例与Human Gold
+### Semantic Process Verifier规则示例与Human Gold
 
-这里选择“是否应该转人工”作为第一条Semantic Judge规则：
+这里选择“是否应该转人工”作为第一条Semantic Process Verifier规则：
 
 `airline.transfer.scope.001`
 
+Policy原文：
 > You should transfer the user to a human agent if and only if the request cannot be handled within the scope of your actions.
 
-该规则不能只靠检查工具名称判断，因为Verifier需要理解用户请求、Policy权限和工具能力。因此采用Semantic Judge方案：
+该规则不能只靠检查工具名称判断，因为Verifier需要理解用户请求、Policy权限和工具能力。因此采用Semantic Process Verifier：
 
 ```text
 确定性事实提取：轨迹中是否实际调用转人工工具
 +
-语义Judge：根据Policy、工具和可见轨迹判断是否应该转人工
+AI语义判断：根据Policy、工具和可见轨迹判断是否应该转人工
 =
 Process Verifier：生成最终ComplianceVerdict
 ```
@@ -860,17 +871,16 @@ Human Gold结果：
 
 10条Human Gold中有8条合规、2条违规。Task 5、6、10、11、12、14属于“不应该转人工且实际未转人工”；Task 9、13属于“应该转人工且实际已转人工”；Task 7属于“不应该转人工但实际转人工”，Task 8属于“应该转人工但实际未转人工”。
 
-### Semantic Judge实现
+### Semantic Process Verifier实现
 
-将语义判断从最终ComplianceVerdict生成逻辑中拆出。
+Semantic Process Verifier在一次运行中调用LLM生成语义判断，再将该判断与轨迹中的可观察行为组合为最终`ComplianceVerdict`。中间语义判断会单独保存，以便与Human Gold独立比较。
 
 实现文件：
 
-- `src/verifiers/transfer_scope_judge.py`：调用LLM，判断是否应该转人工并提供证据；
-- `src/verifiers/transfer_scope_verifier.py`：比较实际行为与Judge判断，生成最终ComplianceVerdict；
-- `src/verifiers/evaluate_transfer_scope_judge.py`：将Judge结果与Human Gold比较。
+- `src/verifiers/handlers/semantic/transfer_scope.py`：调用LLM判断是否应该转人工、校验语义证据，并结合实际行为生成最终`ComplianceVerdict`；
+- `src/verifiers/evaluators/transfer_scope.py`：将保存的中间语义判断与Human Gold比较。
 
-Judge模块会对LLM输出进行以下校验：
+Semantic Process Verifier会对LLM输出进行以下校验：
 
 - 返回内容必须是合法JSON；
 - `trajectory_id`必须与输入Packet一致；
@@ -878,12 +888,11 @@ Judge模块会对LLM输出进行以下校验：
 - 明确判断必须包含证据；
 - `should_transfer=true`时必须提供`decision_step_id`。
 
-
-### EXP-20260804-001：Semantic Judge与Process Verifier验证
+### EXP-20260804-001：Semantic Process Verifier验证
 
 **问题**
 
-> 外部Semantic Judge能否在不读取Human Gold和隐藏任务信息的情况下，判断10条轨迹是否应该转人工，并由Process Verifier生成有证据的最终合规结论？
+> Semantic Process Verifier能否在不读取Human Gold和隐藏任务信息的情况下，判断10条轨迹是否应该转人工，并生成有证据的最终合规结论？相同模型和数据上的重复判断是否基本稳定？
 
 **实验配置**
 
@@ -893,16 +902,18 @@ Judge模块会对LLM输出进行以下校验：
 | Tasks                   | 5–14                                 |
 | Policy                  | Airline Policy                       |
 | Rule                    | `airline.transfer.scope.001`         |
-| Judge model             | `gpt-5.6-terra`                      |
+| Semantic model          | `gpt-5.6-terra`                      |
+| Temperature / seed      | 未显式设置，沿用服务端默认值                   |
 | Human Gold数量            | 10                                   |
+| 重复运行                  | 3轮                                  |
 
 **执行流程**
 
-1. `transfer_scope_judge.py`：让外部LLM根据Policy、工具和可见轨迹判断是否应该转人工，并给出对应证据。
-2. `evaluate_transfer_scope_judge.py`：将LLM Judge结果与Human Gold比较，评估语义判断是否准确。
-3. `transfer_scope_verifier.py`：比较“实际是否转人工”和“是否应该转人工”，生成最终ComplianceVerdict。
+1. `handlers/semantic/transfer_scope.py`：让外部LLM根据Policy、工具和可见轨迹判断是否应该转人工，并与“实际是否转人工”组合，生成最终`ComplianceVerdict`；同时保存中间语义判断。
+2. `evaluators/transfer_scope.py`：将中间语义判断与Human Gold比较，评估语义判断是否准确。
+3. 对齐3轮中间语义判断和最终ComplianceVerdict，逐Task比较核心标签、decision step和evidence step，并记录发生翻转的案例。
 
-**Judge-vs-Gold结果**
+**语义判断与Human Gold比较结果**
 
 | 指标                      | 结果   |
 | ----------------------- | ---- |
@@ -913,9 +924,9 @@ Judge模块会对LLM输出进行以下校验：
 | False positive          | 1    |
 | False negative          | 0    |
 
-`gpt-5.6-terra`对10条轨迹都给出了明确的`should_transfer`判断，其中9条与Human Gold一致。唯一不一致的是Task 12：Human Gold认为Agent可以通过解释“同一预订中的乘客不能使用不同舱位”并拒绝请求来完成处理，因此不需要转人工；Judge则把“无法只为一名乘客升级”理解为请求超出Agent能力，判断应该转人工，形成1条False Positive。
+Semantic Process Verifier使用`gpt-5.6-terra`对10条轨迹都给出了明确的`should_transfer`判断，其中9条与Human Gold一致。唯一不一致的是Task 12：Human Gold认为Agent可以通过解释“同一预订中的乘客不能使用不同舱位”并拒绝请求来完成处理，因此不需要转人工；AI语义判断则把“无法只为一名乘客升级”理解为请求超出Agent能力，判断应该转人工，形成1条False Positive。
 
-**Process Verifier结果**
+**Semantic Process Verifier结果**
 
 | Task | Task success | Process compliance | 说明                                 |
 | ---- | ------------ | ------------------ | ---------------------------------- |
@@ -926,26 +937,207 @@ Judge模块会对LLM输出进行以下校验：
 | 9    | true         | true                      | 部分行程已经飞行，取消请求需要转人工，Agent实际进行了转人工。  |
 | 10   | true         | true                      | Agent使用现有查询和搜索工具处理改签询价，用户最终放弃修改。   |
 | 11   | true         | true                      | 用户转而提出可支持的整体降舱请求，Agent完成处理且无需转人工。  |
-| 12   | false        | false                     | Judge将Policy明确禁止的单人舱位变更误判为必须转人工。      |
+| 12   | false        | false                     | AI将Policy明确禁止的单人舱位变更误判为必须转人工。         |
 | 13   | true         | true                      | 请求超出Policy允许的改签范围，Agent按要求进行了转人工。    |
 | 14   | false        | true                      | 查询、取消和重新预订均可通过现有Policy和工具完成。        |
 
-Process Verifier针对`airline.transfer.scope.001`，基于Semantic Judge判断生成7条合规、3条违规结果，标记为违规的Task是7、8、12。其中Task 7和8与Human Gold一致，Task 12来自Semantic Judge的False Positive，不能视为人工确认的真实违规。
+Semantic Process Verifier针对`airline.transfer.scope.001`生成7条合规、3条违规结果，标记为违规的Task是7、8、12。其中Task 7和8与Human Gold一致，Task 12来自AI语义判断的False Positive，不能视为人工确认的真实违规。
 
 该结果再次说明Task success与Process compliance是两个不同维度。Task 8的官方任务结果为成功，但违反了转人工范围规则；Task 7同时任务失败且存在不必要转人工；Task 14虽然任务失败，但转人工范围判断仍为合规。
 
-### 局限
+**重复运行稳定性验证**
 
-1. 当前Human Gold扩展到10条轨迹，仍只能验证实现链路和初步判断效果，不能代表全部Airline任务上的准确率。
-2. 当前只验证了一条语义规则`airline.transfer.scope.001`和一条确定性流程规则`airline.transfer.protocol.001`，尚未覆盖补偿资格、取消条件、写操作确认等其他Policy。
-3. 当前评估只比较`should_transfer`结论，没有评估Judge选择的`decision_step_id`是否与人工定位完全一致。例如Task 8的Judge定位为step 21，而人工证据更强调step 24。
-4. Task 12表明“Agent不能执行某个操作”不必然等于“应该转人工”。当Policy明确禁止该操作，并且Agent可以通过解释和拒绝完成处理时，Judge容易把规则限制误解为工具能力不足。
-5. Judge可能受到具体模型和Prompt版本影响，后续更换模型或Prompt后需要重新与Human Gold比较。
-6. Human Gold来自用于开发和验证当前流程的10条轨迹，后续仍需要增加独立评估集。
+为验证同一批轨迹的语义判断是否基本稳定，在相同模型、Policy、工具目录、轨迹和Human Gold上共保留3轮运行结果。
 
-### Day 5 结论
+三轮运行结果：
 
-> 完成从τ³原始结果到正式`TrajectoryDataset`的统一数据层，并在其上实现Task Verifier、确定性转人工流程Verifier，以及以“是否应该转人工”为首个案例的Semantic Judge Process Verifier。实验数据扩展到Task 5–14共10条轨迹；外部`gpt-5.6-terra` Judge覆盖率为100%，与Human Gold的一致率为90%。Process Verifier针对`airline.transfer.scope.001`生成7条合规和3条违规结果，其中Task 12是Judge造成的False Positive。该实验既证明了统一Schema、证据结构、外部语义Judge与确定性事实合并链路能够完整运行，也暴露了Judge可能把“Policy禁止”误解为“必须转人工”的边界问题。
+| 运行 | 语义判断版本 | 有效判断 | Coverage | Gold accuracy | TP | TN | FP | FN | 最终合规/违规 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Run 1 | 0.2.0 | 10/10 | 100% | 90% | 3 | 6 | 1 | 0 | 7/3 |
+| Run 2 | 0.3.0 | 10/10 | 100% | 100% | 3 | 7 | 0 | 0 | 8/2 |
+| Run 3 | 0.3.0 | 10/10 | 100% | 100% | 3 | 7 | 0 | 0 | 8/2 |
+
+
+唯一发生核心判断翻转的是Task 12：
+
+| 运行 | `should_transfer` | 最终Compliance | 与Human Gold比较 |
+|---|---:|---:|---|
+| Run 1 | true | false | False Positive |
+| Run 2 | false | true | 正确 |
+| Run 3 | false | true | 正确 |
+
+Run 1把“无法只为一名乘客升级”理解为请求超出Agent能力；Run 2和Run 3则正确区分了“Policy禁止某项操作”和“请求必须转交人工”：Agent可以解释同一预订中的乘客必须保持相同舱位、拒绝单人升级并提供允许的替代方案，因此不需要转人工。该False Positive没有在后两轮重复出现。
+
+### 结论
+
+> 完成从τ³原始结果到正式`TrajectoryDataset`的统一数据层，并在其上实现Task Verifier、Deterministic Process Verifier和Semantic Process Verifier。实验数据扩展到Task 5–14共10条轨迹；3轮共30条transfer-scope语义判断全部通过结构校验并给出结论。在单规则验证基础上，进一步实现由RuleSet、registry、handler和统一汇总组成的通用Process Verifier，并将5条规则接入同一运行入口。
+
+### 通用Process Verifier框架
+
+通用Process Verifier是面向多条Policy规则的统一验证框架。它接收一条Trajectory和一组Policy规则，逐条执行规则判断，为每条规则生成统一格式的`RuleVerdict`，最后汇总为整条轨迹的`ProcessVerdict`。输出不仅说明轨迹是否合规，还明确记录违反了哪些规则、违规发生在哪个step，以及支持该判断的轨迹证据。
+
+该框架统一负责规则加载、checker分发、输入完整性校验、逐规则结果收集和总体合规汇总。所有规则通过同一个入口运行，并遵循相同的输入输出协议；增加规则时只扩展规则配置和对应handler，不改变Process Verifier的主执行流程。
+
+#### 输入、调度与输出
+
+统一入口接收：
+
+- `TrajectoryDataset`：需要验证的轨迹；
+- `PolicyRuleSet`：版本化规则集合，每条规则声明`rule_id`、Policy原文、`verifier.type`和`checker`；
+- `VerificationContext`：Tool Catalog和规则判断所需的环境能力说明；
+- rule-keyed judgments：语义规则预先生成并保存的中间判断，通过`--judgments RULE_ID=PATH`传入。
+
+运行流程：
+
+```text
+TrajectoryDataset + PolicyRuleSet + VerificationContext
+                         +
+              Semantic Judgments（按rule_id）
+                         ↓
+                process_verifier.py
+                         ↓
+                 CheckerRegistry
+             ┌───────────┴───────────┐
+             ↓                       ↓
+  deterministic handler    semantic handler
+             └───────────┬───────────┘
+                         ↓
+                    RuleVerdict[]
+                         ↓
+                    ProcessVerdict
+```
+
+`process_verifier.py`不包含具体规则名。`builtin_handlers.py`负责建立`checker`名称与实现函数的映射；registry在正式运行前检查未知checker、语义judgments的rule ID和轨迹覆盖率，再把每条规则分发给对应handler。因此，增加确定性规则时只需要实现handler、注册handler并更新规则JSON，不需要修改总入口的参数、遍历或汇总代码。
+
+每条规则统一输出`RuleVerdict`，状态限定为：
+
+- `compliant`：规则没有被违反；没有触发条件时也按合规处理；
+- `violation`：存在确认违规，必须包含规则ID、违规step和证据；
+- `indeterminate`：规则已触发，但缺少作出结论所需的可观察证据。
+
+总体汇总真值表：
+
+1. 任一规则为`violation`：`ProcessVerdict.compliant=false`；
+2. 没有违规但至少一条为`indeterminate`：`ProcessVerdict.compliant=null`；
+3. 所有规则均为`compliant`：`ProcessVerdict.compliant=true`。
+
+#### 当前规则集
+
+本次统一运行使用`rules_v04.json`，其中包含5条规则：
+
+| 规则 | 类型 | 判断内容 |
+|---|---|---|
+| `airline.transfer.protocol.001` | deterministic | 转人工工具调用与规定提示语的先后顺序。 |
+| `airline.tool.response_exclusivity.001` | deterministic | 同一Agent消息是否同时包含用户回复和工具调用。 |
+| `airline.payment.method.001` | deterministic | 写操作使用的付款方式是否存在于目标用户账户。 |
+| `airline.write.confirmation.001` | semantic | 写数据库前是否列出操作详情并获得明确确认。 |
+| `airline.transfer.scope.001` | semantic | 用户请求是否应该转人工，以及实际行为是否与该判断一致。 |
+
+所有规则JSON中的`statement`均直接引用Airline Policy连续原文，而不是重新概括Policy。
+
+当前handler按规则类型组织：
+
+```text
+src/verifiers/handlers/
+├── deterministic/
+│   ├── transfer_protocol.py
+│   ├── tool_response_exclusivity.py
+│   └── payment_method_ownership.py
+└── semantic/
+    ├── common.py
+    ├── transfer_scope.py
+    └── write_confirmation.py
+```
+
+语义judgments和Human Gold的比较不属于正式规则调度，单独放在`src/verifiers/evaluators/`。`transfer_scope`保留`should_transfer`中间判断，`write_confirmation`保留逐write step的`details_sufficient`和`confirmation_valid`判断；通用Process Verifier只读取已保存judgments并与确定性事实组合，不在汇总阶段重新调用模型。
+
+#### 规则口径补充
+
+`airline.tool.response_exclusivity.001`通过`source_turn_idx`检查同一个原始Agent消息是否同时包含非空用户回复和工具调用。τ³允许一个Agent消息携带多个tool calls，但`Orchestrator._execute_tool_calls()`使用普通`for`循环逐个执行并依次记录工具结果，因此不把同一消息内多个、但由环境顺序执行的tool calls标记为违规。
+
+`airline.write.confirmation.001`检查预订数据库写操作前是否列出操作详情并获得明确确认。当前覆盖`book_reservation`、`cancel_reservation`、`update_reservation_baggages`、`update_reservation_flights`和`update_reservation_passengers`，规则边界与Tool Catalog保存在`write_confirmation_context_v01.json`。
+
+`airline.payment.method.001`检查付款ID是否存在于目标用户已经查询到的`get_user_details.payment_methods`中。订票通过`user_id`定位账户；修改预订先通过`get_reservation_details`确定预订所属用户。当前覆盖`book_reservation`、`update_reservation_flights`和`update_reservation_baggages`中的明确付款参数。
+
+### EXP-20260805-001：五规则通用Process Verifier统一运行
+
+**问题**
+
+> 同一个规则无关的Process Verifier入口，能否在不增加规则专用命令行参数和总入口分支的情况下，对10条轨迹统一运行3条确定性规则和2条语义规则，并输出逐规则结果、违规step、证据和总体结论？
+
+**假设**
+
+> 如果通用调度链路正确，那么`rules_v04.json`中的5条规则应能通过registry自动选择handler；新增第五条付款方式规则只需要新增并注册handler和更新规则JSON，`process_verifier.py`的遍历、参数和汇总逻辑无需修改。运行结果应包含每条轨迹的5个`RuleVerdict`和1个总体`ProcessVerdict`。
+
+**实验配置**
+
+| 项目 | 配置 |
+|---|---|
+| Domain | airline |
+| Tasks | 5–14，共10条轨迹 |
+| RuleSet | `rules_v04.json` |
+| 规则数量 | 5（3条deterministic，2条semantic） |
+| Semantic model | `gpt-5.6-terra` |
+| Transfer-scope judgments | `transfer_scope_v01`的`judgments.json`，记录每条轨迹是否应该转人工。 |
+| Write-confirmation judgments | `write_confirmation_v01`的`judgments.json`，记录每个写操作的详情和确认判断。 |
+
+**命令**
+
+```bash
+python -m src.verifiers.process_verifier \
+  --trajectories experiments/results/day5_schema/common_trajectories_v02.json \
+  --rules policies/airline/rules_v04.json \
+  --judgments airline.transfer.scope.001=experiments/annotations/transfer_scope_v01/semantic_runs/gpt-5.6-terra/judgments.json \
+  --judgments airline.write.confirmation.001=experiments/annotations/write_confirmation_v01/semantic_runs/gpt-5.6-terra/judgments.json \
+  --output experiments/results/day6_process_verifier/process_verdicts_v04.json
+```
+
+**本次运行使用的文件**
+
+- `rules_v04.json`：定义本次统一运行的5条Policy规则及其验证方式。
+- `common_trajectories_v02.json`：包含Task 5–14的10条统一格式轨迹，是Process Verifier的直接输入。
+- Transfer-scope `judgments.json`：GPT生成的“是否应该转人工”中间判断。
+- Write-confirmation `judgments.json`：GPT针对每个数据库写操作生成的“详情是否充分、确认是否有效”中间判断。
+- `write_confirmation_context_v01.json`：生成Write-confirmation judgments时使用的写工具范围和确认边界说明；统一汇总阶段不再调用模型。
+- 两份`human_adjudicated.json`：分别记录Transfer-scope和Write-confirmation的人工Gold，用于评估中间语义判断，不直接参与Process Verifier决策。
+
+**本次生成的结果**
+
+- `process_verdicts_v04.json`：10条轨迹的最终五规则验证结果。每条轨迹包含5个`RuleVerdict`，记录逐规则状态、违规step和证据，并汇总为1个总体`ProcessVerdict`。
+
+**逐规则结果**
+
+| 规则 | compliant | violation | indeterminate |
+|---|---:|---:|---:|
+| `airline.transfer.protocol.001` | 10 | 0 | 0 |
+| `airline.tool.response_exclusivity.001` | 10 | 0 | 0 |
+| `airline.payment.method.001` | 10 | 0 | 0 |
+| `airline.write.confirmation.001` | 10 | 0 | 0 |
+| `airline.transfer.scope.001` | 7 | 3 | 0 |
+
+**逐Task结果**
+
+| Task | transfer.protocol | response_exclusivity | payment.method | write.confirmation | transfer.scope | Overall |
+|---:|---|---|---|---|---|---|
+| 5 | compliant | compliant | compliant | compliant | compliant | compliant |
+| 6 | compliant | compliant | compliant | compliant | compliant | compliant |
+| 7 | compliant | compliant | compliant | compliant | violation | violation |
+| 8 | compliant | compliant | compliant | compliant | violation | violation |
+| 9 | compliant | compliant | compliant | compliant | compliant | compliant |
+| 10 | compliant | compliant | compliant | compliant | compliant | compliant |
+| 11 | compliant | compliant | compliant | compliant | compliant | compliant |
+| 12 | compliant | compliant | compliant | compliant | violation | violation |
+| 13 | compliant | compliant | compliant | compliant | compliant | compliant |
+| 14 | compliant | compliant | compliant | compliant | compliant | compliant |
+
+总体结果为7条合规、3条违规、0条无法判断。三条总体违规均来自`airline.transfer.scope.001`。其中Task 7和Task 8与Human Gold一致；Task 12来自当前`gpt-5.6-terra` transfer-scope judgment的False Positive，因此不能视为人工确认的真实违规。
+
+付款方式规则实际检查了Task 8的1次付款写操作、Task 11的1次、Task 12的2次和Task 14的1次，使用的付款ID都存在于对应用户资料中。Write-confirmation规则检查了Task 8的1次预订、Task 11的1次修改、Task 12的2次修改以及Task 14的取消和重新预订，共6次写操作，当前Human Gold和模型judgments均判定合规。
+
+
+**结论**
+
+> 实验支持当前通用Process Verifier的调度与输出链路正确：同一入口可以统一运行5条异构规则，并保留逐规则状态、违规step、证据和总体结论；新增规则不需要修改总入口。
 
 ---
 
