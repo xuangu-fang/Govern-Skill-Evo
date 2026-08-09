@@ -7,9 +7,10 @@
 | 目录 | 作用 |
 |---|---|
 | `adapters/` | 将外部系统的数据和运行方式接入本项目。`tau2/`中包含τ³结果到统一轨迹的转换器，以及本地 Skill Agent 补丁。 |
-| `annotations/` | 从统一轨迹生成供人工审核或Semantic Judge使用的标注Packet。 |
+| `annotations/` | 从统一轨迹生成供人工审核或Semantic Process Verifier使用的标注Packet。 |
+| `policies/` | 定义版本化Policy规则集和Verifier运行上下文。 |
 | `trajectory/` | 定义统一Trajectory Schema，并保存旧格式迁移脚本。 |
-| `verifiers/` | 保存Task Verifier、确定性Process Verifier、Semantic Judge及合规结果生成逻辑。 |
+| `verifiers/` | 保存Task Verifier、Deterministic Process Verifier、Semantic Process Verifier及公共输出结构。 |
 | `learners/` | 保存从轨迹中提炼经验和候选Skill的学习流程。当前主要是Day 4的Trace2Skill-style实现。 |
 | `skill_evolution/` | 预留给后续Skill选择、更新、门控和回滚逻辑。 |
 
@@ -22,16 +23,20 @@
 TrajectoryDataset
     ├──→ verifiers/task_verifier.py
     │       └── TaskVerdictDataset
-    ├──→ verifiers/process_verifier.py
-    │       └── 确定性ComplianceVerdictDataset
-    └──→ annotations/build_transfer_scope_packets.py
-            ↓
-        Annotation Packets
-            ↓
-        Semantic Judge
-            ↓
-        Process Verifier
-            └── ComplianceVerdictDataset
+    ├──→ annotations/build_transfer_scope_packets.py
+    │       ↓ Annotation Packets
+    │   Semantic rule handler
+    │       └── Saved judgments
+    │
+    └──→ Process Verifier输入
+
+TrajectoryDataset + PolicyRuleSet + VerificationContext + Saved judgments
+    ↓ verifiers/process_verifier.py
+CheckerRegistry
+    ├── Deterministic handlers
+    └── Semantic handlers
+    ↓
+ProcessVerdictDataset
 ```
 
 ## 使用约定

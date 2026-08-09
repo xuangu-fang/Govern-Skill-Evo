@@ -68,6 +68,67 @@ class Violation(StrictModel):
     evidence: list[SchemaEvidence] = Field(default_factory=list)
 
 
+RuleStatus = Literal[
+    "compliant",
+    "violation",
+    "indeterminate",
+]
+
+
+class RuleVerdict(StrictModel):
+    """Result of checking one trajectory against one policy rule."""
+
+    trajectory_id: str = Field(min_length=1)
+    rule_id: str = Field(min_length=1)
+    rule_version: str | None = None
+    verifier_type: Literal["deterministic", "semantic"]
+    status: RuleStatus
+    violations: list[Violation] = Field(default_factory=list)
+    evidence: list[SchemaEvidence] = Field(default_factory=list)
+    rationale: str | None = None
+
+    @model_validator(mode="after")
+    def validate_rule_verdict_consistency(self) -> "RuleVerdict":
+        """Keep status, rule identity, and evidence internally consistent."""
+        if self.status == "violation" and not self.violations:
+            raise ValueError(
+                "a violation rule verdict must contain at least one violation"
+            )
+
+        if self.status != "violation" and self.violations:
+            raise ValueError(
+                "only a violation rule verdict may contain violations"
+            )
+
+        for violation in self.violations:
+            if violation.rule_id != self.rule_id:
+                raise ValueError(
+                    "rule verdict and violation rule_id values must match"
+                )
+            if violation.rule_version != self.rule_version:
+                raise ValueError(
+                    "rule verdict and violation rule_version values must match"
+                )
+
+        evidence = [
+            *self.evidence,
+            *[
+                item
+                for violation in self.violations
+                for item in violation.evidence
+            ],
+        ]
+        if any(
+            item.trajectory_id != self.trajectory_id
+            for item in evidence
+        ):
+            raise ValueError(
+                "rule verdict evidence must belong to its trajectory"
+            )
+
+        return self
+
+
 class TaskVerdict(StrictModel):
     """Task-success judgment produced by a task verifier."""
 
@@ -112,6 +173,54 @@ class ComplianceVerdict(StrictModel):
         return self
 
 
+class ProcessVerdict(ComplianceVerdict):
+    """Overall compliance plus the result of every checked rule."""
+
+    rule_verdicts: list[RuleVerdict] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def validate_rule_aggregation(self) -> "ProcessVerdict":
+        """Ensure the overall result is derived from its rule verdicts."""
+        if any(
+            item.trajectory_id != self.trajectory_id
+            for item in self.rule_verdicts
+        ):
+            raise ValueError(
+                "all rule verdicts must belong to the overall trajectory"
+            )
+
+        rule_ids = [item.rule_id for item in self.rule_verdicts]
+        if len(set(rule_ids)) != len(rule_ids):
+            raise ValueError("duplicate rule_id in process verdict")
+
+        if any(item.status == "violation" for item in self.rule_verdicts):
+            expected_compliant: bool | None = False
+        elif any(
+            item.status == "indeterminate"
+            for item in self.rule_verdicts
+        ):
+            expected_compliant = None
+        else:
+            expected_compliant = True
+
+        if self.compliant != expected_compliant:
+            raise ValueError(
+                "overall compliance does not match rule verdict statuses"
+            )
+
+        expected_violations = [
+            violation
+            for item in self.rule_verdicts
+            for violation in item.violations
+        ]
+        if self.violations != expected_violations:
+            raise ValueError(
+                "overall violations must flatten rule verdict violations"
+            )
+
+        return self
+
+
 class TaskVerdictDataset(StrictModel):
     """Output collection from one task-verifier version."""
 
@@ -132,3 +241,16 @@ class ComplianceVerdictDataset(StrictModel):
     verifier_version: str = Field(min_length=1)
 
     verdicts: list[ComplianceVerdict]
+
+
+class ProcessVerdictDataset(StrictModel):
+    """Multi-rule process-verification output for one rule set."""
+
+    schema_version: Literal["0.1.0"] = VERDICT_SCHEMA_VERSION
+
+    verifier_name: str = Field(min_length=1)
+    verifier_version: str = Field(min_length=1)
+    rule_set_id: str = Field(min_length=1)
+    rule_set_version: str = Field(min_length=1)
+
+    verdicts: list[ProcessVerdict]
