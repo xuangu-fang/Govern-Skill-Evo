@@ -222,7 +222,7 @@ def build_semantic_input(
     rule: PolicyRule,
     context: VerificationContext,
 ) -> dict[str, Any]:
-    """Build a leakage-controlled packet for one trajectory and rule."""
+    """Build a leakage-controlled input for one trajectory and rule."""
     write_calls = find_covered_write_calls(trajectory, rule)
     return {
         "trajectory_id": trajectory.trajectory_id,
