@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from src.policies.schema import PolicyRule, PolicyRuleSet, VerificationContext
 from src.trajectory.schema import (
     EnvironmentRef,
     MessageEvent,
@@ -19,8 +20,9 @@ from src.verifiers.handlers.semantic.transfer_scope import (
     JUDGMENT_VERSION,
     TransferScopeJudgment,
     TransferScopeJudgmentDataset,
+    build_semantic_input,
     build_prompts,
-    evaluate_packet_semantics,
+    evaluate_trajectory_semantics,
     parse_model_output,
     run_transfer_scope_verifier,
     verify_dataset,
@@ -29,40 +31,33 @@ from src.verifiers.handlers.semantic.transfer_scope import (
 )
 
 
-def make_packet(*, trajectory_id: str = "trajectory-1") -> dict:
-    """Build a minimal leakage-controlled semantic packet."""
-    return {
-        "packet_version": "0.1.0",
-        "trajectory_id": trajectory_id,
-        "task_id": "5",
-        "domain": "airline",
-        "policy_version": "policy-1",
-        "rule": {
-            "rule_id": "airline.transfer.scope.001",
-            "policy_statement": (
-                "Transfer if and only if the request cannot be handled."
-            ),
-        },
-        "policy_text": "The agent may answer this request.",
-        "tool_catalog": [{"name": "lookup", "kind": "read"}],
-        "visible_trajectory": [
-            {
-                "step_id": 0,
-                "actor": "user",
-                "event_type": "message",
-                "content": "Please help me.",
-            },
-            {
-                "step_id": 1,
-                "actor": "agent",
-                "event_type": "message",
-                "content": "I can handle that.",
-            },
-        ],
-        "excluded_information": ["task reward"],
-        "reward": "SECRET_REWARD_MUST_NOT_REACH_MODEL",
-        "reference_answer": "SECRET_REFERENCE_MUST_NOT_REACH_MODEL",
-    }
+def root_path() -> Path:
+    """Return the repository root used by versioned policy fixtures."""
+    return Path(__file__).resolve().parents[4]
+
+
+def transfer_rule() -> PolicyRule:
+    """Load the configured transfer-scope rule."""
+    rule_set = PolicyRuleSet.model_validate_json(
+        (root_path() / "policies/airline/rules_v04.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    return next(
+        rule
+        for rule in rule_set.rules
+        if rule.rule_id == "airline.transfer.scope.001"
+    )
+
+
+def transfer_context() -> VerificationContext:
+    """Load the versioned Airline policy and tool catalog."""
+    return VerificationContext.model_validate_json(
+        (
+            root_path()
+            / "policies/airline/transfer_scope_context_v01.json"
+        ).read_text(encoding="utf-8")
+    )
 
 
 def model_response(
@@ -78,7 +73,7 @@ def model_response(
             "trajectory_id": trajectory_id,
             "should_transfer": should_transfer,
             "decision_step_id": decision_step_id,
-            "evidence_step_ids": evidence_step_ids or [1],
+            "evidence_step_ids": evidence_step_ids or [0],
             "rationale": "The visible request remains within scope.",
         }
     )
@@ -112,6 +107,10 @@ def semantic_trajectory(*, transferred: bool) -> Trajectory:
         task_id="1",
         events=events,
         outcome=TaskOutcome(score=None),
+        raw_payload={
+            "reward": "SECRET_REWARD_MUST_NOT_REACH_MODEL",
+            "reference_answer": "SECRET_REFERENCE_MUST_NOT_REACH_MODEL",
+        },
     )
 
 
@@ -126,12 +125,24 @@ def judgment(should_transfer: bool | None) -> TransferScopeJudgment:
     )
 
 
-def test_prompt_uses_only_allowed_packet_fields() -> None:
+def test_prompt_uses_only_leakage_controlled_input() -> None:
     """Reward and reference answers must not leak into the model prompt."""
-    system_prompt, user_prompt = build_prompts(make_packet())
+    item = semantic_trajectory(transferred=False)
+    semantic_input = build_semantic_input(
+        item,
+        transfer_rule(),
+        transfer_context(),
+    )
+    system_prompt, user_prompt = build_prompts(
+        item,
+        transfer_rule(),
+        transfer_context(),
+    )
 
     assert "should_transfer" in system_prompt
     assert "visible_trajectory" in user_prompt
+    assert semantic_input["trajectory_id"] == item.trajectory_id
+    assert semantic_input["policy_version"] == item.policy_version
     assert "SECRET_REWARD_MUST_NOT_REACH_MODEL" not in user_prompt
     assert "SECRET_REFERENCE_MUST_NOT_REACH_MODEL" not in user_prompt
 
@@ -142,7 +153,7 @@ def test_parse_model_output_requires_json_object() -> None:
         parse_model_output("```json\n{}\n```")
 
 
-def test_packet_evaluation_uses_injected_model_without_network() -> None:
+def test_trajectory_evaluation_uses_injected_model_without_network() -> None:
     """Semantic verification accepts an injected fake model caller."""
     calls: list[tuple[str, str]] = []
 
@@ -150,30 +161,39 @@ def test_packet_evaluation_uses_injected_model_without_network() -> None:
         calls.append((system_prompt, user_prompt))
         return model_response()
 
-    result = evaluate_packet_semantics(make_packet(), fake_model)
+    result = evaluate_trajectory_semantics(
+        semantic_trajectory(transferred=False),
+        transfer_rule(),
+        transfer_context(),
+        fake_model,
+    )
 
     assert result.trajectory_id == "trajectory-1"
     assert result.should_transfer is False
-    assert result.evidence_step_ids == [1]
+    assert result.evidence_step_ids == [0]
     assert len(calls) == 1
 
 
-def test_packet_evaluation_rejects_mismatched_trajectory() -> None:
+def test_trajectory_evaluation_rejects_mismatched_trajectory() -> None:
     """A model cannot attach its answer to another trajectory."""
-    with pytest.raises(ValueError, match="does not match packet"):
-        evaluate_packet_semantics(
-            make_packet(),
+    with pytest.raises(ValueError, match="does not match trajectory"):
+        evaluate_trajectory_semantics(
+            semantic_trajectory(transferred=False),
+            transfer_rule(),
+            transfer_context(),
             lambda _system, _user: model_response(
                 trajectory_id="trajectory-other"
             ),
         )
 
 
-def test_packet_evaluation_rejects_invented_evidence_steps() -> None:
+def test_trajectory_evaluation_rejects_invented_evidence_steps() -> None:
     """Every cited step must exist in the visible trajectory."""
     with pytest.raises(ValueError, match="steps absent"):
-        evaluate_packet_semantics(
-            make_packet(),
+        evaluate_trajectory_semantics(
+            semantic_trajectory(transferred=False),
+            transfer_rule(),
+            transfer_context(),
             lambda _system, _user: model_response(
                 evidence_step_ids=[99]
             ),
@@ -184,24 +204,26 @@ def test_write_judgments_serializes_intermediate_semantics(
     tmp_path: Path,
 ) -> None:
     """Intermediate judgments remain available for Gold evaluation."""
-    packet_dir = tmp_path / "packets"
-    packet_dir.mkdir()
-    (packet_dir / "task_05.json").write_text(
-        json.dumps(make_packet()),
-        encoding="utf-8",
+    dataset = TrajectoryDataset(
+        source_format="test",
+        trajectories=[semantic_trajectory(transferred=False)],
     )
     output_path = tmp_path / "judgments.json"
 
-    dataset = write_judgments(
-        packet_dir,
+    judgments = write_judgments(
+        dataset,
+        transfer_rule(),
+        transfer_context(),
         output_path,
-        call_model=lambda _system, _user: model_response(),
+        call_model=lambda _system, _user: model_response(
+            evidence_step_ids=[0]
+        ),
         model_name="fake-model",
     )
 
     serialized = json.loads(output_path.read_text(encoding="utf-8"))
-    assert dataset.model_name == "fake-model"
-    assert dataset.semantic_version == JUDGMENT_VERSION
+    assert judgments.model_name == "fake-model"
+    assert judgments.semantic_version == JUDGMENT_VERSION
     assert serialized["schema_version"] == "0.3.0"
     assert serialized["judgments"][0]["should_transfer"] is False
     assert "confidence" not in serialized["judgments"][0]
@@ -211,12 +233,6 @@ def test_full_semantic_process_run_writes_judgments_and_verdicts(
     tmp_path: Path,
 ) -> None:
     """One public run should produce both reproducible intermediates and verdicts."""
-    packet_dir = tmp_path / "packets"
-    packet_dir.mkdir()
-    (packet_dir / "task_05.json").write_text(
-        json.dumps(make_packet()),
-        encoding="utf-8",
-    )
     trajectory_path = tmp_path / "trajectories.json"
     trajectory_path.write_text(
         TrajectoryDataset(
@@ -229,8 +245,9 @@ def test_full_semantic_process_run_writes_judgments_and_verdicts(
     verdict_path = tmp_path / "verdicts.json"
 
     verdicts = run_transfer_scope_verifier(
-        packet_dir,
         trajectory_path,
+        root_path() / "policies/airline/rules_v04.json",
+        root_path() / "policies/airline/transfer_scope_context_v01.json",
         judgment_path,
         verdict_path,
         call_model=lambda _system, _user: model_response(

@@ -71,6 +71,21 @@ python -m src.verifiers.task_verifier \
   --output experiments/results/day5_schema/task_verdicts_v01.json
 ```
 
+### 转人工范围规则
+
+`airline.transfer.scope.001`在运行时从统一轨迹、规则和版本化Context构造受控语义输入，不保存逐Task Packet。输入只包含Policy、Tool Catalog和规范化的可见事件，不包含task outcome、隐藏任务信息、参考答案或原始模型响应。
+
+生成中间语义判断和规则合规结果：
+
+```bash
+python -m src.verifiers.handlers.semantic.transfer_scope \
+  --trajectories experiments/results/day5_schema/common_trajectories_v02.json \
+  --rules policies/airline/rules_v04.json \
+  --context policies/airline/transfer_scope_context_v01.json \
+  --judgments-output transfer_scope_judgments_v01.json \
+  --output transfer_scope_verdicts_v01.json
+```
+
 ### 写操作确认规则
 
 `airline.write.confirmation.001`规则版本`0.1.0`，覆盖以下预订数据库写工具：

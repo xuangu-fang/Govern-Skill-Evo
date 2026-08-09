@@ -7,7 +7,6 @@
 | 目录 | 作用 |
 |---|---|
 | `adapters/` | 将外部系统的数据和运行方式接入本项目。`tau2/`中包含τ³结果到统一轨迹的转换器，以及本地 Skill Agent 补丁。 |
-| `annotations/` | 从统一轨迹生成供人工审核或Semantic Process Verifier使用的标注Packet。 |
 | `policies/` | 定义版本化Policy规则集和Verifier运行上下文。 |
 | `trajectory/` | 定义统一Trajectory Schema，并保存旧格式迁移脚本。 |
 | `verifiers/` | 保存Task Verifier、Deterministic Process Verifier、Semantic Process Verifier及公共输出结构。 |
@@ -23,9 +22,8 @@
 TrajectoryDataset
     ├──→ verifiers/task_verifier.py
     │       └── TaskVerdictDataset
-    ├──→ annotations/build_transfer_scope_packets.py
-    │       ↓ Annotation Packets
-    │   Semantic rule handler
+    ├──→ Semantic rule handlers
+    │       + PolicyRuleSet + VerificationContext
     │       └── Saved judgments
     │
     └──→ Process Verifier输入

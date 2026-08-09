@@ -129,7 +129,6 @@ Tool-using Agent 在完成任务时会产生完整轨迹，包括对话、推理
 ├── skills/                # 人工与自动生成的 Skill 版本
 ├── src/
 │   ├── adapters/          # 第三方环境的薄适配层
-│   ├── annotations/       # 语义规则标注Packet生成
 │   ├── policies/          # Policy与VerificationContext Schema
 │   ├── trajectory/        # 统一轨迹 schema 与转换
 │   ├── verifiers/         # task/process verifier
