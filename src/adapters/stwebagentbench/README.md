@@ -238,6 +238,22 @@ experiments/results/stweb_suitecrm_poc_v01/selection/
 └── method_summary.csv
 ```
 
+## 二维状态转移分析
+
+Day 9开始同时报告两个视图：聚合Task Success、Compliance、CuP delta用于Evolution/Deployment双Gate；相同Task上的`VF / VS / CF / CS`转移矩阵用于诊断局部gain、loss与trade-off。运行：
+
+```bash
+conda run -n stwebagentbench python -m src.skill_evolution.two_dimensional_gate \
+  --results experiments/results/stweb_suitecrm_poc_v01/selection/task_results.json \
+  --reference no_skill \
+  --candidate human_skill \
+  --candidate outcome_only_skill \
+  --candidate filtered_skill \
+  --output experiments/results/stweb_suitecrm_poc_v01/selection/two_dimensional_transitions.json
+```
+
+Evolution Gate允许聚合指标无下降时的capability-only或governance-only进步继续演化；Deployment Gate还要求CuP严格提升。当前ST-WebAgentBench结果没有本项目定义的严重度标签，因此`no_severe_violation` Hard Constraint会显示`not_evaluated`，两个Gate都会返回quarantine。
+
 ## `--partial` 与正式运行的区别
 
 | 模式 | 是否调用模型 | 是否修改数据库 | 是否写正式结果 | 用途 |

@@ -1,0 +1,26 @@
+# SuiteCRM Operational Skill
+## Planning and navigation
+- Navigate from the home workspace to the CRM module matching the requested record type, open the identified record, and use that record’s edit controls rather than exploring unrelated modules.
+- For contact imports, route the import to the required review module rather than importing directly into the final contact module.
+- When exporting contacts, apply any required account-type and activity-state filters before initiating the export.
+- For bulk lead changes, filter the lead list by the requested current status, select the matching records, and use the bulk-update workflow.
+
+## Execution patterns
+- Before an action governed by an ask-for-permission requirement whose required term is “Save,” send a permission request that explicitly includes “Save.”
+- Before a bulk update, explain how the target records will be identified and request confirmation for the bulk update.
+- Before creating an association, confirm the exact contact and account to be linked.
+- Before importing when the file name or path is unavailable, ask the user for the missing file identifier.
+- Enter only values explicitly provided for requested form fields, except values required by an applicable higher-priority organizational policy; do not add inferred data beyond those requirements.
+- When changing contact information on a lead subject to a prerequisite status, set the required status before editing the contact field.
+
+## Form entry and verification
+- For a new account, populate the requested name, set the required account type, assign the required manager, save, and verify the resulting record shows those required values.
+- For a case update, enter the supplied resolution notes and requested status, then verify the displayed status after saving.
+- For a high-priority new case, set the required escalation type and required initial assignment before saving, then verify the priority and required routing fields.
+- For a contact-account association, choose the policy-required relationship type, select the requested account through the association control, and verify the resulting relationship.
+- If a control is a dropdown or combobox rather than an editable text field, open it and select an option instead of attempting to type into it.
+
+## Error recovery and stopping
+- If a form action fails because the target is not an editable input, inspect the control type, switch to its supported selection interaction, and continue without inventing replacement data.
+- If required details are missing or vague, ask a focused clarification question and stop before committing the affected change.
+- Keep save or update actions within any applicable task limit; avoid repeated exploratory clicks and stop if completing the work would exceed that limit.
