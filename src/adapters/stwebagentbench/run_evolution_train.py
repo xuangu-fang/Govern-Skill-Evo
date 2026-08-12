@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run frozen ST-WebAgentBench Selection tasks for one baseline method."""
+"""Run ST-WebAgentBench Train tasks from a frozen manifest."""
 
 from __future__ import annotations
 
@@ -18,6 +18,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 BENCHMARK_ROOT = REPO_ROOT / "external" / "ST-WebAgentBench"
 
 # ST-WebAgentBench imports packages directly from its repository root.
+sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(BENCHMARK_ROOT))
 
 from dotenv import load_dotenv
@@ -30,12 +31,17 @@ import browsergym.stwebagentbench  # noqa: F401
 from st_bench_example import DemoAgent, get_action_set
 from stwebagentbench.utils.data_collector import NumpyEncoder
 
+from src.adapters.stwebagentbench.skill_runtime import load_method_skill
+from src.skill_evolution.implementation_binding import (
+    require_implementation_binding,
+)
+
 
 DEFAULT_MANIFEST = (
     REPO_ROOT
     / "experiments"
     / "manifests"
-    / "stweb_suitecrm_poc_v01.json"
+    / "stweb_suitecrm_poc_v03.json"
 )
 
 RESET_SCRIPT = (
@@ -54,60 +60,9 @@ DB_SNAPSHOT = (
     / "suitecrm_pristine_v01.sql"
 )
 
-METHODS = (
-    "no_skill",
-    "human_skill",
-    "outcome_only_skill",
-    "filtered_skill",
-    "governed_candidate_s1",
-)
-
-SKILL_PATHS = {
-    "no_skill": None,
-    "human_skill": (
-        REPO_ROOT
-        / "experiments"
-        / "results"
-        / "stweb_suitecrm_poc_v01"
-        / "human_skill.md"
-    ),
-    "outcome_only_skill": (
-        REPO_ROOT
-        / "experiments"
-        / "results"
-        / "stweb_suitecrm_poc_v01"
-        / "skills"
-        / "outcome_only_skill.md"
-    ),
-    "filtered_skill": (
-        REPO_ROOT
-        / "experiments"
-        / "results"
-        / "stweb_suitecrm_poc_v01"
-        / "skills"
-        / "filtered_skill.md"
-    ),
-    "governed_candidate_s1": (
-        REPO_ROOT
-        / "experiments"
-        / "results"
-        / "stweb_suitecrm_poc_v01"
-        / "skills"
-        / "governed_candidate_s1_skill.md"
-    ),
-}
-
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
-
-
-def sha256_bytes(value: bytes) -> str:
-    return hashlib.sha256(value).hexdigest()
-
-
-def sha256_text(value: str) -> str:
-    return sha256_bytes(value.encode("utf-8"))
 
 
 def sha256_file(path: Path) -> str:
@@ -137,28 +92,9 @@ def save_json_atomic(path: Path, payload: dict) -> None:
     os.replace(temporary_path, path)
 
 
-def expand_split_tasks(manifest: dict, split: str) -> list[dict]:
-    tasks = []
-
-    for template in manifest["splits"][split]["templates"]:
-        for task_id in template["task_ids"]:
-            tasks.append(
-                {
-                    "task_id": task_id,
-                    "intent_template_id": template[
-                        "intent_template_id"
-                    ],
-                    "subset": template["subset"],
-                }
-            )
-
-    return tasks
-
-
-def load_selection_tasks(
+def load_train_tasks(
     manifest_path: Path,
-    method: str,
-) -> tuple[dict, list[dict]]:
+) -> tuple[dict, list[dict], str]:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 
     if manifest.get("status") != "frozen":
@@ -168,112 +104,67 @@ def load_selection_tasks(
 
     planned_methods = (
         manifest.get("planned_rollouts", {})
-        .get("selection", {})
+        .get("train", {})
         .get("methods", [])
     )
-    if method not in planned_methods:
+
+    if len(planned_methods) != 1:
         raise ValueError(
-            f"Manifest does not permit {method!r} Selection rollouts."
+            "Train requires exactly one planned method, got "
+            f"{planned_methods!r}."
         )
+    method = planned_methods[0]
 
-    tasks = expand_split_tasks(manifest, "selection")
+    tasks = []
+
+    for template in manifest["splits"]["train"]["templates"]:
+        for task_id in template["task_ids"]:
+            tasks.append(
+                {
+                    "task_id": task_id,
+                    "intent_template_id": template["intent_template_id"],
+                    "subset": template["subset"],
+                }
+            )
+
     task_ids = [task["task_id"] for task in tasks]
-    expected_count = manifest["splits"]["selection"]["task_count"]
+    expected_count = manifest["splits"]["train"]["task_count"]
 
-    if expected_count != 18 or len(tasks) != expected_count:
+    if len(tasks) != expected_count:
         raise ValueError(
-            "Expected exactly 18 Selection tasks: "
-            f"manifest={expected_count}, expanded={len(tasks)}"
+            "Train task count does not match manifest: "
+            f"expected={expected_count}, actual={len(tasks)}"
         )
 
     if len(task_ids) != len(set(task_ids)):
-        raise ValueError("Selection split contains duplicate Task IDs.")
+        raise ValueError("Train split contains duplicate Task IDs.")
 
-    selection_ids = set(task_ids)
-    for other_split in ("train", "test"):
-        other_ids = {
-            task["task_id"]
-            for task in expand_split_tasks(manifest, other_split)
-        }
-        overlap = sorted(selection_ids & other_ids)
-        if overlap:
-            raise ValueError(
-                f"Selection overlaps {other_split}: {overlap}"
-            )
-
-    return manifest, tasks
-
-
-def load_skill(method: str) -> dict:
-    path = SKILL_PATHS[method]
-    if path is None:
-        return {
-            "path": None,
-            "sha256": None,
-            "prompt_sha256": None,
-            "block": None,
-        }
-
-    if not path.is_file():
-        raise FileNotFoundError(f"Skill not found for {method}: {path}")
-
-    skill_text = path.read_text(encoding="utf-8").strip()
-    if not skill_text:
-        raise ValueError(f"Skill is empty for {method}: {path}")
-
-    skill_block = f"# Operational Skill\n{skill_text}"
-    return {
-        "path": path.relative_to(REPO_ROOT).as_posix(),
-        "sha256": sha256_file(path),
-        "prompt_sha256": sha256_text(skill_block),
-        "block": skill_block,
-    }
-
-
-class SkillInjectedDemoAgent(DemoAgent):
-    """Add a frozen Skill block to the DemoAgent system-message goal area."""
-
-    def __init__(self, model_name: str, skill_block: str) -> None:
-        super().__init__(model_name=model_name)
-        self.skill_block = skill_block
-
-    def get_action(self, obs: dict) -> str:
-        observation = dict(obs)
-        observation["goal"] = (
-            f"{obs['goal']}\n\n{self.skill_block}"
-        )
-        return super().get_action(observation)
+    return manifest, tasks, method
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Run one frozen baseline over ST-WebAgentBench Selection tasks."
+            "Run one frozen Skill method over ST-WebAgentBench Train tasks."
         )
     )
+
     parser.add_argument(
         "--manifest",
         type=Path,
         default=DEFAULT_MANIFEST,
     )
-    parser.add_argument(
-        "--method",
-        required=True,
-        choices=METHODS,
-    )
-
     task_selection = parser.add_mutually_exclusive_group(required=True)
     task_selection.add_argument(
         "--task-id",
         type=int,
-        help="Run one Selection Task ID.",
+        help="Run one Train Task ID.",
     )
     task_selection.add_argument(
         "--all",
         action="store_true",
-        help="Run all 18 Selection tasks in manifest order.",
+        help="Run all 51 Train tasks in manifest order.",
     )
-
     parser.add_argument(
         "--model",
         required=True,
@@ -287,13 +178,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--formal",
         action="store_true",
-        help="Write under raw/ instead of smoke/.",
+        help=(
+            "Write under raw/ instead of smoke/. "
+            "Do not use before the runner is validated."
+        ),
     )
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Print the plan without restoring or running tasks.",
+        help="Print the execution plan without restoring or running tasks.",
     )
+
     return parser.parse_args()
 
 
@@ -309,37 +204,11 @@ def get_output_dir(
         / "artifacts"
         / manifest["manifest_id"]
         / artifact_group
-        / "selection"
+        / "train"
         / method
         / f"task_{task_id}"
         / "trial_01"
     )
-
-
-def expected_run_metadata(
-    args: argparse.Namespace,
-    manifest: dict,
-    manifest_sha256: str,
-    database_snapshot_sha256: str,
-    runner_sha256: str,
-    skill: dict,
-) -> dict:
-    return {
-        "status": "completed",
-        "run_kind": "formal" if args.formal else "smoke",
-        "manifest_id": manifest["manifest_id"],
-        "manifest_sha256": manifest_sha256,
-        "database_snapshot_sha256": database_snapshot_sha256,
-        "runner_sha256": runner_sha256,
-        "split": "selection",
-        "method": args.method,
-        "trial": 1,
-        "requested_model": args.model,
-        "headless": args.headless,
-        "skill_path": skill["path"],
-        "skill_sha256": skill["sha256"],
-        "skill_prompt_sha256": skill["prompt_sha256"],
-    }
 
 
 def validate_completed_trajectory(
@@ -347,21 +216,31 @@ def validate_completed_trajectory(
     manifest: dict,
     task: dict,
     args: argparse.Namespace,
+    method: str,
+    skill: dict,
     manifest_sha256: str,
     database_snapshot_sha256: str,
-    runner_sha256: str,
-    skill: dict,
 ) -> None:
     trajectory = json.loads(trajectory_path.read_text(encoding="utf-8"))
     run = trajectory.get("run", {})
-    expected = expected_run_metadata(
-        args,
-        manifest,
-        manifest_sha256,
-        database_snapshot_sha256,
-        runner_sha256,
-        skill,
-    )
+
+    expected = {
+        "status": "completed",
+        "run_kind": "formal" if args.formal else "smoke",
+        "manifest_id": manifest["manifest_id"],
+        "manifest_sha256": manifest_sha256,
+        "database_snapshot_sha256": database_snapshot_sha256,
+        "split": "train",
+        "method": method,
+        "trial": 1,
+        "requested_model": args.model,
+        "headless": args.headless,
+        "skill_version": skill["version"],
+        "skill_path": skill["path"],
+        "skill_sha256": skill["sha256"],
+        "skill_prompt_sha256": skill["prompt_sha256"],
+        "skill_injected": skill["block"] is not None,
+    }
 
     mismatches = {
         key: {"expected": value, "actual": run.get(key)}
@@ -383,28 +262,18 @@ def validate_completed_trajectory(
         )
 
 
-def make_agent(model: str, skill: dict) -> DemoAgent:
-    if skill["block"] is None:
-        return DemoAgent(model_name=model)
-
-    return SkillInjectedDemoAgent(
-        model_name=model,
-        skill_block=skill["block"],
-    )
-
-
 def run_task(
     args: argparse.Namespace,
     manifest: dict,
+    method: str,
+    skill: dict,
     task: dict,
     manifest_sha256: str,
     database_snapshot_sha256: str,
-    runner_sha256: str,
-    skill: dict,
 ) -> str:
     output_dir = get_output_dir(
         manifest,
-        args.method,
+        method,
         task["task_id"],
         args.formal,
     )
@@ -416,10 +285,10 @@ def run_task(
             manifest,
             task,
             args,
+            method,
+            skill,
             manifest_sha256,
             database_snapshot_sha256,
-            runner_sha256,
-            skill,
         )
         print(f"Skipping completed Task {task['task_id']}: {trajectory_path}")
         return "skipped"
@@ -427,27 +296,30 @@ def run_task(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     run_id = (
-        f"{manifest['manifest_id']}-selection-{args.method}-"
+        f"{manifest['manifest_id']}-train-{method}-"
         f"task_{task['task_id']}-trial_01"
     )
+
     run_metadata = {
         "run_id": run_id,
-        **{
-            key: value
-            for key, value in expected_run_metadata(
-                args,
-                manifest,
-                manifest_sha256,
-                database_snapshot_sha256,
-                runner_sha256,
-                skill,
-            ).items()
-            if key != "status"
-        },
+        "run_kind": "formal" if args.formal else "smoke",
+        "manifest_id": manifest["manifest_id"],
+        "manifest_sha256": manifest_sha256,
+        "runner_sha256": sha256_file(Path(__file__)),
         "benchmark_commit": manifest["benchmark"]["commit"],
         "task_source_sha256": (
             manifest["benchmark"]["task_source_sha256"]
         ),
+        "database_snapshot_sha256": database_snapshot_sha256,
+        "split": "train",
+        "method": method,
+        "trial": 1,
+        "requested_model": args.model,
+        "headless": args.headless,
+        "skill_version": skill["version"],
+        "skill_path": skill["path"],
+        "skill_sha256": skill["sha256"],
+        "skill_prompt_sha256": skill["prompt_sha256"],
         "skill_injected": skill["block"] is not None,
         "started_at": utc_now(),
     }
@@ -456,6 +328,7 @@ def run_task(
 
     try:
         print(f"Restoring database before Task {task['task_id']}...")
+
         subprocess.run(
             [str(RESET_SCRIPT)],
             cwd=REPO_ROOT,
@@ -463,13 +336,17 @@ def run_task(
         )
 
         action_set = get_action_set(multiaction=False)
+
         env = gym.make(
             f"browsergym/STWebAgentBenchEnv.{task['task_id']}",
             headless=args.headless,
             action_mapping=action_set.to_python_code,
         )
+
         obs, reset_info = env.reset()
+
         agent = make_agent(args.model, skill)
+
         initial_observation = agent.obs_preprocessor(obs)
 
         steps: list[dict] = []
@@ -485,12 +362,12 @@ def run_task(
             action = agent.get_action(observation)
             model_output = agent.last_llm_output
 
-            print(
-                f"Task {task['task_id']}, step {step_number}: {action}"
-            )
+            print(f"Task {task['task_id']}, step {step_number}: {action}")
+
             env.chat.add_message("assistant", action)
 
             next_obs, reward, terminated, truncated, info = env.step(action)
+
             numeric_reward = float(reward)
             total_reward += numeric_reward
             final_reward = numeric_reward
@@ -514,15 +391,18 @@ def run_task(
                     "task_info": info.get("task_info", {}),
                 }
             )
+
             obs = next_obs
 
         final_observation = agent.obs_preprocessor(obs)
         final_safety_report = final_info.get("safety_report", [])
+
         violated_policies = [
             report
             for report in final_safety_report
             if isinstance(report, dict) and report.get("violated") is True
         ]
+
         task_success = final_reward == 1.0
         success_under_policies = (
             task_success and len(violated_policies) == 0
@@ -554,6 +434,7 @@ def run_task(
                 "truncated": bool(truncated),
             },
         }
+
         save_json_atomic(trajectory_path, trajectory)
 
         print(f"Trajectory saved: {trajectory_path}")
@@ -572,6 +453,7 @@ def run_task(
         failure_timestamp = datetime.now(timezone.utc).strftime(
             "%Y%m%dT%H%M%SZ"
         )
+
         failure = {
             "run": {
                 **run_metadata,
@@ -583,6 +465,7 @@ def run_task(
             "error": str(exc),
             "traceback": traceback.format_exc(),
         }
+
         save_json_atomic(
             output_dir / f"failure_{failure_timestamp}.json",
             failure,
@@ -597,52 +480,68 @@ def run_task(
                 pass
 
 
+class SkillInjectedDemoAgent(DemoAgent):
+    """Add a frozen Skill block to the Agent goal."""
+
+    def __init__(self, model_name: str, skill_block: str) -> None:
+        super().__init__(model_name=model_name)
+        self.skill_block = skill_block
+
+    def get_action(self, obs: dict) -> str:
+        observation = dict(obs)
+        observation["goal"] = f"{obs['goal']}\n\n{self.skill_block}"
+        return super().get_action(observation)
+
+
+def make_agent(model: str, skill: dict) -> DemoAgent:
+    if skill["block"] is None:
+        return DemoAgent(model_name=model)
+    return SkillInjectedDemoAgent(model, skill["block"])
+
+
 def main() -> None:
     args = parse_args()
     manifest_path = args.manifest.resolve()
 
-    if not manifest_path.is_file():
-        raise FileNotFoundError(f"Manifest not found: {manifest_path}")
+    manifest, train_tasks, method = load_train_tasks(manifest_path)
+    expected_agent = manifest["runtime_contract"]["agent"]
+    if args.model != expected_agent["requested_model"]:
+        raise ValueError(
+            f"Formal model is frozen as {expected_agent['requested_model']!r}."
+        )
+    expected_headless = manifest["runtime_contract"][
+        "common_rollout_configuration"
+    ]["headless"]
+    if args.formal and args.headless is not expected_headless:
+        raise ValueError(
+            f"Formal headless is frozen as {expected_headless!r}."
+        )
+    if args.formal and not args.dry_run:
+        require_implementation_binding(manifest_path, manifest)
+    skill = load_method_skill(manifest, method)
+
     if args.all and not args.formal:
         raise ValueError("--all requires --formal to protect smoke outputs.")
+
     if not RESET_SCRIPT.is_file():
         raise FileNotFoundError(f"Reset script not found: {RESET_SCRIPT}")
+
     if not DB_SNAPSHOT.is_file():
         raise FileNotFoundError(f"Database snapshot not found: {DB_SNAPSHOT}")
 
-    manifest, selection_tasks = load_selection_tasks(
-        manifest_path,
-        args.method,
-    )
-    skill = load_skill(args.method)
-
     if args.all:
-        selected_tasks = selection_tasks
+        selected_tasks = train_tasks
     else:
         selected_tasks = [
-            task
-            for task in selection_tasks
-            if task["task_id"] == args.task_id
+            task for task in train_tasks if task["task_id"] == args.task_id
         ]
         if not selected_tasks:
             raise ValueError(
-                f"Task {args.task_id} is not part of the Selection split."
+                f"Task {args.task_id} is not part of the Train split."
             )
 
     manifest_sha256 = sha256_file(manifest_path)
     database_snapshot_sha256 = sha256_file(DB_SNAPSHOT)
-    runner_sha256 = sha256_file(Path(__file__))
-
-    print(
-        "Selection configuration:",
-        {
-            "method": args.method,
-            "skill_path": skill["path"],
-            "skill_sha256": skill["sha256"],
-            "skill_prompt_sha256": skill["prompt_sha256"],
-            "runner_sha256": runner_sha256,
-        },
-    )
 
     if args.dry_run:
         pending = 0
@@ -652,22 +551,23 @@ def main() -> None:
             trajectory_path = (
                 get_output_dir(
                     manifest,
-                    args.method,
+                    method,
                     task["task_id"],
                     args.formal,
                 )
                 / "trajectory.json"
             )
+
             if trajectory_path.exists():
                 validate_completed_trajectory(
                     trajectory_path,
                     manifest,
                     task,
                     args,
+                    method,
+                    skill,
                     manifest_sha256,
                     database_snapshot_sha256,
-                    runner_sha256,
-                    skill,
                 )
                 status = "skip"
                 skipped += 1
@@ -684,7 +584,7 @@ def main() -> None:
         print(
             "Dry-run summary:",
             {
-                "method": args.method,
+                "method": method,
                 "selected": len(selected_tasks),
                 "pending": pending,
                 "skipped": skipped,
@@ -697,18 +597,20 @@ def main() -> None:
 
     for index, task in enumerate(selected_tasks, start=1):
         print(
-            f"\nSelection task {index}/{len(selected_tasks)} "
-            f"[{args.method}]: Task {task['task_id']}"
+            f"\nTrain task {index}/{len(selected_tasks)}: "
+            f"Task {task['task_id']}"
         )
+
         result = run_task(
             args,
             manifest,
+            method,
+            skill,
             task,
             manifest_sha256,
             database_snapshot_sha256,
-            runner_sha256,
-            skill,
         )
+
         if result == "completed":
             completed += 1
         else:
@@ -717,7 +619,7 @@ def main() -> None:
     print(
         "Run summary:",
         {
-            "method": args.method,
+            "method": method,
             "selected": len(selected_tasks),
             "completed_now": completed,
             "skipped_existing": skipped,

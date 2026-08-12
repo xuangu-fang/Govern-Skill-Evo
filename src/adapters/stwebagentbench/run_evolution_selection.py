@@ -18,6 +18,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 BENCHMARK_ROOT = REPO_ROOT / "external" / "ST-WebAgentBench"
 
 # ST-WebAgentBench imports packages directly from its repository root.
+sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(BENCHMARK_ROOT))
 
 from dotenv import load_dotenv
@@ -30,12 +31,17 @@ import browsergym.stwebagentbench  # noqa: F401
 from st_bench_example import DemoAgent, get_action_set
 from stwebagentbench.utils.data_collector import NumpyEncoder
 
+from src.adapters.stwebagentbench.skill_runtime import load_method_skill
+from src.skill_evolution.implementation_binding import (
+    require_implementation_binding,
+)
+
 
 DEFAULT_MANIFEST = (
     REPO_ROOT
     / "experiments"
     / "manifests"
-    / "stweb_suitecrm_poc_v01.json"
+    / "stweb_suitecrm_poc_v03.json"
 )
 
 RESET_SCRIPT = (
@@ -60,6 +66,7 @@ METHODS = (
     "outcome_only_skill",
     "filtered_skill",
     "governed_candidate_s1",
+    "governed_candidate_s2",
 )
 
 SKILL_PATHS = {
@@ -204,30 +211,17 @@ def load_selection_tasks(
     return manifest, tasks
 
 
-def load_skill(method: str) -> dict:
-    path = SKILL_PATHS[method]
-    if path is None:
-        return {
-            "path": None,
-            "sha256": None,
-            "prompt_sha256": None,
-            "block": None,
-        }
-
-    if not path.is_file():
-        raise FileNotFoundError(f"Skill not found for {method}: {path}")
-
-    skill_text = path.read_text(encoding="utf-8").strip()
-    if not skill_text:
-        raise ValueError(f"Skill is empty for {method}: {path}")
-
-    skill_block = f"# Operational Skill\n{skill_text}"
-    return {
-        "path": path.relative_to(REPO_ROOT).as_posix(),
-        "sha256": sha256_file(path),
-        "prompt_sha256": sha256_text(skill_block),
-        "block": skill_block,
-    }
+def load_skill(
+    manifest: dict,
+    method: str,
+    *,
+    allow_missing: bool = False,
+) -> dict:
+    return load_method_skill(
+        manifest,
+        method,
+        allow_missing=allow_missing,
+    )
 
 
 class SkillInjectedDemoAgent(DemoAgent):
@@ -337,6 +331,7 @@ def expected_run_metadata(
         "requested_model": args.model,
         "headless": args.headless,
         "skill_path": skill["path"],
+        "skill_version": skill["version"],
         "skill_sha256": skill["sha256"],
         "skill_prompt_sha256": skill["prompt_sha256"],
     }
@@ -614,7 +609,28 @@ def main() -> None:
         manifest_path,
         args.method,
     )
-    skill = load_skill(args.method)
+    expected_agent = manifest["runtime_contract"]["agent"]
+    if args.model != expected_agent["requested_model"]:
+        raise ValueError(
+            f"Formal model is frozen as {expected_agent['requested_model']!r}."
+        )
+    expected_headless = manifest["runtime_contract"][
+        "common_rollout_configuration"
+    ]["headless"]
+    if args.formal and args.headless is not expected_headless:
+        raise ValueError(
+            f"Formal headless is frozen as {expected_headless!r}."
+        )
+    if args.formal and not args.dry_run:
+        require_implementation_binding(manifest_path, manifest)
+        load_method_skill(manifest, "governed_candidate_s2")
+    skill = load_skill(
+        manifest,
+        args.method,
+        allow_missing=args.dry_run,
+    )
+    if not skill["available"] and not args.dry_run:
+        raise ValueError(f"Skill for {args.method} is not frozen yet.")
 
     if args.all:
         selected_tasks = selection_tasks
@@ -640,6 +656,7 @@ def main() -> None:
             "skill_path": skill["path"],
             "skill_sha256": skill["sha256"],
             "skill_prompt_sha256": skill["prompt_sha256"],
+            "skill_available": skill["available"],
             "runner_sha256": runner_sha256,
         },
     )

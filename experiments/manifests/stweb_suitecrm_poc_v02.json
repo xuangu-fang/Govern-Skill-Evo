@@ -1,0 +1,382 @@
+{
+  "manifest_id": "stweb_suitecrm_poc_v02",
+  "manifest_version": "0.2.0",
+  "status": "frozen",
+  "created_at": "2026-08-11",
+  "frozen_at": "2026-08-11",
+  "project_base_commit": "315b942bbac5d7afb4cba055d9b8e3f13e476005",
+  "parent_manifest": {
+    "manifest_id": "stweb_suitecrm_poc_v01",
+    "path": "experiments/manifests/stweb_suitecrm_poc_v01.json",
+    "sha256": "6caa77c9e877935a9753ffe47e897cc1652674e62eec639d54c1b19c934fbcce"
+  },
+  "benchmark": {
+    "name": "ST-WebAgentBench",
+    "commit": "67f56dd7df9eca1646c9e49407b087e950aa1e77",
+    "task_source": "external/ST-WebAgentBench/stwebagentbench/test.raw.json",
+    "task_source_sha256": "31817831f963425bdc4d582936f2b9c0b9714fc986be7b4df67e50f2921e9a34"
+  },
+  "environment": {
+    "application": "suitecrm",
+    "database_snapshot": "artifacts/stweb_suitecrm_poc_v01/db/suitecrm_pristine_v01.sql",
+    "database_snapshot_sha256": "ed7ae7781f01d4ecd777533a5ade5e06a5b27908af56c825bc67668f823258de",
+    "database_reset_policy": {
+      "policy_id": "suitecrm_pristine_before_every_trial_v01",
+      "timing": "before_every_trial",
+      "trial_scope": "every task_id x method x trial",
+      "shared_database_state_between_trials": false,
+      "execution_must_be_sequential": true,
+      "reset_script": "src/adapters/stwebagentbench/reset_suitecrm_db.sh",
+      "reset_script_sha256": "f321d65ef63bc4874798b7be8a95fb1942ddb68cca98e0754c72795f7a39dc9b",
+      "snapshot": "artifacts/stweb_suitecrm_poc_v01/db/suitecrm_pristine_v01.sql",
+      "snapshot_sha256": "ed7ae7781f01d4ecd777533a5ade5e06a5b27908af56c825bc67668f823258de",
+      "snapshot_checksum_must_pass_before_restore": true,
+      "suitecrm_readiness_url": "http://127.0.0.1:8080/public",
+      "post_restore_assertions": {
+        "active_contacts": 10,
+        "active_accounts": 9,
+        "active_leads": 10
+      }
+    }
+  },
+  "selection_runtime": {
+    "status": "inherited_configuration_and_frozen",
+    "inheritance_source": {
+      "manifest_id": "stweb_suitecrm_poc_v01",
+      "split": "selection",
+      "trajectory_root": "artifacts/stweb_suitecrm_poc_v01/raw/selection",
+      "verified_completed_trajectory_count": 72,
+      "inherited_runner_sha256": "e64982e657ec58c5a212a3a2b121065df73386cc4998880b0db2b0ad95f30901"
+    },
+    "agent": {
+      "class": "DemoAgent",
+      "implementation_path": "external/ST-WebAgentBench/st_bench_example.py",
+      "implementation_sha256": "89cbf27a224e840cffbf6325c0e8ff0e9949c2fa130ca29e2b9eb0aa278d3081",
+      "requested_model": "openai/gpt-5.6-terra",
+      "resolved_model": "gpt-5.6-terra",
+      "api_parameters": {
+        "temperature": 0.1,
+        "max_tokens": 512
+      },
+      "action_set": {
+        "multiaction": false,
+        "response_constraint": "exactly_one_action_call"
+      },
+      "action_parse_retry_limit": 3
+    },
+    "runner": {
+      "path": "src/adapters/stwebagentbench/run_selection.py",
+      "sha256": "542f4c985c1c615105a3a3ce75c4a5d71ce69d771bfec542115dda1928c2ab96",
+      "configuration_inherited_from_runner_sha256": "e64982e657ec58c5a212a3a2b121065df73386cc4998880b0db2b0ad95f30901",
+      "configuration_change": "Added governed_candidate_s1 as an allowed Skill method; execution semantics are unchanged.",
+      "run_kind": "formal",
+      "headless": false,
+      "trials_per_task": 1,
+      "execution": "sequential",
+      "database_reset_before_every_trial": true
+    },
+    "method_parity": {
+      "same_agent_model": true,
+      "same_agent_parameters": true,
+      "same_runner_configuration": true,
+      "same_pristine_database_reset_policy": true,
+      "only_intended_difference": "governed_candidate_s1 injects the frozen S1 Skill block; no_skill injects no Skill."
+    }
+  },
+  "research_scope": {
+    "objective": "Evaluate the S0 to governed Candidate S1 evolution edge.",
+    "application": "suitecrm",
+    "included_subsets": [
+      "suitecrm_general",
+      "suitecrm_difficulty"
+    ],
+    "included_task_id_ranges": [
+      {
+        "start": 47,
+        "end": 76,
+        "subset": "general"
+      },
+      {
+        "start": 235,
+        "end": 294,
+        "subset": "difficulty"
+      }
+    ],
+    "excluded_modalities": [
+      "vision_advantage",
+      "dom_advantage"
+    ],
+    "excluded_applications": [
+      "gitlab",
+      "shopping_admin"
+    ],
+    "split_unit": "intent_template_id",
+    "grouping_unit": "intent_template_id",
+    "primary_evaluation_unit": "task_id",
+    "trial_unit": "task_id x method x trial",
+    "intent_template_role": "split assignment and grouped analysis only",
+    "compliance_source": "ST-WebAgentBench native safety evaluator",
+    "task_success_source": "ST-WebAgentBench native task evaluator"
+  },
+  "skill_evolution": {
+    "edge_id": "s0_to_governed_candidate_s1",
+    "reference": {
+      "method": "no_skill",
+      "skill_version": "S0",
+      "skill_path": null,
+      "skill_sha256": null
+    },
+    "candidate": {
+      "method": "governed_candidate_s1",
+      "skill_version": "S1",
+      "skill_path": "experiments/results/stweb_suitecrm_poc_v01/skills/governed_candidate_s1_skill.md",
+      "skill_sha256": "556443ede1ce27e1669db4c9cf264748db3432ddcdd04cd075cd5cc5d753a463",
+      "provenance_path": "experiments/results/stweb_suitecrm_poc_v01/skills/governed_candidate_s1_provenance.json",
+      "provenance_sha256": "5f3de5c9495f992f521c663080b85ab3adcf9b2bbf3bb2764ef7aefdd31735c9",
+      "freeze_record_path": "experiments/results/stweb_suitecrm_poc_v01/skills/governed_candidate_s1_freeze.json",
+      "freeze_record_sha256": "c544030bb66e0f34203ef2d01fd4e242bfd6b227d9c31acd7108249de1d28ecb",
+      "reproducibility_status": "source_recoverable_candidate_artifacts_frozen",
+      "promotion_status": "unvalidated"
+    },
+    "comparison_policy": {
+      "paired_task_ids_required": true,
+      "fresh_reference_rollouts_required": true,
+      "reuse_parent_selection_no_skill_as_primary_reference": false,
+      "parent_selection_results_are_context_only": true,
+      "selection_must_not_be_used_for_learning": true,
+      "test_remains_locked_until_selection_decision": true
+    },
+    "gate_policy": {
+      "aggregate_metrics": [
+        "task_success",
+        "compliance",
+        "cup"
+      ],
+      "task_level_analysis": "four_state_transition_matrix",
+      "severe_violation_hard_constraint": true,
+      "severe_violation_coverage": "not_available_in_stweb_v01",
+      "deployment_default_without_severity_coverage": "quarantine"
+    }
+  },
+  "split_constraints": {
+    "same_template_must_remain_in_one_split": true,
+    "selection_must_not_be_used_for_learning": true,
+    "test_must_not_be_used_before_final_evaluation": true,
+    "result_dependent_task_selection": false,
+    "splits_must_match_parent_manifest": true,
+    "known_seen_tasks_must_be_train": [
+      62,
+      68,
+      74,
+      244
+    ]
+  },
+  "planned_rollouts": {
+    "train": {
+      "methods": [],
+      "trials_per_task": 0,
+      "reuse_from_manifest": "stweb_suitecrm_poc_v01"
+    },
+    "selection": {
+      "methods": [
+        "no_skill",
+        "governed_candidate_s1"
+      ],
+      "trials_per_task": 1,
+      "execution": "sequential"
+    },
+    "test": {
+      "methods": [],
+      "trials_per_task": 0,
+      "status": "locked_until_selection_decision"
+    }
+  },
+  "splits": {
+    "train": {
+      "template_count": 17,
+      "task_count": 51,
+      "templates": [
+        {
+          "intent_template_id": 2000,
+          "subset": "general",
+          "task_ids": [47, 48, 49]
+        },
+        {
+          "intent_template_id": 2003,
+          "subset": "general",
+          "task_ids": [56, 57, 58]
+        },
+        {
+          "intent_template_id": 2004,
+          "subset": "general",
+          "task_ids": [59, 60, 61]
+        },
+        {
+          "intent_template_id": 2005,
+          "subset": "general",
+          "task_ids": [62, 63, 64]
+        },
+        {
+          "intent_template_id": 2007,
+          "subset": "general",
+          "task_ids": [68, 69, 70]
+        },
+        {
+          "intent_template_id": 2009,
+          "subset": "general",
+          "task_ids": [74, 75, 76]
+        },
+        {
+          "intent_template_id": 3000,
+          "subset": "difficulty",
+          "task_ids": [235, 255, 275]
+        },
+        {
+          "intent_template_id": 3003,
+          "subset": "difficulty",
+          "task_ids": [238, 258, 278]
+        },
+        {
+          "intent_template_id": 3005,
+          "subset": "difficulty",
+          "task_ids": [240, 260, 280]
+        },
+        {
+          "intent_template_id": 3007,
+          "subset": "difficulty",
+          "task_ids": [242, 262, 282]
+        },
+        {
+          "intent_template_id": 3008,
+          "subset": "difficulty",
+          "task_ids": [243, 263, 283]
+        },
+        {
+          "intent_template_id": 3009,
+          "subset": "difficulty",
+          "task_ids": [244, 264, 284]
+        },
+        {
+          "intent_template_id": 3011,
+          "subset": "difficulty",
+          "task_ids": [246, 266, 286]
+        },
+        {
+          "intent_template_id": 3013,
+          "subset": "difficulty",
+          "task_ids": [248, 268, 288]
+        },
+        {
+          "intent_template_id": 3015,
+          "subset": "difficulty",
+          "task_ids": [250, 270, 290]
+        },
+        {
+          "intent_template_id": 3017,
+          "subset": "difficulty",
+          "task_ids": [252, 272, 292]
+        },
+        {
+          "intent_template_id": 3018,
+          "subset": "difficulty",
+          "task_ids": [253, 273, 293]
+        }
+      ]
+    },
+    "selection": {
+      "template_count": 6,
+      "task_count": 18,
+      "templates": [
+        {
+          "intent_template_id": 2001,
+          "subset": "general",
+          "task_ids": [50, 51, 52]
+        },
+        {
+          "intent_template_id": 2006,
+          "subset": "general",
+          "task_ids": [65, 66, 67]
+        },
+        {
+          "intent_template_id": 3001,
+          "subset": "difficulty",
+          "task_ids": [236, 256, 276]
+        },
+        {
+          "intent_template_id": 3010,
+          "subset": "difficulty",
+          "task_ids": [245, 265, 285]
+        },
+        {
+          "intent_template_id": 3012,
+          "subset": "difficulty",
+          "task_ids": [247, 267, 287]
+        },
+        {
+          "intent_template_id": 3016,
+          "subset": "difficulty",
+          "task_ids": [251, 271, 291]
+        }
+      ]
+    },
+    "test": {
+      "template_count": 6,
+      "task_count": 18,
+      "templates": [
+        {
+          "intent_template_id": 2002,
+          "subset": "general",
+          "task_ids": [53, 54, 55]
+        },
+        {
+          "intent_template_id": 2008,
+          "subset": "general",
+          "task_ids": [71, 72, 73]
+        },
+        {
+          "intent_template_id": 3002,
+          "subset": "difficulty",
+          "task_ids": [237, 257, 277]
+        },
+        {
+          "intent_template_id": 3004,
+          "subset": "difficulty",
+          "task_ids": [239, 259, 279]
+        },
+        {
+          "intent_template_id": 3014,
+          "subset": "difficulty",
+          "task_ids": [249, 269, 289]
+        },
+        {
+          "intent_template_id": 3019,
+          "subset": "difficulty",
+          "task_ids": [254, 274, 294]
+        }
+      ]
+    }
+  },
+  "excluded_templates": [
+    {
+      "intent_template_id": 3006,
+      "subset": "difficulty",
+      "task_ids": [241, 261, 281],
+      "reason": "Task 281 contains a duplicate policy configuration that can distort violation counts."
+    }
+  ],
+  "expected_counts": {
+    "source_tasks": 90,
+    "selected_tasks": 87,
+    "excluded_tasks": 3,
+    "selected_templates": 29,
+    "excluded_templates": 1,
+    "planned_selection_methods": 2,
+    "planned_selection_tasks_per_method": 18,
+    "planned_selection_trajectories": 36
+  },
+  "change_policy": {
+    "frozen_manifest_must_not_be_edited": true,
+    "changes_require_new_manifest_version": true,
+    "next_version_if_changed": "stweb_suitecrm_poc_v03"
+  }
+}

@@ -32,8 +32,8 @@ OUTPUT_ROOT = (
     / "skills"
 )
 
-TEMPERATURE = 0.1
-MAX_TOKENS = 2000
+REASONING_EFFORT = "low"
+MAX_COMPLETION_TOKENS = 8000
 
 SYSTEM_PROMPT = """You are an offline behavior-to-Skill synthesizer. You will
 receive a collection of task-successful SuiteCRM agent traces. Derive one
@@ -312,8 +312,8 @@ def call_learner(
     client = OpenAI(api_key=api_key, base_url=base_url)
     response = client.chat.completions.create(
         model=resolved_model,
-        temperature=TEMPERATURE,
-        max_tokens=MAX_TOKENS,
+        reasoning_effort=REASONING_EFFORT,
+        max_completion_tokens=MAX_COMPLETION_TOKENS,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
@@ -535,8 +535,8 @@ def main() -> int:
         "evidence_status": evidence_status,
         "learner_design": "neutral_success_behavior_only_v01",
         "learner_model": args.model,
-        "temperature": TEMPERATURE,
-        "max_tokens": MAX_TOKENS,
+        "reasoning_effort": REASONING_EFFORT,
+        "max_completion_tokens": MAX_COMPLETION_TOKENS,
         "prompt_template_sha256": template_sha256,
         "full_prompt_sha256": full_prompt_sha256,
         "prompt_characters": len(system_prompt) + len(user_prompt),
