@@ -157,8 +157,6 @@ Tool-using Agent 在完成任务时会产生完整轨迹，包括对话、推理
 
 ## 当前状态
 
-当前已经完成τ³轨迹到统一`TrajectoryDataset`的转换、Task Verifier，以及能够统一运行5条Airline规则的通用Process Verifier。当前规则集包含3条确定性规则和2条语义规则，能够输出逐规则状态、违规step、证据和总体合规结论。
-
-这仍是研究原型，不是完整框架。现阶段只覆盖Task 5–14的10条轨迹和少量Airline Policy规则；下一阶段需要扩大规则覆盖和独立评估数据，并将Process Verifier正式接入Candidate Skill的validation gate。
+当前版本是研究起点，不是最终框架。近期唯一优先级是跑通公开环境、理解真实轨迹，并验证 success/compliance gap 是否稳定存在。
 
 如果 H1/H2 无法成立，我们将依据证据转向可审计的 trajectory diagnosis 与 Skill provenance，而不是强行维持“违规传播”的论文叙事。

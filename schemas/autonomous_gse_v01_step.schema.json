@@ -1,0 +1,489 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://govern-skill-evo.local/schemas/autonomous_gse_v01_step.schema.json",
+  "title": "Autonomous Governed Skill Evolution v0.1 Step Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "protocol_version",
+    "campaign_id",
+    "epoch",
+    "step",
+    "status",
+    "batch",
+    "parent",
+    "proposal_operator",
+    "candidate_id",
+    "parent_checkpoint",
+    "budget_reservation",
+    "data_isolation"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "autonomous_gse_step_0.1.0"
+    },
+    "protocol_version": {
+      "const": "autonomous_gse_v01"
+    },
+    "campaign_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]*$"
+    },
+    "epoch": {
+      "const": 1
+    },
+    "step": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 3
+    },
+    "status": {
+      "enum": [
+        "STEP_REGISTERED",
+        "TRAIN_RUNNING",
+        "TRAIN_COMPLETED",
+        "TRAIN_VALIDATED",
+        "EXPERIENCE_FROZEN",
+        "PROPOSAL_RUNNING",
+        "CANDIDATE_FROZEN",
+        "CANDIDATE_SELECTION_RUNNING",
+        "SELECTION_VALIDATED",
+        "EVOLUTION_SUMMARY_FROZEN",
+        "GATE_DECIDED",
+        "STEP_COMPLETED",
+        "STEP_INVALID"
+      ]
+    },
+    "batch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "batch_id",
+        "batch_map_path",
+        "batch_map_sha256",
+        "task_ids"
+      ],
+      "properties": {
+        "batch_id": {
+          "type": "string",
+          "pattern": "^batch_00[1-3]$"
+        },
+        "batch_map_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "batch_map_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "task_ids": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "minItems": 17,
+          "maxItems": 17,
+          "uniqueItems": true
+        }
+      }
+    },
+    "parent": {
+      "oneOf": [
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/artifact"
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "no_skill"
+                },
+                "version": {
+                  "const": "S0"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/artifact"
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "accepted_skill"
+                },
+                "version": {
+                  "pattern": "^S[1-9][0-9]*$"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "proposal_operator": {
+      "enum": [
+        "bootstrap",
+        "incremental"
+      ]
+    },
+    "candidate_id": {
+      "type": "string",
+      "pattern": "^epoch_001_step_00[1-3]_candidate$"
+    },
+    "parent_checkpoint": {
+      "$ref": "#/$defs/artifact"
+    },
+    "budget_reservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "train_trajectories",
+        "maximum_candidate_selection_trajectories",
+        "maximum_learner_calls"
+      ],
+      "properties": {
+        "train_trajectories": {
+          "const": 17
+        },
+        "maximum_candidate_selection_trajectories": {
+          "const": 18
+        },
+        "maximum_learner_calls": {
+          "const": 1
+        }
+      }
+    },
+    "data_isolation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "current_batch_only",
+        "selection_for_learning",
+        "test_for_learning"
+      ],
+      "properties": {
+        "current_batch_only": {
+          "const": true
+        },
+        "selection_for_learning": {
+          "const": "forbidden"
+        },
+        "test_for_learning": {
+          "const": "forbidden"
+        }
+      }
+    },
+    "outcome": {
+      "enum": [
+        "ACCEPT",
+        "REJECT",
+        "NO_CANDIDATE",
+        "INVALID_PROPOSAL",
+        "INTEGRITY_FAILURE"
+      ]
+    },
+    "next_parent": {
+      "$ref": "#/$defs/artifact"
+    },
+    "candidate": {
+      "$ref": "#/$defs/artifact"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "parent": {
+            "properties": {
+              "kind": {
+                "const": "no_skill"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          }
+        },
+        "required": [
+          "parent"
+        ]
+      },
+      "then": {
+        "properties": {
+          "proposal_operator": {
+            "const": "bootstrap"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "proposal_operator": {
+            "const": "incremental"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "step": {
+            "const": 1
+          }
+        },
+        "required": [
+          "step"
+        ]
+      },
+      "then": {
+        "properties": {
+          "batch": {
+            "properties": {
+              "batch_id": {
+                "const": "batch_001"
+              }
+            }
+          },
+          "candidate_id": {
+            "const": "epoch_001_step_001_candidate"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "step": {
+            "const": 2
+          }
+        },
+        "required": [
+          "step"
+        ]
+      },
+      "then": {
+        "properties": {
+          "batch": {
+            "properties": {
+              "batch_id": {
+                "const": "batch_002"
+              }
+            }
+          },
+          "candidate_id": {
+            "const": "epoch_001_step_002_candidate"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "step": {
+            "const": 3
+          }
+        },
+        "required": [
+          "step"
+        ]
+      },
+      "then": {
+        "properties": {
+          "batch": {
+            "properties": {
+              "batch_id": {
+                "const": "batch_003"
+              }
+            }
+          },
+          "candidate_id": {
+            "const": "epoch_001_step_003_candidate"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "STEP_COMPLETED"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "required": [
+          "outcome",
+          "next_parent"
+        ],
+        "properties": {
+          "outcome": {
+            "enum": [
+              "ACCEPT",
+              "REJECT",
+              "NO_CANDIDATE",
+              "INVALID_PROPOSAL"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "STEP_INVALID"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "required": [
+          "outcome"
+        ],
+        "properties": {
+          "outcome": {
+            "const": "INTEGRITY_FAILURE"
+          }
+        },
+        "not": {
+          "required": [
+            "next_parent"
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "STEP_REGISTERED",
+              "TRAIN_RUNNING",
+              "TRAIN_COMPLETED",
+              "TRAIN_VALIDATED",
+              "EXPERIENCE_FROZEN",
+              "PROPOSAL_RUNNING",
+              "CANDIDATE_FROZEN",
+              "CANDIDATE_SELECTION_RUNNING",
+              "SELECTION_VALIDATED",
+              "EVOLUTION_SUMMARY_FROZEN",
+              "GATE_DECIDED"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "outcome"
+              ]
+            },
+            {
+              "required": [
+                "next_parent"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "STEP_COMPLETED"
+          },
+          "outcome": {
+            "enum": [
+              "ACCEPT",
+              "REJECT"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "outcome"
+        ]
+      },
+      "then": {
+        "required": [
+          "candidate"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "STEP_COMPLETED"
+          },
+          "outcome": {
+            "enum": [
+              "NO_CANDIDATE",
+              "INVALID_PROPOSAL"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "outcome"
+        ]
+      },
+      "then": {
+        "not": {
+          "required": [
+            "candidate"
+          ]
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "version",
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    }
+  }
+}

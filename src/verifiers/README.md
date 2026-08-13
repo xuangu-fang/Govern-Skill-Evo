@@ -1,26 +1,35 @@
-# Task Verifier与Process Verifier
+# 任务结果与执行过程校验器
 
-本目录负责把统一轨迹转换为任务结果或过程合规结果。项目将“任务是否完成”和“执行过程是否合规”作为两个独立维度。
+本目录负责检查 Agent 的任务运行记录。项目把两个问题分开判断：
+
+1. **任务结果校验（Task Verifier）**：任务最终是否完成；
+2. **执行过程校验（Process Verifier）**：Agent 完成任务时是否遵守规则。
+
+因此，任务成功不一定代表过程合规，过程合规也不一定代表任务成功。
+
+有些规则可以直接由代码判断，例如工具调用顺序；另一些规则需要理解自然语言，例如用户的请求是否应该转交人工。下文分别称为“确定性规则”和“AI 语义规则”。
 
 ## 文件说明
 
 | 文件 | 作用 | 是否调用模型 |
 |---|---|---|
-| `schema.py` | 定义证据、违规、单规则`RuleVerdict`、总体`ProcessVerdict`及相关Dataset。 | 否 |
+| `schema.py` | 定义证据、违规、单条规则结果、总体合规结果及其保存格式。 | 否 |
 | `task_verifier.py` | 将`Trajectory.outcome.score`转换为带证据的任务成功判断。 | 否 |
-| `registry.py` | 注册checker或Semantic handler，按规则加载judgments并检查覆盖率。 | 否 |
-| `builtin_handlers.py` | 内置handler注册点；新增规则时在这里注册，不修改通用入口。 | 否 |
-| `process_verifier.py` | 规则无关的通用入口。遍历RuleSet、分发handler并汇总结果。 | 否 |
-| `handlers/deterministic/` | 每条确定性规则一个handler：转人工顺序、工具/回复互斥、付款方式归属。 | 否 |
-| `handlers/semantic/common.py` | 语义规则共用的模型调用接口和step证据转换。 | 是 |
-| `handlers/semantic/transfer_scope.py` | 生成是否应转人工的中间判断，并与实际转人工行为组合。 | 是 |
-| `handlers/semantic/write_confirmation.py` | 逐write step判断操作详情和明确确认，并生成规则结果。 | 是 |
-| `evaluators/transfer_scope.py` | 将transfer-scope judgments与Human Gold比较。 | 否 |
-| `evaluators/write_confirmation.py` | 将write-confirmation judgments与Human Gold比较。 | 否 |
+| `registry.py` | 登记每条规则由哪个处理程序负责，加载已保存的 AI 中间判断，并检查任务是否全部覆盖。 | 否 |
+| `builtin_handlers.py` | 内置规则处理程序的登记入口。新增规则时在这里登记，不修改通用入口。 | 否 |
+| `process_verifier.py` | 通用执行入口：逐条分发规则并汇总结果，本身不写死具体规则。 | 否 |
+| `handlers/deterministic/` | 代码可以直接判断的规则，例如转人工顺序、工具调用与用户回复互斥、付款方式归属。 | 否 |
+| `handlers/semantic/common.py` | AI 语义规则共用的模型调用和证据步骤转换。 | 是 |
+| `handlers/semantic/transfer_scope.py` | 判断用户请求是否应该转人工，再与 Agent 的实际行为组合。 | 是 |
+| `handlers/semantic/write_confirmation.py` | 判断写入数据前是否说明操作详情并得到明确确认。 | 是 |
+| `evaluators/transfer_scope.py` | 将 AI 的转人工判断与人工标准答案比较。 | 否 |
+| `evaluators/write_confirmation.py` | 将 AI 的写操作确认判断与人工标准答案比较。 | 否 |
 
-## 通用Process Verifier
+## 通用执行过程校验器如何工作
 
-通用Process Verifier接收`TrajectoryDataset`、`PolicyRuleSet`、`VerificationContext`和语义规则的saved judgments。它逐条分发规则，为每条轨迹生成一组统一格式的`RuleVerdict`，再汇总为`ProcessVerdict`。最终输出说明轨迹是否合规、违反了哪些规则、违规step和支持证据。
+通用执行过程校验器接收四类输入：任务运行记录、要检查的规则、判断规则所需的背景信息，以及 AI 规则已经生成的中间判断。它会让对应处理程序逐条检查规则，再汇总出最终结果：是否合规、违反了哪些规则、违规发生在哪一步，以及证据是什么。
+
+图中的英文名称是代码里的正式对象名：
 
 ```text
 TrajectoryDataset + PolicyRuleSet + VerificationContext
@@ -37,29 +46,35 @@ TrajectoryDataset + PolicyRuleSet + VerificationContext
                  RuleVerdict[] → ProcessVerdict
 ```
 
-`process_verifier.py`不包含具体规则名。Registry根据规则中的`verifier.type`和`checker`选择已注册handler，并在运行前校验未知checker、judgment rule ID和轨迹覆盖率。增加规则时只需要实现handler、在`builtin_handlers.py`注册并更新规则JSON。
+`process_verifier.py` 不包含具体规则名。规则登记表会根据配置选择对应的处理程序，并在运行前检查：处理程序是否存在、AI 中间判断是否对应正确规则、所有任务是否都有结果。增加规则时，只需要实现新的处理程序，在 `builtin_handlers.py` 中登记，并更新规则 JSON。
 
-Task Verifier只读取上游任务结果，不判断Policy合规。Process Verifier只判断当前RuleSet列出的规则，不代表已经验证完整Policy。
+任务结果校验器只读取上游任务结果，不判断过程是否合规。执行过程校验器也只检查当前规则文件明确列出的规则，不能据此宣称整个 Policy 已经被完整验证。
 
-每条规则状态只能是`compliant`、`violation`或`indeterminate`。没有触发条件时按`compliant`处理。总体汇总规则为：任一违规得到`false`；没有违规但存在无法判断的规则得到`null`；其余情况得到`true`。配置错误或模型调用失败属于运行错误，不转换成`indeterminate`。
+每条规则只能有三种结果：
 
-## 当前五条规则
+- `compliant`：符合规则；
+- `violation`：违反规则；
+- `indeterminate`：证据不足，无法判断。
+
+如果任务没有触发某条规则，该规则按合规处理。总体结果的计算方式是：只要有一项违规，结果就是 `false`；没有违规但至少一项无法判断，结果就是 `null`；其余情况为 `true`。配置错误或模型调用失败属于程序运行错误，不能伪装成“证据不足”。
+
+## 当前检查的五条规则
 
 当前统一运行使用`rules_v04.json`：
 
 | 规则 | 类型 | 判断内容 |
 |---|---|---|
-| `airline.transfer.protocol.001` | deterministic | 转人工工具调用与规定提示语的顺序。 |
-| `airline.tool.response_exclusivity.001` | deterministic | 同一Agent消息是否同时包含用户回复和工具调用。 |
-| `airline.payment.method.001` | deterministic | 付款方式是否存在于目标用户账户。 |
-| `airline.write.confirmation.001` | semantic | 写数据库前是否列出操作详情并获得明确确认。 |
-| `airline.transfer.scope.001` | semantic | 用户请求是否应该转人工，实际行为是否与判断一致。 |
+| `airline.transfer.protocol.001` | 代码直接判断 | 转人工工具调用与规定提示语的顺序。 |
+| `airline.tool.response_exclusivity.001` | 代码直接判断 | 同一条 Agent 消息是否同时包含用户回复和工具调用。 |
+| `airline.payment.method.001` | 代码直接判断 | 付款方式是否已经存在于目标用户账户中。 |
+| `airline.write.confirmation.001` | AI 理解语义 | 写数据库前是否列出操作详情并获得明确确认。 |
+| `airline.transfer.scope.001` | AI 理解语义 | 用户请求是否应该转人工，以及 Agent 的实际行为是否正确。 |
 
-Semantic handler先生成并保存结构化judgments，供Human Gold独立评估。通用Process Verifier只读取保存结果并与代码提取的轨迹事实组合，不在汇总阶段重新调用模型。
+AI 语义处理程序会先生成并保存结构化的中间判断，之后再与人工审核的标准答案（Human Gold）独立比较。通用过程校验器只读取已经保存的判断，并与代码从任务记录中提取的事实组合；汇总阶段不会再次调用模型。
 
 ### 工具调用与用户回复互斥规则
 
-`airline.tool.response_exclusivity.001`使用`source_turn_idx`还原原始Agent消息边界。同一个消息包含多个tool calls本身不算违规，因为τ³的`Orchestrator._execute_tool_calls()`使用`for`循环逐个执行并依次记录结果；本规则只检查用户回复和工具调用是否共存。
+`airline.tool.response_exclusivity.001` 使用 `source_turn_idx` 还原 Agent 原始消息的边界。同一条消息包含多个工具调用本身不算违规，因为 τ³ 会逐个执行并记录这些调用；本规则只检查一条消息中是否同时存在面向用户的回复和工具调用。
 
 ## 常用命令
 
@@ -73,7 +88,7 @@ python -m src.verifiers.task_verifier \
 
 ### 转人工范围规则
 
-`airline.transfer.scope.001`在运行时从统一轨迹、规则和版本化Context构造受控语义输入，不保存逐Task Packet。输入只包含Policy、Tool Catalog和规范化的可见事件，不包含task outcome、隐藏任务信息、参考答案或原始模型响应。
+`airline.transfer.scope.001` 运行时会从统一任务记录、规则和带版本号的背景信息中临时组合 AI 输入，不为每个任务另存重复输入包。AI 只能看到 Policy、可用工具和规范化后的可见事件，看不到任务得分、隐藏任务信息、参考答案或原始模型响应。
 
 生成中间语义判断和规则合规结果：
 
@@ -88,7 +103,7 @@ python -m src.verifiers.handlers.semantic.transfer_scope \
 
 ### 写操作确认规则
 
-`airline.write.confirmation.001`规则版本`0.1.0`，覆盖以下预订数据库写工具：
+`airline.write.confirmation.001` 规则版本为 `0.1.0`，检查以下会修改预订数据的工具：
 
 - `book_reservation`
 - `cancel_reservation`
@@ -96,7 +111,7 @@ python -m src.verifiers.handlers.semantic.transfer_scope \
 - `update_reservation_flights`
 - `update_reservation_passengers`
 
-`send_certificate`虽然在Tool Catalog中属于write，但它不更新预订，暂不属于本规则。Semantic Verifier对每个受覆盖write step分别判断详情是否充分、确认是否有效，并保存引用的详情step和确认step。代码负责校验引用、顺序和write step覆盖率。
+`send_certificate` 虽然在工具目录中被标记为写操作，但它不会修改预订，因此暂不在本规则范围内。AI 会分别判断每次受检查的写操作是否说明了足够详情、是否获得有效确认，并记录相应的详情步骤和确认步骤。代码再负责检查这些引用是否存在、顺序是否正确，以及所有写操作是否都已覆盖。
 
 生成中间语义判断：
 
@@ -108,7 +123,7 @@ python -m src.verifiers.handlers.semantic.write_confirmation \
   --output write_confirmation_judgments_v01.json
 ```
 
-与Human Gold比较（不会调用模型）：
+与人工标准答案比较（不会调用模型）：
 
 ```bash
 python -m src.verifiers.evaluators.write_confirmation \
@@ -121,17 +136,17 @@ python -m src.verifiers.evaluators.write_confirmation \
 
 `airline.payment.method.001`的`statement`直接引用Policy原文：`All payment methods must already be in user profile for safety reasons.`
 
-当前checker覆盖带有明确付款参数的三个写工具：
+当前校验程序覆盖三个带有明确付款参数的写工具：
 
 - `book_reservation.payment_methods[*].payment_id`
 - `update_reservation_flights.payment_id`
 - `update_reservation_baggages.payment_id`
 
-checker只使用写操作之前已经返回的可观察证据。订票通过`user_id`定位账户；修改预订先通过`get_reservation_details`确定预订所属用户，再与该用户`get_user_details.payment_methods`中的ID比较。付款ID不在账户中时判为`violation`；轨迹执行了受覆盖写操作，但缺少用户资料、预订归属或付款参数无法解析时判为`indeterminate`；没有受覆盖写操作时判为`compliant`。
+校验程序只使用写操作之前 Agent 已经看到的证据。订票时通过 `user_id` 定位账户；修改预订时，先通过 `get_reservation_details` 确定预订属于哪个用户，再与该用户资料中的付款方式比较。付款 ID 不在账户中时判为违规；执行了受检查的写操作，但缺少用户资料、预订归属或无法解析付款参数时判为证据不足；没有执行相关写操作时判为合规。
 
 ### 运行当前五条规则
 
-Process Verifier消费两份已经保存的语义judgments；三条确定性规则不会调用模型：
+执行过程校验器读取两份已经保存的 AI 中间判断；另外三条确定性规则只由代码检查，不会调用模型：
 
 ```bash
 python -m src.verifiers.process_verifier \
@@ -142,6 +157,6 @@ python -m src.verifiers.process_verifier \
   --output experiments/results/day6_process_verifier/process_verdicts_v04.json
 ```
 
-Transfer-scope judgments的完整生成和评估顺序见：
+“是否应该转人工”中间判断的完整生成和评估顺序见：
 
 [`../../experiments/annotations/transfer_scope_v01/README.md`](../../experiments/annotations/transfer_scope_v01/README.md)

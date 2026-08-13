@@ -1,0 +1,790 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://govern-skill-evo.local/schemas/autonomous_gse_v01_campaign.schema.json",
+  "title": "Autonomous Governed Skill Evolution v0.1 Campaign Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "protocol_version",
+    "campaign_id",
+    "status",
+    "initial_parent",
+    "schedule",
+    "train",
+    "proposal",
+    "selection",
+    "gate",
+    "step_outcomes",
+    "budget",
+    "test",
+    "benchmark_runtime",
+    "implementation_bindings",
+    "integrity_policy"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "autonomous_gse_campaign_0.1.0"
+    },
+    "protocol_version": {
+      "const": "autonomous_gse_v01"
+    },
+    "campaign_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]*$"
+    },
+    "status": {
+      "enum": [
+        "draft",
+        "frozen"
+      ]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date"
+    },
+    "frozen_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "initial_parent": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/artifact"
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "no_skill"
+            },
+            "version": {
+              "const": "S0"
+            }
+          }
+        }
+      ]
+    },
+    "schedule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "epochs",
+        "steps_per_epoch",
+        "scheduled_steps"
+      ],
+      "properties": {
+        "epochs": {
+          "const": 1
+        },
+        "steps_per_epoch": {
+          "const": 3
+        },
+        "scheduled_steps": {
+          "const": 3
+        }
+      }
+    },
+    "train": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_manifest",
+        "source_split",
+        "total_tasks",
+        "intent_templates",
+        "batches",
+        "tasks_per_batch",
+        "tasks_per_template",
+        "template_balanced",
+        "overlap_between_batches",
+        "assignment_algorithm",
+        "assignment_seed",
+        "outcome_independent_assignment",
+        "cumulative_evidence",
+        "replay_previous_batches",
+        "batch_map"
+      ],
+      "properties": {
+        "source_manifest": {
+          "$ref": "#/$defs/artifact"
+        },
+        "source_split": {
+          "const": "train"
+        },
+        "total_tasks": {
+          "const": 51
+        },
+        "intent_templates": {
+          "const": 17
+        },
+        "batches": {
+          "const": 3
+        },
+        "tasks_per_batch": {
+          "const": 17
+        },
+        "tasks_per_template": {
+          "const": 3
+        },
+        "template_balanced": {
+          "const": true
+        },
+        "overlap_between_batches": {
+          "const": 0
+        },
+        "assignment_algorithm": {
+          "const": "sha256_rank_v01"
+        },
+        "assignment_seed": {
+          "type": "string",
+          "minLength": 1
+        },
+        "outcome_independent_assignment": {
+          "const": true
+        },
+        "cumulative_evidence": {
+          "const": false
+        },
+        "replay_previous_batches": {
+          "const": false
+        },
+        "batch_map": {
+          "$ref": "#/$defs/draftable_artifact"
+        }
+      }
+    },
+    "proposal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidates_per_step",
+        "maximum_learner_calls",
+        "eligible_evidence_states",
+        "selection_feedback_to_learner",
+        "test_feedback_to_learner",
+        "dispatch",
+        "learner"
+      ],
+      "properties": {
+        "candidates_per_step": {
+          "const": 1
+        },
+        "maximum_learner_calls": {
+          "const": 3
+        },
+        "eligible_evidence_states": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "compliant_success"
+            },
+            {
+              "const": "violating_success"
+            }
+          ],
+          "items": false,
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "selection_feedback_to_learner": {
+          "const": "forbidden"
+        },
+        "test_feedback_to_learner": {
+          "const": "forbidden"
+        },
+        "dispatch": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "no_skill_parent",
+            "accepted_skill_parent"
+          ],
+          "properties": {
+            "no_skill_parent": {
+              "const": "bootstrap"
+            },
+            "accepted_skill_parent": {
+              "const": "incremental"
+            }
+          }
+        },
+        "learner": {
+          "$ref": "#/$defs/learner_contract"
+        }
+      }
+    },
+    "benchmark_runtime": {
+      "$ref": "#/$defs/benchmark_runtime"
+    },
+    "selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol",
+        "tasks",
+        "initial_s0_checkpoint",
+        "candidate_selection_each_step",
+        "accepted_candidate_becomes_checkpoint",
+        "rejected_candidate_keeps_checkpoint",
+        "selection_data_for_learning"
+      ],
+      "properties": {
+        "protocol": {
+          "const": "accepted_parent_checkpoint"
+        },
+        "tasks": {
+          "const": 18
+        },
+        "initial_s0_checkpoint": {
+          "const": "fresh"
+        },
+        "candidate_selection_each_step": {
+          "const": "fresh"
+        },
+        "accepted_candidate_becomes_checkpoint": {
+          "const": true
+        },
+        "rejected_candidate_keeps_checkpoint": {
+          "const": true
+        },
+        "selection_data_for_learning": {
+          "const": "forbidden"
+        }
+      }
+    },
+    "gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rule_set",
+        "aggregate_metrics",
+        "implementation_metric_keys",
+        "accept_condition",
+        "decision_mapping",
+        "severity_policy",
+        "implementation"
+      ],
+      "properties": {
+        "rule_set": {
+          "const": "two_dimensional_evolution_gate_v01"
+        },
+        "aggregate_metrics": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "task_success"
+            },
+            {
+              "const": "compliance"
+            },
+            {
+              "const": "cup"
+            }
+          ],
+          "items": false,
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "implementation_metric_keys": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "task_success",
+            "compliance",
+            "cup"
+          ],
+          "properties": {
+            "task_success": {
+              "const": "task_success"
+            },
+            "compliance": {
+              "const": "compliant"
+            },
+            "cup": {
+              "const": "cup"
+            }
+          }
+        },
+        "accept_condition": {
+          "const": "all_aggregate_deltas_nonnegative_and_at_least_one_positive"
+        },
+        "decision_mapping": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "continue_evolution",
+            "reject"
+          ],
+          "properties": {
+            "continue_evolution": {
+              "const": "ACCEPT"
+            },
+            "reject": {
+              "const": "REJECT"
+            }
+          }
+        },
+        "severity_policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "not_evaluated",
+            "severe_violation_detected"
+          ],
+          "properties": {
+            "not_evaluated": {
+              "const": "allow_aggregate_gate_evaluation"
+            },
+            "severe_violation_detected": {
+              "const": "REJECT"
+            }
+          }
+        },
+        "implementation": {
+          "$ref": "#/$defs/draftable_artifact"
+        }
+      }
+    },
+    "step_outcomes": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "const": "ACCEPT"
+        },
+        {
+          "const": "REJECT"
+        },
+        {
+          "const": "NO_CANDIDATE"
+        },
+        {
+          "const": "INVALID_PROPOSAL"
+        },
+        {
+          "const": "INTEGRITY_FAILURE"
+        }
+      ],
+      "items": false,
+      "minItems": 5,
+      "maxItems": 5
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "train_trajectories",
+        "initial_selection_trajectories",
+        "maximum_candidate_selection_trajectories",
+        "maximum_total_trajectories",
+        "maximum_candidates",
+        "maximum_learner_calls",
+        "unused_budget_reallocation"
+      ],
+      "properties": {
+        "train_trajectories": {
+          "const": 51
+        },
+        "initial_selection_trajectories": {
+          "const": 18
+        },
+        "maximum_candidate_selection_trajectories": {
+          "const": 54
+        },
+        "maximum_total_trajectories": {
+          "const": 123
+        },
+        "maximum_candidates": {
+          "const": 3
+        },
+        "maximum_learner_calls": {
+          "const": 3
+        },
+        "unused_budget_reallocation": {
+          "const": "forbidden"
+        }
+      }
+    },
+    "test": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "authorized",
+        "data_for_learning"
+      ],
+      "properties": {
+        "authorized": {
+          "const": false
+        },
+        "data_for_learning": {
+          "const": "forbidden"
+        }
+      }
+    },
+    "implementation_bindings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "batch_planner",
+        "bootstrap_operator",
+        "bootstrap_prompt",
+        "incremental_operator",
+        "incremental_prompt",
+        "train_runner",
+        "experience_builder",
+        "selection_runner",
+        "controller",
+        "benchmark_runtime_adapter",
+        "runtime_orchestrator",
+        "learner_adapter",
+        "learner_client",
+        "freeze_tool",
+        "campaign_schema",
+        "benchmark_agent"
+      ],
+      "properties": {
+        "batch_planner": {
+          "$ref": "#/$defs/draftable_artifact"
+        },
+        "bootstrap_operator": {
+          "$ref": "#/$defs/draftable_artifact"
+        },
+        "bootstrap_prompt": {
+          "$ref": "#/$defs/draftable_artifact"
+        },
+        "incremental_operator": {
+          "$ref": "#/$defs/draftable_artifact"
+        },
+        "incremental_prompt": {
+          "$ref": "#/$defs/draftable_artifact"
+        },
+        "train_runner": {
+          "$ref": "#/$defs/draftable_artifact"
+        },
+        "experience_builder": {
+          "$ref": "#/$defs/draftable_artifact"
+        },
+        "selection_runner": {
+          "$ref": "#/$defs/draftable_artifact"
+        },
+        "controller": {
+          "$ref": "#/$defs/draftable_artifact"
+        },
+        "benchmark_runtime_adapter": {
+          "$ref": "#/$defs/draftable_artifact"
+        },
+        "runtime_orchestrator": {
+          "$ref": "#/$defs/draftable_artifact"
+        },
+        "learner_adapter": {
+          "$ref": "#/$defs/draftable_artifact"
+        },
+        "learner_client": {
+          "$ref": "#/$defs/draftable_artifact"
+        },
+        "freeze_tool": {
+          "$ref": "#/$defs/draftable_artifact"
+        },
+        "campaign_schema": {
+          "$ref": "#/$defs/draftable_artifact"
+        },
+        "benchmark_agent": {
+          "$ref": "#/$defs/draftable_artifact"
+        }
+      }
+    },
+    "integrity_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hash_algorithm",
+        "all_runtime_artifacts_require_hash",
+        "hash_mismatch_action",
+        "formal_execution_requires_frozen_manifest"
+      ],
+      "properties": {
+        "hash_algorithm": {
+          "const": "sha256"
+        },
+        "all_runtime_artifacts_require_hash": {
+          "const": true
+        },
+        "hash_mismatch_action": {
+          "const": "INTEGRITY_FAILURE"
+        },
+        "formal_execution_requires_frozen_manifest": {
+          "const": true
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "frozen"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "required": [
+          "frozen_at"
+        ],
+        "properties": {
+          "train": {
+            "properties": {
+              "batch_map": {
+                "$ref": "#/$defs/artifact"
+              }
+            }
+          },
+          "gate": {
+            "properties": {
+              "implementation": {
+                "$ref": "#/$defs/artifact"
+              }
+            }
+          },
+          "implementation_bindings": {
+            "properties": {
+              "batch_planner": {
+                "$ref": "#/$defs/artifact"
+              },
+              "bootstrap_operator": {
+                "$ref": "#/$defs/artifact"
+              },
+              "bootstrap_prompt": {
+                "$ref": "#/$defs/artifact"
+              },
+              "incremental_operator": {
+                "$ref": "#/$defs/artifact"
+              },
+              "incremental_prompt": {
+                "$ref": "#/$defs/artifact"
+              },
+              "train_runner": {
+                "$ref": "#/$defs/artifact"
+              },
+              "experience_builder": {
+                "$ref": "#/$defs/artifact"
+              },
+              "selection_runner": {
+                "$ref": "#/$defs/artifact"
+              },
+              "controller": {
+                "$ref": "#/$defs/artifact"
+              },
+              "benchmark_runtime_adapter": {
+                "$ref": "#/$defs/artifact"
+              },
+              "runtime_orchestrator": {
+                "$ref": "#/$defs/artifact"
+              },
+              "learner_adapter": {
+                "$ref": "#/$defs/artifact"
+              },
+              "learner_client": {
+                "$ref": "#/$defs/artifact"
+              },
+              "freeze_tool": {
+                "$ref": "#/$defs/artifact"
+              },
+              "campaign_schema": {
+                "$ref": "#/$defs/artifact"
+              },
+              "benchmark_agent": {
+                "$ref": "#/$defs/artifact"
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "version",
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "pending_artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "version",
+        "status"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "const": "pending_binding"
+        }
+      }
+    },
+    "draftable_artifact": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/artifact"
+        },
+        {
+          "$ref": "#/$defs/pending_artifact"
+        }
+      ]
+    },
+    "learner_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requested_model",
+        "resolved_model",
+        "api_parameters",
+        "temperature_policy",
+        "prompt_template_sha256"
+      ],
+      "properties": {
+        "requested_model": {
+          "const": "openai/gpt-5.6-terra"
+        },
+        "resolved_model": {
+          "const": "gpt-5.6-terra"
+        },
+        "api_parameters": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reasoning_effort",
+            "max_completion_tokens",
+            "temperature"
+          ],
+          "properties": {
+            "reasoning_effort": {
+              "const": "low"
+            },
+            "max_completion_tokens": {
+              "const": 8000
+            },
+            "temperature": {
+              "type": "null"
+            }
+          }
+        },
+        "temperature_policy": {
+          "const": "not_sent"
+        },
+        "prompt_template_sha256": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "bootstrap",
+            "incremental"
+          ],
+          "properties": {
+            "bootstrap": {
+              "$ref": "#/$defs/sha256"
+            },
+            "incremental": {
+              "$ref": "#/$defs/sha256"
+            }
+          }
+        }
+      }
+    },
+    "benchmark_runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "benchmark",
+        "agent",
+        "rollout",
+        "database_snapshot",
+        "database_reset",
+        "compose_file"
+      ],
+      "properties": {
+        "benchmark": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "commit"],
+          "properties": {
+            "name": {"const": "ST-WebAgentBench"},
+            "commit": {"type": "string", "pattern": "^[a-f0-9]{40}$"}
+          }
+        },
+        "agent": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["requested_model", "resolved_model", "api_parameters"],
+          "properties": {
+            "requested_model": {"const": "openai/gpt-5.6-terra"},
+            "resolved_model": {"const": "gpt-5.6-terra"},
+            "api_parameters": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["temperature", "max_tokens"],
+              "properties": {
+                "temperature": {"const": 0.1},
+                "max_tokens": {"const": 512}
+              }
+            }
+          }
+        },
+        "rollout": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "headless",
+            "trials_per_task",
+            "execution",
+            "database_reset_before_every_trial"
+          ],
+          "properties": {
+            "headless": {"const": false},
+            "trials_per_task": {"const": 1},
+            "execution": {"const": "sequential"},
+            "database_reset_before_every_trial": {"const": true}
+          }
+        },
+        "database_snapshot": {"$ref": "#/$defs/artifact"},
+        "database_reset": {"$ref": "#/$defs/artifact"},
+        "compose_file": {"$ref": "#/$defs/artifact"}
+      }
+    }
+  }
+}
