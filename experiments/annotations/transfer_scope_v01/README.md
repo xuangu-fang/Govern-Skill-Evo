@@ -1,6 +1,8 @@
-# Transfer-scope Semantic Process Verifier标注实验
+# “是否应该转人工”语义校验实验
 
-本目录保存`airline.transfer.scope.001`的标注与评估数据。该规则判断：用户请求无法在Agent的Policy权限和工具范围内处理时，是否正确转交人工。
+本目录保存规则 `airline.transfer.scope.001` 的人工标注、AI 判断和评估结果。该规则要判断：当用户请求超出 Agent 的规则权限或工具能力时，Agent 是否正确转交人工。
+
+代码中把这类需要理解语义的检查称为 Semantic Process Verifier（语义过程校验器）。Human Gold 指人工审核后确认的标准答案，用于衡量 AI 判断是否可靠，不能由模型自动生成或改写。
 
 当前数据覆盖Task 5–14，共10条轨迹。Task 5–9沿用原运行结果，Task 10–14来自新增运行结果。
 
@@ -21,48 +23,48 @@ transfer_scope_v01/
 
 | 路径 | 内容 | 维护方式 | 保存规则 |
 |---|---|---|---|
-| `gold/human_adjudicated.json` | 人工确认的`should_transfer`和合规标签。 | 人工审核后维护。 | 不得用模型输出自动覆盖。 |
-| `semantic_runs/*/judgments.json` | Semantic Process Verifier保存的中间AI语义判断。 | 模型运行生成。 | 正式结果不得覆盖；重复运行使用新的run目录。 |
-| `semantic_runs/*/evaluation.json` | 中间语义判断与Human Gold的覆盖率、准确率、混淆矩阵和逐条对比。 | 评估脚本生成。 | 与对应judgments一起保存，不覆盖其他run。 |
-| `semantic_runs/*/compliance_verdicts.json` | 结合AI语义判断与轨迹中实际转人工事实得到的最终Process Verdict。 | Semantic Process Verifier生成。 | 与对应judgments一起保存，不覆盖其他run。 |
+| `gold/human_adjudicated.json` | 人工确认“是否应该转人工”以及最终是否合规。 | 人工审核后维护。 | 不得用模型输出自动覆盖。 |
+| `semantic_runs/*/judgments.json` | AI 对“是否应该转人工”作出的中间判断。 | 模型运行生成。 | 正式结果不得覆盖；重复运行使用新的运行目录。 |
+| `semantic_runs/*/evaluation.json` | AI 判断与人工标准答案的覆盖率、准确率、分类统计和逐条对比。 | 评估脚本生成。 | 与对应判断一起保存，不覆盖其他运行。 |
+| `semantic_runs/*/compliance_verdicts.json` | 结合 AI 判断和 Agent 实际是否转人工，得到最终合规结果。 | 语义过程校验器生成。 | 与对应判断一起保存，不覆盖其他运行。 |
 
-## 动态语义输入与信息隔离
+## AI 判断时能看到什么
 
-Transfer-scope不保存逐Task Packet。人工审核或Semantic Process Verifier运行时，从以下版本化来源动态构造受控语义输入：
+系统不为每个任务另存一份重复的输入包。人工审核或 AI 校验运行时，会从以下带版本号的文件中临时组合输入：
 
 - `experiments/results/day5_schema/common_trajectories_v02.json`；
 - `policies/airline/rules_v04.json`；
 - `policies/airline/transfer_scope_context_v01.json`。
 
-受控输入不包含：
+为防止答案泄漏，AI 看不到以下内容：
 
 - task reward和reward breakdown；
 - 隐藏用户指令；
 - 参考答案或reference actions；
-- Human Gold；
+- 人工标准答案；
 - 轨迹中不可见的数据库状态。
 
-因此Semantic Process Verifier只能依据Policy、工具能力和当前可见轨迹作出判断。
+因此，AI 只能依据规则、工具能力和 Agent 当时可见的交互内容作出判断。
 
 ## 正确运行顺序
 
 ```text
 统一TrajectoryDataset
     ↓
-读取PolicyRule和VerificationContext
+读取规则和校验所需背景信息
     ↓
 动态构造受控语义输入
-    ├── 人工审核并冻结Human Gold
-    └── 运行Semantic Process Verifier
+    ├── 人工审核并锁定标准答案
+    └── 运行AI语义校验
             ├── 保存中间AI语义判断
             └── 生成最终合规结果
     ↓
-中间语义判断与Human Gold评估
+将AI中间判断与人工标准答案比较
 ```
 
-Human Gold必须先完成人工审核，之后才能评估Semantic Process Verifier。不能根据模型结果反向修改Gold以提高准确率。
+必须先完成人工审核并锁定标准答案，之后才能评估 AI。不能根据模型结果反过来修改人工答案以提高准确率。
 
-## 当前Transfer-scope验证链路
+## 如何重新运行
 
 加载本地环境变量：
 
@@ -72,7 +74,7 @@ source .env
 set +a
 ```
 
-调用AI生成10条语义判断，并生成最终ComplianceVerdict：
+调用 AI 生成10条语义判断，并进一步生成最终合规结果：
 
 ```bash
 python -m src.verifiers.handlers.semantic.transfer_scope \
@@ -83,7 +85,7 @@ python -m src.verifiers.handlers.semantic.transfer_scope \
   --output experiments/annotations/transfer_scope_v01/semantic_runs/gpt-5.6-terra/compliance_verdicts.json
 ```
 
-与Human Gold比较：
+与人工标准答案比较：
 
 ```bash
 python -m src.verifiers.evaluators.transfer_scope \
@@ -94,7 +96,7 @@ python -m src.verifiers.evaluators.transfer_scope \
 
 ## 当前结果
 
-- Human Gold：10条，其中8条合规、2条违规。
-- Semantic Process Verifier：覆盖率100%，中间语义判断与Human Gold一致率90%。
-- 唯一误判是Task 12的False Positive。
-- Semantic Process Verifier生成7条合规、3条违规，其中Task 12属于AI语义误报。
+- 人工标准答案共10条，其中8条合规、2条违规。
+- AI 完成了全部10条判断，与人工答案的一致率为90%。
+- 唯一误判是任务12：AI 将实际不应判为违规的情况误报为违规。
+- 最终 AI 结果为7条合规、3条违规，其中任务12属于误报。
