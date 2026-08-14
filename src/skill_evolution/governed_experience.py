@@ -9,7 +9,6 @@ Learner because it is not reliable enough for step-level attribution.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import sys
@@ -24,22 +23,9 @@ from src.skill_evolution.two_dimensional_gate import (
     OutcomeState,
     classify_state,
 )
-from src.skill_evolution.implementation_binding import (
-    require_implementation_binding,
-)
 
 
 SCHEMA_VERSION = "governed_experience_0.1.0"
-
-
-def _sha256_file(path: Path) -> str:
-    """Return the SHA-256 digest of one source trajectory."""
-
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def _compact_actions(steps: Any) -> list[dict[str, Any]]:
@@ -237,7 +223,6 @@ def build_dataset(
                 "source_id": source_id,
                 "task_id": task_id,
                 "path": path.as_posix(),
-                "sha256": _sha256_file(path),
             }
         )
 
@@ -260,11 +245,10 @@ def validate_s1_lineage(
     trajectory_paths: list[Path],
     manifest_path: Path,
 ) -> dict[str, Any]:
-    """Require 51 fresh v03 S1 Train trajectories with one frozen Skill."""
+    """Require 51 fresh v03 S1 Train trajectories from accepted S1."""
 
     manifest_path = manifest_path.resolve()
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    binding = require_implementation_binding(manifest_path, manifest)
     planned = manifest["planned_rollouts"]["train"]
     methods = planned.get("methods", [])
     if methods != ["governed_candidate_s1"]:
@@ -281,12 +265,10 @@ def validate_s1_lineage(
         "status": "completed",
         "run_kind": "formal",
         "manifest_id": manifest["manifest_id"],
-        "manifest_sha256": _sha256_file(manifest_path),
         "split": "train",
         "method": parent["method"],
         "skill_version": parent["skill_version"],
         "skill_path": parent["skill_path"],
-        "skill_sha256": parent["skill_sha256"],
         "skill_injected": True,
     }
     expected_task_ids = {
@@ -295,7 +277,6 @@ def validate_s1_lineage(
         for task_id in template["task_ids"]
     }
     observed_task_ids: set[int] = set()
-    runner_hashes: set[str] = set()
     for path in trajectory_paths:
         trajectory = json.loads(path.read_text(encoding="utf-8"))
         run = trajectory.get("run", {})
@@ -313,35 +294,18 @@ def validate_s1_lineage(
         if not isinstance(task_id, int) or task_id in observed_task_ids:
             raise ValueError(f"Invalid or duplicate S1 Train task: {task_id!r}")
         observed_task_ids.add(task_id)
-        runner_hash = run.get("runner_sha256")
-        if not isinstance(runner_hash, str):
-            raise ValueError(f"Trajectory has no runner SHA-256: {path}")
-        runner_hashes.add(runner_hash)
-
     if observed_task_ids != expected_task_ids:
-        raise ValueError("S1 Train task IDs do not match the frozen split.")
-    if len(runner_hashes) != 1:
-        raise ValueError("S1 Train trajectories use multiple runner hashes.")
-    expected_runner_sha256 = binding["bound_files"].get(
-        "src/adapters/stwebagentbench/run_evolution_train.py"
-    )
-    if next(iter(runner_hashes)) != expected_runner_sha256:
-        raise ValueError(
-            "S1 Train runner SHA-256 does not match the implementation freeze."
-        )
+        raise ValueError("S1 Train task IDs do not match the recorded split.")
 
     return {
         "manifest_id": manifest["manifest_id"],
         "manifest_path": manifest_path.relative_to(
             Path(__file__).resolve().parents[2]
         ).as_posix(),
-        "manifest_sha256": expected["manifest_sha256"],
         "split": "train",
         "method": parent["method"],
         "skill_version": parent["skill_version"],
         "skill_path": parent["skill_path"],
-        "skill_sha256": parent["skill_sha256"],
-        "runner_sha256": next(iter(runner_hashes)),
         "trajectory_count": len(trajectory_paths),
     }
 

@@ -90,7 +90,6 @@ def make_dataset() -> dict:
                 "source_id": item["source_id"],
                 "task_id": index,
                 "path": f"task_{index}/trajectory.json",
-                "sha256": "0" * 64,
             }
             for index, item in enumerate(experiences, start=1)
         ],

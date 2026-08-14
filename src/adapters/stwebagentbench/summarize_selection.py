@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import csv
-import hashlib
 import json
 import os
 import subprocess
@@ -22,7 +21,6 @@ DEFAULT_MANIFEST = (
     / "stweb_suitecrm_poc_v01.json"
 )
 VALIDATOR = Path(__file__).with_name("validate_selection_run.py")
-RUNNER = Path(__file__).with_name("run_selection.py")
 OUTPUT_ROOT = (
     REPO_ROOT
     / "experiments"
@@ -37,16 +35,6 @@ METHODS = (
     "outcome_only_skill",
     "filtered_skill",
 )
-
-
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-
-    return digest.hexdigest()
 
 
 def save_json_atomic(path: Path, payload: dict | list) -> None:
@@ -208,10 +196,7 @@ def load_task_rows(
                     "trajectory_path": path.relative_to(
                         REPO_ROOT
                     ).as_posix(),
-                    "trajectory_sha256": sha256_file(path),
-                    "runner_sha256": trajectory["run"]["runner_sha256"],
                     "skill_path": trajectory["run"].get("skill_path"),
-                    "skill_sha256": trajectory["run"].get("skill_sha256"),
                 }
             )
 
@@ -417,9 +402,6 @@ def main() -> int:
         raise FileNotFoundError(f"Manifest not found: {manifest_path}")
     if not VALIDATOR.is_file():
         raise FileNotFoundError(f"Validator not found: {VALIDATOR}")
-    if not RUNNER.is_file():
-        raise FileNotFoundError(f"Runner not found: {RUNNER}")
-
     run_validation(manifest_path, args.model, args.partial)
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -447,11 +429,7 @@ def main() -> int:
         "mode": "partial" if args.partial else "strict",
         "source": {
             "manifest_id": manifest["manifest_id"],
-            "manifest_sha256": sha256_file(manifest_path),
             "requested_model": args.model,
-            "runner_sha256": sha256_file(RUNNER),
-            "validator_sha256": sha256_file(VALIDATOR),
-            "summarizer_sha256": sha256_file(Path(__file__)),
             "expected_trajectories": 72,
             "completed_trajectories": len(task_rows),
             "primary_evaluation_unit": manifest["research_scope"][

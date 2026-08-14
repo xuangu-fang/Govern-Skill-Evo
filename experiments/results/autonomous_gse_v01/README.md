@@ -1,6 +1,6 @@
 # Autonomous GSE v0.1 正式结果
 
-本目录保存适合进入 Git 的 Autonomous GSE v0.1 正式实验结果和审计证据。体积较大的逐任务浏览器记录、评测基准、候选文件和运行中间产物仍保存在本机 `artifacts/autonomous_gse_v01/`。
+本目录保存适合进入 Git 的 Autonomous GSE v0.1 正式实验结果。体积较大的逐任务浏览器记录、评测基准、候选文件和运行中间产物仍保存在本机 `artifacts/autonomous_gse_v01/`。
 
 ## 核心结果
 
@@ -19,7 +19,6 @@
 | 文件 | 内容 |
 |---|---|
 | [`campaign_report.json`](campaign_report.json) | 正式运行程序生成的完整实验报告副本，包括三步结果、预算使用、最终版本、评测基准和副作用计数。 |
-| [`frozen_sources/autonomous_gse_freeze.py`](frozen_sources/autonomous_gse_freeze.py) | 正式实验冻结时绑定的冻结工具源码快照，用于保留历史 SHA-256 证据。当前 `src/` 中的同名文件已移除本机绝对路径，不应被误认为正式实验当时使用的版本。 |
 
 版本化报告来自：
 

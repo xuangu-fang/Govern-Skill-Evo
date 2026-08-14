@@ -8,7 +8,6 @@ This module does not define thresholds or modify Gate policy.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import sys
@@ -20,9 +19,6 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
 from src.skill_evolution.two_dimensional_gate import analyze_candidate
-from src.skill_evolution.implementation_binding import (
-    require_implementation_binding,
-)
 
 
 DEFAULT_SUMMARY = (
@@ -41,14 +37,6 @@ STATE_COMPONENTS = {
     "CF": (False, True),
     "CS": (True, True),
 }
-
-
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def save_json_atomic(path: Path, payload: dict[str, Any]) -> None:
@@ -85,7 +73,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--manifest",
         type=Path,
-        help="Frozen manifest used by --dry-run before a summary exists.",
+        help="Experiment manifest used by --dry-run before a summary exists.",
     )
     parser.add_argument(
         "--dry-run",
@@ -297,7 +285,6 @@ def main() -> int:
 
     manifest_path = REPO_ROOT / summary["source"]["manifest_path"]
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    require_implementation_binding(manifest_path, manifest)
     if manifest["manifest_id"] != summary["source"]["manifest_id"]:
         raise ValueError("Summary and manifest IDs do not match.")
 
@@ -305,13 +292,10 @@ def main() -> int:
         "selection_summary_path": summary_path.relative_to(
             REPO_ROOT
         ).as_posix(),
-        "selection_summary_sha256": sha256_file(summary_path),
         "manifest_path": manifest_path.relative_to(REPO_ROOT).as_posix(),
-        "manifest_sha256": sha256_file(manifest_path),
         "gate_implementation_path": GATE_PATH.relative_to(
             REPO_ROOT
         ).as_posix(),
-        "gate_implementation_sha256": sha256_file(GATE_PATH),
         "gate_policy": manifest["skill_evolution"]["gate_policy"],
     }
     decision = build_decision(summary, manifest, provenance)

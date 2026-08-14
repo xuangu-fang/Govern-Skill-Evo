@@ -7,8 +7,6 @@ callable. They perform no API calls and no filesystem writes.
 from __future__ import annotations
 
 import copy
-import hashlib
-import json
 import re
 from dataclasses import dataclass
 from typing import Any, Callable
@@ -84,38 +82,6 @@ class ProposalDecision:
     reason: str
 
 
-def _canonical_json_bytes(payload: dict[str, Any]) -> bytes:
-    return (
-        json.dumps(
-            payload,
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-        )
-        + "\n"
-    ).encode("utf-8")
-
-
-def _json_sha256(payload: dict[str, Any]) -> str:
-    return hashlib.sha256(_canonical_json_bytes(payload)).hexdigest()
-
-
-def _text_sha256(value: str) -> str:
-    return hashlib.sha256(
-        (value.rstrip() + "\n").encode("utf-8")
-    ).hexdigest()
-
-
-def _require_sha256(value: Any, label: str) -> str:
-    if (
-        not isinstance(value, str)
-        or len(value) != 64
-        or any(character not in "0123456789abcdef" for character in value)
-    ):
-        raise ProposalIntegrityError(f"{label} must be a SHA-256 digest.")
-    return value
-
-
 def _require_artifact(
     value: Any,
     label: str,
@@ -123,7 +89,7 @@ def _require_artifact(
     kind: str | None = None,
     version: str | None = None,
 ) -> dict[str, Any]:
-    required = {"kind", "version", "path", "sha256"}
+    required = {"kind", "version", "path"}
     if not isinstance(value, dict) or set(value) != required:
         raise ProposalIntegrityError(
             f"{label} must contain exactly {sorted(required)}."
@@ -131,7 +97,6 @@ def _require_artifact(
     for field in ("kind", "version", "path"):
         if not isinstance(value[field], str) or not value[field]:
             raise ProposalIntegrityError(f"{label}.{field} is invalid.")
-    _require_sha256(value["sha256"], f"{label}.sha256")
     if kind is not None and value["kind"] != kind:
         raise ProposalIntegrityError(f"{label} must have kind {kind!r}.")
     if version is not None and value["version"] != version:
@@ -185,8 +150,6 @@ def _validate_parent(context: ProposalContext, operator: str) -> None:
         )
     if not isinstance(context.parent_skill, str) or not context.parent_skill:
         raise ProposalIntegrityError("Incremental requires Parent Skill text.")
-    if _text_sha256(context.parent_skill) != parent["sha256"]:
-        raise ProposalIntegrityError("Parent Skill hash does not match Parent.")
     try:
         validate_skill(context.parent_skill)
     except ValueError as error:
@@ -213,9 +176,6 @@ def _validate_dataset(context: ProposalContext) -> list[dict[str, Any]]:
         )
     if dataset.get("schema_version") != GOVERNED_EXPERIENCE_SCHEMA:
         raise ProposalIntegrityError("Unexpected governed-experience schema.")
-    if _json_sha256(dataset) != context.experience["sha256"]:
-        raise ProposalIntegrityError("Governed Experience hash mismatch.")
-
     experiences = dataset.get("experiences")
     sources = dataset.get("sources")
     if not isinstance(experiences, list) or not isinstance(sources, list):
@@ -232,13 +192,13 @@ def _validate_dataset(context: ProposalContext) -> list[dict[str, Any]]:
     lineage = dataset.get("lineage")
     if not isinstance(lineage, dict) or set(lineage) != {
         "batch_id",
-        "parent_sha256",
+        "parent_version",
         "task_ids",
     }:
         raise ProposalIntegrityError("Governed Experience lineage is incomplete.")
     if lineage["batch_id"] != context.batch_id:
         raise ProposalIntegrityError("Governed Experience batch lineage mismatch.")
-    if lineage["parent_sha256"] != context.parent["sha256"]:
+    if lineage["parent_version"] != context.parent["version"]:
         raise ProposalIntegrityError("Governed Experience Parent lineage mismatch.")
     if lineage["task_ids"] != list(context.task_ids):
         raise ProposalIntegrityError("Governed Experience Task lineage mismatch.")
@@ -250,7 +210,6 @@ def _validate_dataset(context: ProposalContext) -> list[dict[str, Any]]:
             "source_id",
             "task_id",
             "path",
-            "sha256",
         }:
             raise ProposalIntegrityError("Governed source is malformed.")
         if not isinstance(source["source_id"], str) or not source["source_id"]:
@@ -259,7 +218,6 @@ def _validate_dataset(context: ProposalContext) -> list[dict[str, Any]]:
             raise ProposalIntegrityError("Governed source task_id is invalid.")
         if not isinstance(source["path"], str) or not source["path"]:
             raise ProposalIntegrityError("Governed source path is invalid.")
-        _require_sha256(source["sha256"], "Governed source sha256")
         source_ids.append(source["source_id"])
         source_task_ids.append(source["task_id"])
     if len(set(source_ids)) != 17 or source_task_ids != list(context.task_ids):
@@ -339,7 +297,6 @@ def _candidate_artifact(candidate_id: str, skill: str) -> dict[str, str]:
         "kind": "candidate_skill",
         "version": candidate_id,
         "path": f"memory://autonomous_gse_proposal/{candidate_id}/skill.md",
-        "sha256": _text_sha256(skill),
     }
 
 
@@ -353,7 +310,6 @@ def _provenance_artifact(
         "path": (
             f"memory://autonomous_gse_proposal/{candidate_id}/provenance.json"
         ),
-        "sha256": _json_sha256(payload),
     }
 
 
@@ -375,7 +331,7 @@ def _candidate_bundle(
             "task_ids": list(context.task_ids),
         },
         "experience": copy.deepcopy(context.experience),
-        "candidate_skill_sha256": candidate["sha256"],
+        "candidate": copy.deepcopy(candidate),
         "proposal": copy.deepcopy(proposal_payload),
     }
     provenance = _provenance_artifact(
@@ -395,7 +351,7 @@ def validate_proposal_decision(
     *,
     operator: str,
 ) -> None:
-    """Apply the unified status, hash, and lineage validation contract."""
+    """Apply the unified status and lineage validation contract."""
 
     evidence = validate_proposal_context(context, operator=operator)
     if not isinstance(decision, ProposalDecision):
@@ -438,10 +394,6 @@ def validate_proposal_decision(
         kind="candidate_provenance",
         version=context.candidate_id,
     )
-    if _text_sha256(bundle.skill) != candidate["sha256"]:
-        raise ProposalIntegrityError("Candidate Skill hash mismatch.")
-    if _json_sha256(bundle.provenance_payload) != provenance["sha256"]:
-        raise ProposalIntegrityError("Candidate provenance hash mismatch.")
     expected = {
         "schema_version": PROPOSAL_PROVENANCE_SCHEMA,
         "candidate_id": context.candidate_id,
@@ -452,7 +404,7 @@ def validate_proposal_decision(
             "task_ids": list(context.task_ids),
         },
         "experience": context.experience,
-        "candidate_skill_sha256": candidate["sha256"],
+        "candidate": candidate,
     }
     for key, value in expected.items():
         if bundle.provenance_payload.get(key) != value:

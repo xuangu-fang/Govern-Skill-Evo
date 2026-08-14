@@ -1,8 +1,8 @@
 # Skill 文件与生成证据
 
-本目录保存 SuiteCRM 实验生成的 Skill，以及用于审计和复现这些 Skill 的证据。
+本目录保存 SuiteCRM 实验生成的 Skill，以及用于理解生成过程的结构化证据。
 
-这里的“候选版本（Candidate）”是尚未经过选择评测的新 Skill；“当前版本（Parent）”是生成候选版本时作为起点的 Skill；“冻结记录”用于证明参加评测的文件之后没有被替换。
+这里的“候选版本（Candidate）”是尚未经过选择评测的新 Skill；“当前版本（Parent）”是生成候选版本时作为起点的 Skill。
 
 ## 快速入口
 
@@ -24,9 +24,7 @@ Governed Candidate S1 是 Day 9 根据 S0（没有附加 Skill）完成训练任
 | `*_skill.patch` | 最终 Skill 相对起点版本的文本差异。S1 的起点是空白 S0，因此文件会显示整份 Skill 都是新增内容。 |
 | `*_learner_response.txt` | Learner 模型返回的原始文本，保留用于调试和审计，不直接作为运行时 Skill。 |
 | `*_provenance.json` | 逐条记录每项 Skill 规则来自哪些经验，以及该规则属于“保留有效做法”还是“修复违规做法”。`provenance` 即来源证据。 |
-| `*_metadata.json` | 记录生成输入、模型配置、提示词内容指纹、输入数量、输出位置和源任务记录的内容指纹。 |
-| `*_freeze.json` | 候选版本进入选择评测前的冻结记录，保存关键文件路径、SHA-256 内容指纹和完整性状态。 |
-| `*_generation_source/` | 保存生成候选版本时使用的代码，以便日后代码变化时仍能追查当时的生成条件。 |
+| `*_metadata.json` | 记录生成输入、模型配置、输入数量、输出位置和源任务记录。 |
 
 ## Governed Candidate S1
 
@@ -52,8 +50,4 @@ S1 相关文件的推荐阅读顺序：
 2. `governed_candidate_s1_provenance.json`：每条规则来自哪些经验，以及属于保留还是修复。
 3. `governed_candidate_s1_skill.patch`：S0 到 S1 增加了什么。
 4. `governed_candidate_s1_metadata.json`：Candidate 如何生成。
-5. `governed_candidate_s1_freeze.json`：Selection 实际冻结和使用的文件及哈希。
-6. `governed_candidate_s1_learner_response.txt`：模型原始输出。
-7. `governed_candidate_s1_generation_source/`：生成时代码的恢复证据。
-
-`freeze.json` 是核对实验文件完整性的入口，但它不是 Skill 正文。Agent 实际读取的是冻结记录所指向、且 SHA-256 核对通过的 `*_skill.md`。
+5. `governed_candidate_s1_learner_response.txt`：模型原始输出。

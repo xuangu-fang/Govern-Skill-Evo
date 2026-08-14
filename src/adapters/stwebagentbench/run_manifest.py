@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""Run ST-WebAgentBench Train tasks from a frozen manifest."""
+"""Run ST-WebAgentBench Train tasks from a recorded manifest."""
 
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import subprocess
@@ -59,16 +58,6 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-
-    return digest.hexdigest()
-
-
 def save_json_atomic(path: Path, payload: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary_path = path.with_name(f".{path.name}.tmp")
@@ -89,9 +78,9 @@ def save_json_atomic(path: Path, payload: dict) -> None:
 def load_train_tasks(manifest_path: Path) -> tuple[dict, list[dict]]:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 
-    if manifest.get("status") != "frozen":
+    if manifest.get("status") != "completed":
         raise ValueError(
-            f"Manifest must be frozen, got: {manifest.get('status')!r}"
+            f"Manifest must be completed, got: {manifest.get('status')!r}"
         )
 
     planned_methods = (
@@ -134,7 +123,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Run no_skill ST-WebAgentBench Train tasks from "
-            "the frozen manifest."
+            "the recorded manifest."
         )
     )
 
@@ -200,8 +189,6 @@ def validate_completed_trajectory(
     manifest: dict,
     task: dict,
     args: argparse.Namespace,
-    manifest_sha256: str,
-    database_snapshot_sha256: str,
 ) -> None:
     trajectory = json.loads(trajectory_path.read_text(encoding="utf-8"))
     run = trajectory.get("run", {})
@@ -210,8 +197,6 @@ def validate_completed_trajectory(
         "status": "completed",
         "run_kind": "formal" if args.formal else "smoke",
         "manifest_id": manifest["manifest_id"],
-        "manifest_sha256": manifest_sha256,
-        "database_snapshot_sha256": database_snapshot_sha256,
         "split": "train",
         "method": "no_skill",
         "trial": 1,
@@ -243,8 +228,6 @@ def run_task(
     args: argparse.Namespace,
     manifest: dict,
     task: dict,
-    manifest_sha256: str,
-    database_snapshot_sha256: str,
 ) -> str:
     output_dir = get_output_dir(
         manifest,
@@ -259,8 +242,6 @@ def run_task(
             manifest,
             task,
             args,
-            manifest_sha256,
-            database_snapshot_sha256,
         )
         print(f"Skipping completed Task {task['task_id']}: {trajectory_path}")
         return "skipped"
@@ -276,13 +257,7 @@ def run_task(
         "run_id": run_id,
         "run_kind": "formal" if args.formal else "smoke",
         "manifest_id": manifest["manifest_id"],
-        "manifest_sha256": manifest_sha256,
-        "runner_sha256": sha256_file(Path(__file__)),
         "benchmark_commit": manifest["benchmark"]["commit"],
-        "task_source_sha256": (
-            manifest["benchmark"]["task_source_sha256"]
-        ),
-        "database_snapshot_sha256": database_snapshot_sha256,
         "split": "train",
         "method": "no_skill",
         "trial": 1,
@@ -473,9 +448,6 @@ def main() -> None:
                 f"Task {args.task_id} is not part of the Train split."
             )
 
-    manifest_sha256 = sha256_file(manifest_path)
-    database_snapshot_sha256 = sha256_file(DB_SNAPSHOT)
-
     if args.dry_run:
         pending = 0
         skipped = 0
@@ -492,8 +464,6 @@ def main() -> None:
                     manifest,
                     task,
                     args,
-                    manifest_sha256,
-                    database_snapshot_sha256,
                 )
                 status = "skip"
                 skipped += 1
@@ -530,8 +500,6 @@ def main() -> None:
             args,
             manifest,
             task,
-            manifest_sha256,
-            database_snapshot_sha256,
         )
 
         if result == "completed":

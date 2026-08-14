@@ -256,7 +256,7 @@ Compliant(trajectory, policy_version) = true
 
 τ-bench 官方 reviewer 是这一层的 baseline。我们的 judge 必须输出结构化结果并引用 rule ID 与 step。
 
-### Layer 3：Human gold
+### Layer 3：人工标签
 
 用于：
 
@@ -286,7 +286,7 @@ LLM 可以提出候选 violation，但不能直接替代人工 gold。
 
 第一张诊断表应为：
 
-| Trajectory | Task reward | Official reviewer | Our verifier | Human gold | Notes |
+| Trajectory | Task reward | Official reviewer | Our verifier | 人工标签 | Notes |
 |---|---:|---|---|---|---|
 |  |  |  |  |  |  |
 

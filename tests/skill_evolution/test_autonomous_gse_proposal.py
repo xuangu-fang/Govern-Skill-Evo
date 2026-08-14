@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import copy
-import hashlib
 import json
 from dataclasses import replace
 
@@ -41,30 +40,15 @@ BOOTSTRAP_SKILL = """# SuiteCRM Operational Skill
 - Stop when a required record cannot be found."""
 
 
-def canonical_json_sha256(payload: dict) -> str:
-    data = (
-        json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-        + "\n"
-    ).encode("utf-8")
-    return hashlib.sha256(data).hexdigest()
-
-
-def text_sha256(value: str) -> str:
-    return hashlib.sha256((value.rstrip() + "\n").encode("utf-8")).hexdigest()
-
-
 def artifact(
     kind: str,
     version: str,
     marker: str,
-    *,
-    sha256: str | None = None,
 ) -> dict[str, str]:
     return {
         "kind": kind,
         "version": version,
         "path": f"memory://proposal-test/{marker}",
-        "sha256": sha256 or hashlib.sha256(marker.encode("utf-8")).hexdigest(),
     }
 
 
@@ -127,14 +111,13 @@ def dataset(
                 "source_id": item["source_id"],
                 "task_id": task_id,
                 "path": f"memory://train/task_{task_id}.json",
-                "sha256": f"{task_id:064x}",
             }
             for task_id, item in zip(task_ids, experiences, strict=True)
         ],
         "experiences": experiences,
         "lineage": {
             "batch_id": batch_id,
-            "parent_sha256": parent["sha256"],
+            "parent_version": parent["version"],
             "task_ids": task_ids,
         },
     }
@@ -147,12 +130,7 @@ def context(
     step: int = 1,
 ) -> ProposalContext:
     parent = (
-        artifact(
-            "accepted_skill",
-            "S1",
-            "parent.md",
-            sha256=text_sha256(PARENT_SKILL),
-        )
+        artifact("accepted_skill", "S1", "parent.md")
         if incremental
         else artifact("no_skill", "S0", "S0.json")
     )
@@ -178,7 +156,6 @@ def context(
             "governed_experience",
             "step_001",
             "experience.json",
-            sha256=canonical_json_sha256(governed_dataset),
         ),
         governed_dataset=governed_dataset,
     )
@@ -370,20 +347,21 @@ def test_operator_dispatch_is_enforced() -> None:
         )
 
 
-def test_incremental_requires_exact_parent_skill_hash() -> None:
+def test_incremental_accepts_valid_parent_text_without_digest_binding() -> None:
     current = context(incremental=True)
     current = replace(
         current,
         parent_skill=(current.parent_skill or "") + "\n- Unbound rule.",
     )
 
-    with pytest.raises(ProposalIntegrityError, match="Parent Skill hash"):
-        IncrementalProposalOperator().propose(
-            current, lambda _: incremental_response()
-        )
+    decision = IncrementalProposalOperator().propose(
+        current, lambda _: incremental_response()
+    )
+
+    assert decision.status == "CANDIDATE"
 
 
-@pytest.mark.parametrize("drift", ["batch", "parent", "hash", "test_data"])
+@pytest.mark.parametrize("drift", ["batch", "parent", "source", "test_data"])
 def test_context_integrity_failures_are_not_downgraded_to_invalid_proposal(
     drift: str,
 ) -> None:
@@ -391,9 +369,9 @@ def test_context_integrity_failures_are_not_downgraded_to_invalid_proposal(
     if drift == "batch":
         current.governed_dataset["lineage"]["batch_id"] = "batch_002"
     elif drift == "parent":
-        current.governed_dataset["lineage"]["parent_sha256"] = "f" * 64
-    elif drift == "hash":
-        current.experience["sha256"] = "f" * 64
+        current.governed_dataset["lineage"]["parent_version"] = "S9"
+    elif drift == "source":
+        current.governed_dataset["sources"][0]["task_id"] = 999
     else:
         current.governed_dataset["test"] = {"results": []}
 
@@ -407,9 +385,9 @@ def test_validator_rejects_tampered_candidate_bundle() -> None:
         current, lambda _: bootstrap_response()
     )
     assert decision.candidate is not None
-    decision.candidate.candidate["sha256"] = "f" * 64
+    decision.candidate.candidate["version"] = "wrong_candidate"
 
-    with pytest.raises(ProposalIntegrityError, match="Candidate Skill hash"):
+    with pytest.raises(ProposalIntegrityError, match="version"):
         validate_proposal_decision(current, decision, operator="bootstrap")
 
 
@@ -422,9 +400,6 @@ def test_validator_recomputes_proposal_semantics() -> None:
     decision.candidate.provenance_payload["proposal"]["rules"][0][
         "source_ids"
     ] = ["unknown_source"]
-    decision.candidate.provenance["sha256"] = canonical_json_sha256(
-        decision.candidate.provenance_payload
-    )
 
     with pytest.raises(ProposalIntegrityError, match="semantics"):
         validate_proposal_decision(current, decision, operator="bootstrap")

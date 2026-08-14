@@ -134,7 +134,7 @@ Tool-using Agent 在完成任务时会产生完整轨迹，包括对话、推理
 │   ├── verifiers/         # task/process verifier
 │   └── skill_evolution/   # lesson、patch、gate 与 lineage
 ├── experiments/
-│   ├── annotations/       # Human Gold与语义judgments
+│   ├── annotations/       # 人工标签与语义judgments
 │   ├── configs/
 │   ├── manifests/
 │   ├── results/

@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""Run ST-WebAgentBench Train tasks from a frozen manifest."""
+"""Run ST-WebAgentBench Train tasks from a recorded manifest."""
 
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import subprocess
@@ -32,9 +31,6 @@ from st_bench_example import DemoAgent, get_action_set
 from stwebagentbench.utils.data_collector import NumpyEncoder
 
 from src.adapters.stwebagentbench.skill_runtime import load_method_skill
-from src.skill_evolution.implementation_binding import (
-    require_implementation_binding,
-)
 
 
 DEFAULT_MANIFEST = (
@@ -65,16 +61,6 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-
-    return digest.hexdigest()
-
-
 def save_json_atomic(path: Path, payload: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary_path = path.with_name(f".{path.name}.tmp")
@@ -97,9 +83,9 @@ def load_train_tasks(
 ) -> tuple[dict, list[dict], str]:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 
-    if manifest.get("status") != "frozen":
+    if manifest.get("status") != "completed":
         raise ValueError(
-            f"Manifest must be frozen, got: {manifest.get('status')!r}"
+            f"Manifest must be completed, got: {manifest.get('status')!r}"
         )
 
     planned_methods = (
@@ -145,7 +131,7 @@ def load_train_tasks(
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Run one frozen Skill method over ST-WebAgentBench Train tasks."
+            "Run one Skill method over ST-WebAgentBench Train tasks."
         )
     )
 
@@ -218,8 +204,6 @@ def validate_completed_trajectory(
     args: argparse.Namespace,
     method: str,
     skill: dict,
-    manifest_sha256: str,
-    database_snapshot_sha256: str,
 ) -> None:
     trajectory = json.loads(trajectory_path.read_text(encoding="utf-8"))
     run = trajectory.get("run", {})
@@ -228,8 +212,6 @@ def validate_completed_trajectory(
         "status": "completed",
         "run_kind": "formal" if args.formal else "smoke",
         "manifest_id": manifest["manifest_id"],
-        "manifest_sha256": manifest_sha256,
-        "database_snapshot_sha256": database_snapshot_sha256,
         "split": "train",
         "method": method,
         "trial": 1,
@@ -237,8 +219,6 @@ def validate_completed_trajectory(
         "headless": args.headless,
         "skill_version": skill["version"],
         "skill_path": skill["path"],
-        "skill_sha256": skill["sha256"],
-        "skill_prompt_sha256": skill["prompt_sha256"],
         "skill_injected": skill["block"] is not None,
     }
 
@@ -268,8 +248,6 @@ def run_task(
     method: str,
     skill: dict,
     task: dict,
-    manifest_sha256: str,
-    database_snapshot_sha256: str,
 ) -> str:
     output_dir = get_output_dir(
         manifest,
@@ -287,8 +265,6 @@ def run_task(
             args,
             method,
             skill,
-            manifest_sha256,
-            database_snapshot_sha256,
         )
         print(f"Skipping completed Task {task['task_id']}: {trajectory_path}")
         return "skipped"
@@ -304,13 +280,7 @@ def run_task(
         "run_id": run_id,
         "run_kind": "formal" if args.formal else "smoke",
         "manifest_id": manifest["manifest_id"],
-        "manifest_sha256": manifest_sha256,
-        "runner_sha256": sha256_file(Path(__file__)),
         "benchmark_commit": manifest["benchmark"]["commit"],
-        "task_source_sha256": (
-            manifest["benchmark"]["task_source_sha256"]
-        ),
-        "database_snapshot_sha256": database_snapshot_sha256,
         "split": "train",
         "method": method,
         "trial": 1,
@@ -318,8 +288,6 @@ def run_task(
         "headless": args.headless,
         "skill_version": skill["version"],
         "skill_path": skill["path"],
-        "skill_sha256": skill["sha256"],
-        "skill_prompt_sha256": skill["prompt_sha256"],
         "skill_injected": skill["block"] is not None,
         "started_at": utc_now(),
     }
@@ -481,7 +449,7 @@ def run_task(
 
 
 class SkillInjectedDemoAgent(DemoAgent):
-    """Add a frozen Skill block to the Agent goal."""
+    """Add a Skill block to the Agent goal."""
 
     def __init__(self, model_name: str, skill_block: str) -> None:
         super().__init__(model_name=model_name)
@@ -507,17 +475,15 @@ def main() -> None:
     expected_agent = manifest["runtime_contract"]["agent"]
     if args.model != expected_agent["requested_model"]:
         raise ValueError(
-            f"Formal model is frozen as {expected_agent['requested_model']!r}."
+            f"Formal model must be {expected_agent['requested_model']!r}."
         )
     expected_headless = manifest["runtime_contract"][
         "common_rollout_configuration"
     ]["headless"]
     if args.formal and args.headless is not expected_headless:
         raise ValueError(
-            f"Formal headless is frozen as {expected_headless!r}."
+            f"Formal headless must be {expected_headless!r}."
         )
-    if args.formal and not args.dry_run:
-        require_implementation_binding(manifest_path, manifest)
     skill = load_method_skill(manifest, method)
 
     if args.all and not args.formal:
@@ -539,9 +505,6 @@ def main() -> None:
             raise ValueError(
                 f"Task {args.task_id} is not part of the Train split."
             )
-
-    manifest_sha256 = sha256_file(manifest_path)
-    database_snapshot_sha256 = sha256_file(DB_SNAPSHOT)
 
     if args.dry_run:
         pending = 0
@@ -566,8 +529,6 @@ def main() -> None:
                     args,
                     method,
                     skill,
-                    manifest_sha256,
-                    database_snapshot_sha256,
                 )
                 status = "skip"
                 skipped += 1
@@ -607,8 +568,6 @@ def main() -> None:
             method,
             skill,
             task,
-            manifest_sha256,
-            database_snapshot_sha256,
         )
 
         if result == "completed":

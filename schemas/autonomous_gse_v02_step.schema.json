@@ -1,0 +1,758 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://govern-skill-evo.local/schemas/autonomous_gse_v02_step.schema.json",
+  "title": "Autonomous Governed Skill Evolution v0.2 Step Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "protocol_version",
+    "campaign_id",
+    "epoch",
+    "step",
+    "status",
+    "batch",
+    "parent",
+    "proposal_operator",
+    "candidate_id",
+    "parent_checkpoint",
+    "edit_budget",
+    "budget_reservation",
+    "data_isolation"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "autonomous_gse_step_0.2.0"
+    },
+    "protocol_version": {
+      "const": "autonomous_gse_v02"
+    },
+    "campaign_id": {
+      "const": "autonomous_gse_v02"
+    },
+    "epoch": {
+      "const": 1
+    },
+    "step": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 3
+    },
+    "status": {
+      "enum": [
+        "STEP_REGISTERED",
+        "TRAIN_RUNNING",
+        "TRAIN_COMPLETED",
+        "TRAIN_VALIDATED",
+        "EXPERIENCE_FROZEN",
+        "PROPOSAL_RUNNING",
+        "CANDIDATE_FROZEN",
+        "CANDIDATE_SELECTION_RUNNING",
+        "SELECTION_VALIDATED",
+        "EVOLUTION_SUMMARY_FROZEN",
+        "GATE_DECIDED",
+        "STEP_COMPLETED",
+        "STEP_INVALID"
+      ]
+    },
+    "batch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "batch_id",
+        "batch_map",
+        "task_ids"
+      ],
+      "properties": {
+        "batch_id": {
+          "type": "string",
+          "pattern": "^batch_00[1-3]$"
+        },
+        "batch_map": {
+          "const": "experiments/campaigns/autonomous_gse_v02/batch_map.json"
+        },
+        "task_ids": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "minItems": 17,
+          "maxItems": 17,
+          "uniqueItems": true
+        }
+      }
+    },
+    "parent": {
+      "oneOf": [
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/artifact"
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "empty_skill"
+                },
+                "version": {
+                  "const": "S0"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/artifact"
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "accepted_skill"
+                },
+                "version": {
+                  "pattern": "^S[1-9][0-9]*$"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "proposal_operator": {
+      "const": "bounded_edit"
+    },
+    "candidate_id": {
+      "type": "string",
+      "pattern": "^epoch_001_step_00[1-3]_candidate$"
+    },
+    "parent_checkpoint": {
+      "$ref": "#/$defs/artifact"
+    },
+    "edit_budget": {
+      "const": {
+        "maximum_edits_per_step": 6,
+        "maximum_skill_rules": 18,
+        "maximum_skill_words": 900,
+        "allowed_operations": [
+          "add",
+          "replace",
+          "delete"
+        ],
+        "selection_order": "learner_response_order"
+      }
+    },
+    "budget_reservation": {
+      "const": {
+        "train_trajectories": 17,
+        "maximum_candidate_selection_trajectories": 18,
+        "maximum_learner_calls": 1
+      }
+    },
+    "data_isolation": {
+      "const": {
+        "current_batch_only": true,
+        "eligible_evidence_states": [
+          "compliant_success",
+          "violating_success"
+        ],
+        "selection_for_learning": "forbidden",
+        "test_for_learning": "forbidden"
+      }
+    },
+    "proposal_status": {
+      "enum": [
+        "CANDIDATE",
+        "NO_CANDIDATE"
+      ]
+    },
+    "proposal_reason": {
+      "$ref": "#/$defs/proposal_reason"
+    },
+    "proposed_edits": {
+      "type": "array"
+    },
+    "selected_edits": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/selected_edit"
+      },
+      "maxItems": 6
+    },
+    "excluded_edits": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/excluded_edit"
+      }
+    },
+    "provenance_status": {
+      "enum": [
+        "VERIFIED",
+        "UNVERIFIED"
+      ]
+    },
+    "provenance_audit": {
+      "$ref": "#/$defs/provenance_audit"
+    },
+    "outcome": {
+      "enum": [
+        "ACCEPT",
+        "REJECT",
+        "NO_CANDIDATE",
+        "INTEGRITY_FAILURE"
+      ]
+    },
+    "next_parent": {
+      "$ref": "#/$defs/artifact"
+    },
+    "candidate": {
+      "$ref": "#/$defs/artifact"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "step": {
+            "const": 1
+          }
+        },
+        "required": [
+          "step"
+        ]
+      },
+      "then": {
+        "properties": {
+          "batch": {
+            "properties": {
+              "batch_id": {
+                "const": "batch_001"
+              }
+            }
+          },
+          "candidate_id": {
+            "const": "epoch_001_step_001_candidate"
+          },
+          "parent": {
+            "const": {
+              "kind": "empty_skill",
+              "version": "S0",
+              "path": "experiments/campaigns/autonomous_gse_v02/skills/S0_empty_skill.md"
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "step": {
+            "const": 2
+          }
+        },
+        "required": [
+          "step"
+        ]
+      },
+      "then": {
+        "properties": {
+          "batch": {
+            "properties": {
+              "batch_id": {
+                "const": "batch_002"
+              }
+            }
+          },
+          "candidate_id": {
+            "const": "epoch_001_step_002_candidate"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "step": {
+            "const": 3
+          }
+        },
+        "required": [
+          "step"
+        ]
+      },
+      "then": {
+        "properties": {
+          "batch": {
+            "properties": {
+              "batch_id": {
+                "const": "batch_003"
+              }
+            }
+          },
+          "candidate_id": {
+            "const": "epoch_001_step_003_candidate"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "STEP_COMPLETED"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "required": [
+          "proposal_status",
+          "proposal_reason",
+          "proposed_edits",
+          "selected_edits",
+          "excluded_edits",
+          "outcome",
+          "next_parent"
+        ],
+        "properties": {
+          "outcome": {
+            "enum": [
+              "ACCEPT",
+              "REJECT",
+              "NO_CANDIDATE"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "STEP_COMPLETED"
+          },
+          "outcome": {
+            "enum": [
+              "ACCEPT",
+              "REJECT"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "outcome"
+        ]
+      },
+      "then": {
+        "required": [
+          "candidate",
+          "provenance_status",
+          "provenance_audit"
+        ],
+        "properties": {
+          "proposal_status": {
+            "const": "CANDIDATE"
+          },
+          "proposal_reason": {
+            "const": {
+              "code": "CANDIDATE_CONSTRUCTED"
+            }
+          },
+          "selected_edits": {
+            "minItems": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "STEP_COMPLETED"
+          },
+          "outcome": {
+            "const": "NO_CANDIDATE"
+          }
+        },
+        "required": [
+          "status",
+          "outcome"
+        ]
+      },
+      "then": {
+        "properties": {
+          "proposal_status": {
+            "const": "NO_CANDIDATE"
+          },
+          "proposal_reason": {
+            "properties": {
+              "code": {
+                "enum": [
+                  "UNPARSEABLE_RESPONSE",
+                  "EDITS_NOT_LIST",
+                  "EMPTY_EDITS",
+                  "NO_APPLICABLE_EDITS",
+                  "NO_SKILL_CHANGE"
+                ]
+              }
+            }
+          },
+          "selected_edits": {
+            "maxItems": 0
+          }
+        },
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "candidate"
+              ]
+            },
+            {
+              "required": [
+                "provenance_status"
+              ]
+            },
+            {
+              "required": [
+                "provenance_audit"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "provenance_status": {
+            "const": "VERIFIED"
+          }
+        },
+        "required": [
+          "provenance_status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "provenance_audit": {
+            "properties": {
+              "status": {
+                "const": "VERIFIED"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "provenance_status": {
+            "const": "UNVERIFIED"
+          }
+        },
+        "required": [
+          "provenance_status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "provenance_audit": {
+            "properties": {
+              "status": {
+                "const": "UNVERIFIED"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "STEP_INVALID"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "required": [
+          "outcome"
+        ],
+        "properties": {
+          "outcome": {
+            "const": "INTEGRITY_FAILURE"
+          }
+        },
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "candidate"
+              ]
+            },
+            {
+              "required": [
+                "next_parent"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "CANDIDATE_FROZEN",
+              "CANDIDATE_SELECTION_RUNNING",
+              "SELECTION_VALIDATED",
+              "EVOLUTION_SUMMARY_FROZEN",
+              "GATE_DECIDED"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "required": [
+          "proposal_status",
+          "proposal_reason",
+          "proposed_edits",
+          "selected_edits",
+          "excluded_edits",
+          "candidate",
+          "provenance_status",
+          "provenance_audit"
+        ],
+        "properties": {
+          "proposal_status": {
+            "const": "CANDIDATE"
+          },
+          "selected_edits": {
+            "minItems": 1
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "version",
+        "path"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "proposal_reason": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code"
+      ],
+      "properties": {
+        "code": {
+          "enum": [
+            "CANDIDATE_CONSTRUCTED",
+            "UNPARSEABLE_RESPONSE",
+            "EDITS_NOT_LIST",
+            "EMPTY_EDITS",
+            "NO_APPLICABLE_EDITS",
+            "NO_SKILL_CHANGE"
+          ]
+        },
+        "detail": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "selected_edit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "edit_index",
+        "status",
+        "operation",
+        "section"
+      ],
+      "properties": {
+        "edit_index": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "status": {
+          "const": "SELECTED"
+        },
+        "operation": {
+          "enum": [
+            "add",
+            "replace",
+            "delete"
+          ]
+        },
+        "section": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target_clause": {
+          "type": "string",
+          "minLength": 1
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "repair_policy_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "excluded_edit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "edit_index",
+        "status",
+        "reason",
+        "original_edit"
+      ],
+      "properties": {
+        "edit_index": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "status": {
+          "const": "EXCLUDED"
+        },
+        "reason": {
+          "enum": [
+            "INVALID_EDIT_FORMAT",
+            "OPERATION_NOT_ALLOWED",
+            "SECTION_NOT_FOUND",
+            "TARGET_CLAUSE_NOT_FOUND",
+            "CONFLICTING_EDIT",
+            "DUPLICATE_CLAUSE",
+            "MISSING_EDIT_TEXT",
+            "STRUCTURE_INVALID",
+            "NO_SKILL_CHANGE",
+            "EDIT_BUDGET_EXCEEDED"
+          ]
+        },
+        "original_edit": {}
+      }
+    },
+    "provenance_audit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "verified_edits",
+        "unverified_edits",
+        "issues"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "VERIFIED",
+            "UNVERIFIED"
+          ]
+        },
+        "verified_edits": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 6
+        },
+        "unverified_edits": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 6
+        },
+        "issues": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "code",
+              "edit_index"
+            ],
+            "properties": {
+              "code": {
+                "enum": [
+                  "UNKNOWN_SOURCE_ID",
+                  "SOURCE_OUTSIDE_CURRENT_BATCH",
+                  "SOURCE_NOT_ELIGIBLE",
+                  "UNSUPPORTED_REPAIR_POLICY",
+                  "INVALID_PRESERVE_SOURCE",
+                  "MISSING_PROVENANCE",
+                  "LINEAGE_MISMATCH"
+                ]
+              },
+              "edit_index": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "source_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "policy_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "detail": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

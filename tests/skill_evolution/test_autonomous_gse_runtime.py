@@ -159,7 +159,7 @@ def test_proposal_boundary_contains_no_selection_or_test_data() -> None:
             "parent_version",
             "batch_id",
             "task_ids",
-            "experience_sha256",
+            "experience_path",
         }
         assert len(entry["task_ids"]) == 17
         assert "selection" not in entry

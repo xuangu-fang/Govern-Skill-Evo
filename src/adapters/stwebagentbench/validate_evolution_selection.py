@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import sys
 from collections import Counter
@@ -14,9 +13,6 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT))
 
 from src.adapters.stwebagentbench.skill_runtime import load_method_skill
-from src.skill_evolution.implementation_binding import (
-    require_implementation_binding,
-)
 
 
 DEFAULT_MANIFEST = (
@@ -25,15 +21,6 @@ DEFAULT_MANIFEST = (
     / "manifests"
     / "stweb_suitecrm_poc_v03.json"
 )
-DB_SNAPSHOT = (
-    REPO_ROOT
-    / "artifacts"
-    / "stweb_suitecrm_poc_v01"
-    / "db"
-    / "suitecrm_pristine_v01.sql"
-)
-RUNNER = Path(__file__).with_name("run_evolution_selection.py")
-
 METHODS = (
     "no_skill",
     "human_skill",
@@ -69,24 +56,6 @@ SKILL_PATHS = {
 }
 
 
-def sha256_bytes(value: bytes) -> str:
-    return hashlib.sha256(value).hexdigest()
-
-
-def sha256_text(value: str) -> str:
-    return sha256_bytes(value.encode("utf-8"))
-
-
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-
-    return digest.hexdigest()
-
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
@@ -111,7 +80,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Validate the frozen Selection plan without trajectories.",
+        help="Validate the Selection plan without trajectories.",
     )
     return parser.parse_args()
 
@@ -179,6 +148,12 @@ def load_expected_skills(
     return expected_skills
 
 
+def selection_runtime(manifest: dict) -> dict:
+    """Return the shared Selection runtime block used by v02 or v03."""
+
+    return manifest.get("runtime_contract") or manifest["selection_runtime"]
+
+
 def validate_trajectory(
     path: Path,
     trajectory: dict,
@@ -187,9 +162,6 @@ def validate_trajectory(
     expected_skill: dict,
     manifest: dict,
     expected_model: str,
-    manifest_sha256: str,
-    database_snapshot_sha256: str,
-    runner_sha256: str,
 ) -> list[str]:
     errors = []
     task_id = expected_task["task_id"]
@@ -198,6 +170,7 @@ def validate_trajectory(
     outcome = trajectory.get("outcome", {})
     steps = trajectory.get("steps", [])
 
+    runtime = selection_runtime(manifest)
     expected_run_fields = {
         "run_id": (
             f"{manifest['manifest_id']}-selection-{method}-"
@@ -206,27 +179,18 @@ def validate_trajectory(
         "status": "completed",
         "run_kind": "formal",
         "manifest_id": manifest["manifest_id"],
-        "manifest_sha256": manifest_sha256,
         "benchmark_commit": manifest["benchmark"]["commit"],
-        "task_source_sha256": manifest["benchmark"][
-            "task_source_sha256"
-        ],
-        "database_snapshot_sha256": database_snapshot_sha256,
-        "runner_sha256": runner_sha256,
         "split": "selection",
         "method": method,
         "trial": 1,
         "requested_model": expected_model,
-        "resolved_model": manifest["runtime_contract"]["agent"][
-            "resolved_model"
-        ],
-        "headless": manifest["runtime_contract"][
-            "common_rollout_configuration"
-        ]["headless"],
+        "resolved_model": runtime["agent"]["resolved_model"],
+        "headless": (
+            runtime.get("common_rollout_configuration", runtime["runner"])[
+                "headless"
+            ]
+        ),
         "skill_path": expected_skill["path"],
-        "skill_version": expected_skill["version"],
-        "skill_sha256": expected_skill["sha256"],
-        "skill_prompt_sha256": expected_skill["prompt_sha256"],
         "skill_injected": expected_skill["injected"],
     }
 
@@ -323,9 +287,6 @@ def collect_method(
     expected_skill: dict,
     manifest: dict,
     args: argparse.Namespace,
-    manifest_sha256: str,
-    database_snapshot_sha256: str,
-    runner_sha256: str,
 ) -> tuple[dict, list[str], set]:
     method_root = raw_root / method
     trajectory_paths = sorted(
@@ -378,9 +339,6 @@ def collect_method(
                 expected_skill,
                 manifest,
                 args.model,
-                manifest_sha256,
-                database_snapshot_sha256,
-                runner_sha256,
             )
         )
 
@@ -464,8 +422,6 @@ def collect_method(
         "unresolved_failures": unresolved_failure_count,
         "recovered_failures": recovered_failure_count,
         "skill_path": expected_skill["path"],
-        "skill_sha256": expected_skill["sha256"],
-        "skill_prompt_sha256": expected_skill["prompt_sha256"],
     }
 
     consistency_values = {
@@ -475,10 +431,6 @@ def collect_method(
         },
         "resolved_model": {
             trajectory["run"].get("resolved_model")
-            for _, trajectory in trajectories.values()
-        },
-        "runner_sha256": {
-            trajectory["run"].get("runner_sha256")
             for _, trajectory in trajectories.values()
         },
     }
@@ -501,15 +453,10 @@ def main() -> int:
 
     if not manifest_path.is_file():
         raise FileNotFoundError(f"Manifest not found: {manifest_path}")
-    if not DB_SNAPSHOT.is_file():
-        raise FileNotFoundError(f"Database snapshot not found: {DB_SNAPSHOT}")
-    if not RUNNER.is_file():
-        raise FileNotFoundError(f"Runner not found: {RUNNER}")
-
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    if manifest.get("status") != "frozen":
+    if manifest.get("status") != "completed":
         raise ValueError(
-            f"Manifest must be frozen, got {manifest.get('status')!r}"
+            f"Manifest must be completed, got {manifest.get('status')!r}"
         )
 
     planned_methods = (
@@ -525,13 +472,10 @@ def main() -> int:
     if unknown_methods:
         raise ValueError(f"Unknown Selection methods: {unknown_methods}")
 
-    expected_model = manifest["runtime_contract"]["agent"][
-        "requested_model"
-    ]
+    runtime = selection_runtime(manifest)
+    expected_model = runtime["agent"]["requested_model"]
     if args.model != expected_model:
-        raise ValueError(f"Selection model is frozen as {expected_model!r}.")
-    if not args.dry_run:
-        require_implementation_binding(manifest_path, manifest)
+        raise ValueError(f"Selection model must be {expected_model!r}.")
     expected_tasks = load_expected_tasks(manifest)
     expected_skills = load_expected_skills(
         manifest,
@@ -545,14 +489,15 @@ def main() -> int:
             "expected_tasks_per_method": len(expected_tasks),
             "expected_trajectories": len(planned_methods) * len(expected_tasks),
             "requested_model": expected_model,
-            "headless": manifest["runtime_contract"][
-                "common_rollout_configuration"
-            ]["headless"],
+            "headless": (
+                runtime.get("common_rollout_configuration", runtime["runner"])[
+                    "headless"
+                ]
+            ),
             "skills": {
                 method: {
                     "version": skill["version"],
                     "path": skill["path"],
-                    "sha256": skill["sha256"],
                     "available": skill["available"],
                 }
                 for method, skill in expected_skills.items()
@@ -560,9 +505,6 @@ def main() -> int:
         }, ensure_ascii=False, indent=2))
         print("Selection validator dry-run passed.")
         return 0
-    manifest_sha256 = sha256_file(manifest_path)
-    database_snapshot_sha256 = sha256_file(DB_SNAPSHOT)
-    runner_sha256 = sha256_file(RUNNER)
     raw_root = (
         REPO_ROOT
         / "artifacts"
@@ -576,7 +518,6 @@ def main() -> int:
     consistency: dict[str, set[str]] = {
         "headless": set(),
         "resolved_model": set(),
-        "runner_sha256": set(),
     }
 
     if raw_root.is_dir():
@@ -599,9 +540,6 @@ def main() -> int:
             expected_skills[method],
             manifest,
             args,
-            manifest_sha256,
-            database_snapshot_sha256,
-            runner_sha256,
         )
         method_summaries[method] = summary
         errors.extend(method_errors)
@@ -634,7 +572,6 @@ def main() -> int:
         "unresolved_failures": unresolved_failures,
         "headless_values": sorted(consistency["headless"]),
         "resolved_models": sorted(consistency["resolved_model"]),
-        "runner_sha256": sorted(consistency["runner_sha256"]),
         "validation_errors": len(errors),
     }
 

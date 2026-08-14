@@ -46,7 +46,7 @@ ProcessVerdictDataset
 Autonomous GSE v0.1 会把训练任务分成三批。每一步使用当前已接受版本完成一批任务，根据本批经验提出候选版本，再通过固定评测决定是否接受：
 
 ```text
-已锁定的实验配置 + 明确的无 Skill 起点 S0 + 固定任务分批表
+实验配置 + 明确的无 Skill 起点 S0 + 固定任务分批表
     ↓ autonomous_gse_runtime.py
 计算下一步状态
     ↓
@@ -55,36 +55,59 @@ Autonomous GSE v0.1 会把训练任务分成三批。每一步使用当前已接
 重新运行选择评测 → 按演化门槛判断 → 接受候选版本或保留当前版本
 ```
 
-状态计算、候选格式检查和正式任务运行彼此分开。正式入口在调用浏览器、模型或数据库前，会通过 `autonomous_gse_freeze.py` 核对冻结记录以及所有登记文件，防止使用到被意外修改的输入。
+状态计算、候选格式检查和正式任务运行彼此分开。v0.1 已完成，当前代码按路径、版本和结构化关系读取历史记录，也保留以新 Campaign 重新运行同一流程的能力。
 
 常用命令如下：
 
 ```bash
-# 只读查看冻结执行计划
+# 只读查看已执行的任务计划
 conda run -n stwebagentbench python -m \
   src.skill_evolution.autonomous_gse_benchmark_runtime plan
 
-# 重新运行18个S0选择评测任务，并保存初始评测基准
-conda run -n stwebagentbench python -m \
-  src.skill_evolution.autonomous_gse_benchmark_runtime initial-checkpoint
-
-# 只读查看当前正式文件和运行状态
+# 只读查看当前历史文件和运行状态
 conda run -n stwebagentbench python -m \
   src.skill_evolution.autonomous_gse_benchmark_runtime status
 
-# 仅在状态为READY_TO_RUN时执行三个正式步骤，并写入实验报告
+# 为新 Campaign 运行 S0 的18条初始 Selection Task
 conda run -n stwebagentbench python -m \
-  src.skill_evolution.autonomous_gse_benchmark_runtime run
+  src.skill_evolution.autonomous_gse_benchmark_runtime initial-checkpoint \
+  --campaign path/to/campaign_manifest.json
+
+# 从已完成的 S0 checkpoint 运行完整三步流程
+conda run -n stwebagentbench python -m \
+  src.skill_evolution.autonomous_gse_benchmark_runtime run \
+  --campaign path/to/campaign_manifest.json
 ```
 
-`rollout` 是程序内部使用的子进程入口，不是日常人工命令。`run` 不会自动补做缺失的 S0 评测基准，也不能自动从中断处继续；遇到中断时应先查看 `status`，不要直接重跑。
+已完成的 `autonomous_gse_v01` 是历史记录，不能原地覆盖；正式重跑应使用新的 Campaign ID 和独立产物目录。`autonomous_gse_runtime.py` 的无 API dry-run 仍可用于检查三步状态机。
+
+Autonomous GSE v0.2 使用独立入口，并保留相同的两阶段执行方式：
+
+```bash
+# draft 状态也可安全预览计划和状态
+conda run -n stwebagentbench python -m \
+  src.skill_evolution.autonomous_gse_v02_benchmark_runtime plan
+
+conda run -n stwebagentbench python -m \
+  src.skill_evolution.autonomous_gse_v02_benchmark_runtime status
+
+# Manifest 明确改为 ready 后，先运行 S0 的18条 Selection Task
+conda run -n stwebagentbench python -m \
+  src.skill_evolution.autonomous_gse_v02_benchmark_runtime initial-checkpoint
+
+# 只有完整 S0 checkpoint 存在时，才执行三步正式流程
+conda run -n stwebagentbench python -m \
+  src.skill_evolution.autonomous_gse_v02_benchmark_runtime run
+```
+
+v0.2 的 S0 是显式空 Skill 文档：优化器读取该文档的固定结构，Benchmark rollout 不注入 learned Skill。正式入口不使用 SHA、内容 hash、implementation binding 或单独 freeze record。
 
 ## 使用约定
 
 - 所有命令都从项目根目录运行，例如`python -m src.verifiers.task_verifier`。
 - 数据转换程序不得编造源数据中不存在的状态；无法恢复的字段应保留为 `None`。
 - 校验结果必须包含可追踪的证据，并指向对应的交互步骤。
-- Human Gold 指人工审核后确认的标准答案，不能用模型输出自动覆盖。
+- 人工标签指人工审核后确认的标签，不能用模型输出自动覆盖。
 
 更详细的说明见：
 
