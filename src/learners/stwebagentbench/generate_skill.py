@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-"""Generate one reusable SuiteCRM Skill from a frozen learning-input index."""
+"""Generate one reusable SuiteCRM Skill from a learning-input index."""
 
 from __future__ import annotations
 
 import argparse
 import difflib
-import hashlib
 import json
 import os
 import re
@@ -86,24 +85,6 @@ evidence below. The evidence intentionally contains no evaluator feedback.
 {evidence}
 </TRAJECTORY_EVIDENCE>
 """
-
-
-def sha256_bytes(value: bytes) -> str:
-    return hashlib.sha256(value).hexdigest()
-
-
-def sha256_text(value: str) -> str:
-    return sha256_bytes(value.encode("utf-8"))
-
-
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-
-    return digest.hexdigest()
 
 
 def save_text_atomic(path: Path, content: str) -> None:
@@ -246,13 +227,6 @@ def load_evidence(input_manifest: dict, dataset: str) -> tuple[list[dict], list[
         if not path.is_file():
             raise FileNotFoundError(f"Trajectory not found: {path}")
 
-        actual_sha256 = sha256_file(path)
-        if actual_sha256 != entry["sha256"]:
-            raise ValueError(
-                f"Trajectory SHA256 mismatch for Task {entry['task_id']}: "
-                f"expected={entry['sha256']}, actual={actual_sha256}"
-            )
-
         trajectory = json.loads(path.read_text(encoding="utf-8"))
         task_id = trajectory.get("task", {}).get("task_id")
         outcome = trajectory.get("outcome", {})
@@ -281,7 +255,6 @@ def load_evidence(input_manifest: dict, dataset: str) -> tuple[list[dict], list[
                 "task_id": entry["task_id"],
                 "intent_template_id": entry["intent_template_id"],
                 "path": entry["path"],
-                "sha256": actual_sha256,
             }
         )
 
@@ -503,12 +476,6 @@ def main() -> int:
     )
     system_prompt, user_prompt = build_prompts(evidence)
 
-    template_sha256 = sha256_text(
-        SYSTEM_PROMPT + "\n" + USER_PROMPT_TEMPLATE
-    )
-    full_prompt_sha256 = sha256_text(
-        system_prompt + "\n" + user_prompt
-    )
     distinct_template_count = len(
         {record["intent_template_id"] for record in source_records}
     )
@@ -529,7 +496,6 @@ def main() -> int:
         "input_manifest": input_manifest_path.relative_to(
             REPO_ROOT
         ).as_posix(),
-        "input_manifest_sha256": sha256_file(input_manifest_path),
         "trajectory_count": len(source_records),
         "distinct_template_count": distinct_template_count,
         "evidence_status": evidence_status,
@@ -537,8 +503,6 @@ def main() -> int:
         "learner_model": args.model,
         "reasoning_effort": REASONING_EFFORT,
         "max_completion_tokens": MAX_COMPLETION_TOKENS,
-        "prompt_template_sha256": template_sha256,
-        "full_prompt_sha256": full_prompt_sha256,
         "prompt_characters": len(system_prompt) + len(user_prompt),
         "patch_base": "empty_no_skill",
         "skill_output": skill_path.relative_to(REPO_ROOT).as_posix(),
@@ -583,24 +547,13 @@ def main() -> int:
     patch = build_patch(skill_path, skill)
 
     provenance_payload = {"rules": provenance}
-    provenance_text = (
-        json.dumps(provenance_payload, ensure_ascii=False, indent=2)
-        + "\n"
-    )
     metadata = {
         "schema_version": "stweb_learned_skill_metadata_0.1.0",
         **plan,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "resolved_learner_model": resolved_model,
-        "generator_sha256": sha256_file(Path(__file__)),
         "source_trajectories": source_records,
         "usage": usage,
-        "skill_sha256": sha256_text(skill.rstrip() + "\n"),
-        "provenance_sha256": sha256_text(provenance_text),
-        "patch_sha256": sha256_text(patch),
-        "learner_response_sha256": sha256_text(
-            response_text.rstrip() + "\n"
-        ),
     }
 
     save_text_atomic(skill_path, skill)

@@ -2,7 +2,7 @@
 
 本目录保存项目自己实现代码的自动化测试。目录结构尽量与`src/`保持对应，便于从实现文件找到相关测试。
 
-表格中保留了测试文件和程序字段的英文名称。几个常用概念是：Schema 表示数据格式规则，Verifier 表示校验程序，Human Gold 表示人工审核的标准答案，Campaign 表示一次完整的正式实验。
+表格中保留了测试文件和程序字段的英文名称。几个常用概念是：Schema 表示数据格式规则，Verifier 表示校验程序，人工标签表示人工审核后确认的标签，Campaign 表示一次完整的正式实验。
 
 ## 目录说明
 
@@ -29,13 +29,11 @@
 | `verifiers/handlers/semantic/test_write_confirmation.py` | 检查写操作详情、明确确认、打包确认、执行顺序和 AI 中间判断。 |
 | `verifiers/evaluators/test_transfer_scope.py` | 检查转人工判断与人工标准答案的比较指标和数据覆盖。 |
 | `verifiers/evaluators/test_write_confirmation.py` | 检查写操作确认与人工标准答案的字段指标、证据步骤和数据覆盖。 |
-| `skill_evolution/test_autonomous_gse_protocol.py` | 检查正式实验和步骤的数据格式、演化门槛代表性案例，以及冻结文件绑定。 |
-| `skill_evolution/test_batch_planner.py` | 检查51个任务能否稳定分成三批、各模板分布均衡、任务不重叠且结果可复现。 |
+| `skill_evolution/test_autonomous_gse_protocol.py` | 检查已完成实验和步骤的数据格式、记录批次、演化门槛代表性案例及正式结果。 |
 | `skill_evolution/test_autonomous_gse_controller.py` | 检查步骤进度、最终结果、当前版本与评测基准的继承关系，以及非法状态转换。 |
 | `skill_evolution/test_autonomous_gse_proposal.py` | 检查候选提议格式，以及初始生成和增量修改两种方式。 |
 | `skill_evolution/test_autonomous_gse_runtime.py` | 在不调用外部 API 的情况下检查三步流程、预算和 Test 隔离。 |
-| `skill_evolution/test_autonomous_gse_benchmark_runtime.py` | 检查提示词和 Learner 绑定、最多123条任务记录的预算路径、内部任务入口、四个日常命令及正式文件状态保护。 |
-| `skill_evolution/test_autonomous_gse_freeze.py` | 检查最终运行前校验、冻结记录只能写入一次，以及检查失败时必须停止。 |
+| `skill_evolution/test_autonomous_gse_benchmark_runtime.py` | 检查提示词输入隔离、最多123条任务记录的预算计划、Runner连接，以及只读与正式运行入口。 |
 
 ## 运行测试
 

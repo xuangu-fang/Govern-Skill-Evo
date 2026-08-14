@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import subprocess
@@ -21,16 +20,6 @@ DEFAULT_MANIFEST = (
     / "stweb_suitecrm_poc_v01.json"
 )
 VALIDATOR = Path(__file__).with_name("validate_train_run.py")
-
-
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-
-    return digest.hexdigest()
 
 
 def save_json_atomic(path: Path, payload: dict) -> None:
@@ -160,7 +149,6 @@ def build_entry(
     source_entry = {
         **expected_task,
         "path": path.relative_to(REPO_ROOT).as_posix(),
-        "sha256": sha256_file(path),
         "final_reward": outcome["final_reward"],
         "task_success": task_success,
         "violated_policy_count": violated_policy_count,
@@ -208,9 +196,9 @@ def main() -> int:
         raise FileNotFoundError(f"Validator not found: {VALIDATOR}")
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    if manifest.get("status") != "frozen":
+    if manifest.get("status") != "completed":
         raise ValueError(
-            f"Manifest must be frozen, got {manifest.get('status')!r}"
+            f"Manifest must be completed, got {manifest.get('status')!r}"
         )
 
     train_tasks = load_train_tasks(manifest)
@@ -263,7 +251,6 @@ def main() -> int:
     )
     source_metadata = {
         "manifest_id": manifest["manifest_id"],
-        "manifest_sha256": sha256_file(manifest_path),
         "split": "train",
         "method": "no_skill",
         "expected_trajectory_count": 51,
@@ -271,11 +258,6 @@ def main() -> int:
         "requested_model": args.model,
         "resolved_model": first_run.get("resolved_model"),
         "headless": first_run.get("headless"),
-        "runner_sha256": first_run.get("runner_sha256"),
-        "database_snapshot_sha256": first_run.get(
-            "database_snapshot_sha256"
-        ),
-        "preparation_script_sha256": sha256_file(Path(__file__)),
     }
 
     summary = {

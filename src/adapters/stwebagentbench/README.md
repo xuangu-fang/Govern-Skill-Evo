@@ -4,7 +4,7 @@
 
 这里有两套不同用途的流程：
 
-1. **Autonomous GSE v0.1 正式实验**：由一个统一入口自动完成三步演化，日常应优先使用这一入口；
+1. **Autonomous GSE v0.1 正式实验**：统一入口负责初始 S0 评测和完整三步演化；现有 v0.1 已完成，也可只读查看其计划和历史状态；
 2. **Day 8–10 手工 POC**：分别运行训练、生成 Skill 和选择评测，主要用于复现较早的手工实验。
 
 两套流程共用 SuiteCRM 和底层任务运行程序，但配置、结果目录和运行入口不同，不能把它们的命令或结果混在一起。
@@ -127,7 +127,7 @@ Autonomous GSE 不要求人工依次调用训练和评测程序。正式入口 `
   → 与当前版本的评测基准比较，并决定接受或拒绝
 ```
 
-程序会根据当前版本决定是否注入 Skill：`S0_no_skill` 保留基准测试默认提示词，不注入学习得到的 Skill；候选版本或已接受版本则从登记的 `skill.md` 加载。运行前必须核对文件的 SHA-256 内容指纹，确保文件没有被替换。每个任务开始前，`reset_suitecrm_db.sh` 都会把数据库恢复到同一个锁定快照。
+程序会根据当前版本决定是否注入 Skill：`S0_no_skill` 保留基准测试默认提示词，不注入学习得到的 Skill；候选版本或已接受版本则从登记的 `skill.md` 加载。每个任务开始前，`reset_suitecrm_db.sh` 都会把数据库恢复到同一个初始快照。
 
 ### 应该使用的日常命令
 
@@ -136,20 +136,22 @@ Autonomous GSE 不要求人工依次调用训练和评测程序。正式入口 `
 conda run -n stwebagentbench python -m \
   src.skill_evolution.autonomous_gse_benchmark_runtime plan
 
-# 重新运行18个S0评测任务，并生成初始评测基准
-conda run -n stwebagentbench python -m \
-  src.skill_evolution.autonomous_gse_benchmark_runtime initial-checkpoint
-
 # 只读状态
 conda run -n stwebagentbench python -m \
   src.skill_evolution.autonomous_gse_benchmark_runtime status
 
-# 仅在状态为READY_TO_RUN时执行完整的三步正式实验
+# 新 Campaign：先运行 S0 的18条 Selection Task
 conda run -n stwebagentbench python -m \
-  src.skill_evolution.autonomous_gse_benchmark_runtime run
+  src.skill_evolution.autonomous_gse_benchmark_runtime initial-checkpoint \
+  --campaign path/to/campaign_manifest.json
+
+# 新 Campaign：从 S0 checkpoint 开始运行完整三步流程
+conda run -n stwebagentbench python -m \
+  src.skill_evolution.autonomous_gse_benchmark_runtime run \
+  --campaign path/to/campaign_manifest.json
 ```
 
-`rollout` 是程序内部运行单批任务的入口，不是日常人工命令。正式结果按照用途分层保存：
+现有 `autonomous_gse_v01` 已完成，两个正式命令会拒绝覆盖其历史产物。重新运行同一功能时应提供新的 Campaign ID 和独立产物目录；运行时按路径、版本、Task ID 和 outcome 语义校验，不依赖逐文件内容摘要、实现绑定或单独冻结记录。正式结果按照用途分层保存：
 
 ```text
 artifacts/autonomous_gse_v01/

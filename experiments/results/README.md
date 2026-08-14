@@ -1,7 +1,5 @@
 # 实验结果目录
 
-本目录保存项目中适合提交到 Git、便于阅读和追查的小型实验结果。它不是某一项实验的专用目录，而是多个阶段和多种方法的结果总索引。
-
 体积较大或依赖本机环境的内容，例如逐任务浏览器记录、完整模型输入、数据库快照和运行中间文件，保存在项目根目录的 `artifacts/` 中，不放在这里。
 
 ## 快速了解有哪些实验
@@ -12,7 +10,7 @@
 | [`day5_schema/`](day5_schema/) | 把10条 τ³ 任务记录转换成统一格式，并分别判断任务成功和一项流程合规规则 | 验证统一数据格式以及任务结果、流程结果分开保存的方式 |
 | [`day6_process_verifier/`](day6_process_verifier/) | 逐步把2条、3条、4条、5条规则接入通用过程校验器 | `v04` 是当前覆盖5条规则的完整结果 |
 | [`skillopt_searchqa_main200_hard_s42/`](skillopt_searchqa_main200_hard_s42/) | 使用 SkillOpt 在 SearchQA 上连续优化 Skill | 5步中接受3个候选版本；选择评测严格准确率从0.75升至0.80，独立测试从0.90升至0.91 |
-| [`autonomous_gse_v01/`](autonomous_gse_v01/) | Autonomous GSE v0.1 三步正式实验的版本化报告与冻结源码证据 | 最终保留 S1，共87条任务记录、3次 Learner 调用、0条独立 Test |
+| [`autonomous_gse_v01/`](autonomous_gse_v01/) | Autonomous GSE v0.1 三步正式实验的版本化报告 | 最终保留 S1，共87条任务记录、3次 Learner 调用、0条独立 Test |
 | [`stweb_suitecrm_poc_v01/`](stweb_suitecrm_poc_v01/) | SuiteCRM 基线对照、两种简单学习方法及受规则约束的候选 S1 | 保存4种方法的18任务对照结果，并从 S0 训练经验生成 S1 |
 | [`stweb_suitecrm_poc_v02/`](stweb_suitecrm_poc_v02/) | 在相同18个任务上比较 S0 与 S1 | S1 的任务成功率、合规率和 CuP 均提高，因此接受 S1 |
 | [`stweb_suitecrm_poc_v03/`](stweb_suitecrm_poc_v03/) | 从 S1 增量生成 S2，并比较 S1 与 S2 | S2 的合规率和 CuP 下降，因此拒绝 S2，继续保留 S1 |
@@ -25,7 +23,7 @@
 - `experiments/configs/`：人工编写的实验配置；
 - `experiments/manifests/`：任务范围、模型和运行方式等正式实验清单；
 - `experiments/annotations/`：人工标准答案和 AI 语义判断评估；
-- `experiments/campaigns/`：Autonomous GSE 的固定配置、任务分批和冻结记录；
+- `experiments/campaigns/`：Autonomous GSE 的配置、任务分批和显式 Skill 起点；
 - `artifacts/`：较大的原始任务记录、数据库快照及正式运行产物。
 
 Autonomous GSE v0.1 的正式三步实验已经完成。适合进入 Git 的报告副本位于：
@@ -34,7 +32,7 @@ Autonomous GSE v0.1 的正式三步实验已经完成。适合进入 Git 的报�
 experiments/results/autonomous_gse_v01/campaign_report.json
 ```
 
-完整的本机运行产物仍位于 `artifacts/autonomous_gse_v01/`。该实验最终保留 S1，共产生87条任务记录、调用 Learner 3次，没有运行独立 Test。它的配置和冻结记录位于 `experiments/campaigns/autonomous_gse_v01/`。
+完整的本机运行产物仍位于 `artifacts/autonomous_gse_v01/`。该实验最终保留 S1，共产生87条任务记录、调用 Learner 3次，没有运行独立 Test。它的简化配置和记录批次位于 `experiments/campaigns/autonomous_gse_v01/`。
 
 ## Day 4：Trace2Skill 候选 Skill
 
@@ -154,7 +152,7 @@ experiments/results/autonomous_gse_v01/campaign_report.json
 | [`outcome_only_skill.patch`](stweb_suitecrm_poc_v01/skills/outcome_only_skill.patch) | 该 Skill 相对空白起点增加的全部文本。 |
 | [`outcome_only_learner_response.txt`](stweb_suitecrm_poc_v01/skills/outcome_only_learner_response.txt) | Learner 模型生成 Skill 时返回的原始文本。 |
 | [`outcome_only_provenance.json`](stweb_suitecrm_poc_v01/skills/outcome_only_provenance.json) | Skill 中每条规则来自哪些成功任务记录。 |
-| [`outcome_only_metadata.json`](stweb_suitecrm_poc_v01/skills/outcome_only_metadata.json) | 输入清单、模型参数、提示词、输出路径、用量和文件内容指纹。 |
+| [`outcome_only_metadata.json`](stweb_suitecrm_poc_v01/skills/outcome_only_metadata.json) | 输入清单、模型参数、提示词、输出路径和用量。 |
 
 #### Filtered Skill
 
@@ -166,7 +164,7 @@ experiments/results/autonomous_gse_v01/campaign_report.json
 | [`filtered_skill.patch`](stweb_suitecrm_poc_v01/skills/filtered_skill.patch) | 该 Skill 相对空白起点增加的全部文本。 |
 | [`filtered_learner_response.txt`](stweb_suitecrm_poc_v01/skills/filtered_learner_response.txt) | Learner 模型生成 Skill 时返回的原始文本。 |
 | [`filtered_provenance.json`](stweb_suitecrm_poc_v01/skills/filtered_provenance.json) | Skill 中每条规则来自哪些成功且合规的任务记录。 |
-| [`filtered_metadata.json`](stweb_suitecrm_poc_v01/skills/filtered_metadata.json) | 输入清单、模型参数、提示词、输出路径、用量和文件内容指纹。 |
+| [`filtered_metadata.json`](stweb_suitecrm_poc_v01/skills/filtered_metadata.json) | 输入清单、模型参数、提示词、输出路径和用量。 |
 
 #### 受规则约束的候选 S1
 
@@ -178,16 +176,7 @@ experiments/results/autonomous_gse_v01/campaign_report.json
 | [`governed_candidate_s1_skill.patch`](stweb_suitecrm_poc_v01/skills/governed_candidate_s1_skill.patch) | S0 到候选 S1 的全部文本修改。 |
 | [`governed_candidate_s1_learner_response.txt`](stweb_suitecrm_poc_v01/skills/governed_candidate_s1_learner_response.txt) | Learner 模型生成候选 S1 时返回的原始文本。 |
 | [`governed_candidate_s1_provenance.json`](stweb_suitecrm_poc_v01/skills/governed_candidate_s1_provenance.json) | S1 中每条规则所依据的任务经验，以及该规则属于保留有效行为还是修复违规行为。 |
-| [`governed_candidate_s1_metadata.json`](stweb_suitecrm_poc_v01/skills/governed_candidate_s1_metadata.json) | S1 的输入经验、生成参数、提示词、用量、版本和文件内容指纹。 |
-| [`governed_candidate_s1_freeze.json`](stweb_suitecrm_poc_v01/skills/governed_candidate_s1_freeze.json) | S1 进入选择评测前的文件冻结和完整性记录。 |
-
-候选 S1 还包含 [`governed_candidate_s1_generation_source/`](stweb_suitecrm_poc_v01/skills/governed_candidate_s1_generation_source/)：
-
-| 文件 | 内容 |
-|---|---|
-| `source_manifest.json` | 记录生成 S1 时使用的源代码版本和恢复材料。 |
-| `generate_skill_from_project_base.patch` | 从项目基础版本恢复通用 Skill 生成代码所需的修改。 |
-| `generate_governed_skill_from_frozen_current.patch` | 从当时锁定代码恢复受治理候选生成逻辑所需的修改。 |
+| [`governed_candidate_s1_metadata.json`](stweb_suitecrm_poc_v01/skills/governed_candidate_s1_metadata.json) | S1 的输入经验、生成参数、提示词、用量和版本。 |
 
 ## SuiteCRM v02：S0 与 S1 的正式比较
 
@@ -207,12 +196,6 @@ experiments/results/autonomous_gse_v01/campaign_report.json
 
 这组实验从已接受的 S1 出发，根据新的训练经验增量生成 S2，再在相同18个固定任务上比较两个版本。两者任务成功数均为7，但 S2 的合规数从7降至6，CuP 从4降至3，因此 S2 被拒绝，当前版本继续保持为 S1。
 
-### 运行前锁定
-
-| 文件 | 内容 |
-|---|---|
-| [`preregistration/implementation_freeze.json`](stweb_suitecrm_poc_v03/preregistration/implementation_freeze.json) | 正式运行前锁定输入文件、实现代码、模型参数、执行顺序和最多允许的增量修改范围。 |
-
 ### 候选 S2 文件
 
 | 文件 | 内容 |
@@ -222,8 +205,7 @@ experiments/results/autonomous_gse_v01/campaign_report.json
 | [`skills/governed_candidate_s2_edits.json`](stweb_suitecrm_poc_v03/skills/governed_candidate_s2_edits.json) | Learner 提出的结构化增量修改。 |
 | [`skills/governed_candidate_s2_learner_response.txt`](stweb_suitecrm_poc_v03/skills/governed_candidate_s2_learner_response.txt) | Learner 模型的原始回答。 |
 | [`skills/governed_candidate_s2_provenance.json`](stweb_suitecrm_poc_v03/skills/governed_candidate_s2_provenance.json) | S2 中各项修改所依据的训练经验和规则证据。 |
-| [`skills/governed_candidate_s2_metadata.json`](stweb_suitecrm_poc_v03/skills/governed_candidate_s2_metadata.json) | S2 的生成输入、模型参数、版本、编辑上限和文件内容指纹。 |
-| [`skills/governed_candidate_s2_freeze.json`](stweb_suitecrm_poc_v03/skills/governed_candidate_s2_freeze.json) | S2 进入选择评测前的文件冻结和完整性记录。 |
+| [`skills/governed_candidate_s2_metadata.json`](stweb_suitecrm_poc_v03/skills/governed_candidate_s2_metadata.json) | S2 的生成输入、模型参数、版本和编辑上限。 |
 
 ### 选择评测与决定
 

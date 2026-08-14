@@ -13,7 +13,6 @@ statistics from missing, duplicated, or unpaired tasks.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import sys
@@ -30,9 +29,6 @@ from src.skill_evolution.two_dimensional_gate import (
     STATE_ORDER,
     classify_state,
     classify_transition,
-)
-from src.skill_evolution.implementation_binding import (
-    require_implementation_binding,
 )
 
 
@@ -66,16 +62,6 @@ CATEGORY_LABELS = {
 CATEGORY_ORDER = tuple(CATEGORY_LABELS)
 
 
-def sha256_file(path: Path) -> str:
-    """Return the SHA-256 digest of one file."""
-
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
 def save_text_atomic(path: Path, text: str) -> None:
     """Atomically save UTF-8 text."""
 
@@ -104,7 +90,7 @@ def parse_args() -> argparse.Namespace:
         "--manifest",
         type=Path,
         default=DEFAULT_MANIFEST,
-        help="Frozen experiment manifest.",
+        help="Experiment manifest.",
     )
     parser.add_argument(
         "--reference",
@@ -704,8 +690,6 @@ def main() -> int:
     args = parse_args()
     manifest_path = args.manifest.resolve()
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    if not args.dry_run:
-        require_implementation_binding(manifest_path, manifest)
     reference_method, candidate_method = _resolve_methods(
         manifest,
         args.reference,
@@ -741,7 +725,6 @@ def main() -> int:
     source = {
         "manifest_id": manifest["manifest_id"],
         "manifest_path": manifest_path.relative_to(REPO_ROOT).as_posix(),
-        "manifest_sha256": sha256_file(manifest_path),
         "reference_trajectory_root": (
             f"artifacts/{manifest['manifest_id']}/raw/selection/"
             f"{reference_method}"

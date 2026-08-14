@@ -1,24 +1,20 @@
-"""Formal ST-WebAgentBench adapters for Autonomous GSE v0.1.
+"""ST-WebAgentBench runtime boundary for Autonomous GSE v0.1.
 
-This module is the side-effect boundary for formal Campaign execution.  It
-freezes Learner prompt semantics, delegates browser rollouts to the existing
-validated ST-WebAgentBench engines, and converts their artifacts into the
-runtime contract consumed by the deterministic Controller.
+The completed v0.1 experiment is represented by paths, versions, recorded
+trajectories, and its campaign report. This module keeps the useful runtime
+ports and semantic validation around that recorded experiment.
 
-Importing this module performs no API, browser, database, or filesystem work.
-Formal work only starts when an adapter method is called with an executing
-rollout backend and a real Learner caller.
+Importing the module has no side effects.  Formal work requires an explicitly
+injected rollout backend and Learner caller.
 """
 
 from __future__ import annotations
 
 import copy
-import hashlib
 import json
-import subprocess
-import sys
 from dataclasses import dataclass
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Callable, Sequence
 
 from src.learners.stwebagentbench.generate_governed_s2 import (
@@ -47,7 +43,6 @@ from src.skill_evolution.two_dimensional_gate import analyze_candidate
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-PROMPT_SEPARATOR = "\n"
 FORMAL_MODE = "formal_stwebagentbench"
 CAMPAIGN_REPORT_FILENAME = "campaign_report.json"
 OUTCOME_STATES = (
@@ -70,96 +65,36 @@ def _canonical_json_bytes(payload: dict[str, Any]) -> bytes:
     ).encode("utf-8")
 
 
-def _sha256_bytes(value: bytes) -> str:
-    return hashlib.sha256(value).hexdigest()
-
-
-def _sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def _text_sha256(value: str) -> str:
-    return _sha256_bytes((value.rstrip() + "\n").encode("utf-8"))
-
-
-def _prompt_template_sha256(system: str, user: str) -> str:
-    return _sha256_bytes((system + PROMPT_SEPARATOR + user).encode("utf-8"))
-
-
-def frozen_prompt_hashes() -> dict[str, str]:
-    """Return semantic hashes for the exact Prompt templates in use."""
-
-    return {
-        "bootstrap": _prompt_template_sha256(
-            BOOTSTRAP_SYSTEM_PROMPT, BOOTSTRAP_USER_PROMPT
-        ),
-        "incremental": _prompt_template_sha256(
-            INCREMENTAL_SYSTEM_PROMPT, INCREMENTAL_USER_PROMPT
-        ),
-    }
-
-
 def _resolve_repo_path(relative_path: str) -> Path:
     path = (REPO_ROOT / relative_path).resolve()
     path.relative_to(REPO_ROOT)
     return path
 
 
-def _artifact(
-    kind: str,
-    version: str,
-    path: Path,
-) -> dict[str, str]:
+def _artifact(kind: str, version: str, path: Path) -> dict[str, str]:
     return {
         "kind": kind,
         "version": version,
         "path": path.relative_to(REPO_ROOT).as_posix(),
-        "sha256": _sha256_file(path),
     }
 
 
-def _write_bytes_once(path: Path, content: bytes) -> None:
-    if path.exists():
-        if path.read_bytes() != content:
-            raise RuntimeContractError(
-                f"Refusing to overwrite frozen formal artifact: {path}"
-            )
-        return
+def _write_bytes(path: Path, content: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f".{path.name}.tmp")
-    temporary.write_bytes(content)
-    temporary.replace(path)
+    path.write_bytes(content)
 
 
-def _write_json_once(path: Path, payload: dict[str, Any]) -> None:
-    _write_bytes_once(path, _canonical_json_bytes(payload))
+def _write_json(path: Path, payload: dict[str, Any]) -> None:
+    _write_bytes(path, _canonical_json_bytes(payload))
 
 
-def _validate_binding(binding: dict[str, Any], label: str) -> None:
-    if set(binding) != {"kind", "version", "path", "sha256"}:
-        raise RuntimeContractError(f"{label} is not fully bound.")
-    path = _resolve_repo_path(binding["path"])
-    if not path.is_file() or _sha256_file(path) != binding["sha256"]:
-        raise RuntimeContractError(f"{label} implementation binding drifted.")
+def validate_formal_campaign_contract(campaign: dict[str, Any]) -> None:
+    """Validate the small semantic contract needed by the runtime."""
 
-
-def validate_formal_campaign_contract(
-    campaign: dict[str, Any],
-    *,
-    require_frozen: bool,
-) -> None:
-    """Validate bindings and the formal execution boundary before work."""
-
-    if require_frozen and campaign.get("status") != "frozen":
-        raise RuntimeContractError(
-            "Formal execution requires a frozen Campaign manifest."
-        )
     if campaign.get("protocol_version") != "autonomous_gse_v01":
         raise RuntimeContractError("Unsupported formal Campaign protocol.")
+    if campaign.get("status") != "completed":
+        raise RuntimeContractError("v0.1 must be a completed Campaign.")
     if campaign.get("test") != {
         "authorized": False,
         "data_for_learning": "forbidden",
@@ -167,80 +102,39 @@ def validate_formal_campaign_contract(
         raise RuntimeContractError("Test must remain sealed.")
 
     learner = campaign.get("proposal", {}).get("learner", {})
-    expected_learner = {
-        "requested_model": "openai/gpt-5.6-terra",
-        "resolved_model": "gpt-5.6-terra",
-        "api_parameters": {
-            "reasoning_effort": "low",
-            "max_completion_tokens": 8000,
-            "temperature": None,
-        },
-        "temperature_policy": "not_sent",
-        "prompt_template_sha256": frozen_prompt_hashes(),
-    }
-    if learner != expected_learner:
-        raise RuntimeContractError("Frozen Learner contract drifted.")
+    if learner.get("model") != "openai/gpt-5.6-terra" or learner.get(
+        "parameters"
+    ) != {
+        "reasoning_effort": "low",
+        "max_completion_tokens": 8000,
+        "temperature": None,
+    }:
+        raise RuntimeContractError("Learner configuration is invalid.")
+    if not all(
+        isinstance(learner.get(key), str) and learner[key]
+        for key in ("bootstrap_prompt", "incremental_prompt")
+    ):
+        raise RuntimeContractError("Proposal prompt sources are missing.")
 
     runtime = campaign.get("benchmark_runtime", {})
-    if runtime.get("agent") != {
-        "requested_model": "openai/gpt-5.6-terra",
-        "resolved_model": "gpt-5.6-terra",
-        "api_parameters": {"temperature": 0.1, "max_tokens": 512},
-    }:
-        raise RuntimeContractError("Frozen benchmark Agent contract drifted.")
+    if runtime.get("agent_model") != "openai/gpt-5.6-terra" or runtime.get(
+        "agent_parameters"
+    ) != {"temperature": 0.1, "max_tokens": 512}:
+        raise RuntimeContractError("Benchmark Agent configuration is invalid.")
     if runtime.get("rollout") != {
         "headless": False,
         "trials_per_task": 1,
         "execution": "sequential",
         "database_reset_before_every_trial": True,
     }:
-        raise RuntimeContractError("Frozen benchmark rollout contract drifted.")
-
-    bindings = campaign.get("implementation_bindings", {})
-    for name in (
-        "batch_planner",
-        "bootstrap_operator",
-        "bootstrap_prompt",
-        "incremental_operator",
-        "incremental_prompt",
-        "train_runner",
-        "experience_builder",
-        "selection_runner",
-        "controller",
-        "benchmark_runtime_adapter",
-        "runtime_orchestrator",
-        "learner_adapter",
-        "learner_client",
-        "freeze_tool",
-        "campaign_schema",
-        "benchmark_agent",
-    ):
-        binding = bindings.get(name)
-        if not isinstance(binding, dict):
-            raise RuntimeContractError(f"Missing {name} binding.")
-        _validate_binding(binding, name)
-
-    for name in ("database_snapshot", "database_reset", "compose_file"):
-        binding = runtime.get(name)
-        if not isinstance(binding, dict):
-            raise RuntimeContractError(f"Missing benchmark {name} binding.")
-        _validate_binding(binding, f"benchmark_runtime.{name}")
-    if require_frozen:
-        from src.skill_evolution.autonomous_gse_freeze import (
-            require_campaign_freeze,
-        )
-
-        manifest_path = REPO_ROOT / (
-            "experiments/campaigns/autonomous_gse_v01/campaign_manifest.json"
-        )
-        require_campaign_freeze(manifest_path, campaign)
+        raise RuntimeContractError("Benchmark rollout configuration is invalid.")
 
 
 LearnerCaller = Callable[[str, str, str], tuple[str, str, dict | None]]
 
 
-class FrozenLearnerAdapter:
-    """Build and call exactly one of the two frozen Proposal Prompts."""
+class LearnerAdapter:
+    """Build one declared Proposal prompt and call an injected Learner."""
 
     def __init__(
         self,
@@ -248,7 +142,7 @@ class FrozenLearnerAdapter:
         *,
         caller: LearnerCaller = call_learner,
     ) -> None:
-        validate_formal_campaign_contract(campaign, require_frozen=False)
+        validate_formal_campaign_contract(campaign)
         self._contract = copy.deepcopy(campaign["proposal"]["learner"])
         self._caller = caller
         self.last_call: dict[str, Any] | None = None
@@ -276,39 +170,21 @@ class FrozenLearnerAdapter:
                 evidence=evidence,
             )
         else:
-            raise RuntimeContractError("Unknown frozen Proposal Prompt.")
-
-        expected_template = self._contract["prompt_template_sha256"][
-            request.operator
-        ]
-        actual_template = frozen_prompt_hashes()[request.operator]
-        if actual_template != expected_template:
-            raise RuntimeContractError("Proposal Prompt template hash drifted.")
+            raise RuntimeContractError("Unknown Proposal operator.")
 
         response, resolved_model, usage = self._caller(
-            self._contract["requested_model"],
-            system_prompt,
-            user_prompt,
+            self._contract["model"], system_prompt, user_prompt
         )
-        if resolved_model != self._contract["resolved_model"]:
-            raise RuntimeContractError("Learner resolved model drifted.")
+        if resolved_model != "gpt-5.6-terra":
+            raise RuntimeContractError("Learner resolved model is unexpected.")
         self.last_response = response
         self.last_call = {
             "candidate_id": request.candidate_id,
             "operator": request.operator,
-            "requested_model": self._contract["requested_model"],
-            "resolved_model": resolved_model,
-            "api_parameters": copy.deepcopy(
-                self._contract["api_parameters"]
-            ),
-            "temperature_policy": self._contract["temperature_policy"],
-            "prompt_template_sha256": actual_template,
-            "full_prompt_sha256": _sha256_bytes(
-                (system_prompt + PROMPT_SEPARATOR + user_prompt).encode("utf-8")
-            ),
+            "model": self._contract["model"],
+            "parameters": copy.deepcopy(self._contract["parameters"]),
             "evidence_count": len(request.evidence),
             "usage": usage,
-            "response_sha256": _text_sha256(response),
         }
         return response
 
@@ -321,49 +197,138 @@ class RolloutRequest:
     task_ids: tuple[int, ...]
 
 
-class SubprocessRolloutBackend:
-    """Execute the bound rollout engines in a separate Python process."""
+RolloutBackend = Callable[[RolloutRequest], Sequence[Path]]
 
-    def __init__(self, campaign_path: Path) -> None:
-        self.campaign_path = campaign_path.resolve()
 
-    def run(self, request: RolloutRequest) -> tuple[Path, ...]:
-        command = [
-            sys.executable,
-            "-m",
-            "src.skill_evolution.autonomous_gse_benchmark_runtime",
-            "rollout",
-            "--campaign",
-            str(self.campaign_path),
-            "--split",
-            request.split,
-            "--method",
-            request.method,
-            "--artifact",
-            json.dumps(request.artifact, sort_keys=True),
-            "--task-ids",
-            ",".join(map(str, request.task_ids)),
+def _run_train_task(
+    args: SimpleNamespace,
+    manifest: dict[str, Any],
+    method: str,
+    skill: dict[str, Any],
+    task: dict[str, Any],
+) -> Path:
+    from src.adapters.stwebagentbench.run_evolution_train import (
+        get_output_dir,
+        run_task,
+    )
+
+    run_task(args, manifest, method, skill, task)
+    return get_output_dir(
+        manifest, method, task["task_id"], True
+    ) / "trajectory.json"
+
+
+def _run_selection_task(
+    args: SimpleNamespace,
+    manifest: dict[str, Any],
+    method: str,
+    skill: dict[str, Any],
+    task: dict[str, Any],
+) -> Path:
+    from src.adapters.stwebagentbench.run_evolution_selection import (
+        get_output_dir,
+        run_task,
+    )
+
+    run_task(args, manifest, task, skill)
+    return get_output_dir(
+        manifest, method, task["task_id"], True
+    ) / "trajectory.json"
+
+
+class RunnerRolloutBackend:
+    """Connect formal Campaign requests to the current benchmark Runners."""
+
+    def __init__(self, campaign: dict[str, Any]) -> None:
+        validate_formal_campaign_contract(campaign)
+        source = json.loads(
+            _resolve_repo_path(campaign["train"]["source_manifest"])
+            .read_text(encoding="utf-8")
+        )
+        self._tasks = {
+            split: {
+                task_id: {
+                    "task_id": task_id,
+                    "intent_template_id": template["intent_template_id"],
+                    "subset": template["subset"],
+                }
+                for template in source["splits"][split]["templates"]
+                for task_id in template["task_ids"]
+            }
+            for split in ("train", "selection")
+        }
+        self._manifest = {
+            "manifest_id": campaign["campaign_id"],
+            "benchmark": {"commit": source["benchmark"]["commit"]},
+        }
+        runtime = campaign["benchmark_runtime"]
+        self._model = runtime["agent_model"]
+        self._headless = runtime["rollout"]["headless"]
+
+    @staticmethod
+    def _load_skill(artifact: dict[str, Any]) -> dict[str, Any]:
+        path = _resolve_repo_path(artifact["path"])
+        if not path.is_file():
+            raise RuntimeContractError(f"Skill artifact is missing: {path}")
+        if artifact["kind"] == "no_skill":
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            if (
+                payload.get("kind") != "no_skill"
+                or payload.get("skill_version") != artifact["version"]
+            ):
+                raise RuntimeContractError("S0 artifact semantics are invalid.")
+            block = None
+        elif artifact["kind"] in {"accepted_skill", "candidate_skill"}:
+            text = path.read_text(encoding="utf-8").strip()
+            if not text:
+                raise RuntimeContractError("Skill artifact is empty.")
+            block = f"# Operational Skill\n{text}"
+        else:
+            raise RuntimeContractError("Unknown rollout artifact kind.")
+        return {
+            "version": artifact["version"],
+            "path": artifact["path"],
+            "block": block,
+        }
+
+    def __call__(self, request: RolloutRequest) -> Sequence[Path]:
+        if request.split not in self._tasks:
+            raise RuntimeContractError("Only Train and Selection are runnable.")
+        missing = [
+            task_id
+            for task_id in request.task_ids
+            if task_id not in self._tasks[request.split]
         ]
-        subprocess.run(command, cwd=REPO_ROOT, check=True)
+        if missing:
+            raise RuntimeContractError(
+                f"Unknown {request.split} Task IDs: {missing}"
+            )
+        skill = self._load_skill(request.artifact)
+        args = SimpleNamespace(
+            formal=True,
+            headless=self._headless,
+            model=self._model,
+            method=request.method,
+        )
+        runner = (
+            _run_train_task
+            if request.split == "train"
+            else _run_selection_task
+        )
         return tuple(
-            REPO_ROOT
-            / "artifacts"
-            / "autonomous_gse_v01"
-            / "raw"
-            / request.split
-            / request.method
-            / f"task_{task_id}"
-            / "trial_01"
-            / "trajectory.json"
+            runner(
+                args,
+                self._manifest,
+                request.method,
+                skill,
+                self._tasks[request.split][task_id],
+            )
             for task_id in request.task_ids
         )
 
 
-RolloutBackend = Callable[[RolloutRequest], Sequence[Path]]
-
-
 class FormalBenchmarkRuntimeAdapter:
-    """Concrete formal RuntimeAdapter backed by ST-WebAgentBench artifacts."""
+    """Runtime adapter backed by injected ST-WebAgentBench rollouts."""
 
     mode = FORMAL_MODE
 
@@ -373,9 +338,9 @@ class FormalBenchmarkRuntimeAdapter:
         campaign_path: Path,
         *,
         rollout_backend: RolloutBackend,
-        learner: FrozenLearnerAdapter,
+        learner: LearnerAdapter,
     ) -> None:
-        validate_formal_campaign_contract(campaign, require_frozen=True)
+        validate_formal_campaign_contract(campaign)
         self._campaign = copy.deepcopy(campaign)
         self._campaign_path = campaign_path.resolve()
         self._rollout = rollout_backend
@@ -441,19 +406,17 @@ class FormalBenchmarkRuntimeAdapter:
                 path, task_id, "selection", artifact
             )
             outcome = trajectory["outcome"]
-            compliant = outcome["violated_policy_count"] == 0
             rows.append(
                 {
                     "task_id": task_id,
                     "task_success": outcome["task_success"],
-                    "compliant": compliant,
+                    "compliant": outcome["violated_policy_count"] == 0,
                 }
             )
             sources.append(
                 {
                     "task_id": task_id,
                     "path": path.relative_to(REPO_ROOT).as_posix(),
-                    "sha256": _sha256_file(path),
                 }
             )
         payload = {
@@ -472,12 +435,10 @@ class FormalBenchmarkRuntimeAdapter:
             / "checkpoints"
             / f"{self._method(artifact)}.json"
         )
-        _write_json_once(path, payload)
+        _write_json(path, payload)
         self._side_effects["filesystem_writes"] += 1
-        checkpoint = _artifact(
-            "selection_checkpoint", artifact["version"], path
-        )
-        self._checkpoints[checkpoint["sha256"]] = payload
+        checkpoint = _artifact("selection_checkpoint", artifact["version"], path)
+        self._checkpoints[checkpoint["path"]] = payload
         return checkpoint
 
     def create_initial_checkpoint(
@@ -487,16 +448,15 @@ class FormalBenchmarkRuntimeAdapter:
         task_count: int,
     ) -> dict[str, Any]:
         if campaign_id != self._campaign["campaign_id"] or task_count != 18:
-            raise RuntimeContractError("Initial checkpoint contract drifted.")
-        task_ids = _split_task_ids(self._campaign, "selection")
-        checkpoint = self._checkpoint(parent, task_ids)
+            raise RuntimeContractError("Initial checkpoint contract is invalid.")
+        checkpoint = self._checkpoint(
+            parent, _split_task_ids(self._campaign, "selection")
+        )
         self._trace.append({"operation": "create_initial_checkpoint"})
         return checkpoint
 
     def run_train(self, step: dict[str, Any]) -> dict[str, Any]:
-        paths = self._run(
-            "train", step["parent"], step["batch"]["task_ids"]
-        )
+        paths = self._run("train", step["parent"], step["batch"]["task_ids"])
         self._train_paths[step["step"]] = paths
         payload = {
             "step": step["step"],
@@ -504,15 +464,12 @@ class FormalBenchmarkRuntimeAdapter:
             "parent": copy.deepcopy(step["parent"]),
             "task_ids": list(step["batch"]["task_ids"]),
             "sources": [
-                {
-                    "path": path.relative_to(REPO_ROOT).as_posix(),
-                    "sha256": _sha256_file(path),
-                }
+                {"path": path.relative_to(REPO_ROOT).as_posix()}
                 for path in paths
             ],
         }
         path = _step_path(self._campaign, step["step"], "train_set.json")
-        _write_json_once(path, payload)
+        _write_json(path, payload)
         self._side_effects["filesystem_writes"] += 1
         return _artifact(
             "train_trajectory_set", f"step_{step['step']:03d}", path
@@ -524,22 +481,17 @@ class FormalBenchmarkRuntimeAdapter:
         train_artifact: dict[str, Any],
     ) -> None:
         paths = self._train_paths.get(step["step"])
-        if paths is None:
+        if paths is None or not _resolve_repo_path(train_artifact["path"]).is_file():
             raise RuntimeContractError("Train trajectory set is unavailable.")
-        for task_id, path in zip(
-            step["batch"]["task_ids"], paths, strict=True
-        ):
+        for task_id, path in zip(step["batch"]["task_ids"], paths, strict=True):
             _load_valid_trajectory(path, task_id, "train", step["parent"])
-        if _sha256_file(_resolve_repo_path(train_artifact["path"])) != (
-            train_artifact["sha256"]
-        ):
-            raise RuntimeContractError("Train artifact hash drifted.")
 
     def build_experience(
         self,
         step: dict[str, Any],
         train_artifact: dict[str, Any],
     ) -> dict[str, Any]:
+        del train_artifact
         paths = self._train_paths[step["step"]]
         experiences = []
         sources = []
@@ -548,8 +500,9 @@ class FormalBenchmarkRuntimeAdapter:
             zip(step["batch"]["task_ids"], paths, strict=True), start=1
         ):
             source_id = f"step_{step['step']:03d}_source_{index:03d}"
-            trajectory = json.loads(path.read_text(encoding="utf-8"))
-            experience = build_experience(trajectory, source_id)
+            experience = build_experience(
+                json.loads(path.read_text(encoding="utf-8")), source_id
+            )
             experiences.append(experience)
             state_counts[experience["state"]] += 1
             sources.append(
@@ -557,7 +510,6 @@ class FormalBenchmarkRuntimeAdapter:
                     "source_id": source_id,
                     "task_id": task_id,
                     "path": path.relative_to(REPO_ROOT).as_posix(),
-                    "sha256": _sha256_file(path),
                 }
             )
         payload = {
@@ -568,29 +520,30 @@ class FormalBenchmarkRuntimeAdapter:
             "experiences": experiences,
             "lineage": {
                 "batch_id": step["batch"]["batch_id"],
-                "parent_sha256": step["parent"]["sha256"],
+                "parent_version": step["parent"]["version"],
                 "task_ids": list(step["batch"]["task_ids"]),
             },
         }
         path = _step_path(
             self._campaign, step["step"], "governed_experience.json"
         )
-        _write_json_once(path, payload)
+        _write_json(path, payload)
         self._side_effects["filesystem_writes"] += 1
         artifact = _artifact(
             "governed_experience", f"step_{step['step']:03d}", path
         )
-        self._datasets[artifact["sha256"]] = payload
+        self._datasets[artifact["path"]] = payload
         return artifact
 
     def propose(self, request: ProposalRequest) -> ProposalResult:
-        dataset = self._datasets.get(request.experience["sha256"])
+        dataset = self._datasets.get(request.experience["path"])
         if dataset is None:
             raise RuntimeContractError("Governed Experience is unavailable.")
         parent_skill = None
         if request.parent["kind"] == "accepted_skill":
-            parent_path = _resolve_repo_path(request.parent["path"])
-            parent_skill = parent_path.read_text(encoding="utf-8").strip()
+            parent_skill = _resolve_repo_path(request.parent["path"]).read_text(
+                encoding="utf-8"
+            ).strip()
         context = ProposalContext(
             candidate_id=f"epoch_001_step_{request.step:03d}_candidate",
             batch_id=request.batch_id,
@@ -610,7 +563,7 @@ class FormalBenchmarkRuntimeAdapter:
         decision = operator.propose(context, self._learner)
         if decision.learner_calls:
             self._side_effects["api_calls"] += 1
-            self._freeze_learner_call(request.step)
+            self._save_learner_call(request.step)
         if decision.candidate is None:
             return ProposalResult(decision.status, decision.learner_calls, None)
 
@@ -625,28 +578,23 @@ class FormalBenchmarkRuntimeAdapter:
         )
         skill_path = candidate_dir / "skill.md"
         provenance_path = candidate_dir / "provenance.json"
-        _write_bytes_once(
-            skill_path, (bundle.skill.rstrip() + "\n").encode("utf-8")
-        )
-        _write_json_once(provenance_path, bundle.provenance_payload)
+        _write_bytes(skill_path, (bundle.skill.rstrip() + "\n").encode("utf-8"))
+        candidate = _artifact("candidate_skill", context.candidate_id, skill_path)
+        provenance_payload = copy.deepcopy(bundle.provenance_payload)
+        provenance_payload["candidate"] = copy.deepcopy(candidate)
+        _write_json(provenance_path, provenance_payload)
         self._side_effects["filesystem_writes"] += 2
-        candidate = _artifact(
-            "candidate_skill", context.candidate_id, skill_path
-        )
-        if candidate["sha256"] != bundle.candidate["sha256"]:
-            raise RuntimeContractError("Frozen Candidate hash changed.")
-        return ProposalResult(
-            decision.status, decision.learner_calls, candidate
-        )
+        return ProposalResult(decision.status, decision.learner_calls, candidate)
 
-    def _freeze_learner_call(self, step: int) -> None:
+    def _save_learner_call(self, step: int) -> None:
         if self._learner.last_call is None or self._learner.last_response is None:
             raise RuntimeContractError("Learner call audit is incomplete.")
-        path = _step_path(self._campaign, step, "learner_call.json")
-        response_path = _step_path(self._campaign, step, "learner_response.txt")
-        _write_json_once(path, self._learner.last_call)
-        _write_bytes_once(
-            response_path,
+        _write_json(
+            _step_path(self._campaign, step, "learner_call.json"),
+            self._learner.last_call,
+        )
+        _write_bytes(
+            _step_path(self._campaign, step, "learner_response.txt"),
             (self._learner.last_response.rstrip() + "\n").encode("utf-8"),
         )
         self._side_effects["filesystem_writes"] += 2
@@ -659,7 +607,7 @@ class FormalBenchmarkRuntimeAdapter:
         task_count: int,
     ) -> dict[str, Any]:
         if task_count != 18:
-            raise RuntimeContractError("Selection task budget drifted.")
+            raise RuntimeContractError("Selection task budget is invalid.")
         promoted = {**candidate, "version": accepted_version_if_promoted}
         return self._checkpoint(
             promoted, _split_task_ids(self._campaign, "selection")
@@ -670,7 +618,8 @@ class FormalBenchmarkRuntimeAdapter:
         step: dict[str, Any],
         checkpoint: dict[str, Any],
     ) -> None:
-        if checkpoint["sha256"] not in self._checkpoints:
+        del step
+        if checkpoint["path"] not in self._checkpoints:
             raise RuntimeContractError("Candidate checkpoint is unavailable.")
 
     def build_evolution_summary(
@@ -678,43 +627,38 @@ class FormalBenchmarkRuntimeAdapter:
         step: dict[str, Any],
         candidate_checkpoint: dict[str, Any],
     ) -> dict[str, Any]:
-        parent = self._checkpoints.get(step["parent_checkpoint"]["sha256"])
-        candidate = self._checkpoints.get(candidate_checkpoint["sha256"])
+        parent = self._checkpoints.get(step["parent_checkpoint"]["path"])
+        candidate = self._checkpoints.get(candidate_checkpoint["path"])
         if parent is None or candidate is None:
             raise RuntimeContractError("Selection checkpoint lineage is missing.")
         rows = [
             {**row, "method": "parent"} for row in parent["rows"]
-        ] + [
-            {**row, "method": "candidate"} for row in candidate["rows"]
-        ]
-        analysis = analyze_candidate(rows, "parent", "candidate")
+        ] + [{**row, "method": "candidate"} for row in candidate["rows"]]
         payload = {
             "schema_version": "autonomous_gse_evolution_summary_0.1.0",
             "step": step["step"],
-            "parent_checkpoint_sha256": step["parent_checkpoint"]["sha256"],
-            "candidate_checkpoint_sha256": candidate_checkpoint["sha256"],
-            "analysis": analysis,
+            "parent_checkpoint": copy.deepcopy(step["parent_checkpoint"]),
+            "candidate_checkpoint": copy.deepcopy(candidate_checkpoint),
+            "analysis": analyze_candidate(rows, "parent", "candidate"),
         }
         path = _step_path(
             self._campaign, step["step"], "evolution_summary.json"
         )
-        _write_json_once(path, payload)
+        _write_json(path, payload)
         self._side_effects["filesystem_writes"] += 1
-        return _artifact(
-            "evolution_summary", f"step_{step['step']:03d}", path
-        )
+        return _artifact("evolution_summary", f"step_{step['step']:03d}", path)
 
     def apply_gate(
         self,
         step: dict[str, Any],
         summary: dict[str, Any],
     ) -> str:
-        path = _resolve_repo_path(summary["path"])
-        if _sha256_file(path) != summary["sha256"]:
-            raise RuntimeContractError("Evolution Summary hash drifted.")
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        del step
+        payload = json.loads(
+            _resolve_repo_path(summary["path"]).read_text(encoding="utf-8")
+        )
         decision = payload["analysis"]["evolution_gate"]["decision"]
-        mapping = self._campaign["gate"]["decision_mapping"]
+        mapping = {"continue_evolution": "ACCEPT", "reject": "REJECT"}
         if decision not in mapping:
             raise RuntimeContractError("Evolution Gate decision is unsupported.")
         return mapping[decision]
@@ -734,8 +678,9 @@ def _step_path(campaign: dict[str, Any], step: int, name: str) -> Path:
 
 def _split_task_ids(campaign: dict[str, Any], split: str) -> tuple[int, ...]:
     source = json.loads(
-        _resolve_repo_path(campaign["train"]["source_manifest"]["path"])
-        .read_text(encoding="utf-8")
+        _resolve_repo_path(campaign["train"]["source_manifest"]).read_text(
+            encoding="utf-8"
+        )
     )
     return tuple(
         task_id
@@ -761,7 +706,6 @@ def _load_valid_trajectory(
         or run.get("run_kind") != "formal"
         or run.get("split") != split
         or run.get("skill_version") != artifact["version"]
-        or run.get("skill_sha256") != artifact["sha256"]
     ):
         raise RuntimeContractError(f"Formal trajectory lineage mismatch: {path}")
     outcome = trajectory.get("outcome", {})
@@ -776,9 +720,9 @@ def build_formal_execution_plan(
     campaign: dict[str, Any],
     batch_map: dict[str, Any],
 ) -> dict[str, Any]:
-    """Build a no-side-effect preview of the executable formal workload."""
+    """Build a no-side-effect preview of the recorded workload."""
 
-    validate_formal_campaign_contract(campaign, require_frozen=False)
+    validate_formal_campaign_contract(campaign)
     batches = batch_map.get("batches", [])
     if len(batches) != 3:
         raise RuntimeContractError("Formal plan requires exactly 3 batches.")
@@ -811,157 +755,16 @@ def run_formal_campaign(
     batch_map: dict[str, Any],
     adapter: FormalBenchmarkRuntimeAdapter,
 ) -> dict[str, Any]:
-    """Execute the frozen Campaign through the formal side-effect boundary."""
+    """Execute the Campaign through an explicitly injected adapter."""
 
-    validate_formal_campaign_contract(campaign, require_frozen=True)
+    validate_formal_campaign_contract(campaign)
     report = run_campaign(campaign, batch_map, adapter)
     if report["mode"] != FORMAL_MODE:
-        raise RuntimeContractError("Formal runtime adapter mode drifted.")
+        raise RuntimeContractError("Formal runtime adapter mode is invalid.")
     if report["side_effects"]["browser_calls"] > 123:
         raise RuntimeContractError("Formal runtime exceeded rollout budget.")
     report["schema_version"] = "autonomous_gse_formal_report_0.1.0"
     return report
-
-
-def _run_bound_rollout(
-    campaign_path: Path,
-    split: str,
-    method: str,
-    artifact: dict[str, Any],
-    task_ids: tuple[int, ...],
-) -> None:
-    campaign = json.loads(campaign_path.read_text(encoding="utf-8"))
-    validate_formal_campaign_contract(campaign, require_frozen=True)
-    source_manifest = json.loads(
-        _resolve_repo_path(campaign["train"]["source_manifest"]["path"])
-        .read_text(encoding="utf-8")
-    )
-    allowed = set(_split_task_ids(campaign, split))
-    if not task_ids or len(task_ids) != len(set(task_ids)) or not set(
-        task_ids
-    ).issubset(allowed):
-        raise RuntimeContractError("Rollout Task IDs violate the frozen split.")
-    skill = _load_rollout_skill(artifact)
-    runtime = campaign["benchmark_runtime"]
-    args = type(
-        "FormalArgs",
-        (),
-        {
-            "formal": True,
-            "headless": runtime["rollout"]["headless"],
-            "model": runtime["agent"]["requested_model"],
-            "method": method,
-        },
-    )()
-    runtime_manifest = {
-        "manifest_id": campaign["campaign_id"],
-        "benchmark": {
-            "commit": source_manifest["benchmark"]["commit"],
-            "task_source_sha256": source_manifest["benchmark"][
-                "task_source_sha256"
-            ],
-        },
-    }
-    source_index = {
-        task_id: {
-            "task_id": task_id,
-            "intent_template_id": template["intent_template_id"],
-            "subset": template["subset"],
-        }
-        for template in source_manifest["splits"][split]["templates"]
-        for task_id in template["task_ids"]
-    }
-    manifest_sha = _sha256_file(campaign_path)
-    snapshot_sha = campaign["benchmark_runtime"]["database_snapshot"][
-        "sha256"
-    ]
-    if split == "train":
-        from src.adapters.stwebagentbench.run_evolution_train import run_task
-
-        for task_id in task_ids:
-            run_task(
-                args,
-                runtime_manifest,
-                method,
-                skill,
-                source_index[task_id],
-                manifest_sha,
-                snapshot_sha,
-            )
-    else:
-        from src.adapters.stwebagentbench.run_evolution_selection import run_task
-
-        runner_sha = campaign["implementation_bindings"][
-            "selection_runner"
-        ]["sha256"]
-        for task_id in task_ids:
-            run_task(
-                args,
-                runtime_manifest,
-                source_index[task_id],
-                manifest_sha,
-                snapshot_sha,
-                runner_sha,
-                skill,
-            )
-
-
-def _load_rollout_skill(artifact: dict[str, Any]) -> dict[str, Any]:
-    if artifact["kind"] == "no_skill":
-        path = _resolve_repo_path(artifact["path"])
-        if _sha256_file(path) != artifact["sha256"]:
-            raise RuntimeContractError("S0 artifact hash drifted.")
-        return {
-            "version": artifact["version"],
-            "path": artifact["path"],
-            "sha256": artifact["sha256"],
-            "prompt_sha256": None,
-            "block": None,
-        }
-    path = _resolve_repo_path(artifact["path"])
-    if not path.is_file() or _sha256_file(path) != artifact["sha256"]:
-        raise RuntimeContractError("Skill artifact hash drifted.")
-    text = path.read_text(encoding="utf-8").strip()
-    block = f"# Operational Skill\n{text}"
-    return {
-        "version": artifact["version"],
-        "path": artifact["path"],
-        "sha256": artifact["sha256"],
-        "prompt_sha256": _sha256_bytes(block.encode("utf-8")),
-        "block": block,
-    }
-
-
-def run_initial_checkpoint(campaign_path: Path) -> dict[str, Any]:
-    """Run only the fresh S0 Selection checkpoint, then stop."""
-
-    campaign_path = campaign_path.resolve()
-    campaign = json.loads(campaign_path.read_text(encoding="utf-8"))
-    status = get_campaign_status(campaign_path)
-    if status["state"] != "NOT_STARTED":
-        raise RuntimeContractError(
-            "Initial checkpoint requires an empty Campaign artifact root; "
-            f"current state is {status['state']}."
-        )
-    learner = FrozenLearnerAdapter(campaign)
-    backend = SubprocessRolloutBackend(campaign_path)
-    adapter = FormalBenchmarkRuntimeAdapter(
-        campaign,
-        campaign_path,
-        rollout_backend=backend.run,
-        learner=learner,
-    )
-    checkpoint = adapter.create_initial_checkpoint(
-        campaign["campaign_id"],
-        campaign["initial_parent"],
-        campaign["selection"]["tasks"],
-    )
-    return {
-        "status": "S0_CHECKPOINT_CREATED",
-        "checkpoint": checkpoint,
-        "side_effects": adapter.side_effects,
-        "trace": adapter.trace,
-    }
 
 
 def _campaign_artifact_paths(campaign: dict[str, Any]) -> dict[str, Path]:
@@ -977,36 +780,28 @@ def _campaign_artifact_paths(campaign: dict[str, Any]) -> dict[str, Path]:
 
 
 def _validate_initial_checkpoint(
-    campaign: dict[str, Any],
-    checkpoint_path: Path,
+    campaign: dict[str, Any], checkpoint_path: Path
 ) -> dict[str, Any]:
     checkpoint = json.loads(checkpoint_path.read_text(encoding="utf-8"))
     expected_task_ids = list(_split_task_ids(campaign, "selection"))
+    recorded_parent = checkpoint.get("parent", {})
+    expected_parent = campaign["initial_parent"]
     if (
         checkpoint.get("schema_version")
         != "autonomous_gse_selection_checkpoint_0.1.0"
         or checkpoint.get("campaign_id") != campaign["campaign_id"]
-        or checkpoint.get("parent") != campaign["initial_parent"]
+        or any(
+            recorded_parent.get(key) != value
+            for key, value in expected_parent.items()
+        )
         or checkpoint.get("task_ids") != expected_task_ids
         or len(checkpoint.get("rows", [])) != len(expected_task_ids)
         or len(checkpoint.get("sources", [])) != len(expected_task_ids)
     ):
-        raise RuntimeContractError("Initial S0 checkpoint contract drifted.")
-    rows = checkpoint["rows"]
-    sources = checkpoint["sources"]
-    if {row.get("task_id") for row in rows} != set(expected_task_ids):
-        raise RuntimeContractError("Initial S0 checkpoint rows drifted.")
-    for row in rows:
-        if set(row) != {"task_id", "task_success", "compliant"} or not all(
-            isinstance(row[key], bool) for key in ("task_success", "compliant")
-        ):
-            raise RuntimeContractError("Initial S0 checkpoint row is invalid.")
-    for source in sources:
-        path = _resolve_repo_path(source["path"])
-        if _sha256_file(path) != source["sha256"]:
-            raise RuntimeContractError("Initial S0 trajectory hash drifted.")
+        raise RuntimeContractError("Initial S0 checkpoint contract is invalid.")
+    for source in checkpoint["sources"]:
         _load_valid_trajectory(
-            path,
+            _resolve_repo_path(source["path"]),
             source["task_id"],
             "selection",
             campaign["initial_parent"],
@@ -1015,14 +810,15 @@ def _validate_initial_checkpoint(
 
 
 def get_campaign_status(campaign_path: Path) -> dict[str, Any]:
-    """Inspect formal artifact progress without starting or resuming work."""
+    """Inspect recorded artifact progress without starting or resuming work."""
 
     campaign_path = campaign_path.resolve()
     campaign = json.loads(campaign_path.read_text(encoding="utf-8"))
+    validate_formal_campaign_contract(campaign)
     paths = _campaign_artifact_paths(campaign)
-    s0_trajectories = sorted(paths["s0_raw_root"].glob(
-        "task_*/trial_01/trajectory.json"
-    ))
+    s0_trajectories = sorted(
+        paths["s0_raw_root"].glob("task_*/trial_01/trajectory.json")
+    )
     all_trajectories = sorted(paths["raw_root"].rglob("trajectory.json"))
     failures = sorted(paths["artifact_root"].rglob("failure_*.json"))
     checkpoint_exists = paths["checkpoint"].is_file()
@@ -1054,9 +850,7 @@ def get_campaign_status(campaign_path: Path) -> dict[str, Any]:
         if report_exists:
             report = json.loads(paths["report"].read_text(encoding="utf-8"))
             if (
-                report.get("schema_version")
-                != "autonomous_gse_formal_report_0.1.0"
-                or report.get("campaign_id") != campaign["campaign_id"]
+                report.get("campaign_id") != campaign["campaign_id"]
                 or report.get("status") != "COMPLETED"
                 or len(report.get("steps", [])) != 3
             ):
@@ -1089,8 +883,48 @@ def get_campaign_status(campaign_path: Path) -> dict[str, Any]:
     return result
 
 
-def run_formal_campaign_cli(campaign_path: Path) -> dict[str, Any]:
-    """Execute all three Steps from a complete frozen S0 checkpoint."""
+def run_initial_checkpoint(
+    campaign_path: Path,
+    *,
+    rollout_backend: RolloutBackend | None = None,
+    learner: LearnerAdapter | None = None,
+) -> dict[str, Any]:
+    """Run the fresh S0 Selection checkpoint, then stop."""
+
+    campaign_path = campaign_path.resolve()
+    campaign = json.loads(campaign_path.read_text(encoding="utf-8"))
+    status = get_campaign_status(campaign_path)
+    if status["state"] != "NOT_STARTED":
+        raise RuntimeContractError(
+            "Initial checkpoint requires a new Campaign artifact root; "
+            f"current state is {status['state']}."
+        )
+    adapter = FormalBenchmarkRuntimeAdapter(
+        campaign,
+        campaign_path,
+        rollout_backend=rollout_backend or RunnerRolloutBackend(campaign),
+        learner=learner or LearnerAdapter(campaign),
+    )
+    checkpoint = adapter.create_initial_checkpoint(
+        campaign["campaign_id"],
+        campaign["initial_parent"],
+        campaign["selection"]["tasks"],
+    )
+    return {
+        "status": "S0_CHECKPOINT_CREATED",
+        "checkpoint": checkpoint,
+        "side_effects": adapter.side_effects,
+        "trace": adapter.trace,
+    }
+
+
+def run_formal_campaign_cli(
+    campaign_path: Path,
+    *,
+    rollout_backend: RolloutBackend | None = None,
+    learner: LearnerAdapter | None = None,
+) -> dict[str, Any]:
+    """Execute all three Steps from a complete S0 checkpoint."""
 
     campaign_path = campaign_path.resolve()
     campaign = json.loads(campaign_path.read_text(encoding="utf-8"))
@@ -1100,25 +934,30 @@ def run_formal_campaign_cli(campaign_path: Path) -> dict[str, Any]:
             "Formal Campaign run requires READY_TO_RUN; "
             f"current state is {status['state']}."
         )
-    from dotenv import load_dotenv
+    if learner is None:
+        from dotenv import load_dotenv
 
-    load_dotenv(REPO_ROOT / "external/ST-WebAgentBench/.env", override=False)
-    batch_path = _resolve_repo_path(campaign["train"]["batch_map"]["path"])
+        load_dotenv(
+            REPO_ROOT / "external/ST-WebAgentBench/.env",
+            override=False,
+        )
+        learner = LearnerAdapter(campaign)
+    batch_path = _resolve_repo_path(campaign["train"]["batch_map"])
     batch_map = json.loads(batch_path.read_text(encoding="utf-8"))
-    learner = FrozenLearnerAdapter(campaign)
-    backend = SubprocessRolloutBackend(campaign_path)
     adapter = FormalBenchmarkRuntimeAdapter(
         campaign,
         campaign_path,
-        rollout_backend=backend.run,
+        rollout_backend=rollout_backend or RunnerRolloutBackend(campaign),
         learner=learner,
     )
     report = run_formal_campaign(campaign, batch_map, adapter)
     report_path = _campaign_artifact_paths(campaign)["report"]
-    _write_json_once(report_path, report)
+    _write_json(report_path, report)
     return {
         "status": "AUTONOMOUS_GSE_CAMPAIGN_COMPLETED",
-        "report": _artifact("campaign_report", campaign["campaign_id"], report_path),
+        "report": _artifact(
+            "campaign_report", campaign["campaign_id"], report_path
+        ),
         "step_outcomes": [step["outcome"] for step in report["steps"]],
         "final_parent": copy.deepcopy(report["final_parent"]),
         "budget_usage": copy.deepcopy(report["budget_usage"]),
@@ -1129,105 +968,31 @@ def run_formal_campaign_cli(campaign_path: Path) -> dict[str, Any]:
 def main(argv: Sequence[str] | None = None) -> int:
     import argparse
 
+    default_campaign = (
+        REPO_ROOT
+        / "experiments/campaigns/autonomous_gse_v01/campaign_manifest.json"
+    )
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="command", required=True)
-    plan = subparsers.add_parser("plan")
-    plan.add_argument(
-        "--campaign",
-        type=Path,
-        default=(
-            REPO_ROOT
-            / "experiments/campaigns/autonomous_gse_v01/"
-            "campaign_manifest.json"
-        ),
-    )
-    initial_checkpoint = subparsers.add_parser("initial-checkpoint")
-    initial_checkpoint.add_argument(
-        "--campaign",
-        type=Path,
-        default=(
-            REPO_ROOT
-            / "experiments/campaigns/autonomous_gse_v01/"
-            "campaign_manifest.json"
-        ),
-    )
-    run = subparsers.add_parser("run")
-    run.add_argument(
-        "--campaign",
-        type=Path,
-        default=(
-            REPO_ROOT
-            / "experiments/campaigns/autonomous_gse_v01/"
-            "campaign_manifest.json"
-        ),
-    )
-    status = subparsers.add_parser("status")
-    status.add_argument(
-        "--campaign",
-        type=Path,
-        default=(
-            REPO_ROOT
-            / "experiments/campaigns/autonomous_gse_v01/"
-            "campaign_manifest.json"
-        ),
-    )
-    rollout = subparsers.add_parser("rollout")
-    rollout.add_argument("--campaign", type=Path, required=True)
-    rollout.add_argument("--split", choices=("train", "selection"), required=True)
-    rollout.add_argument("--method", required=True)
-    rollout.add_argument("--artifact", required=True)
-    rollout.add_argument("--task-ids", required=True)
+    for command in ("plan", "initial-checkpoint", "run", "status"):
+        subparser = subparsers.add_parser(command)
+        subparser.add_argument("--campaign", type=Path, default=default_campaign)
     args = parser.parse_args(argv)
 
     campaign_path = args.campaign.resolve()
     campaign = json.loads(campaign_path.read_text(encoding="utf-8"))
-    if args.command == "plan":
-        batch_path = _resolve_repo_path(campaign["train"]["batch_map"]["path"])
-        batch_map = json.loads(batch_path.read_text(encoding="utf-8"))
-        print(
-            json.dumps(
-                build_formal_execution_plan(campaign, batch_map),
-                ensure_ascii=False,
-                indent=2,
-            )
-        )
-        return 0
-    if args.command == "initial-checkpoint":
-        print(
-            json.dumps(
-                run_initial_checkpoint(campaign_path),
-                ensure_ascii=False,
-                indent=2,
-            )
-        )
-        return 0
-    if args.command == "run":
-        print(
-            json.dumps(
-                run_formal_campaign_cli(campaign_path),
-                ensure_ascii=False,
-                indent=2,
-            )
-        )
-        return 0
     if args.command == "status":
-        print(
-            json.dumps(
-                get_campaign_status(campaign_path),
-                ensure_ascii=False,
-                indent=2,
-            )
+        result = get_campaign_status(campaign_path)
+    elif args.command == "plan":
+        batch_path = _resolve_repo_path(campaign["train"]["batch_map"])
+        result = build_formal_execution_plan(
+            campaign, json.loads(batch_path.read_text(encoding="utf-8"))
         )
-        return 0
-    artifact = json.loads(args.artifact)
-    task_ids = tuple(int(value) for value in args.task_ids.split(","))
-    _run_bound_rollout(
-        campaign_path,
-        args.split,
-        args.method,
-        artifact,
-        task_ids,
-    )
+    elif args.command == "initial-checkpoint":
+        result = run_initial_checkpoint(campaign_path)
+    else:
+        result = run_formal_campaign_cli(campaign_path)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
 
 

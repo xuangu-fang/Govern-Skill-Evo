@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""Run frozen ST-WebAgentBench Selection tasks for one baseline method."""
+"""Run ST-WebAgentBench Selection tasks for one baseline method."""
 
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import subprocess
@@ -102,24 +101,6 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def sha256_bytes(value: bytes) -> str:
-    return hashlib.sha256(value).hexdigest()
-
-
-def sha256_text(value: str) -> str:
-    return sha256_bytes(value.encode("utf-8"))
-
-
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-
-    return digest.hexdigest()
-
-
 def save_json_atomic(path: Path, payload: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary_path = path.with_name(f".{path.name}.tmp")
@@ -161,9 +142,9 @@ def load_selection_tasks(
 ) -> tuple[dict, list[dict]]:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 
-    if manifest.get("status") != "frozen":
+    if manifest.get("status") != "completed":
         raise ValueError(
-            f"Manifest must be frozen, got: {manifest.get('status')!r}"
+            f"Manifest must be completed, got: {manifest.get('status')!r}"
         )
 
     planned_methods = (
@@ -209,8 +190,6 @@ def load_skill(method: str) -> dict:
     if path is None:
         return {
             "path": None,
-            "sha256": None,
-            "prompt_sha256": None,
             "block": None,
         }
 
@@ -224,14 +203,12 @@ def load_skill(method: str) -> dict:
     skill_block = f"# Operational Skill\n{skill_text}"
     return {
         "path": path.relative_to(REPO_ROOT).as_posix(),
-        "sha256": sha256_file(path),
-        "prompt_sha256": sha256_text(skill_block),
         "block": skill_block,
     }
 
 
 class SkillInjectedDemoAgent(DemoAgent):
-    """Add a frozen Skill block to the DemoAgent system-message goal area."""
+    """Add a Skill block to the DemoAgent system-message goal area."""
 
     def __init__(self, model_name: str, skill_block: str) -> None:
         super().__init__(model_name=model_name)
@@ -248,7 +225,7 @@ class SkillInjectedDemoAgent(DemoAgent):
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Run one frozen baseline over ST-WebAgentBench Selection tasks."
+            "Run one baseline over ST-WebAgentBench Selection tasks."
         )
     )
     parser.add_argument(
@@ -319,26 +296,18 @@ def get_output_dir(
 def expected_run_metadata(
     args: argparse.Namespace,
     manifest: dict,
-    manifest_sha256: str,
-    database_snapshot_sha256: str,
-    runner_sha256: str,
     skill: dict,
 ) -> dict:
     return {
         "status": "completed",
         "run_kind": "formal" if args.formal else "smoke",
         "manifest_id": manifest["manifest_id"],
-        "manifest_sha256": manifest_sha256,
-        "database_snapshot_sha256": database_snapshot_sha256,
-        "runner_sha256": runner_sha256,
         "split": "selection",
         "method": args.method,
         "trial": 1,
         "requested_model": args.model,
         "headless": args.headless,
         "skill_path": skill["path"],
-        "skill_sha256": skill["sha256"],
-        "skill_prompt_sha256": skill["prompt_sha256"],
     }
 
 
@@ -347,9 +316,6 @@ def validate_completed_trajectory(
     manifest: dict,
     task: dict,
     args: argparse.Namespace,
-    manifest_sha256: str,
-    database_snapshot_sha256: str,
-    runner_sha256: str,
     skill: dict,
 ) -> None:
     trajectory = json.loads(trajectory_path.read_text(encoding="utf-8"))
@@ -357,9 +323,6 @@ def validate_completed_trajectory(
     expected = expected_run_metadata(
         args,
         manifest,
-        manifest_sha256,
-        database_snapshot_sha256,
-        runner_sha256,
         skill,
     )
 
@@ -397,9 +360,6 @@ def run_task(
     args: argparse.Namespace,
     manifest: dict,
     task: dict,
-    manifest_sha256: str,
-    database_snapshot_sha256: str,
-    runner_sha256: str,
     skill: dict,
 ) -> str:
     output_dir = get_output_dir(
@@ -416,9 +376,6 @@ def run_task(
             manifest,
             task,
             args,
-            manifest_sha256,
-            database_snapshot_sha256,
-            runner_sha256,
             skill,
         )
         print(f"Skipping completed Task {task['task_id']}: {trajectory_path}")
@@ -437,17 +394,11 @@ def run_task(
             for key, value in expected_run_metadata(
                 args,
                 manifest,
-                manifest_sha256,
-                database_snapshot_sha256,
-                runner_sha256,
                 skill,
             ).items()
             if key != "status"
         },
         "benchmark_commit": manifest["benchmark"]["commit"],
-        "task_source_sha256": (
-            manifest["benchmark"]["task_source_sha256"]
-        ),
         "skill_injected": skill["block"] is not None,
         "started_at": utc_now(),
     }
@@ -629,18 +580,11 @@ def main() -> None:
                 f"Task {args.task_id} is not part of the Selection split."
             )
 
-    manifest_sha256 = sha256_file(manifest_path)
-    database_snapshot_sha256 = sha256_file(DB_SNAPSHOT)
-    runner_sha256 = sha256_file(Path(__file__))
-
     print(
         "Selection configuration:",
         {
             "method": args.method,
             "skill_path": skill["path"],
-            "skill_sha256": skill["sha256"],
-            "skill_prompt_sha256": skill["prompt_sha256"],
-            "runner_sha256": runner_sha256,
         },
     )
 
@@ -664,9 +608,6 @@ def main() -> None:
                     manifest,
                     task,
                     args,
-                    manifest_sha256,
-                    database_snapshot_sha256,
-                    runner_sha256,
                     skill,
                 )
                 status = "skip"
@@ -704,9 +645,6 @@ def main() -> None:
             args,
             manifest,
             task,
-            manifest_sha256,
-            database_snapshot_sha256,
-            runner_sha256,
             skill,
         )
         if result == "completed":

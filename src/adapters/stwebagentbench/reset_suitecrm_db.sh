@@ -7,7 +7,6 @@ st_repo_root="$(cd "${st_script_dir}/../../.." && pwd)"
 
 st_compose_file="${st_repo_root}/external/ST-WebAgentBench/suitecrm_setup/docker-compose.yaml"
 st_snapshot="${st_repo_root}/artifacts/stweb_suitecrm_poc_v01/db/suitecrm_pristine_v01.sql"
-st_snapshot_hash="${st_snapshot}.sha256"
 
 cd "${st_repo_root}"
 
@@ -15,13 +14,6 @@ if [[ ! -s "${st_snapshot}" ]]; then
   echo "Database snapshot is missing or empty: ${st_snapshot}" >&2
   exit 1
 fi
-
-if [[ ! -f "${st_snapshot_hash}" ]]; then
-  echo "Database snapshot hash is missing: ${st_snapshot_hash}" >&2
-  exit 1
-fi
-
-shasum -a 256 -c "${st_snapshot_hash}"
 
 docker compose -f "${st_compose_file}" up -d --pull never mariadb
 docker compose -f "${st_compose_file}" stop suitecrm

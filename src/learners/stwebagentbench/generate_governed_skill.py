@@ -24,8 +24,6 @@ from src.learners.stwebagentbench.generate_skill import (
     parse_learner_output,
     save_json_atomic,
     save_text_atomic,
-    sha256_file,
-    sha256_text,
     validate_skill,
 )
 from src.skill_evolution.governed_experience import SCHEMA_VERSION
@@ -164,7 +162,7 @@ def _contains_key(value: Any, forbidden_key: str) -> bool:
 
 
 def load_governed_dataset(path: Path) -> dict[str, Any]:
-    """Load and validate the frozen v0.1 governed-experience dataset."""
+    """Load and validate the v0.1 governed-experience dataset."""
 
     if not path.is_file():
         raise FileNotFoundError(
@@ -489,7 +487,6 @@ def main() -> int:
 
     plan = {
         "input": input_path.relative_to(REPO_ROOT).as_posix(),
-        "input_sha256": sha256_file(input_path),
         "input_experience_count": dataset["experience_count"],
         "selection_rule": "task_success == true (CS + VS)",
         "selected_experience_count": len(evidence),
@@ -508,12 +505,6 @@ def main() -> int:
         "learner_model": args.model,
         "reasoning_effort": REASONING_EFFORT,
         "max_completion_tokens": MAX_COMPLETION_TOKENS,
-        "prompt_template_sha256": sha256_text(
-            SYSTEM_PROMPT + "\n" + USER_PROMPT_TEMPLATE
-        ),
-        "full_prompt_sha256": sha256_text(
-            system_prompt + "\n" + user_prompt
-        ),
         "prompt_characters": len(system_prompt) + len(user_prompt),
         "patch_base": "empty_no_skill_s0",
         "skill_output": skill_path.relative_to(REPO_ROOT).as_posix(),
@@ -560,27 +551,13 @@ def main() -> int:
         "schema_version": "stweb_governed_skill_provenance_0.1.0",
         "rules": provenance,
     }
-    provenance_text = (
-        json.dumps(provenance_payload, ensure_ascii=False, indent=2)
-        + "\n"
-    )
     metadata = {
         "schema_version": "stweb_governed_skill_metadata_0.1.0",
         **plan,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "resolved_learner_model": resolved_model,
-        "generator_sha256": sha256_file(Path(__file__)),
-        "shared_generator_sha256": sha256_file(
-            Path(__file__).with_name("generate_skill.py")
-        ),
         "source_experiences": source_records,
         "usage": usage,
-        "skill_sha256": sha256_text(skill.rstrip() + "\n"),
-        "provenance_sha256": sha256_text(provenance_text),
-        "patch_sha256": sha256_text(patch),
-        "learner_response_sha256": sha256_text(
-            response_text.rstrip() + "\n"
-        ),
     }
 
     save_text_atomic(skill_path, skill)

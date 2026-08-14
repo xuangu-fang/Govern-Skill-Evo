@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import sys
 from collections import Counter
@@ -14,9 +13,6 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT))
 
 from src.adapters.stwebagentbench.skill_runtime import load_method_skill
-from src.skill_evolution.implementation_binding import (
-    require_implementation_binding,
-)
 
 
 DEFAULT_MANIFEST = (
@@ -25,26 +21,6 @@ DEFAULT_MANIFEST = (
     / "manifests"
     / "stweb_suitecrm_poc_v03.json"
 )
-DB_SNAPSHOT = (
-    REPO_ROOT
-    / "artifacts"
-    / "stweb_suitecrm_poc_v01"
-    / "db"
-    / "suitecrm_pristine_v01.sql"
-)
-RUNNER = Path(__file__).with_name("run_evolution_train.py")
-
-
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-
-    return digest.hexdigest()
-
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Validate one formal Train rollout method."
@@ -67,7 +43,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Validate the frozen Train plan without requiring trajectories.",
+        help="Validate the Train plan without requiring trajectories.",
     )
     return parser.parse_args()
 
@@ -110,9 +86,6 @@ def validate_trajectory(
     expected_skill: dict,
     manifest: dict,
     expected_model: str,
-    manifest_sha256: str,
-    database_snapshot_sha256: str,
-    runner_sha256: str,
 ) -> list[str]:
     errors = []
     task_id = expected_task["task_id"]
@@ -125,13 +98,7 @@ def validate_trajectory(
         "status": "completed",
         "run_kind": "formal",
         "manifest_id": manifest["manifest_id"],
-        "manifest_sha256": manifest_sha256,
         "benchmark_commit": manifest["benchmark"]["commit"],
-        "task_source_sha256": manifest["benchmark"][
-            "task_source_sha256"
-        ],
-        "database_snapshot_sha256": database_snapshot_sha256,
-        "runner_sha256": runner_sha256,
         "split": "train",
         "method": method,
         "trial": 1,
@@ -144,8 +111,6 @@ def validate_trajectory(
         ]["headless"],
         "skill_version": expected_skill["version"],
         "skill_path": expected_skill["path"],
-        "skill_sha256": expected_skill["sha256"],
-        "skill_prompt_sha256": expected_skill["prompt_sha256"],
         "skill_injected": expected_skill["block"] is not None,
     }
 
@@ -232,16 +197,11 @@ def main() -> int:
 
     if not manifest_path.is_file():
         raise FileNotFoundError(f"Manifest not found: {manifest_path}")
-    if not DB_SNAPSHOT.is_file():
-        raise FileNotFoundError(f"Database snapshot not found: {DB_SNAPSHOT}")
-    if not RUNNER.is_file():
-        raise FileNotFoundError(f"Runner not found: {RUNNER}")
-
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 
-    if manifest.get("status") != "frozen":
+    if manifest.get("status") != "completed":
         raise ValueError(
-            f"Manifest must be frozen, got {manifest.get('status')!r}"
+            f"Manifest must be completed, got {manifest.get('status')!r}"
         )
 
     planned_methods = (
@@ -259,9 +219,7 @@ def main() -> int:
         "requested_model"
     ]
     if args.model != expected_model:
-        raise ValueError(f"Train model is frozen as {expected_model!r}.")
-    if not args.dry_run:
-        require_implementation_binding(manifest_path, manifest)
+        raise ValueError(f"Train model must be {expected_model!r}.")
     expected_skill = load_method_skill(manifest, method)
     expected_tasks = load_expected_tasks(manifest)
     if args.dry_run:
@@ -275,14 +233,9 @@ def main() -> int:
             ]["headless"],
             "skill_version": expected_skill["version"],
             "skill_path": expected_skill["path"],
-            "skill_sha256": expected_skill["sha256"],
         }, ensure_ascii=False, indent=2))
         print("Train validator dry-run passed.")
         return 0
-    manifest_sha256 = sha256_file(manifest_path)
-    database_snapshot_sha256 = sha256_file(DB_SNAPSHOT)
-    runner_sha256 = sha256_file(RUNNER)
-
     raw_root = (
         REPO_ROOT
         / "artifacts"
@@ -339,9 +292,6 @@ def main() -> int:
                 expected_skill,
                 manifest,
                 args.model,
-                manifest_sha256,
-                database_snapshot_sha256,
-                runner_sha256,
             )
         )
 
@@ -353,20 +303,10 @@ def main() -> int:
         trajectory["run"].get("resolved_model")
         for _, trajectory in trajectories.values()
     }
-    recorded_runner_hashes = {
-        trajectory["run"].get("runner_sha256")
-        for _, trajectory in trajectories.values()
-    }
-
     if len(headless_values) > 1:
         errors.append(f"Multiple headless settings found: {headless_values}")
     if len(resolved_models) > 1:
         errors.append(f"Multiple resolved models found: {resolved_models}")
-    if len(recorded_runner_hashes) > 1:
-        errors.append(
-            f"Multiple runner SHA256 values found: {recorded_runner_hashes}"
-        )
-
     task_success_count = sum(
         bool(trajectory["outcome"].get("task_success"))
         for _, trajectory in trajectories.values()
@@ -429,12 +369,8 @@ def main() -> int:
         "recovered_failures": recovered_failure_count,
         "headless_values": sorted(str(value) for value in headless_values),
         "resolved_models": sorted(str(value) for value in resolved_models),
-        "runner_sha256": sorted(
-            str(value) for value in recorded_runner_hashes
-        ),
         "skill_version": expected_skill["version"],
         "skill_path": expected_skill["path"],
-        "skill_sha256": expected_skill["sha256"],
         "validation_errors": len(errors),
     }
 

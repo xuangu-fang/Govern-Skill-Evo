@@ -14,9 +14,8 @@
 - **Selection（选择评测）**：用固定的18个任务比较候选版本和当前版本。
 - **checkpoint（评测基准）**：当前已接受版本在这18个任务上的固定评测结果。
 - **Evolution Gate（演化门槛）**：根据评测指标决定接受还是拒绝候选版本的规则。
-- **artifact（正式文件）**：实验使用或产生的文件，例如配置、Skill、评测结果和冻结记录。下文统一称为“正式文件”。
+- **artifact（正式文件）**：实验使用或产生的文件，例如配置、Skill 和评测结果。下文统一称为“正式文件”。
 - **冻结（freeze）**：确认内容后将其锁定。冻结后的文件不能原地修改；如果规则需要变化，必须创建新版本。
-- **SHA-256**：根据文件内容计算出的唯一校验值，可理解为文件的“内容指纹”。内容发生任何变化，指纹也会变化。
 
 ## 1. 实验目标与结论边界
 
@@ -119,7 +118,7 @@ experiments/campaigns/autonomous_gse_v01/skills/S0_no_skill.json
 
 使用 S0 运行时，应保留基准测试（benchmark）默认的 Agent 系统提示词和策略，但不能注入任何学习得到的 Skill。
 
-S0 文件必须记录 SHA-256 内容指纹。如果需要修改 S0，必须创建新的正式实验版本，不能直接覆盖现有文件。
+S0 文件冻结后不能原地修改。如果需要修改 S0，必须创建新的正式实验版本。
 
 ## 5. 三批训练任务如何划分
 
@@ -131,30 +130,24 @@ S0 文件必须记录 SHA-256 内容指纹。如果需要修改 S0，必须创�
 
 任务分批只能依据预先设定的种子和任务标识，不能查看或利用任务成功率、合规性、CuP、违规情况、难度、历史运行结果、历史 Skill 版本或演化门槛的决定。这样可以避免根据结果有意或无意地挑选任务。
 
-固定使用的分批算法名为 `sha256_rank_v01`：
+固定使用的分批规则名为 `seeded_rank_v01`：
 
 ```text
 对于每一种意图模板：
-    digest = SHA256(
-        assignment_seed
-        + "\n"
-        + intent_template_id
-        + "\n"
-        + task_id
-    )
-    按照 (digest, task_id) 对该模板的三个任务排序
+    根据 assignment_seed、intent_template_id 和 task_id 生成稳定排序值
+    按照 (稳定排序值, task_id) 对该模板的三个任务排序
     第1名 → batch_001
     第2名 → batch_002
     第3名 → batch_003
 ```
 
-这里的 `assignment_seed` 是固定的分配种子，`digest` 是依据种子、模板编号和任务编号计算出的排序值。相同输入和相同种子必须始终得到相同的分批结果。
+这里的 `assignment_seed` 是固定的分配种子。相同输入和相同种子必须始终得到相同的分批结果。
 
-Batch Planner 输出 `batch_map.json`。它的 SHA-256 只登记在正式实验清单（Campaign Manifest）中，不再创建内容重复的附属校验文件。
+Batch Planner 输出 `batch_map.json`，不再创建内容重复的附属文件。
 
 `batch_map.json` 只保存以下内容：数据来源、分批算法、分配种子和三组实际分配结果。任务数、模板列表和覆盖情况由 Controller 与测试程序根据实际内容计算，避免在多个位置重复保存同一信息。
 
-相同的输入清单和种子必须生成字节完全一致的标准 JSON 文件，并得到相同的 SHA-256。当前 Batch Planner 和 `batch_map.json` 已经与实验清单绑定。冻结后的分批文件禁止原地覆盖；任何会改变分批含义的修改，都必须创建新的正式实验版本或 Batch Map 版本。
+相同的输入清单和种子必须生成相同的标准 JSON 文件。当前 Batch Planner 和 `batch_map.json` 已经与实验清单绑定。冻结后的分批文件禁止原地覆盖；任何会改变分批含义的修改，都必须创建新的正式实验版本或 Batch Map 版本。
 
 ## 6. 每一步具体做什么
 
@@ -193,12 +186,7 @@ Parent.kind == accepted_skill
 
 `incremental` 用于修改已经被接受的当前版本，并且只能进行规则允许的增量编辑。
 
-两种方式使用的提示词（Prompt）不另存重复副本，而以 Learner 的现有实现文件为唯一来源。正式实验同时记录：
-
-- Prompt 来源文件的 SHA-256；
-- `SYSTEM_PROMPT + "\n" + USER_PROMPT_TEMPLATE` 合并后的语义 SHA-256。
-
-第二项检查用于防止一种情况：来源文件看似没有绑定错误，但实际发送给 Learner 的提示词内容已经发生变化。
+两种方式使用的提示词（Prompt）不另存重复副本，而以 Learner 的现有实现文件为唯一来源。正式实验记录 Prompt 的来源文件及版本，并在运行记录中保留实际使用的生成方式和模型参数。
 
 两种候选版本生成方式共用以下固定 Learner 参数：
 
@@ -211,7 +199,7 @@ temperature: null
 temperature_policy: not_sent
 ```
 
-每次正式调用 Learner，都必须记录：使用的生成方式、Prompt 模板 SHA、完整 Prompt SHA、输入经验数量、模型输出解析结果、响应内容 SHA 和用量信息。记录中不能包含 Selection 或 Test 输入。
+每次正式调用 Learner，都必须记录：使用的生成方式、输入经验数量、模型输出解析结果和用量信息。记录中不能包含 Selection 或 Test 输入。
 
 出现以下任一情况时，本步结果为 `NO_CANDIDATE`，即“没有候选版本”：
 
@@ -266,7 +254,7 @@ continue_evolution → ACCEPT
 reject             → REJECT
 ```
 
-协议测试必须使用一组预先写明输入和预期结果的代表性案例（工程上称为 `golden cases`），验证字段对应关系和上述判断规则。不能只检查实现文件的 SHA-256，因为文件未变并不等于判断规则一定正确。
+协议测试必须使用一组预先写明输入和预期结果的代表性案例（工程上称为 `golden cases`），验证字段对应关系和上述判断规则，不能只检查实现文件的版本信息。
 
 ## 10. 步骤进度与最终结果
 
@@ -336,13 +324,13 @@ status == STEP_INVALID
 
 候选版本没有通过是正常的实验结果；文件被意外修改、批次关系错误或预算越界则属于实验完整性失败。两者不能混为一谈。
 
-除了由 JSON Schema 检查字段、固定取值和 SHA 格式外，Controller 还必须检查以下跨文件关系：
+除了由 JSON Schema 检查字段和固定取值外，Controller 还必须检查以下跨文件关系：
 
 ```text
 第1、2、3步只能分别使用 batch_001、batch_002、batch_003
 parent_checkpoint 必须属于当前 Parent
-ACCEPT 后的 next_parent 必须与 Candidate 文件及其 SHA 一致
-REJECT 后的 next_parent 必须与原 Parent 文件及其 SHA 一致
+ACCEPT 后的 next_parent 必须与 Candidate 文件及其版本一致
+REJECT 后的 next_parent 必须与原 Parent 文件及其版本一致
 NO_CANDIDATE 和 INVALID_PROPOSAL 后的 next_parent 必须与原 Parent 一致
 INTEGRITY_FAILURE 不能产生新的已接受 Parent
 ```
@@ -354,20 +342,19 @@ status  = STEP_INVALID
 outcome = INTEGRITY_FAILURE
 ```
 
-## 11. 文件完整性与版本管理
+## 11. 实验记录与版本管理
 
-所有参与正式运行的重要内容都必须登记路径（path）、版本（version）和 SHA-256，包括：
+正式实验记录通过路径（path）、版本（version）和结构化关系说明所使用的内容，包括：
 
 - 当前版本（Parent）；
 - 候选版本（Candidate）；
 - 评测基准（checkpoint）；
 - 任务分批表（batch map）；
-- 提示词（Prompt）；
-- 所有正式运行依赖的实现文件。
+- 提示词（Prompt）。
 
-Controller 在正式运行前必须核对这些登记信息。如果运行过程中发现文件实际 SHA-256 与登记值不一致，说明内容发生了意外变化，必须产生 `INTEGRITY_FAILURE` 并停止，不能继续给出研究结论。
+Controller 检查批次、Parent、Candidate、checkpoint、预算与数据隔离等会改变实验含义的关系。文件内容本身不再重复登记摘要，也不再逐个绑定实现文件；正式实验使用过的实现由 Git 历史保存。
 
-Prompt 还必须检查模板的语义 SHA。基准测试运行环境还必须核对 ST-WebAgentBench 的代码提交版本（commit）、Agent 模型参数、任务顺序执行要求、每次试验前的数据库重置、数据库快照，以及重置实现文件的 SHA。
+基准测试运行环境仍需遵守已记录的 Agent 模型参数、任务顺序执行要求、每次试验前的数据库重置和数据库快照要求。
 
 候选版本编号与已接受 Skill 的版本号必须分开：
 
@@ -378,11 +365,11 @@ S1                            # 第一个被接受的 Skill 版本号
 
 被拒绝的候选版本不能占用已接受 Skill 的版本号，也不能被覆盖。候选版本被接受时，应另建一条晋升记录，明确它与新 Skill 版本之间的对应关系。
 
-## 12. 实验清单从草稿到冻结的过程
+## 12. 已完成实验的清单与结果
 
 本协议配套两个 JSON Schema。Schema 是供程序自动检查 JSON 文件结构和固定规则的说明文件：
 
-- `schemas/autonomous_gse_v01_campaign.schema.json`：检查正式实验的固定设置、预算、数据隔离规则和文件绑定；
+- `schemas/autonomous_gse_v01_campaign.schema.json`：检查正式实验的固定设置、预算、数据隔离规则和文件路径；
 - `schemas/autonomous_gse_v01_step.schema.json`：检查各步骤的当前版本、任务批次、候选生成方式、评测基准和最终状态。
 
 唯一作为正式依据的实验清单是：
@@ -391,28 +378,8 @@ S1                            # 第一个被接受的 Skill 版本号
 experiments/campaigns/autonomous_gse_v01/campaign_manifest.json
 ```
 
-清单处于草稿状态（`draft`）时，尚未完成的运行文件可以标记为 `pending_binding`，表示“等待绑定”。清单进入冻结状态（`frozen`）后，所有绑定都必须完成，不能再有 `pending_binding`。草稿和冻结阶段使用同一个正式路径，不生成内容重复的清单副本。
+v0.1 已于 2026-08-13 完成，当前清单状态为 `completed`。任务分配以已执行的 `batch_map.json` 为准，正式结果以 `experiments/results/autonomous_gse_v01/campaign_report.json` 为准。
 
-Controller、Batch Planner、任务运行程序、Prompt 和正式运行计划全部完成后，必须按以下顺序冻结正式实验：
+当前正式入口保留两阶段执行方式：`initial-checkpoint` 先让 S0 完成18条 Selection Task，`run` 再从该 checkpoint 执行完整三步流程。已完成的 `autonomous_gse_v01` 不允许原地覆盖；重新运行应使用新的 Campaign ID。入口只校验路径、版本、Task ID、预算和结构化结果关系，不依赖逐文件内容摘要、实现绑定或单独冻结记录。
 
-1. 确认每一项绑定都指向真实文件，并登记了正确的 SHA-256；
-2. 在尚未产生任何正式实验结果时，完成 Schema、SHA、Prompt、任务批次、预算和 Test 禁用状态检查；
-3. 核对基准测试代码版本、Agent 实现、Learner 配置、Docker 镜像、SuiteCRM 是否就绪，以及数据库能否恢复到未受污染的初始状态；
-4. 安全写入 `campaign_freeze.json`，记录最终实验清单的 SHA 和全部运行前检查证据；
-5. 同样采用安全写入方式，把实验清单的 `status` 改为 `frozen`。
-
-这里的“安全写入”在工程实现中也称为“原子写入”。具体做法是：先把完整内容写入临时文件，确认成功后再一次性替换正式文件。这样即使写入中途发生故障，也不会留下只有一半内容的正式文件。
-
-冻结记录（`campaign_freeze.json`）只记录实验清单的 SHA，不能反过来把冻结记录写进实验清单。否则两个文件会互相包含对方的 SHA，形成无法稳定计算的循环引用。
-
-正式运行程序必须同时验证：
-
-- 已冻结的实验清单；
-- 冻结记录；
-- 所有输入文件和实现文件的 SHA；
-- 已冻结的 Docker 镜像 ID。
-
-以下情况都必须按“检查不通过就停止”的原则处理，不能继续运行：重复冻结、在实验结果产生后补做冻结、实验清单发生变化、冻结记录缺失。这个原则在工程实现中称为 `fail closed`，意思是系统在无法确认安全和完整时，默认停止，而不是冒险继续。
-
-冻结后的实验清单不允许包含任何 `pending_binding`。任何会改变实验含义的修改，都必须创建新的协议版本或正式实验版本。
-
+2026-08-14 的整理没有重新运行实验，也没有改变三步 outcome、最终 S1、87 条任务记录或 3 次 Learner 调用。整理只删除了逐文件内容摘要、实现绑定、单独冻结记录和配套检查代码；整理前的完整实现仍保存在 Git 历史中。

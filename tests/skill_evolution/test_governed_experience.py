@@ -256,7 +256,7 @@ def test_builds_deterministic_dataset_with_provenance(
         experience["source_id"]
         for experience in dataset["experiences"]
     ] == ["source_001", "source_002"]
-    assert all(
-        len(source["sha256"]) == 64
-        for source in dataset["sources"]
-    )
+    assert [Path(source["path"]).name for source in dataset["sources"]] == [
+        "task_3.json",
+        "task_20.json",
+    ]

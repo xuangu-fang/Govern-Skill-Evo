@@ -1,0 +1,339 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://govern-skill-evo.local/schemas/autonomous_gse_v02_campaign.schema.json",
+  "title": "Autonomous Governed Skill Evolution v0.2 Campaign Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "protocol_version",
+    "campaign_id",
+    "status",
+    "created_at",
+    "initial_parent",
+    "schedule",
+    "train",
+    "proposal",
+    "selection",
+    "gate",
+    "step_outcomes",
+    "budget",
+    "test",
+    "benchmark_runtime"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "autonomous_gse_campaign_0.2.0"
+    },
+    "protocol_version": {
+      "const": "autonomous_gse_v02"
+    },
+    "campaign_id": {
+      "const": "autonomous_gse_v02"
+    },
+    "status": {
+      "enum": [
+        "draft",
+        "ready"
+      ]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date"
+    },
+    "initial_parent": {
+      "const": {
+        "kind": "empty_skill",
+        "version": "S0",
+        "path": "experiments/campaigns/autonomous_gse_v02/skills/S0_empty_skill.md",
+        "optimizer_semantics": "explicit_empty_skill_document",
+        "rollout_semantics": "benchmark_default_prompt_without_learned_skill_injection"
+      }
+    },
+    "schedule": {
+      "const": {
+        "epochs": 1,
+        "steps_per_epoch": 3,
+        "scheduled_steps": 3
+      }
+    },
+    "train": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_manifest",
+        "source_split",
+        "total_tasks",
+        "intent_templates",
+        "batches",
+        "tasks_per_batch",
+        "tasks_per_template",
+        "template_balanced",
+        "overlap_between_batches",
+        "assignment_source",
+        "outcome_independent_assignment",
+        "cumulative_evidence",
+        "replay_previous_batches",
+        "batch_map"
+      ],
+      "properties": {
+        "source_manifest": {
+          "const": "experiments/manifests/stweb_suitecrm_poc_v01.json"
+        },
+        "source_split": {
+          "const": "train"
+        },
+        "total_tasks": {
+          "const": 51
+        },
+        "intent_templates": {
+          "const": 17
+        },
+        "batches": {
+          "const": 3
+        },
+        "tasks_per_batch": {
+          "const": 17
+        },
+        "tasks_per_template": {
+          "const": 3
+        },
+        "template_balanced": {
+          "const": true
+        },
+        "overlap_between_batches": {
+          "const": 0
+        },
+        "assignment_source": {
+          "const": "same_task_assignment_as_autonomous_gse_v01"
+        },
+        "outcome_independent_assignment": {
+          "const": true
+        },
+        "cumulative_evidence": {
+          "const": false
+        },
+        "replay_previous_batches": {
+          "const": false
+        },
+        "batch_map": {
+          "const": "experiments/campaigns/autonomous_gse_v02/batch_map.json"
+        }
+      }
+    },
+    "proposal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operator",
+        "candidates_per_step",
+        "maximum_learner_calls",
+        "learner_retry",
+        "eligible_evidence_states",
+        "selection_feedback_to_learner",
+        "test_feedback_to_learner",
+        "maximum_edits_per_step",
+        "maximum_skill_rules",
+        "maximum_skill_words",
+        "allowed_operations",
+        "edit_unit",
+        "edit_selection_order",
+        "constructibility",
+        "provenance",
+        "history",
+        "learner"
+      ],
+      "properties": {
+        "operator": {
+          "const": "bounded_edit"
+        },
+        "candidates_per_step": {
+          "const": 1
+        },
+        "maximum_learner_calls": {
+          "const": 3
+        },
+        "learner_retry": {
+          "const": "forbidden"
+        },
+        "eligible_evidence_states": {
+          "const": [
+            "compliant_success",
+            "violating_success"
+          ]
+        },
+        "selection_feedback_to_learner": {
+          "const": "forbidden"
+        },
+        "test_feedback_to_learner": {
+          "const": "forbidden"
+        },
+        "maximum_edits_per_step": {
+          "const": 6
+        },
+        "maximum_skill_rules": {
+          "const": 18
+        },
+        "maximum_skill_words": {
+          "const": 900
+        },
+        "allowed_operations": {
+          "const": [
+            "add",
+            "replace",
+            "delete"
+          ]
+        },
+        "edit_unit": {
+          "const": "one_markdown_bullet"
+        },
+        "edit_selection_order": {
+          "const": "learner_response_order"
+        },
+        "constructibility": {
+          "const": {
+            "minimum_applied_edits_for_candidate": 1,
+            "invalid_edit_scope": "exclude_edit_without_invalidating_proposal",
+            "no_candidate_reasons": [
+              "UNPARSEABLE_RESPONSE",
+              "EDITS_NOT_LIST",
+              "EMPTY_EDITS",
+              "NO_APPLICABLE_EDITS",
+              "NO_SKILL_CHANGE"
+            ]
+          }
+        },
+        "provenance": {
+          "const": {
+            "mode": "independent_diagnostic",
+            "statuses": [
+              "VERIFIED",
+              "UNVERIFIED"
+            ],
+            "blocks_candidate_selection": false,
+            "read_by_evolution_gate": false,
+            "accepted_unverified_candidate_can_be_parent": true,
+            "deployment_ready_when_unverified": false
+          }
+        },
+        "history": {
+          "const": {
+            "structured_proposal_reason": true,
+            "selected_edits": "saved_as_accepted_edit_history",
+            "excluded_edits": "saved_as_rejected_edit_history_with_structured_reason",
+            "rejected_edit_memory_to_learner": "forbidden"
+          }
+        },
+        "learner": {
+          "$ref": "#/$defs/learner_contract"
+        }
+      }
+    },
+    "selection": {
+      "const": {
+        "protocol": "accepted_parent_checkpoint",
+        "tasks": 18,
+        "initial_s0_checkpoint": "fresh",
+        "candidate_selection_each_step": "fresh",
+        "accepted_candidate_becomes_checkpoint": true,
+        "rejected_candidate_keeps_checkpoint": true,
+        "selection_data_for_learning": "forbidden",
+        "provenance_status_is_selection_input": false
+      }
+    },
+    "gate": {
+      "const": {
+        "rule_set": "two_dimensional_evolution_gate_v01",
+        "aggregate_metrics": [
+          "task_success",
+          "compliance",
+          "cup"
+        ],
+        "accept_condition": "all_aggregate_deltas_nonnegative_and_at_least_one_positive",
+        "severe_violation_action": "REJECT",
+        "provenance_status_is_input": false
+      }
+    },
+    "step_outcomes": {
+      "const": [
+        "ACCEPT",
+        "REJECT",
+        "NO_CANDIDATE",
+        "INTEGRITY_FAILURE"
+      ]
+    },
+    "budget": {
+      "const": {
+        "train_trajectories": 51,
+        "initial_selection_trajectories": 18,
+        "maximum_candidate_selection_trajectories": 54,
+        "maximum_total_trajectories": 123,
+        "maximum_candidates": 3,
+        "maximum_learner_calls": 3,
+        "unused_budget_reallocation": "forbidden"
+      }
+    },
+    "test": {
+      "const": {
+        "authorized": false,
+        "data_for_learning": "forbidden"
+      }
+    },
+    "benchmark_runtime": {
+      "const": {
+        "benchmark": "ST-WebAgentBench",
+        "agent_model": "openai/gpt-5.6-terra",
+        "agent_parameters": {
+          "temperature": 0.1,
+          "max_tokens": 512
+        },
+        "rollout": {
+          "headless": false,
+          "trials_per_task": 1,
+          "execution": "sequential",
+          "database_reset_before_every_trial": true
+        },
+        "database_snapshot": "artifacts/stweb_suitecrm_poc_v01/db/suitecrm_pristine_v01.sql",
+        "database_reset": "src/adapters/stwebagentbench/reset_suitecrm_db.sh",
+        "compose_file": "external/ST-WebAgentBench/suitecrm_setup/docker-compose.yaml"
+      }
+    }
+  },
+  "$defs": {
+    "learner_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model",
+        "parameters",
+        "prompt",
+        "prompt_context"
+      ],
+      "properties": {
+        "model": {
+          "const": "openai/gpt-5.6-terra"
+        },
+        "parameters": {
+          "const": {
+            "reasoning_effort": "low",
+            "max_completion_tokens": 8000,
+            "temperature": null
+          }
+        },
+        "prompt": {
+          "const": "src/learners/stwebagentbench/generate_bounded_skill_v02.py"
+        },
+        "prompt_context": {
+          "const": {
+            "current_parent_skill": "required",
+            "current_batch_success_evidence": "required",
+            "allowed_source_ids": "required_explicit_whitelist",
+            "allowed_repair_policy_ids_by_source": "required_explicit_whitelist",
+            "selection_data": "forbidden",
+            "test_data": "forbidden"
+          }
+        }
+      }
+    }
+  }
+}

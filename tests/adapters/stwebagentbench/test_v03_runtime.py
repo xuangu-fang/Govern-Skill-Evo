@@ -37,16 +37,14 @@ def make_row(method: str, task_success: bool, compliant: bool) -> dict:
     }
 
 
-def test_v03_train_resolves_frozen_s1() -> None:
+def test_v03_train_resolves_s1() -> None:
     manifest, tasks, method = load_train_tasks(MANIFEST_PATH)
     skill = load_method_skill(manifest, method)
 
     assert method == "governed_candidate_s1"
     assert len(tasks) == 51
     assert skill["version"] == "S1"
-    assert skill["sha256"] == manifest["skill_evolution"]["parent"][
-        "skill_sha256"
-    ]
+    assert skill["path"] == manifest["skill_evolution"]["parent"]["skill_path"]
     assert skill["available"] is True
 
 
@@ -62,10 +60,6 @@ def test_v03_candidate_can_be_missing_before_generation(
                 "skill_version": "S2",
                 "candidate_id": "governed_candidate_s2",
                 "skill_path": "skills/governed_candidate_s2_skill.md",
-                "skill_sha256": None,
-                "freeze_record_path": (
-                    "skills/governed_candidate_s2_freeze.json"
-                ),
             }
         }
     }

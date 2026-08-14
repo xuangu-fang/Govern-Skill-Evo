@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import argparse
 import copy
-import hashlib
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -144,24 +143,15 @@ class RuntimeAdapter(Protocol):
     ) -> str: ...
 
 
-def _canonical_bytes(payload: dict[str, Any]) -> bytes:
-    return (
-        json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-        + "\n"
-    ).encode("utf-8")
-
-
 def _memory_artifact(
     kind: str,
     version: str,
     label: str,
-    payload: dict[str, Any],
 ) -> dict[str, str]:
     return {
         "kind": kind,
         "version": version,
         "path": f"memory://autonomous_gse_dry_run/{label}.json",
-        "sha256": hashlib.sha256(_canonical_bytes(payload)).hexdigest(),
     }
 
 
@@ -206,17 +196,10 @@ class DeterministicDryRunAdapter:
         parent: dict[str, Any],
         task_count: int,
     ) -> dict[str, Any]:
-        payload = {
-            "campaign_id": campaign_id,
-            "parent_sha256": parent["sha256"],
-            "parent_version": parent["version"],
-            "task_count": task_count,
-        }
         checkpoint = _memory_artifact(
             "selection_checkpoint",
             parent["version"],
             "initial_s0_checkpoint",
-            payload,
         )
         self._trace.append(
             {
@@ -224,23 +207,16 @@ class DeterministicDryRunAdapter:
                 "step": 0,
                 "parent_version": parent["version"],
                 "task_count": task_count,
-                "checkpoint_sha256": checkpoint["sha256"],
+                "checkpoint_path": checkpoint["path"],
             }
         )
         return checkpoint
 
     def run_train(self, step: dict[str, Any]) -> dict[str, Any]:
-        payload = {
-            "batch_id": step["batch"]["batch_id"],
-            "parent_sha256": step["parent"]["sha256"],
-            "step": step["step"],
-            "task_ids": step["batch"]["task_ids"],
-        }
         artifact = _memory_artifact(
             "train_trajectory_set",
             f"step_{step['step']:03d}",
             f"step_{step['step']:03d}_train",
-            payload,
         )
         self._trace.append(
             {
@@ -248,7 +224,7 @@ class DeterministicDryRunAdapter:
                 "step": step["step"],
                 "batch_id": step["batch"]["batch_id"],
                 "task_count": len(step["batch"]["task_ids"]),
-                "artifact_sha256": artifact["sha256"],
+                "artifact_path": artifact["path"],
             }
         )
         return artifact
@@ -262,7 +238,7 @@ class DeterministicDryRunAdapter:
             {
                 "operation": "validate_train",
                 "step": step["step"],
-                "artifact_sha256": train_artifact["sha256"],
+                "artifact_path": train_artifact["path"],
                 "valid": True,
             }
         )
@@ -298,14 +274,13 @@ class DeterministicDryRunAdapter:
                     "source_id": item["source_id"],
                     "task_id": task_id,
                     "path": f"memory://dry-run/train/task_{task_id}.json",
-                    "sha256": f"{task_id:064x}",
                 }
                 for task_id, item in zip(task_ids, experiences, strict=True)
             ],
             "experiences": experiences,
             "lineage": {
                 "batch_id": step["batch"]["batch_id"],
-                "parent_sha256": step["parent"]["sha256"],
+                "parent_version": step["parent"]["version"],
                 "task_ids": list(task_ids),
             },
         }
@@ -313,16 +288,15 @@ class DeterministicDryRunAdapter:
             "governed_experience",
             f"step_{step['step']:03d}",
             f"step_{step['step']:03d}_experience",
-            payload,
         )
-        self._datasets[artifact["sha256"]] = copy.deepcopy(payload)
+        self._datasets[artifact["path"]] = copy.deepcopy(payload)
         self._trace.append(
             {
                 "operation": "build_experience",
                 "step": step["step"],
                 "batch_id": step["batch"]["batch_id"],
                 "task_count": len(step["batch"]["task_ids"]),
-                "artifact_sha256": artifact["sha256"],
+                "artifact_path": artifact["path"],
             }
         )
         return artifact
@@ -412,10 +386,10 @@ class DeterministicDryRunAdapter:
                 "parent_version": request.parent["version"],
                 "batch_id": request.batch_id,
                 "task_ids": list(request.task_ids),
-                "experience_sha256": request.experience["sha256"],
+                "experience_path": request.experience["path"],
             }
         )
-        dataset = self._datasets.get(request.experience["sha256"])
+        dataset = self._datasets.get(request.experience["path"])
         if dataset is None:
             raise RuntimeContractError("Dry-run Experience payload is missing.")
         context = ProposalContext(
@@ -423,7 +397,7 @@ class DeterministicDryRunAdapter:
             batch_id=request.batch_id,
             task_ids=request.task_ids,
             parent=copy.deepcopy(request.parent),
-            parent_skill=self._skills.get(request.parent["sha256"]),
+            parent_skill=self._skills.get(request.parent["path"]),
             experience=copy.deepcopy(request.experience),
             governed_dataset=copy.deepcopy(dataset),
         )
@@ -444,7 +418,7 @@ class DeterministicDryRunAdapter:
         candidate = None
         if decision.candidate is not None:
             candidate = copy.deepcopy(decision.candidate.candidate)
-            self._skills[candidate["sha256"]] = decision.candidate.skill
+            self._skills[candidate["path"]] = decision.candidate.skill
         return ProposalResult(
             decision.status,
             decision.learner_calls,
@@ -458,25 +432,18 @@ class DeterministicDryRunAdapter:
         accepted_version_if_promoted: str,
         task_count: int,
     ) -> dict[str, Any]:
-        payload = {
-            "candidate_sha256": candidate["sha256"],
-            "candidate_version": candidate["version"],
-            "step": step["step"],
-            "task_count": task_count,
-        }
         checkpoint = _memory_artifact(
             "selection_checkpoint",
             accepted_version_if_promoted,
             f"step_{step['step']:03d}_candidate_checkpoint",
-            payload,
         )
         self._trace.append(
             {
                 "operation": "run_candidate_selection",
                 "step": step["step"],
-                "candidate_sha256": candidate["sha256"],
+                "candidate_path": candidate["path"],
                 "task_count": task_count,
-                "checkpoint_sha256": checkpoint["sha256"],
+                "checkpoint_path": checkpoint["path"],
             }
         )
         return checkpoint
@@ -490,7 +457,7 @@ class DeterministicDryRunAdapter:
             {
                 "operation": "validate_candidate_selection",
                 "step": step["step"],
-                "checkpoint_sha256": checkpoint["sha256"],
+                "checkpoint_path": checkpoint["path"],
                 "valid": True,
             }
         )
@@ -500,22 +467,16 @@ class DeterministicDryRunAdapter:
         step: dict[str, Any],
         candidate_checkpoint: dict[str, Any],
     ) -> dict[str, Any]:
-        payload = {
-            "candidate_checkpoint_sha256": candidate_checkpoint["sha256"],
-            "parent_checkpoint_sha256": step["parent_checkpoint"]["sha256"],
-            "step": step["step"],
-        }
         summary = _memory_artifact(
             "evolution_summary",
             f"step_{step['step']:03d}",
             f"step_{step['step']:03d}_evolution_summary",
-            payload,
         )
         self._trace.append(
             {
                 "operation": "build_evolution_summary",
                 "step": step["step"],
-                "artifact_sha256": summary["sha256"],
+                "artifact_path": summary["path"],
             }
         )
         return summary
@@ -532,7 +493,7 @@ class DeterministicDryRunAdapter:
             {
                 "operation": "apply_gate",
                 "step": step["step"],
-                "summary_sha256": summary["sha256"],
+                "summary_path": summary["path"],
                 "outcome": outcome,
             }
         )
@@ -550,19 +511,11 @@ def _require_artifact(
         "kind",
         "version",
         "path",
-        "sha256",
     }:
         raise RuntimeContractError(f"{label} is not a complete artifact.")
     for field in ("kind", "version", "path"):
         if not isinstance(value[field], str) or not value[field]:
             raise RuntimeContractError(f"{label}.{field} is invalid.")
-    digest = value["sha256"]
-    if (
-        not isinstance(digest, str)
-        or len(digest) != 64
-        or any(character not in "0123456789abcdef" for character in digest)
-    ):
-        raise RuntimeContractError(f"{label} has an invalid SHA-256.")
     if kind is not None and value["kind"] != kind:
         raise RuntimeContractError(f"{label} must have kind {kind!r}.")
     if version is not None and value["version"] != version:

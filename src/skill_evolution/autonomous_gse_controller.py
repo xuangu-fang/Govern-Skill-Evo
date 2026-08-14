@@ -8,8 +8,6 @@ into the next Step state.
 from __future__ import annotations
 
 import copy
-import hashlib
-import json
 from dataclasses import dataclass
 from typing import Any
 
@@ -103,7 +101,7 @@ class ControllerResult:
 def _require_artifact(value: Any, label: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ControllerIntegrityError(f"{label} must be an artifact.")
-    required = {"kind", "version", "path", "sha256"}
+    required = {"kind", "version", "path"}
     if set(value) != required:
         raise ControllerIntegrityError(
             f"{label} must contain exactly {sorted(required)}."
@@ -113,13 +111,6 @@ def _require_artifact(value: Any, label: str) -> dict[str, Any]:
             raise ControllerIntegrityError(
                 f"{label}.{field} must be a non-empty string."
             )
-    digest = value["sha256"]
-    if (
-        not isinstance(digest, str)
-        or len(digest) != 64
-        or any(character not in "0123456789abcdef" for character in digest)
-    ):
-        raise ControllerIntegrityError(f"{label}.sha256 must be SHA-256.")
     return value
 
 
@@ -170,8 +161,8 @@ def _accepted_version_after(parent: dict[str, Any]) -> str:
 def _require_campaign_contract(campaign: dict[str, Any]) -> None:
     if campaign.get("protocol_version") != PROTOCOL_VERSION:
         raise ControllerIntegrityError("Unsupported Campaign protocol.")
-    if campaign.get("status") not in {"draft", "frozen"}:
-        raise ControllerIntegrityError("Campaign status must be draft or frozen.")
+    if campaign.get("status") != "completed":
+        raise ControllerIntegrityError("Campaign status must be completed.")
     if campaign.get("schedule") != {
         "epochs": 1,
         "steps_per_epoch": 3,
@@ -227,27 +218,18 @@ def _batch_for_step(
     step: int,
 ) -> dict[str, Any]:
     train = campaign.get("train", {})
-    batch_binding = _require_artifact(train.get("batch_map"), "batch_map")
-    canonical_batch_map = (
-        json.dumps(batch_map, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
-    ).encode("utf-8")
-    actual_batch_map_sha256 = hashlib.sha256(canonical_batch_map).hexdigest()
-    if actual_batch_map_sha256 != batch_binding["sha256"]:
-        raise ControllerIntegrityError("Batch Map SHA-256 does not match binding.")
-    source_binding = _require_artifact(
-        train.get("source_manifest"), "source_manifest"
-    )
+    batch_map_path = train.get("batch_map")
+    source_manifest_path = train.get("source_manifest")
+    if not isinstance(batch_map_path, str) or not batch_map_path:
+        raise ControllerIntegrityError("Campaign batch_map path is missing.")
+    if not isinstance(source_manifest_path, str) or not source_manifest_path:
+        raise ControllerIntegrityError("Campaign source_manifest path is missing.")
     source = batch_map.get("source", {})
     if (
         batch_map.get("status") != "frozen"
         or batch_map.get("campaign_id") != campaign.get("campaign_id")
-        or batch_map.get("schema_version") != batch_binding["version"]
-        or batch_map.get("assignment", {}).get("algorithm")
-        != train.get("assignment_algorithm")
-        or batch_map.get("assignment", {}).get("seed")
-        != train.get("assignment_seed")
-        or source.get("path") != source_binding["path"]
-        or source.get("sha256") != source_binding["sha256"]
+        or batch_map.get("schema_version") != "autonomous_gse_batch_map_0.1.0"
+        or source.get("path") != source_manifest_path
         or source.get("split") != train.get("source_split")
     ):
         raise ControllerIntegrityError("Batch Map does not match Campaign.")
@@ -298,8 +280,7 @@ def _batch_for_step(
     task_ids = task_ids_by_batch[step - 1]
     return {
         "batch_id": expected_batch_id,
-        "batch_map_path": batch_binding["path"],
-        "batch_map_sha256": batch_binding["sha256"],
+        "batch_map_path": batch_map_path,
         "task_ids": task_ids,
     }
 
@@ -529,7 +510,6 @@ def reduce_step(
                 "kind": "accepted_skill",
                 "version": _accepted_version_after(parent),
                 "path": candidate["path"],
-                "sha256": candidate["sha256"],
             }
             next_checkpoint = _require_checkpoint(
                 event.get("candidate_checkpoint"), next_parent

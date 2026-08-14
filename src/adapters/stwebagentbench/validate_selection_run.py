@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import sys
 from collections import Counter
@@ -18,15 +17,6 @@ DEFAULT_MANIFEST = (
     / "manifests"
     / "stweb_suitecrm_poc_v01.json"
 )
-DB_SNAPSHOT = (
-    REPO_ROOT
-    / "artifacts"
-    / "stweb_suitecrm_poc_v01"
-    / "db"
-    / "suitecrm_pristine_v01.sql"
-)
-RUNNER = Path(__file__).with_name("run_selection.py")
-
 METHODS = (
     "no_skill",
     "human_skill",
@@ -60,24 +50,6 @@ SKILL_PATHS = {
         / "filtered_skill.md"
     ),
 }
-
-
-def sha256_bytes(value: bytes) -> str:
-    return hashlib.sha256(value).hexdigest()
-
-
-def sha256_text(value: str) -> str:
-    return sha256_bytes(value.encode("utf-8"))
-
-
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-
-    return digest.hexdigest()
 
 
 def parse_args() -> argparse.Namespace:
@@ -154,8 +126,6 @@ def load_expected_skills() -> dict[str, dict]:
         if path is None:
             expected_skills[method] = {
                 "path": None,
-                "sha256": None,
-                "prompt_sha256": None,
                 "injected": False,
             }
             continue
@@ -169,11 +139,8 @@ def load_expected_skills() -> dict[str, dict]:
         if not skill_text:
             raise ValueError(f"Skill is empty for {method}: {path}")
 
-        skill_block = f"# Operational Skill\n{skill_text}"
         expected_skills[method] = {
             "path": path.relative_to(REPO_ROOT).as_posix(),
-            "sha256": sha256_file(path),
-            "prompt_sha256": sha256_text(skill_block),
             "injected": True,
         }
 
@@ -188,9 +155,6 @@ def validate_trajectory(
     expected_skill: dict,
     manifest: dict,
     expected_model: str,
-    manifest_sha256: str,
-    database_snapshot_sha256: str,
-    runner_sha256: str,
 ) -> list[str]:
     errors = []
     task_id = expected_task["task_id"]
@@ -207,20 +171,12 @@ def validate_trajectory(
         "status": "completed",
         "run_kind": "formal",
         "manifest_id": manifest["manifest_id"],
-        "manifest_sha256": manifest_sha256,
         "benchmark_commit": manifest["benchmark"]["commit"],
-        "task_source_sha256": manifest["benchmark"][
-            "task_source_sha256"
-        ],
-        "database_snapshot_sha256": database_snapshot_sha256,
-        "runner_sha256": runner_sha256,
         "split": "selection",
         "method": method,
         "trial": 1,
         "requested_model": expected_model,
         "skill_path": expected_skill["path"],
-        "skill_sha256": expected_skill["sha256"],
-        "skill_prompt_sha256": expected_skill["prompt_sha256"],
         "skill_injected": expected_skill["injected"],
     }
 
@@ -317,9 +273,6 @@ def collect_method(
     expected_skill: dict,
     manifest: dict,
     args: argparse.Namespace,
-    manifest_sha256: str,
-    database_snapshot_sha256: str,
-    runner_sha256: str,
 ) -> tuple[dict, list[str], set]:
     method_root = raw_root / method
     trajectory_paths = sorted(
@@ -372,9 +325,6 @@ def collect_method(
                 expected_skill,
                 manifest,
                 args.model,
-                manifest_sha256,
-                database_snapshot_sha256,
-                runner_sha256,
             )
         )
 
@@ -458,8 +408,6 @@ def collect_method(
         "unresolved_failures": unresolved_failure_count,
         "recovered_failures": recovered_failure_count,
         "skill_path": expected_skill["path"],
-        "skill_sha256": expected_skill["sha256"],
-        "skill_prompt_sha256": expected_skill["prompt_sha256"],
     }
 
     consistency_values = {
@@ -469,10 +417,6 @@ def collect_method(
         },
         "resolved_model": {
             trajectory["run"].get("resolved_model")
-            for _, trajectory in trajectories.values()
-        },
-        "runner_sha256": {
-            trajectory["run"].get("runner_sha256")
             for _, trajectory in trajectories.values()
         },
     }
@@ -495,15 +439,10 @@ def main() -> int:
 
     if not manifest_path.is_file():
         raise FileNotFoundError(f"Manifest not found: {manifest_path}")
-    if not DB_SNAPSHOT.is_file():
-        raise FileNotFoundError(f"Database snapshot not found: {DB_SNAPSHOT}")
-    if not RUNNER.is_file():
-        raise FileNotFoundError(f"Runner not found: {RUNNER}")
-
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    if manifest.get("status") != "frozen":
+    if manifest.get("status") != "completed":
         raise ValueError(
-            f"Manifest must be frozen, got {manifest.get('status')!r}"
+            f"Manifest must be completed, got {manifest.get('status')!r}"
         )
 
     planned_methods = (
@@ -519,9 +458,6 @@ def main() -> int:
 
     expected_tasks = load_expected_tasks(manifest)
     expected_skills = load_expected_skills()
-    manifest_sha256 = sha256_file(manifest_path)
-    database_snapshot_sha256 = sha256_file(DB_SNAPSHOT)
-    runner_sha256 = sha256_file(RUNNER)
     raw_root = (
         REPO_ROOT
         / "artifacts"
@@ -535,7 +471,6 @@ def main() -> int:
     consistency: dict[str, set[str]] = {
         "headless": set(),
         "resolved_model": set(),
-        "runner_sha256": set(),
     }
 
     if raw_root.is_dir():
@@ -558,9 +493,6 @@ def main() -> int:
             expected_skills[method],
             manifest,
             args,
-            manifest_sha256,
-            database_snapshot_sha256,
-            runner_sha256,
         )
         method_summaries[method] = summary
         errors.extend(method_errors)
@@ -593,7 +525,6 @@ def main() -> int:
         "unresolved_failures": unresolved_failures,
         "headless_values": sorted(consistency["headless"]),
         "resolved_models": sorted(consistency["resolved_model"]),
-        "runner_sha256": sorted(consistency["runner_sha256"]),
         "validation_errors": len(errors),
     }
 
