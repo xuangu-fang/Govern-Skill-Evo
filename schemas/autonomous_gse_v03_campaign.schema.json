@@ -1,0 +1,292 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://govern-skill-evo.local/schemas/autonomous_gse_v03_campaign.schema.json",
+  "title": "Autonomous Governed Skill Evolution v0.3 Campaign Manifest",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "protocol_version",
+    "campaign_id",
+    "status",
+    "created_at",
+    "initial_parent",
+    "schedule",
+    "train",
+    "proposal",
+    "selection",
+    "gate",
+    "step_outcomes",
+    "budget",
+    "test",
+    "benchmark_runtime"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "autonomous_gse_campaign_0.3.0"
+    },
+    "protocol_version": {
+      "const": "autonomous_gse_v03"
+    },
+    "campaign_id": {
+      "const": "autonomous_gse_v03"
+    },
+    "status": {
+      "enum": ["draft", "ready"]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date"
+    },
+    "initial_parent": {
+      "type": "object",
+      "required": ["kind", "version", "path"],
+      "properties": {
+        "kind": {
+          "const": "empty_skill"
+        },
+        "version": {
+          "const": "S0"
+        },
+        "path": {
+          "const": "experiments/campaigns/autonomous_gse_v03/skills/S0_empty_skill.md"
+        }
+      }
+    },
+    "schedule": {
+      "const": {
+        "epochs": 1,
+        "steps_per_epoch": 3,
+        "scheduled_steps": 3
+      }
+    },
+    "train": {
+      "type": "object",
+      "required": [
+        "total_tasks",
+        "batches",
+        "tasks_per_batch",
+        "cumulative_evidence",
+        "replay_previous_batches"
+      ],
+      "properties": {
+        "total_tasks": {
+          "const": 51
+        },
+        "batches": {
+          "const": 3
+        },
+        "tasks_per_batch": {
+          "const": 17
+        },
+        "cumulative_evidence": {
+          "const": false
+        },
+        "replay_previous_batches": {
+          "const": false
+        }
+      }
+    },
+    "proposal": {
+      "type": "object",
+      "required": [
+        "operator",
+        "candidates_per_step",
+        "maximum_learner_calls_per_step",
+        "eligible_evidence_states",
+        "selection_feedback_to_learner",
+        "test_feedback_to_learner",
+        "reflection",
+        "editor",
+        "deterministic_update",
+        "provenance",
+        "history",
+        "learner"
+      ],
+      "properties": {
+        "operator": {
+          "const": "governed_reflection_editor"
+        },
+        "candidates_per_step": {
+          "const": 1
+        },
+        "maximum_learner_calls_per_step": {
+          "const": 3
+        },
+        "eligible_evidence_states": {
+          "const": [
+            "compliant_success",
+            "violating_success",
+            "compliant_failure",
+            "violating_failure"
+          ]
+        },
+        "selection_feedback_to_learner": {
+          "const": "forbidden"
+        },
+        "test_feedback_to_learner": {
+          "const": "forbidden"
+        },
+        "reflection": {
+          "const": {
+            "reflectors": ["success", "failure"],
+            "success_states": ["compliant_success", "violating_success"],
+            "failure_states": ["compliant_failure", "violating_failure"],
+            "grouping_strategy": "one_group_per_outcome",
+            "additional_minibatching": false,
+            "maximum_raw_patches_per_reflector": 4,
+            "output": "raw_patches_only"
+          }
+        },
+        "editor": {
+          "const": {
+            "input": "current_parent_skill_and_all_raw_patches",
+            "output": "canonical_edits",
+            "merge": true,
+            "deduplicate": true,
+            "resolve_conflicts": true,
+            "patch_expansion": "forbidden",
+            "ranking": false,
+            "top_k_selection": false
+          }
+        },
+        "deterministic_update": {
+          "const": {
+            "input": "canonical_edits_only",
+            "maximum_skill_rules": 18,
+            "maximum_skill_words": 900,
+            "allowed_operations": ["add", "replace", "delete"],
+            "edit_unit": "one_markdown_bullet",
+            "invalid_edit_scope": "exclude_edit_without_invalidating_proposal",
+            "minimum_applied_edits_for_candidate": 1
+          }
+        },
+        "provenance": {
+          "type": "object",
+          "required": [
+            "mode",
+            "blocks_candidate_selection",
+            "read_by_evolution_gate",
+            "accepted_unverified_candidate_can_be_parent"
+          ],
+          "properties": {
+            "mode": {
+              "const": "independent_diagnostic"
+            },
+            "blocks_candidate_selection": {
+              "const": false
+            },
+            "read_by_evolution_gate": {
+              "const": false
+            },
+            "accepted_unverified_candidate_can_be_parent": {
+              "const": true
+            }
+          }
+        },
+        "history": {
+          "type": "object",
+          "required": [
+            "raw_patches",
+            "canonical_edits",
+            "applied_edits",
+            "excluded_edits"
+          ],
+          "properties": {
+            "raw_patches": {
+              "const": "saved_before_editor"
+            },
+            "canonical_edits": {
+              "const": "saved_before_deterministic_update"
+            },
+            "applied_edits": {
+              "const": "saved_as_accepted_edit_history"
+            },
+            "excluded_edits": {
+              "const": "saved_with_structured_reason"
+            }
+          }
+        },
+        "learner": {
+          "type": "object",
+          "required": ["model", "parameters", "prompt", "prompt_context"],
+          "properties": {
+            "model": {
+              "type": "string",
+              "minLength": 1
+            },
+            "parameters": {
+              "type": "object"
+            },
+            "prompt": {
+              "const": "src/learners/stwebagentbench/generate_governed_skill_v03.py"
+            },
+            "prompt_context": {
+              "const": {
+                "current_parent_skill": "required",
+                "current_batch_governed_evidence": "required",
+                "all_raw_patches_to_editor": "required",
+                "reflection_summary": "forbidden",
+                "selection_data": "forbidden",
+                "test_data": "forbidden"
+              }
+            }
+          }
+        }
+      }
+    },
+    "selection": {
+      "type": "object",
+      "required": ["tasks", "selection_data_for_learning", "provenance_status_is_selection_input"],
+      "properties": {
+        "tasks": {
+          "const": 18
+        },
+        "selection_data_for_learning": {
+          "const": "forbidden"
+        },
+        "provenance_status_is_selection_input": {
+          "const": false
+        }
+      }
+    },
+    "gate": {
+      "type": "object",
+      "required": ["aggregate_metrics", "accept_condition", "provenance_status_is_input"],
+      "properties": {
+        "aggregate_metrics": {
+          "const": ["task_success", "compliance", "cup"]
+        },
+        "accept_condition": {
+          "const": "all_aggregate_deltas_nonnegative_and_at_least_one_positive"
+        },
+        "provenance_status_is_input": {
+          "const": false
+        }
+      }
+    },
+    "step_outcomes": {
+      "const": ["ACCEPT", "REJECT", "NO_CANDIDATE", "INTEGRITY_FAILURE"]
+    },
+    "budget": {
+      "type": "object",
+      "required": ["maximum_total_trajectories", "maximum_learner_calls"],
+      "properties": {
+        "maximum_total_trajectories": {
+          "const": 123
+        },
+        "maximum_learner_calls": {
+          "const": 9
+        }
+      }
+    },
+    "test": {
+      "const": {
+        "authorized": false,
+        "data_for_learning": "forbidden"
+      }
+    },
+    "benchmark_runtime": {
+      "type": "object"
+    }
+  }
+}

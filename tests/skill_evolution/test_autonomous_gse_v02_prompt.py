@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from src.learners.stwebagentbench.generate_bounded_skill_v02 import (
+from src.learners.stwebagentbench.generate_governed_skill_v02 import (
     LEARNER_MODEL,
     MAX_COMPLETION_TOKENS,
     REASONING_EFFORT,
@@ -30,7 +30,7 @@ MANIFEST_PATH = (
 )
 PROMPT_PATH = (
     PROJECT_ROOT
-    / "src/learners/stwebagentbench/generate_bounded_skill_v02.py"
+    / "src/learners/stwebagentbench/generate_governed_skill_v02.py"
 )
 
 S0_SKILL = """# SuiteCRM Operational Skill

@@ -1,13 +1,13 @@
 {
-  "schema_version": "autonomous_gse_campaign_0.2.0",
-  "protocol_version": "autonomous_gse_v02",
-  "campaign_id": "autonomous_gse_v02",
+  "schema_version": "autonomous_gse_campaign_0.3.0",
+  "protocol_version": "autonomous_gse_v03",
+  "campaign_id": "autonomous_gse_v03",
   "status": "ready",
-  "created_at": "2026-08-13",
+  "created_at": "2026-08-15",
   "initial_parent": {
     "kind": "empty_skill",
     "version": "S0",
-    "path": "experiments/campaigns/autonomous_gse_v02/skills/S0_empty_skill.md",
+    "path": "experiments/campaigns/autonomous_gse_v03/skills/S0_empty_skill.md",
     "optimizer_semantics": "explicit_empty_skill_document",
     "rollout_semantics": "benchmark_default_prompt_without_learned_skill_injection"
   },
@@ -26,43 +26,65 @@
     "tasks_per_template": 3,
     "template_balanced": true,
     "overlap_between_batches": 0,
-    "assignment_source": "same_task_assignment_as_autonomous_gse_v01",
+    "assignment_source": "same_task_assignment_as_autonomous_gse_v02",
     "outcome_independent_assignment": true,
     "cumulative_evidence": false,
     "replay_previous_batches": false,
     "batch_map": "experiments/campaigns/autonomous_gse_v02/batch_map.json"
   },
   "proposal": {
-    "operator": "bounded_edit",
+    "operator": "governed_reflection_editor",
     "candidates_per_step": 1,
-    "maximum_learner_calls": 3,
+    "maximum_learner_calls_per_step": 3,
     "learner_retry": "forbidden",
     "eligible_evidence_states": [
       "compliant_success",
-      "violating_success"
+      "violating_success",
+      "compliant_failure",
+      "violating_failure"
     ],
     "selection_feedback_to_learner": "forbidden",
     "test_feedback_to_learner": "forbidden",
-    "maximum_edits_per_step": 6,
-    "maximum_skill_rules": 18,
-    "maximum_skill_words": 900,
-    "allowed_operations": [
-      "add",
-      "replace",
-      "delete"
-    ],
-    "edit_unit": "one_markdown_bullet",
-    "edit_selection_order": "learner_response_order",
-    "constructibility": {
-      "minimum_applied_edits_for_candidate": 1,
+    "reflection": {
+      "reflectors": [
+        "success",
+        "failure"
+      ],
+      "success_states": [
+        "compliant_success",
+        "violating_success"
+      ],
+      "failure_states": [
+        "compliant_failure",
+        "violating_failure"
+      ],
+      "grouping_strategy": "one_group_per_outcome",
+      "additional_minibatching": false,
+      "maximum_raw_patches_per_reflector": 4,
+      "output": "raw_patches_only"
+    },
+    "editor": {
+      "input": "current_parent_skill_and_all_raw_patches",
+      "output": "canonical_edits",
+      "merge": true,
+      "deduplicate": true,
+      "resolve_conflicts": true,
+      "patch_expansion": "forbidden",
+      "ranking": false,
+      "top_k_selection": false
+    },
+    "deterministic_update": {
+      "input": "canonical_edits_only",
+      "maximum_skill_rules": 18,
+      "maximum_skill_words": 900,
+      "allowed_operations": [
+        "add",
+        "replace",
+        "delete"
+      ],
+      "edit_unit": "one_markdown_bullet",
       "invalid_edit_scope": "exclude_edit_without_invalidating_proposal",
-      "no_candidate_reasons": [
-        "UNPARSEABLE_RESPONSE",
-        "EDITS_NOT_LIST",
-        "EMPTY_EDITS",
-        "NO_APPLICABLE_EDITS",
-        "NO_SKILL_CHANGE"
-      ]
+      "minimum_applied_edits_for_candidate": 1
     },
     "provenance": {
       "mode": "independent_diagnostic",
@@ -76,24 +98,25 @@
       "deployment_ready_when_unverified": false
     },
     "history": {
-      "structured_proposal_reason": true,
-      "selected_edits": "saved_as_accepted_edit_history",
-      "excluded_edits": "saved_as_rejected_edit_history_with_structured_reason",
+      "raw_patches": "saved_before_editor",
+      "canonical_edits": "saved_before_deterministic_update",
+      "applied_edits": "saved_as_accepted_edit_history",
+      "excluded_edits": "saved_with_structured_reason",
       "rejected_edit_memory_to_learner": "forbidden"
     },
     "learner": {
-      "model": "openai/gpt-5.6-terra",
+      "model": "openai/gpt-5.6-luna",
       "parameters": {
         "reasoning_effort": "low",
         "max_completion_tokens": 8000,
         "temperature": null
       },
-      "prompt": "src/learners/stwebagentbench/generate_governed_skill_v02.py",
+      "prompt": "src/learners/stwebagentbench/generate_governed_skill_v03.py",
       "prompt_context": {
         "current_parent_skill": "required",
-        "current_batch_success_evidence": "required",
-        "allowed_source_ids": "required_explicit_whitelist",
-        "allowed_repair_policy_ids_by_source": "required_explicit_whitelist",
+        "current_batch_governed_evidence": "required",
+        "all_raw_patches_to_editor": "required",
+        "reflection_summary": "forbidden",
         "selection_data": "forbidden",
         "test_data": "forbidden"
       }
@@ -132,7 +155,7 @@
     "maximum_candidate_selection_trajectories": 54,
     "maximum_total_trajectories": 123,
     "maximum_candidates": 3,
-    "maximum_learner_calls": 3,
+    "maximum_learner_calls": 9,
     "unused_budget_reallocation": "forbidden"
   },
   "test": {
@@ -141,7 +164,7 @@
   },
   "benchmark_runtime": {
     "benchmark": "ST-WebAgentBench",
-    "agent_model": "openai/gpt-5.6-terra",
+    "agent_model": "openai/gpt-5.6-luna",
     "agent_parameters": {
       "temperature": 0.1,
       "max_tokens": 512

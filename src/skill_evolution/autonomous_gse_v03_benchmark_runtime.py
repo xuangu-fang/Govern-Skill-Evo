@@ -1,4 +1,4 @@
-"""Formal ST-WebAgentBench runtime and CLI for Autonomous GSE v0.2.
+"""Formal ST-WebAgentBench runtime and CLI for Autonomous GSE v0.3.
 
 Importing this module is side-effect free. ``plan`` and ``status`` only read
 local files; ``initial-checkpoint`` and ``run`` are the explicit execution
@@ -14,9 +14,12 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Callable, Sequence
 
-from src.skill_evolution.autonomous_gse_v02_controller import register_step
-from src.skill_evolution.autonomous_gse_v02_proposal import LearnerRequest
-from src.skill_evolution.autonomous_gse_v02_runtime import (
+from src.skill_evolution.autonomous_gse_v03_controller import register_step
+from src.skill_evolution.autonomous_gse_v03_proposal import (
+    EditorRequest,
+    ReflectorRequest,
+)
+from src.skill_evolution.autonomous_gse_v03_runtime import (
     RuntimeContractError,
     run_campaign,
 )
@@ -25,9 +28,14 @@ from src.skill_evolution.two_dimensional_gate import analyze_candidate
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-FORMAL_MODE = "formal_stwebagentbench_v02"
+FORMAL_MODE = "formal_stwebagentbench_v03"
 CAMPAIGN_REPORT_FILENAME = "campaign_report.json"
-ELIGIBLE_EVIDENCE_STATES = {"compliant_success", "violating_success"}
+ELIGIBLE_EVIDENCE_STATES = {
+    "compliant_success",
+    "violating_success",
+    "compliant_failure",
+    "violating_failure",
+}
 OUTCOME_STATES = (
     "violating_failure",
     "violating_success",
@@ -66,9 +74,9 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
 def validate_formal_campaign_contract(
     campaign: dict[str, Any], *, require_ready: bool = False
 ) -> None:
-    """Validate the v0.2 settings needed by the formal runtime."""
+    """Validate the v0.3 settings needed by the formal runtime."""
 
-    if campaign.get("protocol_version") != "autonomous_gse_v02":
+    if campaign.get("protocol_version") != "autonomous_gse_v03":
         raise RuntimeContractError("Unsupported formal Campaign protocol.")
     if campaign.get("status") not in {"draft", "ready"}:
         raise RuntimeContractError("Campaign status must be draft or ready.")
@@ -83,10 +91,18 @@ def validate_formal_campaign_contract(
     proposal = campaign.get("proposal", {})
     learner = proposal.get("learner", {})
     if (
-        proposal.get("operator") != "bounded_edit"
-        or proposal.get("maximum_edits_per_step") != 6
+        proposal.get("operator") != "governed_reflection_editor"
         or proposal.get("candidates_per_step") != 1
-        or learner.get("model") != "openai/gpt-5.6-terra"
+        or proposal.get("maximum_learner_calls_per_step") != 3
+        or proposal.get("learner_retry") != "forbidden"
+        or proposal.get("eligible_evidence_states")
+        != [
+            "compliant_success",
+            "violating_success",
+            "compliant_failure",
+            "violating_failure",
+        ]
+        or learner.get("model") != "openai/gpt-5.6-luna"
         or learner.get("parameters")
         != {
             "reasoning_effort": "low",
@@ -94,12 +110,29 @@ def validate_formal_campaign_contract(
             "temperature": None,
         }
         or learner.get("prompt")
-        != "src/learners/stwebagentbench/generate_governed_skill_v02.py"
+        != "src/learners/stwebagentbench/generate_governed_skill_v03.py"
     ):
-        raise RuntimeContractError("Bounded Learner configuration is invalid.")
+        raise RuntimeContractError("Governed Learner configuration is invalid.")
+    reflection = proposal.get("reflection", {})
+    editor = proposal.get("editor", {})
+    update = proposal.get("deterministic_update", {})
+    if (
+        reflection.get("reflectors") != ["success", "failure"]
+        or reflection.get("additional_minibatching") is not False
+        or reflection.get("maximum_raw_patches_per_reflector") != 4
+        or reflection.get("output") != "raw_patches_only"
+        or editor.get("input")
+        != "current_parent_skill_and_all_raw_patches"
+        or editor.get("output") != "canonical_edits"
+        or editor.get("ranking") is not False
+        or editor.get("top_k_selection") is not False
+        or update.get("input") != "canonical_edits_only"
+        or update.get("minimum_applied_edits_for_candidate") != 1
+    ):
+        raise RuntimeContractError("Governed Proposal configuration is invalid.")
 
     runtime = campaign.get("benchmark_runtime", {})
-    if runtime.get("agent_model") != "openai/gpt-5.6-terra" or runtime.get(
+    if runtime.get("agent_model") != "openai/gpt-5.6-luna" or runtime.get(
         "agent_parameters"
     ) != {"temperature": 0.1, "max_tokens": 512}:
         raise RuntimeContractError("Benchmark Agent configuration is invalid.")
@@ -116,7 +149,7 @@ LearnerCaller = Callable[[str, str, str], tuple[str, str, dict | None]]
 
 
 class LearnerAdapter:
-    """Call the single v0.2 bounded-edit prompt through an injected caller."""
+    """Call v0.3 Reflector and Editor prompts through an injected caller."""
 
     def __init__(
         self,
@@ -136,7 +169,7 @@ class LearnerAdapter:
 
     def call(
         self,
-        request: LearnerRequest,
+        request: ReflectorRequest | EditorRequest,
         model: str,
         system_prompt: str,
         user_prompt: str,
@@ -146,27 +179,35 @@ class LearnerAdapter:
         response, resolved_model, usage = self._caller(
             model, system_prompt, user_prompt
         )
-        if resolved_model != "gpt-5.6-terra":
+        if resolved_model != "gpt-5.6-luna":
             raise RuntimeContractError("Learner resolved model is unexpected.")
         if not isinstance(response, str) or not response.strip():
             raise RuntimeContractError("Learner returned an empty response.")
         self.last_response = response.strip()
+        role = (
+            f"{request.reflector}_reflector"
+            if isinstance(request, ReflectorRequest)
+            else "editor"
+        )
         self.last_call = {
             "candidate_id": request.candidate_id,
+            "role": role,
             "model": model,
             "parameters": copy.deepcopy(self._contract["parameters"]),
-            "evidence_count": len(request.current_batch_success_evidence),
-            "allowed_source_ids": list(request.allowed_source_ids),
-            "allowed_repair_policy_ids_by_source": {
-                source_id: list(policy_ids)
-                for source_id, policy_ids in (
-                    request.allowed_repair_policy_ids_by_source.items()
-                )
-            },
             "system_prompt": system_prompt,
             "user_prompt": user_prompt,
             "usage": usage,
         }
+        if isinstance(request, ReflectorRequest):
+            self.last_call["evidence_count"] = len(request.current_batch_evidence)
+            self.last_call["evidence_states"] = [
+                item["state"] for item in request.current_batch_evidence
+            ]
+        else:
+            self.last_call["raw_patch_count"] = len(request.raw_patches)
+            self.last_call["raw_patch_ids"] = [
+                patch["patch_id"] for patch in request.raw_patches
+            ]
         return self.last_response, resolved_model, usage
 
 
@@ -339,7 +380,7 @@ def _load_valid_trajectory(
 
 
 class FormalBenchmarkRuntimeAdapter:
-    """Implement the shared v0.2 runtime ports with benchmark side effects."""
+    """Implement the shared v0.3 runtime ports with benchmark side effects."""
 
     mode = FORMAL_MODE
 
@@ -419,7 +460,7 @@ class FormalBenchmarkRuntimeAdapter:
                 {"task_id": task_id, "path": path.relative_to(REPO_ROOT).as_posix()}
             )
         payload = {
-            "schema_version": "autonomous_gse_selection_checkpoint_0.2.0",
+            "schema_version": "autonomous_gse_selection_checkpoint_0.3.0",
             "campaign_id": self._campaign["campaign_id"],
             "parent": copy.deepcopy(artifact),
             "task_ids": list(task_ids),
@@ -488,7 +529,7 @@ class FormalBenchmarkRuntimeAdapter:
             "sources": copy.deepcopy(sources),
         }
         experience_payload = {
-            "schema_version": "governed_experience_0.2.0",
+            "schema_version": "governed_experience_0.3.0",
             "experience_count": len(experiences),
             "state_counts": state_counts,
             "sources": sources,
@@ -499,7 +540,10 @@ class FormalBenchmarkRuntimeAdapter:
                 "task_ids": list(step["batch"]["task_ids"]),
             },
         }
-        _write_json(_step_path(self._campaign, step["step"], "train_set.json"), train_payload)
+        _write_json(
+            _step_path(self._campaign, step["step"], "train_set.json"),
+            train_payload,
+        )
         _write_json(
             _step_path(self._campaign, step["step"], "governed_experience.json"),
             experience_payload,
@@ -522,7 +566,7 @@ class FormalBenchmarkRuntimeAdapter:
     def learner_call(
         self,
         step: dict[str, Any],
-        request: LearnerRequest,
+        request: ReflectorRequest | EditorRequest,
         model: str,
         system_prompt: str,
         user_prompt: str,
@@ -534,12 +578,17 @@ class FormalBenchmarkRuntimeAdapter:
         )
         if self._learner.last_call is None or self._learner.last_response is None:
             raise RuntimeContractError("Learner call audit is incomplete.")
+        role = (
+            f"{request.reflector}_reflector"
+            if isinstance(request, ReflectorRequest)
+            else "editor"
+        )
         _write_json(
-            _step_path(self._campaign, step["step"], "learner_call.json"),
+            _step_path(self._campaign, step["step"], f"{role}_call.json"),
             self._learner.last_call,
         )
         _write_bytes(
-            _step_path(self._campaign, step["step"], "learner_response.txt"),
+            _step_path(self._campaign, step["step"], f"{role}_response.txt"),
             (self._learner.last_response + "\n").encode(),
         )
         self._side_effects["api_calls"] += 1
@@ -569,13 +618,16 @@ class FormalBenchmarkRuntimeAdapter:
         candidate: dict[str, Any] | None,
     ) -> None:
         payload = {
-            "schema_version": "autonomous_gse_proposal_record_0.2.0",
+            "schema_version": "autonomous_gse_proposal_record_0.3.0",
             "step": step["step"],
             "candidate": copy.deepcopy(candidate),
             "proposal_status": decision.proposal_status,
             "proposal_reason": copy.deepcopy(decision.proposal_reason),
-            "proposed_edits": copy.deepcopy(decision.proposed_edits),
-            "selected_edits": copy.deepcopy(decision.selected_edits),
+            "reflector_calls": decision.reflector_calls,
+            "editor_calls": decision.editor_calls,
+            "raw_patches": copy.deepcopy(decision.raw_patches),
+            "canonical_edits": copy.deepcopy(decision.canonical_edits),
+            "applied_edits": copy.deepcopy(decision.applied_edits),
             "excluded_edits": copy.deepcopy(decision.excluded_edits),
             "provenance_status": decision.provenance_status,
             "provenance_audit": copy.deepcopy(decision.provenance_audit),
@@ -612,7 +664,7 @@ class FormalBenchmarkRuntimeAdapter:
         rows = [{**row, "method": "parent"} for row in parent["rows"]]
         rows += [{**row, "method": "candidate"} for row in candidate["rows"]]
         payload = {
-            "schema_version": "autonomous_gse_evolution_summary_0.2.0",
+            "schema_version": "autonomous_gse_evolution_summary_0.3.0",
             "step": step["step"],
             "parent_checkpoint": copy.deepcopy(step["parent_checkpoint"]),
             "candidate_checkpoint": copy.deepcopy(candidate_checkpoint),
@@ -667,14 +719,20 @@ def build_formal_execution_plan(
                 "candidate_selection_task_ids": list(
                     _split_task_ids(campaign, "selection")
                 ),
-                "maximum_edits": registered["edit_budget"][
-                    "maximum_edits_per_step"
+                "maximum_raw_patches_per_reflector": registered[
+                    "proposal_budget"
+                ]["maximum_raw_patches_per_reflector"],
+                "maximum_reflector_calls": registered["proposal_budget"][
+                    "maximum_reflector_calls"
                 ],
-                "maximum_learner_calls": 1,
+                "maximum_editor_calls": registered["proposal_budget"][
+                    "maximum_editor_calls"
+                ],
+                "maximum_learner_calls": 3,
             }
         )
     return {
-        "schema_version": "autonomous_gse_formal_plan_0.2.0",
+        "schema_version": "autonomous_gse_formal_plan_0.3.0",
         "campaign_id": campaign["campaign_id"],
         "campaign_status": campaign["status"],
         "mode": "no_side_effect_formal_plan",
@@ -696,7 +754,7 @@ def run_formal_campaign(
         raise RuntimeContractError("Formal runtime adapter mode is invalid.")
     if report["budget_usage"]["total_trajectories"] > 123:
         raise RuntimeContractError("Formal runtime exceeded rollout budget.")
-    report["schema_version"] = "autonomous_gse_formal_report_0.2.0"
+    report["schema_version"] = "autonomous_gse_formal_report_0.3.0"
     return report
 
 
@@ -723,9 +781,12 @@ def _validate_initial_checkpoint(
     expected_parent = campaign["initial_parent"]
     if (
         checkpoint.get("schema_version")
-        != "autonomous_gse_selection_checkpoint_0.2.0"
+        != "autonomous_gse_selection_checkpoint_0.3.0"
         or checkpoint.get("campaign_id") != campaign["campaign_id"]
-        or any(parent.get(key) != expected_parent[key] for key in ("kind", "version", "path"))
+        or any(
+            parent.get(key) != expected_parent[key]
+            for key in ("kind", "version", "path")
+        )
         or checkpoint.get("task_ids") != task_ids
         or len(checkpoint.get("rows", [])) != len(task_ids)
         or len(checkpoint.get("sources", [])) != len(task_ids)
@@ -776,7 +837,7 @@ def get_campaign_status(campaign_path: Path) -> dict[str, Any]:
         if report_exists:
             report = json.loads(paths["report"].read_text(encoding="utf-8"))
             if (
-                report.get("schema_version") != "autonomous_gse_formal_report_0.2.0"
+                report.get("schema_version") != "autonomous_gse_formal_report_0.3.0"
                 or report.get("campaign_id") != campaign["campaign_id"]
                 or report.get("status") != "COMPLETED"
                 or len(report.get("steps", [])) != 3
@@ -801,7 +862,7 @@ def get_campaign_status(campaign_path: Path) -> dict[str, Any]:
         else:
             state = "READY_TO_RUN"
     result = {
-        "schema_version": "autonomous_gse_status_0.2.0",
+        "schema_version": "autonomous_gse_status_0.3.0",
         "campaign_id": campaign["campaign_id"],
         "campaign_status": campaign["status"],
         "state": state,
@@ -876,7 +937,7 @@ def run_formal_campaign_cli(
     report_path = _campaign_artifact_paths(campaign)["report"]
     _write_json(report_path, report)
     return {
-        "status": "AUTONOMOUS_GSE_V02_CAMPAIGN_COMPLETED",
+        "status": "AUTONOMOUS_GSE_V03_CAMPAIGN_COMPLETED",
         "report": _artifact("campaign_report", campaign["campaign_id"], report_path),
         "step_outcomes": [step["outcome"] for step in report["steps"]],
         "final_parent": copy.deepcopy(report["final_parent"]),
@@ -890,7 +951,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     default_campaign = (
         REPO_ROOT
-        / "experiments/campaigns/autonomous_gse_v02/campaign_manifest.json"
+        / "experiments/campaigns/autonomous_gse_v03/campaign_manifest.json"
     )
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="command", required=True)
