@@ -1,4 +1,4 @@
-"""In-memory, no-API dry-run runtime for Autonomous GSE v0.2."""
+"""In-memory, no-API dry-run runtime for Autonomous GSE v0.3."""
 
 from __future__ import annotations
 
@@ -6,18 +6,20 @@ import copy
 import json
 from typing import Any, Sequence
 
-from src.learners.stwebagentbench.generate_governed_skill_v02 import (
-    call_bounded_learner,
+from src.learners.stwebagentbench.generate_governed_skill_v03 import (
+    call_governed_editor,
+    call_governed_reflector,
 )
-from src.skill_evolution.autonomous_gse_v02_controller import (
+from src.skill_evolution.autonomous_gse_v03_controller import (
     ControllerResult,
     reduce_step,
     register_step,
 )
-from src.skill_evolution.autonomous_gse_v02_proposal import (
-    BoundedEditProposalOperator,
-    LearnerRequest,
+from src.skill_evolution.autonomous_gse_v03_proposal import (
+    EditorRequest,
+    GovernedReflectionEditorProposalOperator,
     ProposalContext,
+    ReflectorRequest,
 )
 
 
@@ -34,7 +36,7 @@ def _memory_artifact(kind: str, version: str, label: str) -> dict[str, str]:
     return {
         "kind": kind,
         "version": version,
-        "path": f"memory://autonomous_gse_v02/{label}.{suffix}",
+        "path": f"memory://autonomous_gse_v03/{label}.{suffix}",
     }
 
 
@@ -43,7 +45,7 @@ def _accepted_version_after(parent: dict[str, Any]) -> str:
 
 
 class DeterministicDryRunAdapter:
-    """Synthetic in-memory facts for exercising the real v0.2 loop."""
+    """Synthetic in-memory facts for exercising the real v0.3 loop."""
 
     mode = "deterministic_no_api_no_write_dry_run"
 
@@ -122,18 +124,34 @@ class DeterministicDryRunAdapter:
         )
         return (
             {
-                "source_id": "source_001",
+                "source_id": "source_cs",
                 "task_success": True,
                 "state": "compliant_success",
                 "process_feedback": {"violated_policies": []},
             },
             {
-                "source_id": "source_002",
+                "source_id": "source_vs",
                 "task_success": True,
                 "state": "violating_success",
                 "process_feedback": {
                     "violated_policies": [
                         {"policy_template_id": "confirm_before_update"}
+                    ]
+                },
+            },
+            {
+                "source_id": "source_cf",
+                "task_success": False,
+                "state": "compliant_failure",
+                "process_feedback": {"violated_policies": []},
+            },
+            {
+                "source_id": "source_vf",
+                "task_success": False,
+                "state": "violating_failure",
+                "process_feedback": {
+                    "violated_policies": [
+                        {"policy_template_id": "stop_after_repeated_error"}
                     ]
                 },
             },
@@ -145,59 +163,90 @@ class DeterministicDryRunAdapter:
         except KeyError as error:
             raise RuntimeContractError("Accepted Parent Skill is missing.") from error
 
-    def learner_response(self, step: dict[str, Any], request: LearnerRequest) -> str:
+    def learner_response(
+        self,
+        step: dict[str, Any],
+        request: ReflectorRequest | EditorRequest,
+    ) -> str:
         outcome = self._outcomes[step["step"] - 1]
+        if isinstance(request, ReflectorRequest):
+            self._trace.append(
+                {
+                    "operation": "reflect",
+                    "step": step["step"],
+                    "reflector": request.reflector,
+                    "states": [
+                        item["state"] for item in request.current_batch_evidence
+                    ],
+                    "maximum_raw_patches": request.maximum_raw_patches,
+                }
+            )
+            if outcome == "NO_CANDIDATE":
+                return "<RAW_PATCHES_JSON>[]</RAW_PATCHES_JSON>"
+            if request.reflector == "success":
+                patch = {
+                    "operation": "add",
+                    "section": "Planning and navigation",
+                    "target_clause": "",
+                    "text": "Review the current record context before acting.",
+                    "reason": "Successful evidence supports checking context.",
+                    "source_ids": ["source_cs", "source_vs"],
+                    "repair_policy_ids": [],
+                }
+            else:
+                patch = {
+                    "operation": "add",
+                    "section": "Planning and navigation",
+                    "target_clause": "",
+                    "text": "Confirm context to avoid repeated failed actions.",
+                    "reason": "Failure evidence supports checking context.",
+                    "source_ids": ["source_cf", "source_vf"],
+                    "repair_policy_ids": [],
+                }
+            return f"<RAW_PATCHES_JSON>{json.dumps([patch])}</RAW_PATCHES_JSON>"
+
         self._trace.append(
             {
-                "operation": "propose",
+                "operation": "edit",
                 "step": step["step"],
-                "operator": step["proposal_operator"],
-                "parent_version": step["parent"]["version"],
-                "batch_id": step["batch"]["batch_id"],
-                "task_ids": list(step["batch"]["task_ids"]),
-                "maximum_edits": request.maximum_edits,
-                "allowed_source_ids": list(request.allowed_source_ids),
-                "allowed_repair_policy_ids_by_source": {
-                    source_id: list(policy_ids)
-                    for source_id, policy_ids in (
-                        request.allowed_repair_policy_ids_by_source.items()
-                    )
-                },
+                "raw_patch_ids": [
+                    patch["patch_id"] for patch in request.raw_patches
+                ],
             }
         )
-        if outcome == "NO_CANDIDATE":
-            return "<EDITS_JSON>[]</EDITS_JSON>"
-
         clauses = {
             1: "Confirm the current record context before acting.",
             2: "Review the intended values before submitting a change.",
             3: "Verify the saved record reflects the requested values.",
         }
         edit = {
+            "derived_from_patch_ids": [
+                patch["patch_id"] for patch in request.raw_patches
+            ],
             "operation": "add",
             "section": "Planning and navigation",
             "target_clause": "",
             "text": clauses[step["step"]],
-            "reason": "Use current-batch successful evidence.",
-            "source_ids": [
-                "unknown_source"
+            "reason": "The Editor merged current-step raw patches.",
+            "source_ids": (
+                ["unknown_source"]
                 if step["step"] in self._unverified_steps
-                else "source_001"
-            ],
+                else ["source_cs", "source_vs", "source_cf", "source_vf"]
+            ),
             "repair_policy_ids": [],
         }
-        return f"<EDITS_JSON>{json.dumps([edit])}</EDITS_JSON>"
+        return f"<CANONICAL_EDITS_JSON>{json.dumps([edit])}</CANONICAL_EDITS_JSON>"
 
     def learner_call(
         self,
         step: dict[str, Any],
-        request: LearnerRequest,
+        request: ReflectorRequest | EditorRequest,
         model: str,
         system_prompt: str,
         user_prompt: str,
     ) -> tuple[str, str, None]:
         if not system_prompt or not user_prompt:
-            raise RuntimeContractError("Unified Learner Prompt is empty.")
+            raise RuntimeContractError("Governed Learner Prompt is empty.")
         return self.learner_response(step, request), model.removeprefix("openai/"), None
 
     def record_candidate(
@@ -263,6 +312,7 @@ class DeterministicDryRunAdapter:
         step: dict[str, Any],
         candidate_checkpoint: dict[str, Any],
     ) -> dict[str, Any]:
+        del candidate_checkpoint
         return _memory_artifact(
             "evolution_summary",
             f"step_{step['step']:03d}",
@@ -334,8 +384,9 @@ def _candidate_event(
         "type": "CANDIDATE_FROZEN",
         "candidate": copy.deepcopy(candidate),
         "proposal_reason": copy.deepcopy(decision.proposal_reason),
-        "proposed_edits": copy.deepcopy(decision.proposed_edits),
-        "selected_edits": copy.deepcopy(decision.selected_edits),
+        "raw_patches": copy.deepcopy(decision.raw_patches),
+        "canonical_edits": copy.deepcopy(decision.canonical_edits),
+        "applied_edits": copy.deepcopy(decision.applied_edits),
         "excluded_edits": copy.deepcopy(decision.excluded_edits),
         "provenance_status": decision.provenance_status,
         "provenance_audit": copy.deepcopy(decision.provenance_audit),
@@ -346,8 +397,9 @@ def _no_candidate_event(decision: Any) -> dict[str, Any]:
     return {
         "type": "NO_CANDIDATE",
         "proposal_reason": copy.deepcopy(decision.proposal_reason),
-        "proposed_edits": copy.deepcopy(decision.proposed_edits),
-        "selected_edits": copy.deepcopy(decision.selected_edits),
+        "raw_patches": copy.deepcopy(decision.raw_patches),
+        "canonical_edits": copy.deepcopy(decision.canonical_edits),
+        "applied_edits": copy.deepcopy(decision.applied_edits),
         "excluded_edits": copy.deepcopy(decision.excluded_edits),
     }
 
@@ -357,7 +409,7 @@ def run_campaign(
     batch_map: dict[str, Any],
     adapter: Any,
 ) -> dict[str, Any]:
-    """Run the shared three-Step v0.2 state machine through an adapter."""
+    """Run the shared three-Step v0.3 state machine through an adapter."""
 
     current_parent = copy.deepcopy(campaign["initial_parent"])
     selection_tasks = campaign["selection"]["tasks"]
@@ -377,7 +429,7 @@ def run_campaign(
         "test_trajectories": 0,
     }
     completed_steps: list[dict[str, Any]] = []
-    operator = BoundedEditProposalOperator()
+    operator = GovernedReflectionEditorProposalOperator()
 
     for step_number in range(1, 4):
         step = register_step(
@@ -401,11 +453,12 @@ def run_campaign(
         context = ProposalContext(
             candidate_id=step["candidate_id"],
             parent_skill=adapter.skill_for_parent(step["parent"]),
-            current_batch_success_evidence=copy.deepcopy(evidence),
+            current_batch_governed_evidence=copy.deepcopy(evidence),
         )
-        decision = operator.propose(
-            context,
-            lambda request, current=copy.deepcopy(step): call_bounded_learner(
+
+        def call_reflector(request: ReflectorRequest) -> str:
+            current = copy.deepcopy(step)
+            return call_governed_reflector(
                 request,
                 learner_call=lambda model, system_prompt, user_prompt: (
                     adapter.learner_call(
@@ -416,9 +469,30 @@ def run_campaign(
                         user_prompt,
                     )
                 ),
-            ),
+            )
+
+        def call_editor(request: EditorRequest) -> str:
+            current = copy.deepcopy(step)
+            return call_governed_editor(
+                request,
+                learner_call=lambda model, system_prompt, user_prompt: (
+                    adapter.learner_call(
+                        current,
+                        request,
+                        model,
+                        system_prompt,
+                        user_prompt,
+                    )
+                ),
+            )
+
+        decision = operator.propose(
+            context,
+            call_reflector,
+            call_reflector,
+            call_editor,
         )
-        usage["learner_calls"] += decision.learner_calls
+        usage["learner_calls"] += decision.reflector_calls + decision.editor_calls
         _check_budget(campaign, usage)
 
         if decision.proposal_status == "NO_CANDIDATE":
@@ -490,7 +564,7 @@ def run_campaign(
 
     _check_budget(campaign, usage)
     return {
-        "schema_version": "autonomous_gse_runtime_report_0.2.0",
+        "schema_version": "autonomous_gse_runtime_report_0.3.0",
         "campaign_id": campaign["campaign_id"],
         "mode": adapter.mode,
         "status": "COMPLETED",
@@ -508,12 +582,12 @@ def run_dry_campaign(
     batch_map: dict[str, Any],
     adapter: DeterministicDryRunAdapter,
 ) -> dict[str, Any]:
-    """Run all three v0.2 Steps entirely in memory."""
+    """Run all three v0.3 Steps entirely in memory."""
 
     if any(adapter.side_effects.values()):
         raise RuntimeContractError("Dry-run adapter must declare zero side effects.")
     report = run_campaign(campaign, batch_map, adapter)
     if any(adapter.side_effects.values()):
         raise RuntimeContractError("Dry run recorded a forbidden side effect.")
-    report["schema_version"] = "autonomous_gse_dry_run_0.2.0"
+    report["schema_version"] = "autonomous_gse_dry_run_0.3.0"
     return report

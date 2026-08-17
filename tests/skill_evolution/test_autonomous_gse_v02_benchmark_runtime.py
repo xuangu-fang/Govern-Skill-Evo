@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 import src.skill_evolution.autonomous_gse_v02_benchmark_runtime as formal
-from src.learners.stwebagentbench.generate_bounded_skill_v02 import build_prompts
+from src.learners.stwebagentbench.generate_governed_skill_v02 import build_prompts
 from src.skill_evolution.autonomous_gse_v02_benchmark_runtime import (
     FORMAL_MODE,
     LearnerAdapter,

@@ -1,4 +1,4 @@
-"""Unified bounded-edit Learner Prompt for Autonomous GSE v0.2."""
+"""Unified governed bounded-edit Learner Prompt for Autonomous GSE v0.2."""
 
 from __future__ import annotations
 
