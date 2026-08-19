@@ -12,7 +12,6 @@ import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parents[3]
 BENCHMARK_ROOT = REPO_ROOT / "external" / "ST-WebAgentBench"
 
@@ -24,14 +23,13 @@ from dotenv import load_dotenv
 
 load_dotenv(BENCHMARK_ROOT / ".env")
 
-import gymnasium as gym
 import browsergym.stwebagentbench  # noqa: F401
-
+import gymnasium as gym
 from st_bench_example import DemoAgent, get_action_set
 from stwebagentbench.utils.data_collector import NumpyEncoder
 
+from src.adapters.stwebagentbench.seeded_agent import seed_agent_client
 from src.adapters.stwebagentbench.skill_runtime import load_method_skill
-
 
 DEFAULT_MANIFEST = (
     REPO_ROOT
@@ -183,6 +181,7 @@ def get_output_dir(
     method: str,
     task_id: int,
     formal: bool,
+    rollout_id: int = 1,
 ) -> Path:
     artifact_group = "raw" if formal else "smoke"
     return (
@@ -190,10 +189,10 @@ def get_output_dir(
         / "artifacts"
         / manifest["manifest_id"]
         / artifact_group
-        / "train"
+        / manifest.get("_output_split", "train")
         / method
         / f"task_{task_id}"
-        / "trial_01"
+        / f"trial_{rollout_id:02d}"
     )
 
 
@@ -212,15 +211,24 @@ def validate_completed_trajectory(
         "status": "completed",
         "run_kind": "formal" if args.formal else "smoke",
         "manifest_id": manifest["manifest_id"],
-        "split": "train",
+        "split": manifest.get("_output_split", "train"),
         "method": method,
-        "trial": 1,
+        "trial": getattr(args, "rollout_id", 1),
         "requested_model": args.model,
         "headless": args.headless,
         "skill_version": skill["version"],
         "skill_path": skill["path"],
         "skill_injected": skill["block"] is not None,
     }
+    if getattr(args, "seed", None) is not None:
+        seed_key = (
+            "execution_seed"
+            if getattr(args, "campaign_seed", None) is not None
+            else "campaign_seed"
+        )
+        expected[seed_key] = args.seed
+    if getattr(args, "campaign_seed", None) is not None:
+        expected["campaign_seed"] = args.campaign_seed
 
     mismatches = {
         key: {"expected": value, "actual": run.get(key)}
@@ -254,6 +262,7 @@ def run_task(
         method,
         task["task_id"],
         args.formal,
+        rollout_id=getattr(args, "rollout_id", 1),
     )
     trajectory_path = output_dir / "trajectory.json"
 
@@ -273,7 +282,7 @@ def run_task(
 
     run_id = (
         f"{manifest['manifest_id']}-train-{method}-"
-        f"task_{task['task_id']}-trial_01"
+        f"task_{task['task_id']}-trial_{getattr(args, 'rollout_id', 1):02d}"
     )
 
     run_metadata = {
@@ -281,9 +290,10 @@ def run_task(
         "run_kind": "formal" if args.formal else "smoke",
         "manifest_id": manifest["manifest_id"],
         "benchmark_commit": manifest["benchmark"]["commit"],
-        "split": "train",
+        "split": manifest.get("_output_split", "train"),
         "method": method,
-        "trial": 1,
+        "trial": getattr(args, "rollout_id", 1),
+        "rollout_id": getattr(args, "rollout_id", 1),
         "requested_model": args.model,
         "headless": args.headless,
         "skill_version": skill["version"],
@@ -291,6 +301,25 @@ def run_task(
         "skill_injected": skill["block"] is not None,
         "started_at": utc_now(),
     }
+
+    seed = getattr(args, "seed", None)
+    if seed is not None:
+        seed_key = (
+            "execution_seed"
+            if getattr(args, "campaign_seed", None) is not None
+            else "campaign_seed"
+        )
+        run_metadata[seed_key] = seed
+    campaign_seed = getattr(args, "campaign_seed", None)
+    if campaign_seed is not None:
+        run_metadata["campaign_seed"] = campaign_seed
+    run_metadata["trajectory_id"] = run_id
+    worker_id = getattr(args, "worker_id", None)
+    if worker_id is not None:
+        run_metadata["worker_id"] = worker_id
+        run_metadata["execution_mode"] = getattr(
+            args, "execution_mode", "parallel"
+        )
 
     env = None
 
@@ -314,6 +343,8 @@ def run_task(
         obs, reset_info = env.reset()
 
         agent = make_agent(args.model, skill)
+        if seed is not None:
+            agent = seed_agent_client(agent, seed)
 
         initial_observation = agent.obs_preprocessor(obs)
 
@@ -444,7 +475,7 @@ def run_task(
         if env is not None:
             try:
                 env.close()
-            except Exception:
+            except Exception:  # noqa: BLE001, S110
                 pass
 
 

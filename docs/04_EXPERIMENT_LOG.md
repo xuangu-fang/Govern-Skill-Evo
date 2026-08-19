@@ -28,6 +28,8 @@
 - Day 11：将两条手工演化构建为一个自动运行、可重复且可审计的自进化闭环：基于当前步骤的训练证据生成受治理的候选方案，经新一轮独立评选与演化门禁后，自动晋级候选版本或保留上一版本，并进入下一步演化。
 - Day 12：简化Candidate的生成与评选流程。三个Step不再分别采用“先生成完整Skill”和“修改已有Skill”两种方式，而是统一在当前Skill上增加、替换或删除少量规则。无法应用到当前Skill的修改会被逐项跳过，证据引用问题则单独记录；只要其余修改形成了实际变化，Candidate就交给Selection和Evolution Gate决定接受或拒绝。
 - Day 13：将Day 12只从成功轨迹生成修改的受限编辑优化器升级为基于`compliant/violating × success/failure`四状态全轨迹的Governed Reflection。当前batch中的成功与失败经验分别由两个Reflector生成patches，再由Editor合并、去重、处理冲突并规范化为edits；所有通过硬约束的edits进入Candidate。
+- Day 14-15：在 Day 13 基础上，使用 3 个不同的 seed 分别独立运行 3 次，检验不同随机条件下 Skill Evolution 结果的稳定性；同时增加 Candidate 当前 Batch 回放和最终独立 Test。seed 严格传入 Agent 与 Learner，Replay 不反馈 Learner，也不参与 Gate。
+- Day 16：在 Day 14/15 基础上将 Training 和 Selection 扩展为每个 task 3 次独立 rollout，以增加训练与验证轨迹、降低单条 trajectory 偶然性对 Candidate generation 和 Evolution Gate 的影响。
 
 ### 当前 blocker
 
@@ -2845,6 +2847,147 @@ Candidate使Task 256从`violating_failure`变为`compliant_success`，同时使T
 
 ### 计划？
 当前数据集数量太少，只能支持跑3个Step，无法看出实验的效果。在当前跑通的基础上，尝试扩大SuiteCRM的数据集数量，实现更多Step的governed evolution，观察是否能使得最后得到的Skill，能提高成功合规轨迹的数量
+
+## Day 14-15 记录（2026-08-17 18）
+
+### 目标
+
+在Day 13的四状态`Reflect → Aggregate → Select → Update`流程上，研究不同随机条件下Skill Evolution的结果是否稳定，并增加当前训练Batch回放和最终独立Test，不改变Day 13的Candidate生成、Selection或Evolution Gate语义。
+
+### 三次不同Seed
+
+实验使用 3 个不同的 seed，分别独立运行 3 次。每次运行中，Benchmark Agent、Success Reflector、Failure Reflector 和 Editor 的所有模型调用均使用相同的 seed。三次实验使用相同的模型、Task ID、初始数据库快照、数据划分和Skill Evolution协议，并以`campaign_seed`作为主要分组变量。
+
+### Batch Replay
+
+每个Step的Candidate完成Selection并由Gate作出决定后，无论结果是`ACCEPT`还是`REJECT`，Candidate都重新运行产生它的当前17条Train Task：
+
+```text
+基准Skill运行Batch_k
+→ Learner生成Candidate_k
+→ Candidate_k运行Selection
+→ Gate决定ACCEPT或REJECT
+→ Candidate_k回放Batch_k
+```
+
+Replay不回放更早的Batch，不反馈Learner，也不参与当前或后续Gate。用于比较`Candidate_k(Batch_k) - Parent_k(Batch_k)`，判断Learner生成的修改是否改善产生该修改的当前训练数据。
+
+### 实验结果
+
+#### Batch Replay结果
+
+Replay比较Candidate Skill与产生它的基准Skill在当前17条Train Task上的结果，指标顺序为Task Success、Compliance和CuP。Replay是独立诊断，不参与Learner和Gate。
+
+| Seed | Step | 基准Skill | Candidate Skill | Delta | Selection / Gate |
+|---:|---:|---:|---:|---:|---|
+| 100 | 1 | 6 / 7 / 3 | 7 / 7 / 3 | +1 / 0 / 0 | ACCEPT |
+| 100 | 2 | 7 / 4 / 2 | 8 / 5 / 3 | +1 / +1 / +1 | REJECT |
+| 100 | 3 | 6 / 7 / 3 | 7 / 7 / 3 | +1 / 0 / 0 | ACCEPT |
+| 150 | 1 | 7 / 7 / 3 | 5 / 7 / 3 | -2 / 0 / 0 | REJECT |
+| 150 | 2 | 7 / 6 / 3 | 5 / 4 / 2 | -2 / -2 / -1 | ACCEPT |
+| 150 | 3 | — | — | — | NO_CANDIDATE |
+| 200 | 1 | 5 / 7 / 3 | 6 / 7 / 3 | +1 / 0 / 0 | REJECT |
+| 200 | 2 | 6 / 5 / 2 | 4 / 5 / 2 | -2 / 0 / 0 | REJECT |
+| 200 | 3 | 6 / 7 / 3 | 6 / 9 / 4 | 0 / +2 / +1 | REJECT |
+
+Replay没有呈现跨seed一致的改善方向，而且与固定Selection上的Gate结果存在明显错位。
+
+#### 三次Seed的演化路径
+
+| Seed | Step 1 | Step 2 | Step 3 | 接受Candidate数 | 最终Skill |
+|---:|---|---|---|---:|---|
+| 100 | ACCEPT：S0→S1 | REJECT：保留S1 | ACCEPT：S1→S2 | 2 | S2 |
+| 150 | REJECT：保留S0 | ACCEPT：S0→S1 | NO_CANDIDATE：保留S1 | 1 | S1 |
+| 200 | REJECT：保留S0 | REJECT：保留S0 | REJECT：保留S0 | 0 | S0 |
+
+三次实验分别停在S2、S1和S0，说明微小的轨迹差异会经过训练证据、Reflector、Editor和Gate逐步累积，最终形成不同的Skill Evolution路径。
+
+Seed 150 Step 3出现`NO_CANDIDATE`：两个Reflector共生成7条raw patches，Editor合并为5条canonical edits，但5条edit都因`TARGET_CLAUSE_NOT_FOUND`被硬约束排除，`applied_edits=0`，最终得到`NO_APPLICABLE_EDITS`。
+
+#### Selection结果
+
+| Seed | 初始S0 | 最终Skill | Delta |
+|---:|---:|---:|---:|
+| 100 | 5 / 4 / 2 | 8 / 7 / 4 | +3 / +3 / +2 |
+| 150 | 7 / 6 / 3 | 8 / 6 / 4 | +1 / 0 / +1 |
+| 200 | 7 / 6 / 3 | 7 / 6 / 3 | 0 / 0 / 0 |
+
+三次S0 Selection基准相对接近，但演化增益分别为强改善、有限改善和无改善。
+
+#### 最终Test结果
+
+| Seed | S0 Test | 最终Skill Test | Delta |
+|---:|---:|---:|---:|
+| 100 | 0 / 6 / 0 | 1 / 9 / 0 | +1 / +3 / 0 |
+| 150 | 0 / 7 / 0 | 1 / 7 / 0 | +1 / 0 / 0 |
+| 200 | 0 / 5 / 0 | 0 / 5 / 0 | 0 / 0 / 0 |
+
+三次Test中CuP始终为0，没有任何最终Skill在独立Test上增加`compliant_success`。因此虽然部分seed在Selection上取得明显改善，当前流程尚未稳定地把这种改善泛化为Test上的成功且合规行为。
+
+#### 为什么Test差于Selection
+
+Train、Selection和Test不是同一模板的不同样本，而是按`intent_template_id`划分的三组互斥模板：Train包含17个模板，Selection包含6个模板，Test包含另外6个模板。
+
+两组评估数据的业务构成和实际难度也不同。三个seed的S0 Selection成功主要集中在少数模板：更新Opportunity为`8/9`，导入Account为`9/9`，删除Lead为`2/9`；Selection的19次成功中有17次来自前两个模板。Test不包含这些高成功率模板，其6个模板在三个seed的S0运行中均为`0/9`成功。因此，Selection与Test的总体差距可能受到模板构成影响。具体来说，Test包含更新Fax、删除Opportunity、导出报告、转发邮件和管理Security Group等流程，其中多项任务涉及缺失参数。Agent询问后无法获得用户追加信息，容易出现“遵守策略但无法完成”或“完成操作但违反策略”的冲突。
+
+
+
+## Day 16 记录（2026-08-19）
+
+### 目标
+
+在尽量保持v0.4方法语义不变的前提下，将Training和Selection从每个task单次rollout扩展为3次独立rollout，以增加Candidate generation和Evolution Gate所依据的轨迹样本，降低单条trajectory偶然性对演化结果的影响。
+
+### 实验设置
+
+每个Step的Training执行17个tasks × 3 rollouts，共51条独立training trajectories；每次基准Skill Selection执行18个tasks × 3 rollouts，共54条selection trajectories。Train中的每条trajectory仍分别进入四状态之一：`compliant_success`、`violating_success`、`compliant_failure`或`violating_failure`。同一task的不同rollout可以进入不同Reflector。
+
+### 三步演化结果
+
+实验完整执行3个连续演化Step。Step 1拒绝，Step 2接受并产生S1，Step 3拒绝，因此最终保留Step 2生成的S1。
+
+#### Step 1：Task Success和CuP同时下降，Candidate未晋级
+
+Step 1以显式空S0为基准Skill，运行`batch_001`中的 17 个 Train tasks，每个 task 独立执行 3 次 rollout，共生成 51 条 trajectories。四状态分布为9条`compliant_success`、9条`violating_success`、12条`compliant_failure`和21条`violating_failure`。
+
+两个Reflector共提出8条raw patches，Editor合并为7条canonical edits，由于S0为空，这7条修改均为`add`。
+
+| 指标 | S0 | Candidate | Delta |
+|---|---:|---:|---:|
+| Task Success | 21 | 17 | -4 |
+| Compliance | 18 | 18 | 0 |
+| CuP | 10 | 6 | -4 |
+
+Candidate的Compliance与S0持平，但Task Success和CuP均减少4条trajectory。Evolution Gate因此拒绝该Candidate，Step 1结束后继续保留S0。
+
+#### Step 2：Task Success与Compliance共同提升，Candidate晋级为S1
+
+Step 2继续以S0为基准Skill，运行`batch_002`中的17个Train tasks和51条trajectories。四状态分布为9条`compliant_success`、11条`violating_success`、5条`compliant_failure`和26条`violating_failure`。
+
+两个Reflector共提出8条raw patches，Editor将其合并为5条canonical edits，由于S0为空，这5条修改均为`add`。
+
+| 指标 | S0 | Candidate | Delta |
+|---|---:|---:|---:|
+| Task Success | 21 | 22 | +1 |
+| Compliance | 18 | 20 | +2 |
+| CuP | 10 | 10 | 0 |
+
+Candidate的Task Success增加1条trajectory，Compliance增加2条trajectory，CuP保持不变，满足Evolution Gate。该Candidate被接受为S1，并成为Step 3的基准Skill。
+
+#### Step 3：Compliance继续提升，但Task Success与CuP退化，Candidate未晋级
+
+Step 3以Step 2接受的S1为基准Skill，运行`batch_003`中的17个Train tasks和51条trajectories。四状态分布为9条`compliant_success`、7条`violating_success`、12条`compliant_failure`和23条`violating_failure`。
+
+两个Reflector共提出7条raw patches，Editor合并为6条canonical edits，包括1条`add`和5条`replace`。
+
+| 指标 | S1 | Candidate | Delta |
+|---|---:|---:|---:|
+| Task Success | 22 | 20 | -2 |
+| Compliance | 20 | 21 | +1 |
+| CuP | 10 | 9 | -1 |
+
+Task Success减少2条、CuP减少1条。该Candidate被拒绝，最终基准Skill仍为Step 2接受的S1。
+
 
 ---
 

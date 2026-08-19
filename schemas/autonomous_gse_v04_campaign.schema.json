@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "autonomous_gse_v04_campaign.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "protocol_version",
+    "campaign_id",
+    "campaign_seed",
+    "status",
+    "created_at",
+    "base_campaign",
+    "current_batch_replay",
+    "test",
+    "budget"
+  ],
+  "properties": {
+    "schema_version": {"const": "autonomous_gse_campaign_0.4.0"},
+    "protocol_version": {"const": "autonomous_gse_v04"},
+    "campaign_id": {"type": "string", "pattern": "^autonomous_gse_v04_seed_[0-9]+$"},
+    "campaign_seed": {"type": "integer"},
+    "headless": {"type": "boolean"},
+    "execution": {"enum": ["sequential", "parallel"]},
+    "parallel_workers": {"enum": [1, 2, 4], "default": 4},
+    "status": {"enum": ["draft", "ready"]},
+    "created_at": {"type": "string", "format": "date"},
+    "base_campaign": {"const": "experiments/campaigns/autonomous_gse_v03/campaign_manifest.json"},
+    "current_batch_replay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "timing", "candidate_scope", "replay_rejected_candidates", "feedback_to_learner", "used_by_gate"],
+      "properties": {
+        "enabled": {"const": true},
+        "timing": {"const": "after_gate"},
+        "candidate_scope": {"const": "current_batch_only"},
+        "replay_rejected_candidates": {"const": true},
+        "feedback_to_learner": {"const": false},
+        "used_by_gate": {"const": false}
+      }
+    },
+    "test": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["authorized", "timing", "comparisons", "data_for_learning", "used_by_gate"],
+      "properties": {
+        "authorized": {"const": true},
+        "timing": {"const": "after_campaign_completion"},
+        "comparisons": {"const": "s0_vs_final_parent"},
+        "data_for_learning": {"const": "forbidden"},
+        "used_by_gate": {"const": false}
+      }
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["train_trajectories", "initial_selection_trajectories", "maximum_candidate_selection_trajectories", "maximum_current_batch_replay_trajectories", "maximum_test_trajectories", "maximum_total_trajectories", "maximum_candidates", "maximum_learner_calls", "unused_budget_reallocation"],
+      "properties": {
+        "train_trajectories": {"const": 51},
+        "initial_selection_trajectories": {"const": 18},
+        "maximum_candidate_selection_trajectories": {"const": 54},
+        "maximum_current_batch_replay_trajectories": {"const": 51},
+        "maximum_test_trajectories": {"const": 36},
+        "maximum_total_trajectories": {"const": 210},
+        "maximum_candidates": {"const": 3},
+        "maximum_learner_calls": {"const": 9},
+        "unused_budget_reallocation": {"const": "forbidden"}
+      }
+    }
+  }
+}

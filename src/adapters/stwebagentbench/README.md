@@ -115,6 +115,35 @@ export no_proxy="$NO_PROXY"
 
 SuiteCRM Docker 服务必须已经启动。所有 Runner 共用一个数据库，因此运行任务时不能手动恢复数据库，也不能同时启动第二个 Runner。
 
+## SuiteCRM Task-level parallelism PoC
+
+v0.4 runtime 对未声明执行模式的历史 Campaign 仍使用 `execution=sequential` 和一个 worker。新 Campaign 显式设置下面两个字段时，启用本机四 worker 子进程调度：
+
+```json
+{
+  "execution": "parallel",
+  "parallel_workers": 4
+}
+```
+
+新 Campaign 如果设置 `"execution": "parallel"` 但省略 `parallel_workers`，也会默认使用四个 worker。显式填写仍更便于审计。
+
+四个 slot 固定使用独立的 Compose project、volume、SuiteCRM、MariaDB 和端口：worker 1–4 分别使用 `gse_suitecrm_worker_1`–`gse_suitecrm_worker_4` 和 8081–8084。每个 Task 都在新 Python 进程中运行，并在导入 ST-WebAgentBench 前继承自己的 `WA_SUITECRM`。当前 upstream 任务会在 SuiteCRM base URL 后拼接 `/#/...`。
+
+原有四任务 smoke 入口仍固定比较 sequential/1 与 parallel/2，不会修改 seed 100/150/200 manifest：
+
+```bash
+conda run -n stwebagentbench python -m \
+  src.adapters.stwebagentbench.run_parallel_poc
+```
+
+数据库隔离集成测试会创建并在结束时删除两个测试专用 Compose project：
+
+```bash
+GSE_RUN_DOCKER_ISOLATION=1 conda run -n stwebagentbench \
+  pytest -q tests/adapters/stwebagentbench/test_parallel_rollout.py -s
+```
+
 ## Autonomous GSE v0.1
 
 Autonomous GSE 不要求人工依次调用训练和评测程序。正式入口 `src.skill_evolution.autonomous_gse_benchmark_runtime` 会统一安排三步实验：

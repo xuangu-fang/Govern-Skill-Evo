@@ -235,7 +235,16 @@ def _run_train_task(
     )
 
     run_task(args, manifest, method, skill, task)
-    return get_output_dir(manifest, method, task["task_id"], True) / "trajectory.json"
+    return (
+        get_output_dir(
+            manifest,
+            method,
+            task["task_id"],
+            True,
+            rollout_id=getattr(args, "rollout_id", 1),
+        )
+        / "trajectory.json"
+    )
 
 
 def _run_selection_task(
@@ -251,7 +260,16 @@ def _run_selection_task(
     )
 
     run_task(args, manifest, task, skill)
-    return get_output_dir(manifest, method, task["task_id"], True) / "trajectory.json"
+    return (
+        get_output_dir(
+            manifest,
+            method,
+            task["task_id"],
+            True,
+            rollout_id=getattr(args, "rollout_id", 1),
+        )
+        / "trajectory.json"
+    )
 
 
 class RunnerRolloutBackend:
