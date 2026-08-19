@@ -7,6 +7,11 @@ st_repo_root="$(cd "${st_script_dir}/../../.." && pwd)"
 
 st_compose_file="${st_repo_root}/external/ST-WebAgentBench/suitecrm_setup/docker-compose.yaml"
 st_snapshot="${st_repo_root}/artifacts/stweb_suitecrm_poc_v01/db/suitecrm_pristine_v01.sql"
+st_compose_cmd=(docker compose -f "${st_compose_file}")
+
+if [[ -n "${GSE_COMPOSE_PROJECT:-}" ]]; then
+  st_compose_cmd=(docker compose -p "${GSE_COMPOSE_PROJECT}" -f "${st_compose_file}")
+fi
 
 cd "${st_repo_root}"
 
@@ -15,36 +20,13 @@ if [[ ! -s "${st_snapshot}" ]]; then
   exit 1
 fi
 
-docker compose -f "${st_compose_file}" up -d --pull never mariadb
-docker compose -f "${st_compose_file}" stop suitecrm
+"${st_compose_cmd[@]}" up -d --pull never mariadb suitecrm
 
-start_suitecrm_on_exit() {
-  docker compose -f "${st_compose_file}" start suitecrm >/dev/null 2>&1 || true
-}
-
-trap start_suitecrm_on_exit EXIT
-
-docker compose -f "${st_compose_file}" exec -T mariadb \
+"${st_compose_cmd[@]}" exec -T mariadb \
   mariadb -u root < "${st_snapshot}"
 
-docker compose -f "${st_compose_file}" start suitecrm
-trap - EXIT
-
-for attempt in {1..120}; do
-  if curl -fsS http://127.0.0.1:8080/public >/dev/null; then
-    break
-  fi
-
-  if [[ "${attempt}" -eq 120 ]]; then
-    echo "SuiteCRM did not become ready after database restore." >&2
-    exit 1
-  fi
-
-  sleep 2
-done
-
 st_counts="$(
-  docker compose -f "${st_compose_file}" exec -T mariadb \
+  "${st_compose_cmd[@]}" exec -T mariadb \
     mariadb -u root -Nse \
     "SELECT
        (SELECT COUNT(*) FROM bitnami_suitecrm.contacts WHERE deleted=0),

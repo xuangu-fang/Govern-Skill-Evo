@@ -271,6 +271,8 @@ def call_learner(
     requested_model: str,
     system_prompt: str,
     user_prompt: str,
+    *,
+    seed: int | None = None,
 ) -> tuple[str, str, dict | None]:
     from openai import OpenAI
 
@@ -283,14 +285,19 @@ def call_learner(
 
     resolved_model = requested_model.removeprefix("openai/")
     client = OpenAI(api_key=api_key, base_url=base_url)
-    response = client.chat.completions.create(
-        model=resolved_model,
-        reasoning_effort=REASONING_EFFORT,
-        max_completion_tokens=MAX_COMPLETION_TOKENS,
-        messages=[
+    request = {
+        "model": resolved_model,
+        "reasoning_effort": REASONING_EFFORT,
+        "max_completion_tokens": MAX_COMPLETION_TOKENS,
+        "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
+    }
+    if seed is not None:
+        request["seed"] = seed
+    response = client.chat.completions.create(
+        **request,
     )
 
     content = response.choices[0].message.content
