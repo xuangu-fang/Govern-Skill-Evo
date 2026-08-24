@@ -217,6 +217,9 @@ class RolloutRequest:
     method: str
     artifact: dict[str, Any]
     task_ids: tuple[int, ...]
+    execution_phase: str | None = None
+    execution_seed_offset: int = 0
+    execution_step: int | None = None
 
 
 RolloutBackend = Callable[[RolloutRequest], Sequence[Path]]

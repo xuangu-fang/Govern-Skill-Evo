@@ -393,6 +393,152 @@ def _canonical_record(edit_id: str, edit: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _edit_update_signals(
+    context: ProposalContext,
+    original: dict[str, list[dict[str, str]]],
+    allowed_policies: dict[str, tuple[str, ...]],
+    update_signals: list[dict[str, Any]],
+    editor: Editor,
+    *,
+    upstream_calls: int,
+) -> ProposalDecision:
+    """Run shared bounded editing and deterministic Update over supplied signals."""
+
+    if not update_signals:
+        return _no_candidate(
+            "EMPTY_EDITS", reflector_calls=upstream_calls, editor_calls=0
+        )
+    editor_request = EditorRequest(
+        candidate_id=context.candidate_id,
+        current_parent_skill=context.parent_skill,
+        raw_patches=copy.deepcopy(tuple(update_signals)),
+    )
+    parsed_edits, reason = _parse_tagged_list(
+        editor(editor_request), "CANONICAL_EDITS_JSON"
+    )
+    if reason is not None:
+        return _no_candidate(
+            reason,
+            reflector_calls=upstream_calls,
+            editor_calls=1,
+            raw_patches=update_signals,
+        )
+    assert parsed_edits is not None
+    if not parsed_edits:
+        return _no_candidate(
+            "EMPTY_EDITS",
+            reflector_calls=upstream_calls,
+            editor_calls=1,
+            raw_patches=update_signals,
+        )
+
+    current = copy.deepcopy(original)
+    touched_rule_ids: set[str] = set()
+    raw_patch_ids = {patch["patch_id"] for patch in update_signals}
+    raw_patches_by_id = {patch["patch_id"]: patch for patch in update_signals}
+    consumed_patch_ids: set[str] = set()
+    canonical_edits: list[Any] = []
+    applied_records: list[dict[str, Any]] = []
+    applied_raw: list[tuple[str, dict[str, Any]]] = []
+    excluded_edits: list[dict[str, Any]] = []
+
+    for index, value in enumerate(parsed_edits, start=1):
+        edit_id = f"edit_{index:03d}"
+        if not isinstance(value, dict):
+            canonical_edits.append(copy.deepcopy(value))
+            excluded_edits.append(
+                {"edit_id": edit_id, "reason": "INVALID_EDIT_FORMAT"}
+            )
+            continue
+        edit = copy.deepcopy(value)
+        edit["edit_id"] = edit_id
+        _merge_patch_provenance(edit, raw_patches_by_id)
+        if not _lineage_is_valid(edit, raw_patch_ids, consumed_patch_ids):
+            canonical_edits.append(edit)
+            excluded_edits.append(
+                {"edit_id": edit_id, "reason": "INVALID_EDIT_FORMAT"}
+            )
+            continue
+        resolved, exclusion_reason = _resolve_edit_target(edit, original)
+        if exclusion_reason is not None:
+            canonical_edits.append(edit)
+            excluded_edits.append(
+                {"edit_id": edit_id, "reason": exclusion_reason}
+            )
+            continue
+        assert resolved is not None
+        canonical_edits.append(resolved)
+        trial, exclusion_reason = _try_apply_edit(
+            original, current, touched_rule_ids, resolved
+        )
+        if exclusion_reason is not None:
+            excluded_edits.append(
+                {"edit_id": edit_id, "reason": exclusion_reason}
+            )
+            continue
+        assert trial is not None
+        current = trial
+        consumed_patch_ids.update(resolved["derived_from_patch_ids"])
+        if resolved["operation"] != "add":
+            touched_rule_ids.add(resolved["target_rule_id"])
+        applied_records.append(_canonical_record(edit_id, resolved))
+        applied_raw.append((edit_id, resolved))
+
+    if not applied_records:
+        return _no_candidate(
+            "NO_APPLICABLE_EDITS",
+            reflector_calls=upstream_calls,
+            editor_calls=1,
+            raw_patches=update_signals,
+            canonical_edits=canonical_edits,
+            excluded_edits=excluded_edits,
+        )
+    candidate_skill = _render_skill(current)
+    if candidate_skill == _render_skill(original):
+        return _no_candidate(
+            "NO_SKILL_CHANGE",
+            reflector_calls=upstream_calls,
+            editor_calls=1,
+            raw_patches=update_signals,
+            canonical_edits=canonical_edits,
+            excluded_edits=excluded_edits,
+        )
+    provenance_audit = _audit_provenance(applied_raw, allowed_policies)
+    return ProposalDecision(
+        proposal_status="CANDIDATE",
+        proposal_reason={"code": "CANDIDATE_CONSTRUCTED"},
+        reflector_calls=upstream_calls,
+        editor_calls=1,
+        raw_patches=copy.deepcopy(update_signals),
+        canonical_edits=copy.deepcopy(canonical_edits),
+        applied_edits=applied_records,
+        excluded_edits=excluded_edits,
+        candidate_skill=candidate_skill,
+        provenance_status=provenance_audit["status"],
+        provenance_audit=provenance_audit,
+    )
+
+
+def propose_from_update_signals(
+    context: ProposalContext,
+    update_signals: list[dict[str, Any]],
+    editor: Editor,
+    *,
+    upstream_calls: int = 0,
+) -> ProposalDecision:
+    """Apply the shared v0.5 bounded Editor/Update path to prefiltered signals."""
+
+    original, _, _, allowed_policies = _validate_context(context)
+    return _edit_update_signals(
+        context,
+        original,
+        allowed_policies,
+        copy.deepcopy(update_signals),
+        editor,
+        upstream_calls=upstream_calls,
+    )
+
+
 class RuleIdGovernedReflectionEditorProposalOperator:
     """Construct a v0.5 Candidate using stable IDs within each Parent snapshot."""
 
@@ -434,116 +580,11 @@ class RuleIdGovernedReflectionEditorProposalOperator:
             assert patches is not None
             raw_patches.extend(patches)
 
-        if not raw_patches:
-            return _no_candidate(
-                "EMPTY_EDITS", reflector_calls=reflector_calls, editor_calls=0
-            )
-        editor_request = EditorRequest(
-            candidate_id=context.candidate_id,
-            current_parent_skill=context.parent_skill,
-            raw_patches=copy.deepcopy(tuple(raw_patches)),
-        )
-        parsed_edits, reason = _parse_tagged_list(
-            editor(editor_request), "CANONICAL_EDITS_JSON"
-        )
-        if reason is not None:
-            return _no_candidate(
-                reason,
-                reflector_calls=reflector_calls,
-                editor_calls=1,
-                raw_patches=raw_patches,
-            )
-        assert parsed_edits is not None
-        if not parsed_edits:
-            return _no_candidate(
-                "EMPTY_EDITS",
-                reflector_calls=reflector_calls,
-                editor_calls=1,
-                raw_patches=raw_patches,
-            )
-
-        current = copy.deepcopy(original)
-        touched_rule_ids: set[str] = set()
-        raw_patch_ids = {patch["patch_id"] for patch in raw_patches}
-        raw_patches_by_id = {patch["patch_id"]: patch for patch in raw_patches}
-        consumed_patch_ids: set[str] = set()
-        canonical_edits: list[Any] = []
-        applied_records: list[dict[str, Any]] = []
-        applied_raw: list[tuple[str, dict[str, Any]]] = []
-        excluded_edits: list[dict[str, Any]] = []
-
-        for index, value in enumerate(parsed_edits, start=1):
-            edit_id = f"edit_{index:03d}"
-            if not isinstance(value, dict):
-                canonical_edits.append(copy.deepcopy(value))
-                excluded_edits.append(
-                    {"edit_id": edit_id, "reason": "INVALID_EDIT_FORMAT"}
-                )
-                continue
-            edit = copy.deepcopy(value)
-            edit["edit_id"] = edit_id
-            _merge_patch_provenance(edit, raw_patches_by_id)
-            if not _lineage_is_valid(edit, raw_patch_ids, consumed_patch_ids):
-                canonical_edits.append(edit)
-                excluded_edits.append(
-                    {"edit_id": edit_id, "reason": "INVALID_EDIT_FORMAT"}
-                )
-                continue
-            resolved, exclusion_reason = _resolve_edit_target(edit, original)
-            if exclusion_reason is not None:
-                canonical_edits.append(edit)
-                excluded_edits.append(
-                    {"edit_id": edit_id, "reason": exclusion_reason}
-                )
-                continue
-            assert resolved is not None
-            canonical_edits.append(resolved)
-            trial, exclusion_reason = _try_apply_edit(
-                original, current, touched_rule_ids, resolved
-            )
-            if exclusion_reason is not None:
-                excluded_edits.append(
-                    {"edit_id": edit_id, "reason": exclusion_reason}
-                )
-                continue
-            assert trial is not None
-            current = trial
-            consumed_patch_ids.update(resolved["derived_from_patch_ids"])
-            if resolved["operation"] != "add":
-                touched_rule_ids.add(resolved["target_rule_id"])
-            applied_records.append(_canonical_record(edit_id, resolved))
-            applied_raw.append((edit_id, resolved))
-
-        if not applied_records:
-            return _no_candidate(
-                "NO_APPLICABLE_EDITS",
-                reflector_calls=reflector_calls,
-                editor_calls=1,
-                raw_patches=raw_patches,
-                canonical_edits=canonical_edits,
-                excluded_edits=excluded_edits,
-            )
-        candidate_skill = _render_skill(current)
-        if candidate_skill == _render_skill(original):
-            return _no_candidate(
-                "NO_SKILL_CHANGE",
-                reflector_calls=reflector_calls,
-                editor_calls=1,
-                raw_patches=raw_patches,
-                canonical_edits=canonical_edits,
-                excluded_edits=excluded_edits,
-            )
-        provenance_audit = _audit_provenance(applied_raw, allowed_policies)
-        return ProposalDecision(
-            proposal_status="CANDIDATE",
-            proposal_reason={"code": "CANDIDATE_CONSTRUCTED"},
-            reflector_calls=reflector_calls,
-            editor_calls=1,
-            raw_patches=copy.deepcopy(raw_patches),
-            canonical_edits=copy.deepcopy(canonical_edits),
-            applied_edits=applied_records,
-            excluded_edits=excluded_edits,
-            candidate_skill=candidate_skill,
-            provenance_status=provenance_audit["status"],
-            provenance_audit=provenance_audit,
+        return _edit_update_signals(
+            context,
+            original,
+            allowed_policies,
+            raw_patches,
+            editor,
+            upstream_calls=reflector_calls,
         )

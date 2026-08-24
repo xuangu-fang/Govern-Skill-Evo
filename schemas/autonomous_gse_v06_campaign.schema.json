@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "autonomous_gse_v06_campaign.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "protocol_version",
+    "campaign_id",
+    "campaign_seed",
+    "headless",
+    "execution",
+    "parallel_workers",
+    "full_experiment_seeds",
+    "rule_addressing",
+    "status",
+    "created_at",
+    "base_campaign",
+    "schedule",
+    "batch_schedule",
+    "runtime",
+    "post_hoc_training_replay",
+    "test",
+    "budget"
+  ],
+  "properties": {
+    "schema_version": {"const": "autonomous_gse_campaign_0.6.0"},
+    "protocol_version": {"const": "autonomous_gse_v06"},
+    "campaign_id": {"const": "autonomous_gse_v06"},
+    "campaign_seed": {"type": "integer"},
+    "headless": {"const": true},
+    "execution": {"const": "parallel"},
+    "parallel_workers": {"const": 4},
+    "full_experiment_seeds": {"const": 1},
+    "rule_addressing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "legacy_target_clause_fallback", "ambiguous_legacy_match"],
+      "properties": {
+        "mode": {"const": "stable_parent_rule_id"},
+        "legacy_target_clause_fallback": {"const": "normalize_markdown_bullet_and_whitespace"},
+        "ambiguous_legacy_match": {"const": "reject_edit"}
+      }
+    },
+    "status": {"enum": ["draft", "ready"]},
+    "created_at": {"type": "string", "format": "date"},
+    "base_campaign": {"const": "experiments/campaigns/autonomous_gse_v03/campaign_manifest.json"},
+    "schedule": {
+      "const": {"epochs": 3, "steps_per_epoch": 3, "scheduled_steps": 9}
+    },
+    "batch_schedule": {
+      "const": {
+        "epoch_1": ["batch_001", "batch_002", "batch_003"],
+        "epoch_2": ["batch_002", "batch_003", "batch_001"],
+        "epoch_3": ["batch_003", "batch_001", "batch_002"]
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["benchmark_agent", "train", "selection", "learner"],
+      "properties": {
+        "benchmark_agent": {
+          "const": {
+            "model": "deepseek-v4-flash",
+            "temperature": 0.2,
+            "thinking": false,
+            "max_tokens": 2048,
+            "retry_on_token_exhaustion": false
+          }
+        },
+        "train": {
+          "const": {
+            "rollouts_per_task": 3,
+            "temperature": 0.2,
+            "seed_strategy": "campaign_step_task_rollout",
+            "seeds": "distinct_across_rollouts"
+          }
+        },
+        "selection": {
+          "const": {
+            "rollouts_per_task": 3,
+            "temperature": 0.2,
+            "seed_strategy": "campaign_task_rollout",
+            "parent_candidate_seed_matching": true
+          }
+        },
+        "learner": {
+          "const": {
+            "success_reflector": {
+              "model": "openai/gpt-5.6-luna",
+              "temperature": 0
+            },
+            "failure_reflector": {
+              "model": "openai/gpt-5.6-luna",
+              "temperature": 0
+            },
+            "editor": {
+              "model": "openai/gpt-5.6-luna",
+              "temperature": 0
+            }
+          }
+        }
+      }
+    },
+    "post_hoc_training_replay": {
+      "const": {"enabled": false}
+    },
+    "test": {
+      "const": {"authorized": false, "data_for_learning": "forbidden"}
+    },
+    "budget": {
+      "const": {
+        "train_trajectories": 459,
+        "initial_selection_trajectories": 54,
+        "maximum_candidate_selection_trajectories": 486,
+        "maximum_total_trajectories": 999,
+        "maximum_candidates": 9,
+        "maximum_learner_calls": 27,
+        "unused_budget_reallocation": "forbidden"
+      }
+    }
+  }
+}

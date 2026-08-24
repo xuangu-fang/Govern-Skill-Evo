@@ -20,7 +20,10 @@ if [[ ! -s "${st_snapshot}" ]]; then
   exit 1
 fi
 
-"${st_compose_cmd[@]}" up -d --pull never mariadb suitecrm
+# Parallel workers are bootstrapped once before the queue starts.
+if [[ "${GSE_WORKER_STACK_PREPARED:-0}" != "1" ]]; then
+  "${st_compose_cmd[@]}" up -d --pull never mariadb suitecrm
+fi
 
 "${st_compose_cmd[@]}" exec -T mariadb \
   mariadb -u root < "${st_snapshot}"
