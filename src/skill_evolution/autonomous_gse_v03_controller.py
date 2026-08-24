@@ -80,6 +80,16 @@ PROPOSAL_BUDGET = {
     "maximum_skill_words": 900,
     "allowed_operations": ["add", "replace", "delete"],
 }
+DIAGNOSIS_PROPOSAL_OPERATOR = "diagnosis_driven_bounded_edit"
+DIAGNOSIS_PROPOSAL_BUDGET_FIELDS = {
+    "maximum_diagnosis_calls",
+    "eligible_update_diagnoses",
+    "maximum_editor_calls",
+    "additional_minibatching",
+    "maximum_skill_rules",
+    "maximum_skill_words",
+    "allowed_operations",
+}
 DATA_ISOLATION = {
     "current_batch_only": True,
     "eligible_evidence_states": [
@@ -97,6 +107,7 @@ NO_CANDIDATE_REASONS = {
     "EMPTY_EDITS",
     "NO_APPLICABLE_EDITS",
     "NO_SKILL_CHANGE",
+    "NO_UPDATE_ELIGIBLE_DIAGNOSIS",
 }
 
 
@@ -339,33 +350,51 @@ def register_step(
     step: int,
     parent: dict[str, Any],
     parent_checkpoint: dict[str, Any],
+    epoch: int = 1,
+    batch_step: int | None = None,
+    scheduled_steps: int = STEP_COUNT,
 ) -> dict[str, Any]:
     """Build one deterministic STEP_REGISTERED record."""
 
     _require_campaign_contract(campaign)
-    if not isinstance(step, int) or isinstance(step, bool) or not 1 <= step <= 3:
-        raise ControllerContractError("Step must be an integer from 1 to 3.")
+    resolved_batch_step = step if batch_step is None else batch_step
+    if (
+        not isinstance(step, int)
+        or isinstance(step, bool)
+        or not 1 <= step <= scheduled_steps
+        or not isinstance(epoch, int)
+        or isinstance(epoch, bool)
+        or epoch < 1
+        or not isinstance(resolved_batch_step, int)
+        or isinstance(resolved_batch_step, bool)
+        or not 1 <= resolved_batch_step <= STEP_COUNT
+    ):
+        raise ControllerContractError("Step schedule is invalid.")
     current_parent = _require_parent(parent)
     initial_parent = _require_parent(campaign.get("initial_parent"))
     if step == 1 and current_parent != initial_parent:
         raise ControllerContractError("Step 1 must start from explicit empty S0.")
     checkpoint = _require_checkpoint(parent_checkpoint, current_parent)
 
-    return {
+    registered = {
         "schema_version": STEP_SCHEMA_VERSION,
         "protocol_version": PROTOCOL_VERSION,
         "campaign_id": campaign["campaign_id"],
-        "epoch": 1,
+        "epoch": epoch,
         "step": step,
         "status": "STEP_REGISTERED",
-        "batch": _batch_for_step(campaign, batch_map, step),
+        "batch": _batch_for_step(campaign, batch_map, resolved_batch_step),
         "parent": current_parent,
         "proposal_operator": "governed_reflection_editor",
-        "candidate_id": f"epoch_001_step_{step:03d}_candidate",
+        "candidate_id": f"epoch_{epoch:03d}_step_{step:03d}_candidate",
         "parent_checkpoint": checkpoint,
         "proposal_budget": copy.deepcopy(PROPOSAL_BUDGET),
         "data_isolation": copy.deepcopy(DATA_ISOLATION),
     }
+    if batch_step is not None:
+        registered["batch_step"] = resolved_batch_step
+        registered["scheduled_steps"] = scheduled_steps
+    return registered
 
 
 def _require_proposal_fields(step: dict[str, Any]) -> None:
@@ -381,16 +410,19 @@ def _require_proposal_fields(step: dict[str, Any]) -> None:
     if not isinstance(reason, dict) or not isinstance(reason.get("code"), str):
         raise ControllerContractError("Proposal reason is invalid.")
 
-    raw_patches = step["raw_patches"]
-    if len(raw_patches) > 8:
-        raise ControllerContractError("Raw patch budget was exceeded.")
-    for reflector in ("success", "failure"):
-        count = sum(
-            isinstance(patch, dict) and patch.get("reflector") == reflector
-            for patch in raw_patches
-        )
-        if count > 4:
-            raise ControllerContractError("Reflector raw patch budget was exceeded.")
+    if step.get("proposal_operator") == "governed_reflection_editor":
+        raw_patches = step["raw_patches"]
+        if len(raw_patches) > 8:
+            raise ControllerContractError("Raw patch budget was exceeded.")
+        for reflector in ("success", "failure"):
+            count = sum(
+                isinstance(patch, dict) and patch.get("reflector") == reflector
+                for patch in raw_patches
+            )
+            if count > 4:
+                raise ControllerContractError(
+                    "Reflector raw patch budget was exceeded."
+                )
 
 
 def _require_candidate_fields(step: dict[str, Any]) -> None:
@@ -415,20 +447,50 @@ def _require_step_invariants(step: dict[str, Any]) -> None:
     if step.get("protocol_version") != PROTOCOL_VERSION:
         raise ControllerContractError("Unsupported Step protocol.")
     step_number = step.get("step")
-    if not isinstance(step_number, int) or not 1 <= step_number <= STEP_COUNT:
+    scheduled_steps = step.get("scheduled_steps", STEP_COUNT)
+    batch_step = step.get("batch_step", step_number)
+    epoch = step.get("epoch")
+    if (
+        not isinstance(step_number, int)
+        or not isinstance(scheduled_steps, int)
+        or not 1 <= step_number <= scheduled_steps
+        or not isinstance(batch_step, int)
+        or not 1 <= batch_step <= STEP_COUNT
+        or not isinstance(epoch, int)
+        or epoch < 1
+    ):
         raise ControllerContractError("Step number is out of range.")
-    if step.get("batch", {}).get("batch_id") != f"batch_{step_number:03d}":
+    if step.get("batch", {}).get("batch_id") != f"batch_{batch_step:03d}":
         raise ControllerContractError("Step is assigned to the wrong batch.")
-    if step.get("candidate_id") != f"epoch_001_step_{step_number:03d}_candidate":
+    if step.get("candidate_id") != (
+        f"epoch_{epoch:03d}_step_{step_number:03d}_candidate"
+    ):
         raise ControllerContractError("Candidate ID does not match Step.")
     parent = _require_parent(step.get("parent"))
     _require_checkpoint(step.get("parent_checkpoint"), parent)
-    if step.get("proposal_operator") != "governed_reflection_editor":
-        raise ControllerContractError(
-            "Every Step must use governed_reflection_editor."
-        )
-    if step.get("proposal_budget") != PROPOSAL_BUDGET:
-        raise ControllerContractError("Step proposal budget drifted.")
+    proposal_operator = step.get("proposal_operator")
+    proposal_budget = step.get("proposal_budget")
+    if proposal_operator == "governed_reflection_editor":
+        if proposal_budget != PROPOSAL_BUDGET:
+            raise ControllerContractError("Step proposal budget drifted.")
+    elif proposal_operator == DIAGNOSIS_PROPOSAL_OPERATOR:
+        if (
+            not isinstance(proposal_budget, dict)
+            or set(proposal_budget) != DIAGNOSIS_PROPOSAL_BUDGET_FIELDS
+            or not isinstance(proposal_budget.get("maximum_diagnosis_calls"), int)
+            or isinstance(proposal_budget.get("maximum_diagnosis_calls"), bool)
+            or proposal_budget["maximum_diagnosis_calls"] <= 0
+            or proposal_budget.get("eligible_update_diagnoses") != "all_valid_updates"
+            or proposal_budget.get("maximum_editor_calls") != 1
+            or proposal_budget.get("additional_minibatching") is not False
+            or proposal_budget.get("maximum_skill_rules") != 18
+            or proposal_budget.get("maximum_skill_words") != 900
+            or proposal_budget.get("allowed_operations")
+            != ["add", "replace", "delete"]
+        ):
+            raise ControllerContractError("Diagnosis proposal budget drifted.")
+    else:
+        raise ControllerContractError("Step proposal operator is unsupported.")
     if step.get("data_isolation") != DATA_ISOLATION:
         raise ControllerContractError("Step data isolation drifted.")
 
@@ -497,8 +559,8 @@ def _result(
     )
 
 
-def _next_action(step: int) -> str:
-    return "COMPLETE_CAMPAIGN" if step == STEP_COUNT else "REGISTER_NEXT_STEP"
+def _next_action(step: int, scheduled_steps: int = STEP_COUNT) -> str:
+    return "COMPLETE_CAMPAIGN" if step == scheduled_steps else "REGISTER_NEXT_STEP"
 
 
 def reduce_step(step: dict[str, Any], event: dict[str, Any]) -> ControllerResult:
@@ -591,7 +653,9 @@ def reduce_step(step: dict[str, Any], event: dict[str, Any]) -> ControllerResult
         updated["next_parent"] = copy.deepcopy(parent)
         return _result(
             updated,
-            _next_action(updated["step"]),
+            _next_action(
+                updated["step"], updated.get("scheduled_steps", STEP_COUNT)
+            ),
             parent=parent,
             checkpoint=checkpoint,
         )
@@ -620,7 +684,9 @@ def reduce_step(step: dict[str, Any], event: dict[str, Any]) -> ControllerResult
         updated["next_parent"] = copy.deepcopy(next_parent)
         return _result(
             updated,
-            _next_action(updated["step"]),
+            _next_action(
+                updated["step"], updated.get("scheduled_steps", STEP_COUNT)
+            ),
             parent=next_parent,
             checkpoint=next_checkpoint,
         )

@@ -16,6 +16,10 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Protocol
 
+from src.adapters.stwebagentbench.benchmark_variant import (
+    benchmark_artifact_group,
+)
+
 REPO_ROOT = Path(__file__).resolve().parents[3]
 PREPARE_SCRIPT = REPO_ROOT / "src/adapters/stwebagentbench/prepare_suitecrm_worker.sh"
 
@@ -53,8 +57,8 @@ def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _worker_env(worker: Worker) -> dict[str, str]:
-    return {
+def _worker_env(worker: Worker, *, stack_prepared: bool = False) -> dict[str, str]:
+    env = {
         **os.environ,
         "GSE_WORKER_ID": str(worker.worker_id),
         "GSE_COMPOSE_PROJECT": worker.compose_project,
@@ -62,6 +66,9 @@ def _worker_env(worker: Worker) -> dict[str, str]:
         "WA_SUITECRM": f"http://127.0.0.1:{worker.suitecrm_port}",
         "PYTHONUNBUFFERED": "1",
     }
+    if stack_prepared:
+        env["GSE_WORKER_STACK_PREPARED"] = "1"
+    return env
 
 
 def prepare_worker_stacks(workers: Sequence[Worker]) -> None:
@@ -204,14 +211,19 @@ def run_dynamic_queue(
 def trajectory_path(payload: dict[str, Any]) -> Path:
     args = payload["args"]
     manifest = payload["manifest"]
-    artifact_group = "raw" if args["formal"] else "smoke"
+    artifact_group = benchmark_artifact_group(args["formal"])
     rollout_id = args.get("rollout_id", 1)
-    return (
+    root = (
         REPO_ROOT
         / "artifacts"
         / manifest["manifest_id"]
         / artifact_group
         / manifest["_output_split"]
+    )
+    if manifest.get("_output_phase"):
+        root /= manifest["_output_phase"]
+    return (
+        root
         / payload["method"]
         / f"task_{payload['task']['task_id']}"
         / f"trial_{rollout_id:02d}/trajectory.json"
@@ -249,7 +261,7 @@ def run_subprocess_rollouts(
                 json.dumps(worker_payload, ensure_ascii=False),
             ],
             cwd=REPO_ROOT,
-            env=_worker_env(worker),
+            env=_worker_env(worker, stack_prepared=True),
         )
 
     try:

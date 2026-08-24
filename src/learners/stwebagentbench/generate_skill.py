@@ -273,6 +273,7 @@ def call_learner(
     user_prompt: str,
     *,
     seed: int | None = None,
+    temperature: float | None = None,
 ) -> tuple[str, str, dict | None]:
     from openai import OpenAI
 
@@ -296,6 +297,8 @@ def call_learner(
     }
     if seed is not None:
         request["seed"] = seed
+    if temperature is not None:
+        request["temperature"] = temperature
     response = client.chat.completions.create(
         **request,
     )

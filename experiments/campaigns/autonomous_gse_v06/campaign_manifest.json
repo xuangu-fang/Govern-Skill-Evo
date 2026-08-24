@@ -1,0 +1,79 @@
+{
+  "schema_version": "autonomous_gse_campaign_0.6.0",
+  "protocol_version": "autonomous_gse_v06",
+  "campaign_id": "autonomous_gse_v06",
+  "campaign_seed": 200,
+  "headless": true,
+  "execution": "parallel",
+  "parallel_workers": 4,
+  "full_experiment_seeds": 1,
+  "rule_addressing": {
+    "mode": "stable_parent_rule_id",
+    "legacy_target_clause_fallback": "normalize_markdown_bullet_and_whitespace",
+    "ambiguous_legacy_match": "reject_edit"
+  },
+  "status": "ready",
+  "created_at": "2026-08-19",
+  "base_campaign": "experiments/campaigns/autonomous_gse_v03/campaign_manifest.json",
+  "schedule": {
+    "epochs": 3,
+    "steps_per_epoch": 3,
+    "scheduled_steps": 9
+  },
+  "batch_schedule": {
+    "epoch_1": ["batch_001", "batch_002", "batch_003"],
+    "epoch_2": ["batch_002", "batch_003", "batch_001"],
+    "epoch_3": ["batch_003", "batch_001", "batch_002"]
+  },
+  "runtime": {
+    "benchmark_agent": {
+      "model": "deepseek-v4-flash",
+      "temperature": 0.2,
+      "thinking": false,
+      "max_tokens": 2048,
+      "retry_on_token_exhaustion": false
+    },
+    "train": {
+      "rollouts_per_task": 3,
+      "temperature": 0.2,
+      "seed_strategy": "campaign_step_task_rollout",
+      "seeds": "distinct_across_rollouts"
+    },
+    "selection": {
+      "rollouts_per_task": 3,
+      "temperature": 0.2,
+      "seed_strategy": "campaign_task_rollout",
+      "parent_candidate_seed_matching": true
+    },
+    "learner": {
+      "success_reflector": {
+        "model": "openai/gpt-5.6-luna",
+        "temperature": 0
+      },
+      "failure_reflector": {
+        "model": "openai/gpt-5.6-luna",
+        "temperature": 0
+      },
+      "editor": {
+        "model": "openai/gpt-5.6-luna",
+        "temperature": 0
+      }
+    }
+  },
+  "post_hoc_training_replay": {
+    "enabled": false
+  },
+  "test": {
+    "authorized": false,
+    "data_for_learning": "forbidden"
+  },
+  "budget": {
+    "train_trajectories": 459,
+    "initial_selection_trajectories": 54,
+    "maximum_candidate_selection_trajectories": 486,
+    "maximum_total_trajectories": 999,
+    "maximum_candidates": 9,
+    "maximum_learner_calls": 27,
+    "unused_budget_reallocation": "forbidden"
+  }
+}

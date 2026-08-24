@@ -19,8 +19,10 @@ trap st_cleanup EXIT
 
 GSE_COMPOSE_PROJECT="${st_worker_1}" SUITECRM_PORT=8181 "${st_prepare}"
 GSE_COMPOSE_PROJECT="${st_worker_2}" SUITECRM_PORT=8182 "${st_prepare}"
-GSE_COMPOSE_PROJECT="${st_worker_1}" SUITECRM_PORT=8181 "${st_reset}"
-GSE_COMPOSE_PROJECT="${st_worker_2}" SUITECRM_PORT=8182 "${st_reset}"
+GSE_WORKER_STACK_PREPARED=1 \
+  GSE_COMPOSE_PROJECT="${st_worker_1}" SUITECRM_PORT=8181 "${st_reset}"
+GSE_WORKER_STACK_PREPARED=1 \
+  GSE_COMPOSE_PROJECT="${st_worker_2}" SUITECRM_PORT=8182 "${st_reset}"
 
 st_query="SELECT COALESCE(title, '__NULL__') FROM bitnami_suitecrm.contacts WHERE first_name='Michael' AND last_name='Scott' AND deleted=0 LIMIT 1;"
 st_update="UPDATE bitnami_suitecrm.contacts SET title='__WORKER1_TEST__' WHERE first_name='Michael' AND last_name='Scott' AND deleted=0;"
@@ -38,7 +40,8 @@ if [[ "${st_worker_2_pristine}" != "__NULL__" ]]; then
   exit 1
 fi
 
-GSE_COMPOSE_PROJECT="${st_worker_1}" SUITECRM_PORT=8181 "${st_reset}"
+GSE_WORKER_STACK_PREPARED=1 \
+  GSE_COMPOSE_PROJECT="${st_worker_1}" SUITECRM_PORT=8181 "${st_reset}"
 st_worker_1_restored="$(docker compose -p "${st_worker_1}" -f "${st_compose_file}" exec -T mariadb mariadb -u root -Nse "${st_query}")"
 st_worker_2_after_reset="$(docker compose -p "${st_worker_2}" -f "${st_compose_file}" exec -T mariadb mariadb -u root -Nse "${st_query}")"
 

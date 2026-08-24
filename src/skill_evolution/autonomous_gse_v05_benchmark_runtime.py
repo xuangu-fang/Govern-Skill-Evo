@@ -178,8 +178,22 @@ def validate_formal_campaign_contract(
 LearnerCaller = Callable[..., tuple[str, str, dict[str, Any] | None]]
 
 
+def _learner_role(request: Any) -> str:
+    """Name v0.5 roles while allowing additive proposal stages to log safely."""
+
+    diagnosis_id = getattr(request, "diagnosis_id", None)
+    if isinstance(diagnosis_id, str) and diagnosis_id:
+        return f"{diagnosis_id}_diagnosis"
+    if isinstance(request, ReflectorRequest):
+        return f"{request.reflector}_reflector"
+    return "editor"
+
+
 class SeededLearnerAdapter:
     """Reuse the v0.4 learner prompts and deterministic campaign seed."""
+
+    campaign_validator = staticmethod(validate_formal_campaign_contract)
+    campaign_expander = staticmethod(_expand_campaign)
 
     def __init__(
         self,
@@ -187,8 +201,8 @@ class SeededLearnerAdapter:
         *,
         caller: LearnerCaller = call_learner,
     ) -> None:
-        campaign = _expand_campaign(campaign)
-        validate_formal_campaign_contract(campaign)
+        campaign = self.campaign_expander(campaign)
+        self.campaign_validator(campaign)
         self._model = campaign["proposal"]["learner"]["model"]
         self._parameters = copy.deepcopy(
             campaign["proposal"]["learner"]["parameters"]
@@ -207,37 +221,49 @@ class SeededLearnerAdapter:
     ) -> tuple[str, str, dict[str, Any] | None]:
         if model != self._model:
             raise RuntimeContractError("Learner model drifted from the Manifest.")
+        sampling_parameters = self._sampling_parameters(request)
         response, resolved_model, usage = self._caller(
-            model, system_prompt, user_prompt, seed=self._seed
+            model, system_prompt, user_prompt, **sampling_parameters
         )
         if resolved_model != "gpt-5.6-luna":
             raise RuntimeContractError("Learner resolved model is unexpected.")
         if not isinstance(response, str) or not response.strip():
             raise RuntimeContractError("Learner returned an empty response.")
-        role = (
-            f"{request.reflector}_reflector"
-            if isinstance(request, ReflectorRequest)
-            else "editor"
-        )
+        role = _learner_role(request)
         self.last_response = response.strip()
         self.last_call = {
             "candidate_id": request.candidate_id,
             "role": role,
             "model": model,
-            "parameters": {**self._parameters, "seed": self._seed},
+            "parameters": {**self._parameters, **sampling_parameters},
             "system_prompt": system_prompt,
             "user_prompt": user_prompt,
             "usage": usage,
         }
         return self.last_response, resolved_model, usage
 
+    def _sampling_parameters(
+        self, request: ReflectorRequest | EditorRequest
+    ) -> dict[str, Any]:
+        del request
+        return {"seed": self._seed}
+
 
 class MultiRolloutRunnerBackend:
     """Execute configured task × rollout units through the v0.4 workers."""
 
+    campaign_validator = staticmethod(validate_formal_campaign_contract)
+    campaign_expander = staticmethod(_expand_campaign)
+    record_benchmark_agent_model = False
+    sampling_temperature: float | None = None
+    sampling_max_tokens: int | None = None
+    sampling_retry_max_tokens: int | None = None
+    sampling_thinking: bool | None = None
+    sampling_retry_on_token_exhaustion: bool | None = None
+
     def __init__(self, campaign: dict[str, Any]) -> None:
-        campaign = _expand_campaign(campaign)
-        validate_formal_campaign_contract(campaign, require_ready=True)
+        campaign = self.campaign_expander(campaign)
+        self.campaign_validator(campaign, require_ready=True)
         source = json.loads(
             _resolve_repo_path(campaign["train"]["source_manifest"]).read_text(
                 encoding="utf-8"
@@ -280,6 +306,8 @@ class MultiRolloutRunnerBackend:
             "benchmark": {"commit": self._benchmark_commit},
             "_output_split": request.split,
         }
+        if request.execution_phase is not None:
+            manifest["_output_phase"] = request.execution_phase
         runner = (
             v03_formal._run_train_task
             if request.split == "train"
@@ -294,9 +322,23 @@ class MultiRolloutRunnerBackend:
                     "model": self._model,
                     "method": request.method,
                     "campaign_seed": self._campaign_seed,
-                    "seed": self._campaign_seed + rollout_id - 1,
+                    "seed": self._execution_seed(request, task_id, rollout_id),
                     "rollout_id": rollout_id,
                 }
+                if self.record_benchmark_agent_model:
+                    args["benchmark_agent_model"] = self._model
+                if self.sampling_temperature is not None:
+                    args["temperature"] = self.sampling_temperature
+                if self.sampling_max_tokens is not None:
+                    args["max_tokens"] = self.sampling_max_tokens
+                if self.sampling_retry_max_tokens is not None:
+                    args["retry_max_tokens"] = self.sampling_retry_max_tokens
+                if self.sampling_thinking is not None:
+                    args["thinking"] = self.sampling_thinking
+                if self.sampling_retry_on_token_exhaustion is not None:
+                    args["retry_on_token_exhaustion"] = (
+                        self.sampling_retry_on_token_exhaustion
+                    )
                 payloads.append(
                     {
                         "source_split": request.split,
@@ -316,16 +358,31 @@ class MultiRolloutRunnerBackend:
             payloads, parallel_workers=self._parallel_workers
         )
         self.last_parallel_summary = summary
-        log_path = (
+        log_root = (
             REPO_ROOT
             / "artifacts"
             / self._campaign_id
             / "formal/parallel_runtime"
             / request.split
-            / f"{request.method}_{request.task_ids[0]}_{request.task_ids[-1]}.json"
+        )
+        if request.execution_phase is not None:
+            log_root /= request.execution_phase
+        log_path = log_root / (
+            f"{request.method}_{request.task_ids[0]}_{request.task_ids[-1]}.json"
         )
         _write_json(log_path, summary)
         return paths
+
+    def _execution_seed(
+        self, request: RolloutRequest, task_id: int, rollout_id: int
+    ) -> int:
+        del task_id
+        return (
+            self._campaign_seed
+            + request.execution_seed_offset
+            + rollout_id
+            - 1
+        )
 
 
 def _rollout_units(
@@ -441,6 +498,9 @@ class FormalBenchmarkRuntimeAdapter(v03_formal.FormalBenchmarkRuntimeAdapter):
     """Keep v0.4 Reflect/Aggregate/Gate semantics with v0.5 evidence counts."""
 
     mode = FORMAL_MODE
+    campaign_validator = staticmethod(validate_formal_campaign_contract)
+    campaign_expander = staticmethod(_expand_campaign)
+    controller_campaign = staticmethod(_v03_campaign)
 
     def __init__(
         self,
@@ -449,10 +509,12 @@ class FormalBenchmarkRuntimeAdapter(v03_formal.FormalBenchmarkRuntimeAdapter):
         rollout_backend: Callable[[RolloutRequest], Sequence[Path]],
         learner: SeededLearnerAdapter | None,
     ) -> None:
-        campaign = _expand_campaign(campaign)
-        validate_formal_campaign_contract(campaign, require_ready=True)
+        campaign = self.campaign_expander(campaign)
+        self.campaign_validator(campaign, require_ready=True)
         super().__init__(
-            _v03_campaign(campaign), rollout_backend=rollout_backend, learner=None
+            self.controller_campaign(campaign),
+            rollout_backend=rollout_backend,
+            learner=None,
         )
         self._campaign = copy.deepcopy(campaign)
         self._learner = learner
@@ -482,11 +544,13 @@ class FormalBenchmarkRuntimeAdapter(v03_formal.FormalBenchmarkRuntimeAdapter):
     ) -> tuple[Path, ...]:
         paths = tuple(
             self._rollout(
-                RolloutRequest(
-                    split=split,
-                    method=self._method(artifact),
-                    artifact=copy.deepcopy(artifact),
-                    task_ids=tuple(task_ids),
+                self._prepare_rollout_request(
+                    RolloutRequest(
+                        split=split,
+                        method=self._method(artifact),
+                        artifact=copy.deepcopy(artifact),
+                        task_ids=tuple(task_ids),
+                    )
                 )
             )
         )
@@ -497,6 +561,9 @@ class FormalBenchmarkRuntimeAdapter(v03_formal.FormalBenchmarkRuntimeAdapter):
         self._side_effects["database_calls"] += expected
         self._side_effects["filesystem_writes"] += expected
         return paths
+
+    def _prepare_rollout_request(self, request: RolloutRequest) -> RolloutRequest:
+        return request
 
     @staticmethod
     def _load_trajectory(
@@ -598,6 +665,60 @@ class FormalBenchmarkRuntimeAdapter(v03_formal.FormalBenchmarkRuntimeAdapter):
         checkpoint = _artifact("selection_checkpoint", artifact["version"], path)
         self._checkpoints[checkpoint["path"]] = payload
         return checkpoint
+
+    def restore_checkpoint(
+        self, checkpoint: dict[str, Any], parent: dict[str, Any]
+    ) -> None:
+        """Reload a frozen Selection checkpoint into memory for a resumed run.
+
+        This is read-only fault recovery: the checkpoint was already produced by
+        a completed Step, so Selection is never re-run. The stored Parent inside
+        the checkpoint may be a ``candidate_skill`` (its version before promotion)
+        while the resumed controller Parent is the promoted ``accepted_skill``;
+        lineage is therefore matched on version and path, not on ``kind``.
+        """
+
+        if checkpoint.get("kind") != "selection_checkpoint":
+            raise RuntimeContractError(
+                "Resume checkpoint must be a selection_checkpoint."
+            )
+        if checkpoint.get("version") != parent.get("version"):
+            raise RuntimeContractError(
+                "Resume checkpoint version must match the Parent."
+            )
+        path = _resolve_repo_path(checkpoint["path"])
+        if not path.is_file():
+            raise RuntimeContractError(f"Resume checkpoint is missing: {path}")
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        rollouts = self._campaign["selection_rollouts_per_task"]
+        stored_parent = payload.get("parent", {})
+        if (
+            payload.get("schema_version")
+            != "autonomous_gse_selection_checkpoint_0.5.0"
+            or payload.get("campaign_id") != self._campaign["campaign_id"]
+            or payload.get("task_count") != 18
+            or payload.get("trajectory_count") != 18 * rollouts
+            or not isinstance(payload.get("sources"), list)
+            or not isinstance(payload.get("rows"), list)
+            or len(payload["sources"]) != 18 * rollouts
+            or len(payload["rows"]) != 18 * rollouts
+        ):
+            raise RuntimeContractError("Resume checkpoint contract is invalid.")
+        if (
+            stored_parent.get("version") != parent.get("version")
+            or stored_parent.get("path") != parent.get("path")
+        ):
+            raise RuntimeContractError(
+                "Resume checkpoint lineage does not match the Parent."
+            )
+        self._checkpoints[checkpoint["path"]] = payload
+        self._trace.append(
+            {
+                "operation": "restore_selection_checkpoint",
+                "version": checkpoint["version"],
+                "path": checkpoint["path"],
+            }
+        )
 
     def create_initial_checkpoint(
         self, parent: dict[str, Any], task_count: int
@@ -719,11 +840,7 @@ class FormalBenchmarkRuntimeAdapter(v03_formal.FormalBenchmarkRuntimeAdapter):
         if self._learner is None:
             raise RuntimeContractError("Learner is unavailable for a formal run.")
         response = self._learner.call(request, model, system_prompt, user_prompt)
-        role = (
-            f"{request.reflector}_reflector"
-            if isinstance(request, ReflectorRequest)
-            else "editor"
-        )
+        role = _learner_role(request)
         root = (
             REPO_ROOT
             / "artifacts"
@@ -772,6 +889,16 @@ class FormalBenchmarkRuntimeAdapter(v03_formal.FormalBenchmarkRuntimeAdapter):
             "provenance_status": decision.provenance_status,
             "provenance_audit": copy.deepcopy(decision.provenance_audit),
         }
+        for field in (
+            "diagnosis_calls",
+            "diagnoses",
+            "eligible_diagnosis_ids",
+            "preserve_constraints",
+        ):
+            if hasattr(decision, field):
+                payload[field] = copy.deepcopy(getattr(decision, field))
+        if hasattr(decision, "diagnoses"):
+            payload["schema_version"] = "autonomous_gse_proposal_record_0.7.0"
         root = (
             REPO_ROOT
             / "artifacts"
@@ -835,32 +962,72 @@ def _campaign_paths(campaign: dict[str, Any]) -> dict[str, Path]:
 
 
 def run_v05_campaign(
-    campaign: dict[str, Any], batch_map: dict[str, Any], adapter: Any
+    campaign: dict[str, Any],
+    batch_map: dict[str, Any],
+    adapter: Any,
+    *,
+    scheduled_steps: int = 3,
+    step_registrar: Callable[..., dict[str, Any]] = v03_runtime.register_step,
+    budget_campaign: dict[str, Any] | None = None,
+    resume_state: dict[str, Any] | None = None,
+    on_step_completed: Callable[[dict[str, Any]], None] | None = None,
+    proposal_driver: Callable[[Any, dict[str, Any], Any], Any] | None = None,
 ) -> dict[str, Any]:
-    """Run the unchanged controller with the v0.5 rule-ID Proposal path."""
+    """Run the unchanged controller with the v0.5 rule-ID Proposal path.
 
-    current_parent = copy.deepcopy(campaign["initial_parent"])
+    ``resume_state`` is optional Step-boundary fault recovery: when provided the
+    controller restores the last completed Step's Parent, checkpoint, completed
+    Steps, and budget usage, and continues from ``next_step`` instead of Step 1.
+    A fresh run (``resume_state is None``) behaves exactly as before.
+    """
+
     selection_tasks = campaign["selection"]["tasks"]
-    current_checkpoint = v03_runtime._require_artifact(
-        adapter.create_initial_checkpoint(current_parent, selection_tasks),
-        "Initial checkpoint",
-        kind="selection_checkpoint",
-        version=current_parent["version"],
-    )
-    usage = {
-        "train_trajectories": 0,
-        "initial_selection_trajectories": selection_tasks,
-        "candidate_selection_trajectories": 0,
-        "total_trajectories": selection_tasks,
-        "candidates": 0,
-        "learner_calls": 0,
-        "test_trajectories": 0,
-    }
-    completed_steps: list[dict[str, Any]] = []
     operator = RuleIdGovernedReflectionEditorProposalOperator()
+    checked_campaign = campaign if budget_campaign is None else budget_campaign
 
-    for step_number in range(1, 4):
-        step = v03_runtime.register_step(
+    if resume_state is None:
+        current_parent = copy.deepcopy(campaign["initial_parent"])
+        current_checkpoint = v03_runtime._require_artifact(
+            adapter.create_initial_checkpoint(current_parent, selection_tasks),
+            "Initial checkpoint",
+            kind="selection_checkpoint",
+            version=current_parent["version"],
+        )
+        usage = {
+            "train_trajectories": 0,
+            "initial_selection_trajectories": selection_tasks,
+            "candidate_selection_trajectories": 0,
+            "total_trajectories": selection_tasks,
+            "candidates": 0,
+            "learner_calls": 0,
+            "test_trajectories": 0,
+        }
+        completed_steps: list[dict[str, Any]] = []
+        start_step = 1
+    else:
+        current_parent = copy.deepcopy(resume_state["current_parent"])
+        current_checkpoint = v03_runtime._require_artifact(
+            copy.deepcopy(resume_state["current_checkpoint"]),
+            "Resumed checkpoint",
+            kind="selection_checkpoint",
+            version=current_parent["version"],
+        )
+        completed_steps = copy.deepcopy(resume_state["completed_steps"])
+        usage = copy.deepcopy(resume_state["budget_usage"])
+        next_step = resume_state["next_step"]
+        if not isinstance(next_step, int) or isinstance(next_step, bool):
+            raise RuntimeContractError("Resume next_step must be an integer.")
+        if next_step != len(completed_steps) + 1:
+            raise RuntimeContractError(
+                "Resume next_step must follow the completed Step prefix."
+            )
+        if not 1 <= next_step <= scheduled_steps + 1:
+            raise RuntimeContractError("Resume next_step is out of range.")
+        adapter.restore_checkpoint(current_checkpoint, current_parent)
+        start_step = next_step
+
+    for step_number in range(start_step, scheduled_steps + 1):
+        step = step_registrar(
             campaign,
             batch_map,
             step=step_number,
@@ -871,7 +1038,7 @@ def run_v05_campaign(
         evidence = adapter.run_train(copy.deepcopy(step))
         usage["train_trajectories"] += len(step["batch"]["task_ids"])
         usage["total_trajectories"] += len(step["batch"]["task_ids"])
-        v03_runtime._check_budget(campaign, usage)
+        v03_runtime._check_budget(checked_campaign, usage)
 
         for event_type in (
             "TRAIN_COMPLETED",
@@ -887,41 +1054,44 @@ def run_v05_campaign(
             current_batch_governed_evidence=copy.deepcopy(evidence),
         )
 
-        def call_reflector(request: ReflectorRequest) -> str:
-            current = copy.deepcopy(step)
-            return call_v05_reflector(
-                request,
-                learner_call=lambda model, system_prompt, user_prompt: (
-                    adapter.learner_call(
-                        current,
-                        request,
-                        model,
-                        system_prompt,
-                        user_prompt,
-                    )
-                ),
-            )
+        if proposal_driver is None:
+            def call_reflector(request: ReflectorRequest) -> str:
+                current = copy.deepcopy(step)
+                return call_v05_reflector(
+                    request,
+                    learner_call=lambda model, system_prompt, user_prompt: (
+                        adapter.learner_call(
+                            current,
+                            request,
+                            model,
+                            system_prompt,
+                            user_prompt,
+                        )
+                    ),
+                )
 
-        def call_editor(request: EditorRequest) -> str:
-            current = copy.deepcopy(step)
-            return call_v05_editor(
-                request,
-                learner_call=lambda model, system_prompt, user_prompt: (
-                    adapter.learner_call(
-                        current,
-                        request,
-                        model,
-                        system_prompt,
-                        user_prompt,
-                    )
-                ),
-            )
+            def call_editor(request: EditorRequest) -> str:
+                current = copy.deepcopy(step)
+                return call_v05_editor(
+                    request,
+                    learner_call=lambda model, system_prompt, user_prompt: (
+                        adapter.learner_call(
+                            current,
+                            request,
+                            model,
+                            system_prompt,
+                            user_prompt,
+                        )
+                    ),
+                )
 
-        decision = operator.propose(
-            context, call_reflector, call_reflector, call_editor
-        )
+            decision = operator.propose(
+                context, call_reflector, call_reflector, call_editor
+            )
+        else:
+            decision = proposal_driver(context, copy.deepcopy(step), adapter)
         usage["learner_calls"] += decision.reflector_calls + decision.editor_calls
-        v03_runtime._check_budget(campaign, usage)
+        v03_runtime._check_budget(checked_campaign, usage)
 
         if decision.proposal_status == "NO_CANDIDATE":
             adapter.record_proposal(copy.deepcopy(step), decision, None)
@@ -963,7 +1133,7 @@ def run_v05_campaign(
             )
             usage["candidate_selection_trajectories"] += selection_tasks
             usage["total_trajectories"] += selection_tasks
-            v03_runtime._check_budget(campaign, usage)
+            v03_runtime._check_budget(checked_campaign, usage)
             adapter.validate_candidate_selection(
                 copy.deepcopy(step), copy.deepcopy(candidate_checkpoint)
             )
@@ -1001,8 +1171,19 @@ def run_v05_campaign(
             raise RuntimeContractError("Completed Step lost accepted state.")
         current_parent = result.accepted_parent
         current_checkpoint = result.accepted_parent_checkpoint
+        if on_step_completed is not None:
+            on_step_completed(
+                {
+                    "last_completed_step": step_number,
+                    "next_step": step_number + 1,
+                    "completed_steps": copy.deepcopy(completed_steps),
+                    "current_parent": copy.deepcopy(current_parent),
+                    "current_checkpoint": copy.deepcopy(current_checkpoint),
+                    "budget_usage": copy.deepcopy(usage),
+                }
+            )
 
-    v03_runtime._check_budget(campaign, usage)
+    v03_runtime._check_budget(checked_campaign, usage)
     return {
         "schema_version": "autonomous_gse_runtime_report_0.5.0",
         "campaign_id": campaign["campaign_id"],
