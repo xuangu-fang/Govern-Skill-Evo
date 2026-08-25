@@ -25,9 +25,18 @@ load_dotenv(BENCHMARK_ROOT / ".env")
 
 import browsergym.stwebagentbench  # noqa: F401
 import gymnasium as gym
-from st_bench_example import DemoAgent, get_action_set
+from st_bench_example import (
+    DemoAgent,
+    InvalidActionGenerationError,
+    get_action_set,
+)
 from stwebagentbench.utils.data_collector import NumpyEncoder
 
+from src.adapters.stwebagentbench.benchmark_variant import (
+    benchmark_artifact_group,
+    benchmark_environment_id,
+    benchmark_variant_metadata,
+)
 from src.adapters.stwebagentbench.seeded_agent import seed_agent_client
 from src.adapters.stwebagentbench.skill_runtime import load_method_skill
 
@@ -141,6 +150,7 @@ def expand_split_tasks(manifest: dict, split: str) -> list[dict]:
 def load_selection_tasks(
     manifest_path: Path,
     method: str,
+    split: str = "selection",
 ) -> tuple[dict, list[dict]]:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 
@@ -156,32 +166,32 @@ def load_selection_tasks(
     )
     if method not in planned_methods:
         raise ValueError(
-            f"Manifest does not permit {method!r} Selection rollouts."
+            f"Manifest does not permit {method!r} evaluation rollouts."
         )
 
-    tasks = expand_split_tasks(manifest, "selection")
+    tasks = expand_split_tasks(manifest, split)
     task_ids = [task["task_id"] for task in tasks]
-    expected_count = manifest["splits"]["selection"]["task_count"]
+    expected_count = manifest["splits"][split]["task_count"]
 
     if expected_count != 18 or len(tasks) != expected_count:
         raise ValueError(
-            "Expected exactly 18 Selection tasks: "
+            f"Expected exactly 18 {split.title()} tasks: "
             f"manifest={expected_count}, expanded={len(tasks)}"
         )
 
     if len(task_ids) != len(set(task_ids)):
-        raise ValueError("Selection split contains duplicate Task IDs.")
+        raise ValueError(f"{split.title()} split contains duplicate Task IDs.")
 
-    selection_ids = set(task_ids)
-    for other_split in ("train", "test"):
+    selected_ids = set(task_ids)
+    for other_split in {"train", "selection", "test"} - {split}:
         other_ids = {
             task["task_id"]
             for task in expand_split_tasks(manifest, other_split)
         }
-        overlap = sorted(selection_ids & other_ids)
+        overlap = sorted(selected_ids & other_ids)
         if overlap:
             raise ValueError(
-                f"Selection overlaps {other_split}: {overlap}"
+                f"{split.title()} overlaps {other_split}: {overlap}"
             )
 
     return manifest, tasks
@@ -225,6 +235,21 @@ def parse_args() -> argparse.Namespace:
         "--manifest",
         type=Path,
         default=DEFAULT_MANIFEST,
+    )
+    parser.add_argument(
+        "--artifact-manifest-id",
+        help="Override only the artifact/run manifest ID to isolate a new evaluation.",
+    )
+    parser.add_argument(
+        "--allow-model-override",
+        action="store_true",
+        help="Allow --model to differ from the source manifest only for an isolated artifact ID.",
+    )
+    parser.add_argument(
+        "--split",
+        choices=("selection", "test"),
+        default="selection",
+        help="Evaluation split to run (default: selection).",
     )
     parser.add_argument(
         "--method",
@@ -274,17 +299,17 @@ def get_output_dir(
     formal: bool,
     rollout_id: int = 1,
 ) -> Path:
-    artifact_group = "raw" if formal else "smoke"
-    return (
+    artifact_group = benchmark_artifact_group(formal)
+    root = (
         REPO_ROOT
         / "artifacts"
         / manifest["manifest_id"]
         / artifact_group
         / manifest.get("_output_split", "selection")
-        / method
-        / f"task_{task_id}"
-        / f"trial_{rollout_id:02d}"
     )
+    if manifest.get("_output_phase"):
+        root /= manifest["_output_phase"]
+    return root / method / f"task_{task_id}" / f"trial_{rollout_id:02d}"
 
 
 def expected_run_metadata(
@@ -304,6 +329,13 @@ def expected_run_metadata(
         "skill_path": skill["path"],
         "skill_version": skill["version"],
     }
+    expected.update(benchmark_variant_metadata())
+    if getattr(args, "benchmark_agent_model", None) is not None:
+        expected["benchmark_agent_model"] = args.benchmark_agent_model
+    if getattr(args, "temperature", None) is not None:
+        expected["generation_temperature"] = args.temperature
+    if manifest.get("_output_phase"):
+        expected["execution_phase"] = manifest["_output_phase"]
     if getattr(args, "seed", None) is not None:
         seed_key = (
             "execution_seed"
@@ -389,8 +421,9 @@ def run_task(
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    output_split = manifest.get("_output_split", "selection")
     run_id = (
-        f"{manifest['manifest_id']}-selection-{args.method}-"
+        f"{manifest['manifest_id']}-{output_split}-{args.method}-"
         f"task_{task['task_id']}-trial_{getattr(args, 'rollout_id', 1):02d}"
     )
     run_metadata = {
@@ -408,7 +441,6 @@ def run_task(
         "skill_injected": skill["block"] is not None,
         "started_at": utc_now(),
     }
-
     seed = getattr(args, "seed", None)
     if seed is not None:
         seed_key = (
@@ -430,6 +462,7 @@ def run_task(
         )
 
     env = None
+    agent = None
 
     try:
         print(f"Restoring database before Task {task['task_id']}...")
@@ -441,14 +474,28 @@ def run_task(
 
         action_set = get_action_set(multiaction=False)
         env = gym.make(
-            f"browsergym/STWebAgentBenchEnv.{task['task_id']}",
+            benchmark_environment_id(task["task_id"]),
             headless=args.headless,
             action_mapping=action_set.to_python_code,
         )
         obs, reset_info = env.reset()
         agent = make_agent(args.model, skill)
+        if getattr(args, "max_tokens", None) is not None:
+            agent.max_tokens = args.max_tokens
+        if getattr(args, "retry_max_tokens", None) is not None:
+            agent.retry_max_tokens = args.retry_max_tokens
+        if getattr(args, "thinking", None) is not None:
+            agent.thinking = args.thinking
+        if hasattr(args, "retry_on_token_exhaustion"):
+            agent.retry_on_token_exhaustion = (
+                args.retry_on_token_exhaustion
+            )
         if seed is not None:
-            agent = seed_agent_client(agent, seed)
+            agent = seed_agent_client(
+                agent,
+                seed,
+                temperature=getattr(args, "temperature", None),
+            )
         initial_observation = agent.obs_preprocessor(obs)
 
         steps: list[dict] = []
@@ -533,6 +580,17 @@ def run_task(
                 "truncated": bool(truncated),
             },
         }
+        if benchmark_variant_metadata():
+            trajectory["interaction"] = {
+                "user_simulator": final_info.get(
+                    "user_simulator", reset_info.get("user_simulator", {})
+                ),
+                "trace": final_info.get("interaction_trace", []),
+                "evaluation": final_info.get(
+                    "interaction_evaluation",
+                    reset_info.get("interaction_evaluation", {}),
+                ),
+            }
         save_json_atomic(trajectory_path, trajectory)
 
         print(f"Trajectory saved: {trajectory_path}")
@@ -555,13 +613,21 @@ def run_task(
             "run": {
                 **run_metadata,
                 "ended_at": utc_now(),
-                "status": "failed",
+                "status": (
+                    "INVALID_ACTION_GENERATION"
+                    if isinstance(exc, InvalidActionGenerationError)
+                    else "failed"
+                ),
             },
             "task": task,
             "error_type": type(exc).__name__,
             "error": str(exc),
             "traceback": traceback.format_exc(),
         }
+        if isinstance(exc, InvalidActionGenerationError):
+            failure["action_generation"] = getattr(
+                agent, "last_llm_output", None
+            )
         save_json_atomic(
             output_dir / f"failure_{failure_timestamp}.json",
             failure,
@@ -592,12 +658,17 @@ def main() -> None:
     manifest, selection_tasks = load_selection_tasks(
         manifest_path,
         args.method,
+        args.split,
     )
     expected_agent = manifest["runtime_contract"]["agent"]
     if args.model != expected_agent["requested_model"]:
-        raise ValueError(
-            f"Formal model must be {expected_agent['requested_model']!r}."
-        )
+        if not (args.allow_model_override and args.artifact_manifest_id):
+            raise ValueError(
+                f"Formal model must be {expected_agent['requested_model']!r}; "
+                "an isolated override requires --allow-model-override and "
+                "--artifact-manifest-id."
+            )
+        args.benchmark_agent_model = expected_agent["requested_model"]
     expected_headless = manifest["runtime_contract"][
         "common_rollout_configuration"
     ]["headless"]
@@ -605,7 +676,7 @@ def main() -> None:
         raise ValueError(
             f"Formal headless must be {expected_headless!r}."
         )
-    if args.formal and not args.dry_run:
+    if args.formal and not args.dry_run and args.split == "selection":
         load_method_skill(manifest, "governed_candidate_s2")
     skill = load_skill(
         manifest,
@@ -614,6 +685,9 @@ def main() -> None:
     )
     if not skill["available"] and not args.dry_run:
         raise ValueError(f"Skill for {args.method} is not available yet.")
+    manifest["_output_split"] = args.split
+    if args.artifact_manifest_id:
+        manifest["manifest_id"] = args.artifact_manifest_id
 
     if args.all:
         selected_tasks = selection_tasks
