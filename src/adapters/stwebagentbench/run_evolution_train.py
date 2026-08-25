@@ -201,14 +201,26 @@ def get_output_dir(
     formal: bool,
     rollout_id: int = 1,
 ) -> Path:
-    artifact_group = benchmark_artifact_group(formal)
-    root = (
-        REPO_ROOT
-        / "artifacts"
-        / manifest["manifest_id"]
-        / artifact_group
-        / manifest.get("_output_split", "train")
-    )
+    explicit_root = manifest.get("_artifact_root")
+    if explicit_root is not None:
+        if Path(explicit_root).is_absolute():
+            raise ValueError("_artifact_root must be relative to the repository.")
+        root = (REPO_ROOT / explicit_root).resolve()
+        try:
+            root.relative_to(REPO_ROOT.resolve())
+        except ValueError as exc:
+            raise ValueError("_artifact_root must stay inside the repository.") from exc
+    else:
+        artifact_group = manifest.get(
+            "_artifact_group", benchmark_artifact_group(formal)
+        )
+        root = (
+            REPO_ROOT
+            / "artifacts"
+            / manifest["manifest_id"]
+            / artifact_group
+            / manifest.get("_output_split", "train")
+        )
     if manifest.get("_output_phase"):
         root /= manifest["_output_phase"]
     return root / method / f"task_{task_id}" / f"trial_{rollout_id:02d}"
@@ -239,6 +251,7 @@ def validate_completed_trajectory(
         "skill_injected": skill["block"] is not None,
     }
     expected.update(benchmark_variant_metadata())
+    expected.update(manifest.get("_run_metadata", {}))
     if getattr(args, "benchmark_agent_model", None) is not None:
         expected["benchmark_agent_model"] = args.benchmark_agent_model
     if getattr(args, "temperature", None) is not None:
@@ -327,6 +340,14 @@ def run_task(
         "started_at": utc_now(),
     }
     run_metadata.update(benchmark_variant_metadata())
+    extra_run_metadata = manifest.get("_run_metadata", {})
+    collisions = set(extra_run_metadata) & set(run_metadata)
+    if collisions:
+        raise ValueError(
+            "_run_metadata may not replace runner-owned fields: "
+            f"{sorted(collisions)}"
+        )
+    run_metadata.update(extra_run_metadata)
     if getattr(args, "benchmark_agent_model", None) is not None:
         run_metadata["benchmark_agent_model"] = args.benchmark_agent_model
     if getattr(args, "temperature", None) is not None:

@@ -146,6 +146,10 @@ def test_worker_url_is_in_environment_before_child_launch() -> None:
     assert _worker_env(WORKERS[1])["WA_SUITECRM"] == "http://127.0.0.1:8082"
     assert _worker_env(WORKERS[2])["WA_SUITECRM"] == "http://127.0.0.1:8083"
     assert _worker_env(WORKERS[3])["WA_SUITECRM"] == "http://127.0.0.1:8084"
+    assert all(
+        _worker_env(worker)["SUITECRM"] == _worker_env(worker)["WA_SUITECRM"]
+        for worker in WORKERS
+    )
     assert "GSE_WORKER_STACK_PREPARED" not in _worker_env(WORKERS[0])
     assert _worker_env(WORKERS[0], stack_prepared=True)[
         "GSE_WORKER_STACK_PREPARED"

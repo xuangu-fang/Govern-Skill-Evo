@@ -58,12 +58,17 @@ def _utc_now() -> str:
 
 
 def _worker_env(worker: Worker, *, stack_prepared: bool = False) -> dict[str, str]:
+    suitecrm_url = f"http://127.0.0.1:{worker.suitecrm_port}"
     env = {
         **os.environ,
         "GSE_WORKER_ID": str(worker.worker_id),
         "GSE_COMPOSE_PROJECT": worker.compose_project,
         "SUITECRM_PORT": str(worker.suitecrm_port),
-        "WA_SUITECRM": f"http://127.0.0.1:{worker.suitecrm_port}",
+        # BrowserGym requires WA_SUITECRM, while the imported upstream
+        # env_config snapshots SUITECRM during module import.  Keep both names
+        # identical so the existing per-worker isolation contract is honored.
+        "WA_SUITECRM": suitecrm_url,
+        "SUITECRM": suitecrm_url,
         "PYTHONUNBUFFERED": "1",
     }
     if stack_prepared:
