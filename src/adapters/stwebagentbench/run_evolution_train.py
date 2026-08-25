@@ -25,9 +25,18 @@ load_dotenv(BENCHMARK_ROOT / ".env")
 
 import browsergym.stwebagentbench  # noqa: F401
 import gymnasium as gym
-from st_bench_example import DemoAgent, get_action_set
+from st_bench_example import (
+    DemoAgent,
+    InvalidActionGenerationError,
+    get_action_set,
+)
 from stwebagentbench.utils.data_collector import NumpyEncoder
 
+from src.adapters.stwebagentbench.benchmark_variant import (
+    benchmark_artifact_group,
+    benchmark_environment_id,
+    benchmark_variant_metadata,
+)
 from src.adapters.stwebagentbench.seeded_agent import seed_agent_client
 from src.adapters.stwebagentbench.skill_runtime import load_method_skill
 
@@ -138,6 +147,15 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=DEFAULT_MANIFEST,
     )
+    parser.add_argument(
+        "--artifact-manifest-id",
+        help="Override only the artifact/run manifest ID to isolate a new evaluation.",
+    )
+    parser.add_argument(
+        "--allow-model-override",
+        action="store_true",
+        help="Allow --model to differ from the source manifest only for an isolated artifact ID.",
+    )
     task_selection = parser.add_mutually_exclusive_group(required=True)
     task_selection.add_argument(
         "--task-id",
@@ -183,17 +201,17 @@ def get_output_dir(
     formal: bool,
     rollout_id: int = 1,
 ) -> Path:
-    artifact_group = "raw" if formal else "smoke"
-    return (
+    artifact_group = benchmark_artifact_group(formal)
+    root = (
         REPO_ROOT
         / "artifacts"
         / manifest["manifest_id"]
         / artifact_group
         / manifest.get("_output_split", "train")
-        / method
-        / f"task_{task_id}"
-        / f"trial_{rollout_id:02d}"
     )
+    if manifest.get("_output_phase"):
+        root /= manifest["_output_phase"]
+    return root / method / f"task_{task_id}" / f"trial_{rollout_id:02d}"
 
 
 def validate_completed_trajectory(
@@ -220,6 +238,13 @@ def validate_completed_trajectory(
         "skill_path": skill["path"],
         "skill_injected": skill["block"] is not None,
     }
+    expected.update(benchmark_variant_metadata())
+    if getattr(args, "benchmark_agent_model", None) is not None:
+        expected["benchmark_agent_model"] = args.benchmark_agent_model
+    if getattr(args, "temperature", None) is not None:
+        expected["generation_temperature"] = args.temperature
+    if manifest.get("_output_phase"):
+        expected["execution_phase"] = manifest["_output_phase"]
     if getattr(args, "seed", None) is not None:
         seed_key = (
             "execution_seed"
@@ -301,6 +326,13 @@ def run_task(
         "skill_injected": skill["block"] is not None,
         "started_at": utc_now(),
     }
+    run_metadata.update(benchmark_variant_metadata())
+    if getattr(args, "benchmark_agent_model", None) is not None:
+        run_metadata["benchmark_agent_model"] = args.benchmark_agent_model
+    if getattr(args, "temperature", None) is not None:
+        run_metadata["generation_temperature"] = args.temperature
+    if manifest.get("_output_phase"):
+        run_metadata["execution_phase"] = manifest["_output_phase"]
 
     seed = getattr(args, "seed", None)
     if seed is not None:
@@ -322,6 +354,7 @@ def run_task(
         )
 
     env = None
+    agent = None
 
     try:
         print(f"Restoring database before Task {task['task_id']}...")
@@ -335,7 +368,7 @@ def run_task(
         action_set = get_action_set(multiaction=False)
 
         env = gym.make(
-            f"browsergym/STWebAgentBenchEnv.{task['task_id']}",
+            benchmark_environment_id(task["task_id"]),
             headless=args.headless,
             action_mapping=action_set.to_python_code,
         )
@@ -343,8 +376,22 @@ def run_task(
         obs, reset_info = env.reset()
 
         agent = make_agent(args.model, skill)
+        if getattr(args, "max_tokens", None) is not None:
+            agent.max_tokens = args.max_tokens
+        if getattr(args, "retry_max_tokens", None) is not None:
+            agent.retry_max_tokens = args.retry_max_tokens
+        if getattr(args, "thinking", None) is not None:
+            agent.thinking = args.thinking
+        if hasattr(args, "retry_on_token_exhaustion"):
+            agent.retry_on_token_exhaustion = (
+                args.retry_on_token_exhaustion
+            )
         if seed is not None:
-            agent = seed_agent_client(agent, seed)
+            agent = seed_agent_client(
+                agent,
+                seed,
+                temperature=getattr(args, "temperature", None),
+            )
 
         initial_observation = agent.obs_preprocessor(obs)
 
@@ -433,6 +480,17 @@ def run_task(
                 "truncated": bool(truncated),
             },
         }
+        if benchmark_variant_metadata():
+            trajectory["interaction"] = {
+                "user_simulator": final_info.get(
+                    "user_simulator", reset_info.get("user_simulator", {})
+                ),
+                "trace": final_info.get("interaction_trace", []),
+                "evaluation": final_info.get(
+                    "interaction_evaluation",
+                    reset_info.get("interaction_evaluation", {}),
+                ),
+            }
 
         save_json_atomic(trajectory_path, trajectory)
 
@@ -457,13 +515,21 @@ def run_task(
             "run": {
                 **run_metadata,
                 "ended_at": utc_now(),
-                "status": "failed",
+                "status": (
+                    "INVALID_ACTION_GENERATION"
+                    if isinstance(exc, InvalidActionGenerationError)
+                    else "failed"
+                ),
             },
             "task": task,
             "error_type": type(exc).__name__,
             "error": str(exc),
             "traceback": traceback.format_exc(),
         }
+        if isinstance(exc, InvalidActionGenerationError):
+            failure["action_generation"] = getattr(
+                agent, "last_llm_output", None
+            )
 
         save_json_atomic(
             output_dir / f"failure_{failure_timestamp}.json",
@@ -505,9 +571,13 @@ def main() -> None:
     manifest, train_tasks, method = load_train_tasks(manifest_path)
     expected_agent = manifest["runtime_contract"]["agent"]
     if args.model != expected_agent["requested_model"]:
-        raise ValueError(
-            f"Formal model must be {expected_agent['requested_model']!r}."
-        )
+        if not (args.allow_model_override and args.artifact_manifest_id):
+            raise ValueError(
+                f"Formal model must be {expected_agent['requested_model']!r}; "
+                "an isolated override requires --allow-model-override and "
+                "--artifact-manifest-id."
+            )
+        args.benchmark_agent_model = expected_agent["requested_model"]
     expected_headless = manifest["runtime_contract"][
         "common_rollout_configuration"
     ]["headless"]
@@ -516,6 +586,8 @@ def main() -> None:
             f"Formal headless must be {expected_headless!r}."
         )
     skill = load_method_skill(manifest, method)
+    if args.artifact_manifest_id:
+        manifest["manifest_id"] = args.artifact_manifest_id
 
     if args.all and not args.formal:
         raise ValueError("--all requires --formal to protect smoke outputs.")
