@@ -3,7 +3,7 @@ new file mode 100644
 index 0000000..7c3a64b
 --- /dev/null
 +++ b/src/tau2/agent/manual_skill_agent.py
-@@ -0,0 +1,59 @@
+@@ -0,0 +1,62 @@
 +import os
 +from pathlib import Path
 +from typing import Optional
@@ -52,8 +52,11 @@ index 0000000..7c3a64b
 +
 +
 +def create_manual_skill_agent(tools, domain_policy, **kwargs):
-+    """Create an agent using the Skill named by TAU2_AGENT_SKILL_PATH."""
-+    skill_path = os.environ.get(SKILL_PATH_ENV)
++    """Create an agent using an explicit Skill path or the environment fallback."""
++    llm_args = dict(kwargs.get("llm_args") or {})
++    skill_path = llm_args.pop("manual_skill_path", None) or os.environ.get(
++        SKILL_PATH_ENV
++    )
 +    if not skill_path:
 +        raise ValueError(f"{SKILL_PATH_ENV} must point to a SKILL.md file")
 +    return ManualSkillAgent(
@@ -61,7 +64,7 @@ index 0000000..7c3a64b
 +        domain_policy=domain_policy,
 +        skill=load_skill_body(skill_path),
 +        llm=kwargs.get("llm"),
-+        llm_args=kwargs.get("llm_args"),
++        llm_args=llm_args,
 +    )
 diff --git a/src/tau2/registry.py b/src/tau2/registry.py
 index 86a97a1..2239e38 100644

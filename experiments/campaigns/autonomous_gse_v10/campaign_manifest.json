@@ -1,0 +1,139 @@
+{
+  "schema_version": "autonomous_gse_campaign_0.10.0",
+  "protocol_version": "autonomous_gse_v10",
+  "campaign_id": "autonomous_gse_v10",
+  "campaign_seed": 200,
+  "status": "ready",
+  "created_at": "2026-08-25",
+  "benchmark_adapter_reference": "v09_tau3",
+  "proposal_semantics": "v05_multi_rollout_reflection",
+  "execution": {
+    "parallelism_unit": "task_x_rollout",
+    "max_concurrency": 6
+  },
+  "benchmark": {
+    "name": "tau3",
+    "repository": "sierra-research/tau2-bench",
+    "path": "external/tau2-bench",
+    "commit": "1d244f5dca42944b67a379b44bfeb9f5748f189d",
+    "domains": ["airline", "retail"],
+    "official_task_success": "reward == 1.0",
+    "official_components_saved": ["reward", "DB", "COMMUNICATE"]
+  },
+  "initial_parent": {
+    "kind": "empty_skill",
+    "version": "S0",
+    "path": "experiments/campaigns/autonomous_gse_v09/skills/S0_empty_skill.md",
+    "rollout_semantics": "benchmark_default_prompt_without_learned_skill_injection"
+  },
+  "schedule": {"evolution_steps": 3},
+  "train": {
+    "source_split": "official_train",
+    "tasks": 51,
+    "airline_tasks": 21,
+    "retail_tasks": 30,
+    "batches": 3,
+    "tasks_per_batch": 17,
+    "rollouts_per_task": 3,
+    "batch_map": "experiments/campaigns/autonomous_gse_v09/batch_map.json",
+    "outcome_independent_assignment": true,
+    "cumulative_evidence": false,
+    "replay_previous_batches": false
+  },
+  "selection": {
+    "source_split": "official_train",
+    "tasks": 18,
+    "airline_tasks": 9,
+    "retail_tasks": 9,
+    "rollouts_per_task": 3,
+    "parent_candidate_seed_matching": true,
+    "selection_data_for_learning": "forbidden"
+  },
+  "test": {
+    "source_split": "official_test",
+    "tasks": 60,
+    "airline_tasks": 20,
+    "retail_tasks": 40,
+    "compare": ["S0", "S_final"],
+    "learning_access": "forbidden",
+    "formal_run_authorized": false
+  },
+  "skill_evolution": {
+    "proposal_operator": "rule_id_governed_reflection_editor",
+    "proposal_semantics": "v05_multi_rollout_reflection",
+    "maximum_success_reflector_calls_per_step": 1,
+    "maximum_failure_reflector_calls_per_step": 1,
+    "maximum_raw_patches_per_reflector": 4,
+    "maximum_editor_calls_per_step": 1,
+    "diagnosis_calls_per_train_rollout": 0,
+    "allowed_operations": ["add", "replace", "delete"],
+    "stable_parent_rule_id": true,
+    "maximum_skill_rules": 18,
+    "maximum_skill_words": 900,
+    "task_specific_recipe": "forbidden",
+    "selection_feedback_to_learner": "forbidden",
+    "test_feedback_to_learner": "forbidden"
+  },
+  "compliance_judge": {
+    "model": "openai/gpt-5.6-luna",
+    "temperature": 0,
+    "prompt_version": "tau3_policy_grounded_judge_v3",
+    "frozen_across_phases_and_methods": true,
+    "failure_mode": "COMPLIANCE_JUDGE_ERROR",
+    "fallback": "forbidden"
+  },
+  "official_evaluator": {
+    "implementation": "tau3_official_evaluator",
+    "nl_assertions_model": "openai/gpt-5.6-luna",
+    "nl_assertions_temperature": 0.0,
+    "model_selection_reason": "The frozen endpoint does not authorize the upstream gpt-4.1 NL-assertions backend; evaluator logic and reward basis remain unchanged."
+  },
+  "agent": {
+    "implementation_s0": "llm_agent",
+    "implementation_learned_skill": "llm_agent_manual_skill",
+    "skill_environment_variable": "TAU2_AGENT_SKILL_PATH",
+    "model": "openai/deepseek-v4-flash",
+    "model_selection_reason": "Use DeepSeek-V4-Flash with high reasoning and bounded empty-response recovery for trajectory generation.",
+    "temperature": 0.0,
+    "thinking": "high",
+    "reasoning_effort": "high",
+    "max_tokens": 8192,
+    "empty_response_retries": 2,
+    "empty_response_retry_max_tokens": 8192,
+    "max_steps": 200,
+    "seed_strategy": "campaign_seed_plus_execution_offset_plus_rollout_index"
+  },
+  "user_simulator": {
+    "implementation": "user_simulator",
+    "model": "openai/deepseek-v4-flash",
+    "model_selection_reason": "Match the Agent with high reasoning and bounded empty-response recovery.",
+    "temperature": 0.0,
+    "thinking": "high",
+    "reasoning_effort": "high",
+    "max_tokens": 8192,
+    "empty_response_retries": 2,
+    "empty_response_retry_max_tokens": 8192,
+    "seed_strategy": "same_recorded_rollout_seed_passed_to_official_orchestrator"
+  },
+  "gate": {
+    "metrics": ["task_success", "compliance", "cup"],
+    "aggregate_regression": "reject",
+    "minimum_progress": "at_least_one_positive_delta",
+    "severity_status": "unavailable",
+    "severe_task_ids": []
+  },
+  "budget": {
+    "train_trajectories": 153,
+    "initial_selection_trajectories": 54,
+    "maximum_candidate_selection_trajectories": 162,
+    "maximum_total_trajectories": 369,
+    "maximum_candidates": 3,
+    "maximum_learner_calls": 9,
+    "unused_budget_reallocation": "forbidden"
+  },
+  "provenance": {
+    "gse_commit": "a6ef79763a26c22b4e59b82e668acbd3f67d9865",
+    "domain_policy_source": "external/tau2-bench/data/tau2/domains/<domain>/policy.md",
+    "raw_tau3_result_required": true
+  }
+}
