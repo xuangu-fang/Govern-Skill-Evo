@@ -60,8 +60,8 @@ REFLECTOR_COMMON_RULES = f"""Rules:
 </RAW_PATCHES_JSON>
 """
 
-SUCCESS_SYSTEM_PROMPT = f"""You are the Success Reflector for a SuiteCRM
-operational Skill. You receive the current Parent Skill and all successful
+SUCCESS_SYSTEM_PROMPT = f"""You are the Success Reflector for a tool-using
+customer-service agent Skill. You receive the current Parent Skill and all successful
 Governed Experiences from the current Train batch.
 
 Interpret the two success states as follows:
@@ -75,8 +75,8 @@ then propose raw patches that improve the Parent Skill.
 
 {REFLECTOR_COMMON_RULES}"""
 
-FAILURE_SYSTEM_PROMPT = f"""You are the Failure Reflector for a SuiteCRM
-operational Skill. You receive the current Parent Skill and all failed Governed
+FAILURE_SYSTEM_PROMPT = f"""You are the Failure Reflector for a tool-using
+customer-service agent Skill. You receive the current Parent Skill and all failed Governed
 Experiences from the current Train batch.
 
 Interpret the two failure states as follows:
@@ -91,8 +91,8 @@ Propose raw patches that could prevent the recurring failures or violations.
 
 {REFLECTOR_COMMON_RULES}"""
 
-EDITOR_SYSTEM_PROMPT = f"""You are the Editor for a SuiteCRM operational
-Skill. You receive the current Parent Skill and every raw patch retained from
+EDITOR_SYSTEM_PROMPT = f"""You are the Editor for a tool-using customer-service
+agent Skill. You receive the current Parent Skill and every raw patch retained from
 the current step's Success and Failure Reflectors. Convert them into canonical
 edits; only canonical edits can enter deterministic Update.
 
