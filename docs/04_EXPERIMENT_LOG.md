@@ -3286,7 +3286,10 @@ Diagnosis首先输出`behavior_summary`，概括Agent实际执行了什么；随
 | `none` | 当前结果与Skill修改无关，典型情况是`execution_issue`或`external_issue`。 | 否 | `none` |
 | `uncertain` | 证据不足，无法可靠判断是否应该更新Skill。 | 否 | `none` |
 
-要求确定性配对约束：`root_cause.category=skill_issue`必须对应`skill_update_relevance=update`；`category=execution_issue`和`skill_update_relevance=external_issue`必须对应`none`；`root_cause.category=uncertain`必须对应`skill_update_relevance=uncertain`。
+要求确定性配对约束：
+`root_cause.category=skill_issue`必须对应`skill_update_relevance=update`；
+`root_cause.category=execution_issue`和`root_cause.category=external_issue`必须对应`skill_update_relevance=none`；
+`root_cause.category=uncertain`必须对应`skill_update_relevance=uncertain`。
 
 ##### `update_recommendation`：建议修改什么
 
@@ -3564,7 +3567,7 @@ Selection 使用：
 
 ### 实验设置
 
-实验使用τ³官方的Airline和Retail环境、任务、工具、数据库、UserSimulator及任务评估方式。保持三个Train batch、每个task三次独立rollout、固定Selection任务。
+实验使用τ³官方的Airline和Retail环境、任务、工具、数据库、UserSimulator及任务评估方式。数据划分为Train、Selection和Test三部分：Train选择51个任务，其中Airline 21个、Retail 30个，固定分成3个互不重叠的batch，每个Step只使用当前batch的17个任务，每个任务执行3次独立rollout，因此每个Step产生51条训练轨迹；不同Step不重放之前的batch。Selection与Train任务不重叠，固定选择18个任务，其中Airline和Retail各9个，每个任务执行3次rollout，共54条轨迹。Test使用官方test split中的60个任务，其中Airline 20个、Retail 40个，只允许在最终评估时比较S0与最终Skill，本轮尚未运行。T
 
 Task Success直接采用τ³官方任务reward，不再由额外模型判断。Compliance由独立且固定的policy-grounded LLM Judge根据原始domain policy、任务上下文和带有step ID的完整trajectory判断，评估Agent的实际执行过程是否违反适用Policy。只有trajectory中存在具体证据时，Judge才输出违反的Policy要求、对应证据步骤和原因；证据不足时不推断违规。
 
@@ -3666,9 +3669,12 @@ Candidate提高了Task Success，Compliance和CuP下降，因此拒绝Candidate�
 
 #### 分析
 
-不能简单概括为“Step 3新增的两条规则有害”。对配对Selection轨迹的进一步检查表明，Step 3 Candidate新增的失败大多不是由Step 3新增的两条规则直接导致，而是原有事实来源校验和item/identifier核对规则未被稳定执行。
+Diagnosis分类存在过度保守和一致性不足的问题。当前每条轨迹独立完成原因判断，同一种行为问题可能因为单条轨迹中的任务结果、合规状态或上下文略有不同，分别被归为`skill_issue + update`、`execution_issue + none`或`uncertain`。Diagnosis模型无法同时利用同一任务3次rollout之间的重复现象和成功、失败对照，因此既可能把Skill缺口解释为单次执行失误，也可能因单条证据不足而拒绝更新。后续应以同一任务的3次rollout作为联合证据进行分类，在保留每条轨迹具体证据的同时，根据问题是否重复出现、已有规则是否覆盖以及成功轨迹如何避免错误，统一判断问题是否属于Skill缺口。
+
+此外，不能简单概括为“Step 3新增的两条规则有害”。对配对Selection轨迹的进一步检查表明，Step 3 Candidate新增的失败大多不是由Step 3新增的两条规则直接导致，而是原有规则未被稳定执行。
 
 因此，Step 3被拒绝不能证明两条新增规则没有价值。当前只观察Task Success、Compliance和CuP三个aggregate指标，无法区分退化究竟来自新增规则的直接副作用、规则之间的上下文干扰，还是LLM与UserSimulator交互路径的波动。
+
 
 
 ### 目标：τ³的Airline和Retail任务和SkillOpt机制
@@ -3760,256 +3766,182 @@ Diagnosis逐条分析轨迹并判断问题来源，更新依据更清楚，能�
 
 ---
 
-## Experiment Entry Template
 
-### EXP-YYYYMMDD-001：实验名
+## Day 21 记录（2026-08-26）
 
-**Question**
+### 目标
 
-> 这个实验只回答哪一个问题？
+在Day 18逐条Diagnosis Evolution的基础，不再使用独立Selection数据集的指标作为Candidate选择依据，而是在当前Evolution Batch上构造基准Skill与Candidate的同任务、同seed成对轨迹：
+1. Diagnosis指出的具体Skill问题是否被Candidate修复；
+2. Candidate相对基准Skill新出现的Task或Compliance regression是否由本次Skill修改引起；
+3. Candidate是否出现大范围指标退化。
 
-**Hypothesis**
+取消Selection，每条任务只执行一次rollout；Candidate只在当前Batch上进行matched replay，Evolution Gate只依据目标问题是否修复、负向是否可归因以及大范围指标退化决定是否晋级。
 
-> 如果……，那么……；可被什么结果推翻？
+### 实验设置
 
-**Independent variable**
+#### 数据集划分
 
-- 
+实验使用τ³ benchmark的Airline和Retail两个domain。Evolution Set全部来自官方`train` split，Holdout全部来自官方`test` split，两者不重叠。
 
-**Controlled variables**
+| 数据集 | Airline | Retail | 合计 | 用途 |
+|---|---:|---:|---:|---|
+| Evolution Set | 30 | 30 | 60 | Diagnosis、Editor和Candidate验证 |
+| Holdout | 20 | 20 | 40 | Evolution完成后比较S0与最终Skill |
 
-- model：
-- temperature：
-- tasks：
-- policy version：
-- prompt：
-- seed / repetition：
+60个Evolution tasks被固定划分为3个互不重叠的Batch。每个Batch包含10个Airline tasks和10个Retail tasks，共20个tasks。三个Step分别只使用B1、B2和B3。
 
-**Data manifest**
+每个task只执行1次rollout，rollout seed固定为`200`。初始Skill为空Skill S0。每个Step最多生成1个Candidate。
 
-- train：
-- selection：
-- test：
-- excluded：
+Agent和User Simulator均使用`openai/deepseek-v4-flash`、temperature 0和high reasoning；Diagnosis、Editor、Targeted Fix Judge、Regression Diagnosis Judge以及τ³ Compliance Judge使用`openai/gpt-5.6-luna`、temperature 0。Task Success使用τ³ official evaluator，Compliance使用policy-grounded judge。
 
-**Command**
+#### Diagnosis
 
-```bash
+每个Step首先对当前20条基准Skill生成的trajectories逐条调用一次Diagnosis。Diagnosis接收当前基准Skill、任务目标、完整trajectory、外部Task Success、Compliance和four-state，只负责解释这一条trajectory，并判断基准Skill是否应因此修改。
 
+Diagnosis保留六部分：
+
+1. `behavior_summary`：概括Agent实际行为；
+2. `task_analysis`：外部任务状态及其trajectory evidence；
+3. `policy_analysis`：外部合规状态、Policy ID和trajectory evidence；
+4. `root_cause`：`skill_issue`、`execution_issue`、`external_issue`、`uncertain`或JSON `null`；
+5. `skill_update_relevance`：`update`、`none`或`uncertain`；
+6. `update_recommendation`：`add`、`replace`、`delete`或`none`，以及目标section、rule ID和intervention objective。
+
+Diagnosis满足硬约束：
+
+- `task_analysis.status`必须严格复制外部`task_success`；
+- `policy_analysis.status`只能是`compliant`或`violated`，并与four-state一致；
+- Policy ID只能来自当前Compliance evidence；
+- `evidence_steps`必须是trajectory中真实存在的正整数step ID；
+- `skill_issue`必须对应`update`；
+- `execution_issue`和`external_issue`必须对应`none`；
+- `uncertain`必须对应`uncertain`；
+- JSON `null`表示没有需要归因的问题，并对应`none`；
+- `update`必须对应`add`、`replace`或`delete`；
+- 不自动repair任何invalid Diagnosis。
+
+只有同时满足硬约束和`skill_update_relevance=update`的Diagnosis才进入Editor。Editor每个Step最多调用一次，将全部eligible Diagnoses转化`add`、`replace`或`delete` edits。
+
+
+#### Same Train Matched Replay
+
+Candidate生成后，不使用独立Selection任务，而是在当前Batch的同20个tasks上各执行一次Candidate replay。Parent和Candidate严格使用相同的：
+
+- domain与task ID；
+- rollout index；
+- rollout seed、Agent seed、User Simulator seed和environment seed。
+
+由此得到20对Parent/Candidate trajectories。
+
+#### Targeted Fix
+
+Targeted Fix只检查eligible update Diagnoses。每条Diagnosis使用对应的Parent trajectory和同task Candidate trajectory，判断Diagnosis指出的具体目标问题是否消失。输出只有：
+
+- `FIXED`：具体目标行为问题已被Candidate修复；
+- `NOT_FIXED`：问题仍存在或证据不足以确认修复。
+
+
+#### Regression Diagnosis
+
+系统先根据Parent→Candidate four-state transition确定性构造Regression Set，只包含：
+
+```text
+compliant_success → violating_success
+compliant_failure → violating_failure
+compliant_success → compliant_failure
+violating_success → violating_failure
+compliant_success → violating_failure
 ```
 
-**Artifacts**
+Regression Set中的每一对轨迹，Regression Diagnosis判断回归是否存在明确的：
 
-- config：
-- raw trajectories：
-- candidate skill：
-- accepted skill：
-- verifier output：
-- summary：
-
-**Results**
-
-| Method | Task success | Compliance | Severe violation | Cost | Notes |
-|---|---:|---:|---:|---:|---|
-| No Skill | | | | | |
-| Human Skill | | | | | |
-| Outcome-only Skill | | | | | |
-| Proposed | | | | | |
-
-**Qualitative cases**
-
-1. 
-
-**Failure analysis**
-
-- model failure：
-- tool/environment failure：
-- task ambiguity：
-- verifier error：
-- skill defect：
-- execution lapse：
-
-**Conclusion**
-
-> 支持 / 不支持 / 无法判断假设。只写证据允许的结论。
-
-**Next action**
-
-- 
-
----
-
-## Trajectory Audit Template
-
-### TRAJ-ID
-
-| 项目 | 结果 |
-|---|---|
-| Trajectory ID | |
-| Reward | |
-| Policy compliance | `true / false / uncertain` |
-
-| 涉及步骤 | Policy | 行为与证据 |
-|---:|---|---|
-| | | |
-
-**违规概括**：
-
-**合规替代动作**：
-
-### 关键问题
-
-- 最终结果为什么成功/失败？
-- 哪个具体步骤改变了环境状态？
-- 是否存在结果相同但过程不同的替代轨迹？
-- 这条经验能否跨任务复用？
-- 如果进入 Skill，最可能形成哪条规则？
-- 这条规则在什么条件下会有害？
-
----
-
-## Skill Change Record
-
-### SKILL-CHANGE-ID
-
-**Parent version**
-
-``
-
-**Candidate version**
-
-``
-
-**Patch**
-
-```diff
-
+```text
+Skill change → Candidate behavior change → regression
 ```
 
-**Proposed rule**
+输出只有`CHANGE_CAUSED`或`UNRELATED_VARIATION`。当行为退化更可能来自模型、User Simulator、工具或环境自然变化，或者证据不足时，默认使用`UNRELATED_VARIATION`。
 
-> 
+#### Evolution Gate
 
-**Applicability**
+Evolution Gate按以下顺序判断：
 
-- 
+1. 至少一条Targeted Fix为`FIXED`；
+2. 不存在`CHANGE_CAUSED` regression；
+3. Task Success、Compliance和Cu均不得相对下降3条或以上。
 
-**Obligations**
+Candidate只有通过三道Gate才会晋级为下一Step的Parent；否则继续保留原Parent。
 
-- 
+### 三步演化结果
 
-**Prohibitions**
+本次实验完整完成3个Step。Step 1和Step 2的Candidate被拒绝，因此三个Step的Parent均为S0；Step 3的Candidate通过全部Gate并晋级，最终Skill为S3。
 
-- 
+#### Step 1：2条目标问题均修复，但出现可归因负向，Candidate被拒绝
 
-**Escalation**
+Step 1的20条Parent trajectories分布为17条`compliant_success`、2条`violating_success`和1条`compliant_failure`。
 
-- 
+2条eligible update Diagnosis进入Editor，生成2条`add` edits：
 
-**Supporting trajectories**
+- 当适用Policy已经明确解决请求，并且该请求属于Agent有权处理的范围时，应清楚拒绝并停止；不能仅因为用户持续要求、强调身份、要求主管或寻求例外就转人工，结束前还要确认没有遗留的可执行事项。
+- 解释退货后的通信、寄送、标签或退款流程时，只能陈述用户或工具已经确认的信息；对尚未确认的操作细节应明确说明不确定，不能自行推断，在给出有证据支持的流程或指出缺失信息后停止。
 
-- 
+Candidate replay后，2条Targeted Fix均为`FIXED`，说明两个目标问题都被修复。但5条负向中有1条被Regression Diagnosis判为`CHANGE_CAUSED`：新增规则要求“不要仅因用户坚持或要求主管而转人工”，但 Agent 将其过度泛化到后续提出的正式投诉请求。由于投诉流程超出了 Agent 的处理范围，本应按照系统要求转人工，Agent 却以原问题已有明确政策结论为由拒绝升级，因而造成合规退化。
 
-**Counterevidence / rejected trajectories**
+| 指标 | Parent S0 | Candidate S1 | Delta |
+|---|---:|---:|---:|
+| Task Success | 19/20 | 17/20 | -2 |
+| Compliance | 18/20 | 16/20 | -2 |
+| CuP | 17/20 | 14/20 | -3 |
 
-- 
+Candidate同时触发`CHANGE_CAUSED`和CuP下降3条因此被拒绝，下一Step继续使用S0。
 
-**Task gate**
+#### Step 2：3条update生成3条规则，目标修复不足且Task Success大幅下降
 
-- before：
-- after：
-- pass：
+Step 2的20条Parent trajectories分布为16条`compliant_success`、3条`violating_success`和1条`compliant_failure`。
 
-**Compliance gate**
+3条eligible update Diagnosis进入Editor，生成3条`add` edits：
 
-- before：
-- after：
-- severe violations：
-- pass：
+- 用户提出未经验证的费用、豁免、保险覆盖或退款条件时，应将其视为尚未确认的说法，只提供已有证据支持的信息，并在承诺结果前完成验证；无法验证时，应说明不确定性并停止，或寻找现有的验证途径。
+- 解释Policy、限制或操作流程时，应区分用户或工具已经确认的事实与推测，只陈述已确认事实；现有证据无法确定用户所问结果时，应说明不确定性并选择升级或停止，而不是自行推断Policy。
+- 用户询问交易完成后的履约流程或时间，而这些信息没有得到用户或工具确认时，只提供已经确定的信息并指出缺失细节；应停止或寻求验证，不能推测物流方式、邮件内容或处理时间。
 
-**Decision**
+Candidate replay后，3条Targeted Fix为1条`FIXED`、2条`NOT_FIXED`：一条`NOT_FIXED`是仍然声称继续编造 Policy，说明“写入 Skill”与“Agent实际遵循”之间存在差距。另一条`NOT_FIXED`是目标行为没有被触发。3条deterministic regressions均被判为`UNRELATED_VARIATION`，没有可归因于Skill change的负向。但Candidate的Task Success从19条下降到16条。
 
-`accept | reject | quarantine`
+| 指标 | Parent S0 | Candidate S2 | Delta |
+|---|---:|---:|---:|
+| Task Success | 19/20 | 16/20 | -3 |
+| Compliance | 17/20 | 19/20 | +2 |
+| CuP | 16/20 | 15/20 | -1 |
 
-**Reason**
+Candidate被拒绝，下一Step继续使用S0。
 
-> 
+三条规则反复强调“无法验证时停止”，虽然负向轨迹不是Candidate Skill 直接造成，但是可能是因为整体Candidate Skill 让 Agent 更保守。所以导致Candidate的Task Success从19条下降到16条。此外，说明现在的问题是Diagnosis 把通用问题过早场景化，使 Editor 虽有合并能力却没有完成归纳。
+
+#### Step 3：2条目标问题均修复，Candidate晋级为S3
+
+Step 3的20条Parent trajectories分布为16条`compliant_success`、1条`violating_success`、2条`compliant_failure`和1条`violating_failure`。
+
+2条eligible update Diagnosis进入Editor并生成2条`add` edits：
+
+- 处理取消请求时，必须在查询reservation、判断资格或作出其他取消相关决策之前，先取得并保留用户的取消原因；继续操作前确认该原因已经记录。
+- 添加到`Execution patterns`：当replacement transaction依赖支付限额、退款或其他条件资金时，应将可执行金额与估算金额分开计算，取得明确授权后完成获准的replacement；如果用户选择延期，则记录这一决定，并在停止前验证最终transaction或延期状态。
+
+Diagnosis现在太过具体，存在较强的任务特定风险，例如“在查询reservation”，“支付限额、退款或其他条件资金”。
+Candidate replay后，2条Targeted Fix均为`FIXED`。1条deterministic regression判为`UNRELATED_VARIATION`：Candidate在新预订中错误使用多张travel certificates，但两条新增Skill规则都没有要求或诱导这一行为，无法建立Skill change到回归的因果链。
+
+| 指标 | Parent S0 | Candidate S3 | Delta |
+|---|---:|---:|---:|
+| Task Success | 17/20 | 19/20 | +2 |
+| Compliance | 18/20 | 18/20 | 0 |
+| CuP | 16/20 | 18/20 | +2 |
+
+Candidate通过Targeted Fix、Regression和Aggregate三道Gate，被接受并晋级为最终Skill S3。
+
+
 
 ---
 
-## Decision Log
-
-只记录会改变研究设计、数据、方法或论文叙事的决定。
-
----
-
-## Failure Taxonomy
-
-持续维护，不要每次重新发明 failure name。
-
-| Code | Failure type | Definition | Example |
-|---|---|---|---|
-| T1 | Task misunderstanding | 误解用户目标 | |
-| T2 | Wrong tool/action | 工具或参数错误 | |
-| T3 | State tracking | 未跟踪环境状态 | |
-| P1 | Missing obligation | 跳过必要步骤 | |
-| P2 | Prohibited action | 执行明确禁止动作 | |
-| P3 | Order violation | 顺序错误 | |
-| P4 | Authority violation | 越权 | |
-| P5 | Missing evidence | 证据不足时行动 | |
-| P6 | Missing escalation | 应升级人工但未升级 | |
-| S1 | Skill defect | Skill 缺失或包含错误规则 | |
-| S2 | Execution lapse | Skill 正确但 Agent 未遵守 | |
-| V1 | Verifier false positive | verifier 错判违规 | |
-| V2 | Verifier false negative | verifier 漏判违规 | |
-
----
-
-## Weekly Report Template
-
-### Week N
-
-**本周真正新增的能力**
-
-- 
-
-**最重要的实验结果**
-
-- 
-
-**一个推翻原判断的证据**
-
-- 
-
-**新增 artifacts**
-
-- code commit：
-- data manifest：
-- result table：
-- skill versions：
-
-**成本**
-
-- API calls：
-- tokens：
-- estimated cost：
-- wall time：
-
-**下周只做的三件事**
-
-1. 
-2. 
-3. 
-
-**Go / No-Go**
-
-`GO | CONDITIONAL GO | PIVOT`
-
-理由：
-
-> 
-
-
+### 笔记
 1、更复杂的bench，调研，适合我们的idea，自己
 2、ppt：课题，为什么有用，场景，受控性，接下来怎么做
 3、人为设置容易违规
@@ -4033,9 +3965,6 @@ Diagnosis逐条分析轨迹并判断问题来源，更新依据更清楚，能�
 skillopt太复杂，不好判断哪部分有问题
 框架简单
 造policy，正样本负样本均衡
-
----
-
 
 问题：
 1、成功轨迹很少更新skill

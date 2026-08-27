@@ -478,8 +478,16 @@ class Tau3RolloutAdapter:
             "raw_tau3_result_path": raw_result_path.as_posix(),
             **policy_provenance(policy_path),
             "task_split": "official_train" if phase != "test" else "official_test",
-            "tau3_commit": self.campaign["benchmark"]["commit"],
-            "gse_commit": self.campaign["provenance"]["gse_commit"],
+            **(
+                {"tau3_commit": self.campaign["benchmark"]["commit"]}
+                if self.campaign.get("benchmark", {}).get("commit")
+                else {}
+            ),
+            **(
+                {"gse_commit": self.campaign["provenance"]["gse_commit"]}
+                if self.campaign.get("provenance", {}).get("gse_commit")
+                else {}
+            ),
             "judge_config": copy.deepcopy(self.campaign["compliance_judge"]),
             "agent_config": copy.deepcopy(self.campaign["agent"]),
             "user_simulator_config": copy.deepcopy(
