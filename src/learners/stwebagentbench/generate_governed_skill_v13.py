@@ -21,6 +21,8 @@ def _default_learner_call(model: str, system: str, user: str) -> tuple[str, str,
 
 EDITOR_SYSTEM_PROMPT = """You are the v0.13 bounded Editor. In at most one call, perform cross-task deduplication, wording normalization, episode generalization, section placement, and final Skill wording. Diagnosis already decided attribution and operation; do not add a stage or reconsider attribution.
 
+Use supplied domain context only as a lightweight fail-closed constraint. Never canonicalize an update into behavior explicitly forbidden by the original Policy. Policy is normative; tool availability alone is not Policy permission. Do not reanalyze the three rollouts, relabel Compliance, or redo root-cause attribution. If a Diagnosis target plainly requires Policy-forbidden behavior, emit no canonical edit for it.
+
 Normalize equivalent mechanisms without flattening their operational distinctions. Semantic or thematic similarity is not sufficient for merge; repair-operator equivalence is required. For add Diagnoses, merge only when the problem mechanism, trigger condition, decision boundary, repair operator, applicable stopping boundary, counterevidence limits on rule strength, and verification target are semantically compatible as a whole. This is an overall semantic judgment, not a mechanical score. Do not merge all Evidence Grounding or all Verification findings merely because they share a theme.
 
 Product-record integrity and unsupported operational inference are distinct: preserving one record's ID-attribute-price-availability binding is not the same operator as checking policy/tool evidence for fee, eligibility, refund route, or timeline. Emit separate canonical edits. Equivalent record-integrity Diagnoses may merge.
@@ -45,6 +47,13 @@ def build_editor_prompts(request: DiagnosisEditorRequest) -> tuple[str, str]:
         raise ValueError("v0.13 requires DiagnosisEditorRequest.")
     if not request.current_parent_skill.strip() or not request.eligible_diagnoses:
         raise ValueError("Parent and update Diagnoses are required.")
+    if not request.domain_contexts or any(
+        not isinstance(item, dict)
+        or not isinstance(item.get("original_domain_policy"), str)
+        or not isinstance(item.get("available_tool_contracts"), (list, tuple))
+        for item in request.domain_contexts
+    ):
+        raise ValueError("Authoritative domain context is required.")
     annotated = annotate_parent_skill(request.current_parent_skill).replace(
         "# SuiteCRM Operational Skill", "# Operational Skill", 1
     )
@@ -53,7 +62,10 @@ def build_editor_prompts(request: DiagnosisEditorRequest) -> tuple[str, str]:
         f"<CURRENT_PARENT_SKILL_WITH_RULE_IDS>\n{annotated.strip()}\n</CURRENT_PARENT_SKILL_WITH_RULE_IDS>\n\n"
         "<UPDATE_ELIGIBLE_TASK_DIAGNOSES>\n"
         + json.dumps(list(request.eligible_diagnoses), ensure_ascii=False, indent=2, sort_keys=True)
-        + "\n</UPDATE_ELIGIBLE_TASK_DIAGNOSES>\n\nReturn only the CANONICAL_EDITS_JSON block."
+        + "\n</UPDATE_ELIGIBLE_TASK_DIAGNOSES>\n\n"
+        "<AUTHORITATIVE_DOMAIN_CONTEXT>\n"
+        + json.dumps(list(request.domain_contexts), ensure_ascii=False, indent=2, sort_keys=True)
+        + "\n</AUTHORITATIVE_DOMAIN_CONTEXT>\n\nReturn only the CANONICAL_EDITS_JSON block."
     )
 
 

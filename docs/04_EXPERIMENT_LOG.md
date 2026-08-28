@@ -4232,11 +4232,11 @@ Compliance Judge：不改变 Compliance 的基本评估方式，只限制 Policy
 验证 Parent 到 Candidate 的直接行为变化。上一版要求每一对 matched Parent/Candidate trajectory 中，Candidate 在已经进入目标场景的 rollout 里都不能再次出现原问题；因此，3 次 replay 中只要有 1 次重新犯错，就会判为 `NOT_FIXED`。本版改为：在已经进入目标场景的 rollout 中，只要有 1 次没有出现目标问题，即判为 `FIXED`。
 
 ### 思考
-框架：发现问题→生成候选→验证是否修复 + 有无副作用→晋级 / 保留
+1、框架：发现问题→生成候选→验证是否修复 + 有无副作用→晋级 / 保留
 看起来感觉每个模块都是为了解决实验里遇到的问题，从而不断加模块。感觉太工程，整体框架感觉创新性不足。
-目前还没有合规违规的创新设计，合规违规部分考虑的少。
-数据集目前大部分都是合规成功，可以尝试调整比例。
-Regression Set还比较简单，只保留绝对的负向对，没有引入合规成功到违规失败，违规成功到合规失败
+2、目前还没有合规违规的创新设计，合规违规部分考虑的少。
+3、数据集目前大部分都是合规成功，可以尝试调整比例。
+4、Regression Set还比较简单，只保留绝对的负向对，没有引入合规成功到违规失败，违规成功到合规失败
 
 ---
 
@@ -4272,3 +4272,23 @@ skillopt太复杂，不好判断哪部分有问题
 4、对比轨迹进行诊断
 5、现在数据集成功合规轨迹太多了
 6、利用失败Skill
+
+---
+
+## Autonomous GSE v0.13 Policy/tool-grounded Diagnosis contract 修复
+
+当前 Step 1 / Step 2 运行标记为 `v13 pre-policy-grounded-diagnosis debugging run`。该运行的 Parent raw trajectories、旧 Compliance judgments、旧 Diagnoses、旧 Candidates、Candidate replays、Target Fix、Regression Diagnosis、Aggregate 与 Gate artifacts 全部保留；Step 3 暂停，旧 Candidate lineage 不再继续使用。
+
+本次不创建 v13.1，也不新增 LLM stage。现有 v13 的 Compliance Judge 直接接收完整 domain Policy、确定性生成的简化 domain tool contracts、task context 与完整 trajectory；Diagnosis 在一次 task-level K=3 调用中直接接收同一份 authoritative Policy/tool context，并先寻找实际 mechanism-level behavior contrast，再使用 frozen Task Success / Compliance outcomes 做 attribution。`cross_rollout_analysis` 新增 `discriminating_behavior` 与 `evidence_consistency`，只有 `supportive` 且存在非空行为机制差异时才允许 update。
+
+恢复正式实验时从已有 Step 1 S0 raw Parent trajectories 重新执行 Compliance Judge，随后重新生成 four-state evidence、Diagnosis、Editor、Candidate 与 Candidate replay，再沿用原 Target Fix、Regression Diagnosis、Aggregate 和 Gate。若新的 Step 1 REJECT，Step 2 Parent 仍为 S0；task、initial state、rollout index 与 seed 完全相同时可复用旧 Step 2 S0 raw Parent trajectories，但必须重新 Judge 与 Diagnosis。若新的 Step 1 ACCEPT，Step 2 Parent 变为 S1，旧 Step 2 S0 Parent trajectories 不可复用，必须重新生成。
+
+### 正式实验前 real-LLM canary
+
+使用三个真实 S0 task group 执行了严格受限的 `saved raw trajectories → new Compliance Judge → new Diagnosis` canary，没有生成新 rollout、Editor 输入、Candidate 或下游验证。实际调用为 9 次 Compliance Judge 和 1 次 Diagnosis；由于上游 Judge 已出现确定性失败，其余 Diagnosis 未绕过 validator 强行执行。
+
+- `airline:12` Passenger cabin / baggage payment：失败。有效重试将旧 VS 改为 CS，但另一个 Judge 返回仍声称“all passengers same cabin”在 Modify flight 中 unsupported，并把 generic grounding clause 错放到 `Modify flight — Change cabin`；section-grounded validator 正确拒绝，因此未进入 Diagnosis。
+- `airline:39` Cancellation eligibility：通过。新 Diagnosis 为 `external_issue / none / update_axis=none / action=none`，明确指出 tool capability 不能覆盖 Policy 禁止条件。
+- `retail:112` Gift-card/payment：失败。Judge 仍把 gift-card sufficient-balance predicate 错用于“接收降价退款”，并输出当前 validator 不接受的层级 section path `Modify pending order > Modify items`；未进入 Diagnosis。
+
+Canary 总结为 `FAILED_CANARY`，`v13_ready_for_formal_run=false`。正式 Step 1、Step 2、Step 3 和 holdout 继续暂停。完整 raw responses、payloads、usage 和 case summaries 保存在 `artifacts/autonomous_gse_v13/formal/canaries/pre_formal_policy_grounded_real_llm/`。

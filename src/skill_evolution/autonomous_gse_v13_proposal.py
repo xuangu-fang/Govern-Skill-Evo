@@ -39,6 +39,7 @@ class DiagnosisEditorRequest:
     candidate_id: str
     current_parent_skill: str
     eligible_diagnoses: tuple[dict[str, Any], ...]
+    domain_contexts: tuple[dict[str, Any], ...]
 
 
 DiagnosisEditor = Callable[[DiagnosisEditorRequest], str]
@@ -191,17 +192,33 @@ def _enrich_decision(decision: ProposalDecision, validations: list[DiagnosisVali
 class MultiRolloutDiagnosisProposalOperator:
     name = "v13_dual_axis_mechanism_preserving_bounded_edit"
 
-    def propose(self, context: ProposalContext, diagnoser: Diagnoser, editor: DiagnosisEditor) -> DiagnosisProposalDecision:
+    def propose(
+        self, context: ProposalContext, diagnoser: Diagnoser, editor: DiagnosisEditor, *,
+        domain_contexts: dict[str, dict[str, Any]],
+    ) -> DiagnosisProposalDecision:
         sections, _, _, _ = _validate_context(context)
         grouped = group_task_evidence(context.current_batch_governed_evidence)
         validations: list[DiagnosisValidation] = []
         tasks_by_diagnosis: dict[str, tuple[str, str]] = {}
         for index, (task, rollouts) in enumerate(grouped, start=1):
             diagnosis_id = f"diagnosis_{index:03d}"
+            domain_context = domain_contexts.get(task[0])
+            if (
+                not isinstance(domain_context, dict)
+                or not isinstance(domain_context.get("original_domain_policy"), str)
+                or not domain_context["original_domain_policy"].strip()
+                or not isinstance(domain_context.get("available_tool_contracts"), (list, tuple))
+                or not domain_context["available_tool_contracts"]
+            ):
+                raise ValueError(f"Missing authoritative domain context for {task[0]}.")
             response = diagnoser(MultiRolloutDiagnosisRequest(
                 candidate_id=context.candidate_id, diagnosis_id=diagnosis_id,
                 current_parent_skill=context.parent_skill,
                 task_context={"domain": task[0], "task_id": task[1]},
+                original_domain_policy=domain_context["original_domain_policy"],
+                available_tool_contracts=tuple(copy.deepcopy(
+                    domain_context["available_tool_contracts"]
+                )),
                 rollouts=copy.deepcopy(rollouts),
             ))
             validation = parse_and_validate_diagnosis(
@@ -222,12 +239,20 @@ class MultiRolloutDiagnosisProposalOperator:
                 "NO_UPDATE_ELIGIBLE_DIAGNOSIS", reflector_calls=len(validations), editor_calls=0
             ), validations, eligible_ids)
         signals = [_signal(item, tasks_by_diagnosis[item.diagnosis_id]) for item in eligible]
+        eligible_domains = sorted({tasks_by_diagnosis[item.diagnosis_id][0] for item in eligible})
 
         def bounded_editor(request: EditorRequest) -> str:
             response = editor(DiagnosisEditorRequest(
                 candidate_id=request.candidate_id,
                 current_parent_skill=request.current_parent_skill,
                 eligible_diagnoses=tuple(copy.deepcopy(request.raw_patches)),
+                domain_contexts=tuple({
+                    "domain": domain,
+                    "original_domain_policy": domain_contexts[domain]["original_domain_policy"],
+                    "available_tool_contracts": copy.deepcopy(
+                        domain_contexts[domain]["available_tool_contracts"]
+                    ),
+                } for domain in eligible_domains),
             ))
             return _guard_editor_response(response, request, set(sections))
 

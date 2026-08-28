@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -12,6 +13,7 @@ ROOT_CAUSES = {"skill_issue", "execution_issue", "external_issue", "uncertain"}
 UPDATE_RELEVANCE = {"update", "none", "uncertain"}
 UPDATE_AXES = {"task_success", "compliance", "both", "none"}
 UPDATE_ACTIONS = {"add", "replace", "delete", "none"}
+EVIDENCE_CONSISTENCIES = {"supportive", "conflicting", "insufficient"}
 DIAGNOSIS_FIELDS = {
     "task_behavior_summary", "cross_rollout_analysis", "root_cause",
     "skill_update_relevance", "update_axis", "repair_policy_ids",
@@ -127,13 +129,15 @@ def validate_diagnosis(
     analysis = diagnosis.get("cross_rollout_analysis")
     expected_analysis = {
         "stable_behavior", "success_contrast", "compliance_contrast", "counterevidence",
+        "discriminating_behavior", "evidence_consistency",
         "support_evidence_refs", "counterevidence_refs",
     }
     if not isinstance(analysis, dict) or set(analysis) != expected_analysis:
         errors.append("INVALID_CROSS_ROLLOUT_ANALYSIS")
     else:
         if any(not isinstance(analysis.get(key), str) for key in (
-            "stable_behavior", "success_contrast", "compliance_contrast", "counterevidence"
+            "stable_behavior", "success_contrast", "compliance_contrast",
+            "discriminating_behavior", "evidence_consistency", "counterevidence"
         )):
             errors.append("INVALID_CROSS_ROLLOUT_ANALYSIS")
         errors.extend(_validate_refs(analysis.get("support_evidence_refs"), evidence_by_source, "SUPPORT"))
@@ -157,6 +161,25 @@ def validate_diagnosis(
     }.get(category)
     if relevance in UPDATE_RELEVANCE and relevance != expected_relevance:
         errors.append("ROOT_CAUSE_RELEVANCE_MISMATCH")
+    consistency = analysis.get("evidence_consistency") if isinstance(analysis, dict) else None
+    discriminating = analysis.get("discriminating_behavior") if isinstance(analysis, dict) else None
+    if consistency not in EVIDENCE_CONSISTENCIES:
+        errors.append("INVALID_EVIDENCE_CONSISTENCY")
+    if relevance == "update":
+        if consistency != "supportive":
+            errors.append("UPDATE_REQUIRES_SUPPORTIVE_EVIDENCE")
+        if not isinstance(discriminating, str) or not discriminating.strip():
+            errors.append("UPDATE_REQUIRES_DISCRIMINATING_BEHAVIOR")
+        elif set(re.findall(r"[a-z]+", discriminating.casefold())) <= {
+            "cs", "vs", "cf", "vf", "and", "differ", "differs", "different",
+            "label", "labels", "outcome", "outcomes", "state", "states", "contrast",
+            "task", "success", "compliance", "in",
+        }:
+            errors.append("DISCRIMINATING_BEHAVIOR_IS_ONLY_LABEL_CONTRAST")
+    if consistency == "conflicting" and not (
+        category == "uncertain" and relevance == "uncertain"
+    ):
+        errors.append("CONFLICTING_EVIDENCE_REQUIRES_UNCERTAIN_NO_UPDATE")
     update_axis = diagnosis.get("update_axis")
     if update_axis not in UPDATE_AXES:
         errors.append("INVALID_UPDATE_AXIS")

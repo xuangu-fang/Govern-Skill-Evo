@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import copy
 import json
 import shutil
@@ -39,10 +40,62 @@ PROTOCOL_VERSION = "autonomous_gse_v13"
 FORMAL_MODE = "formal_tau3_airline_retail_v13_k3_matched_behavior_replay"
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ROLLOUTS_PER_TASK = 3
+EVIDENCE_CONTRACT_VERSION = "policy_tool_behavior_grounded_v13"
 
 
 class RuntimeContractError(ValueError):
     """Raised when a v0.13 campaign/runtime invariant is violated."""
+
+
+def _tool_contracts_from_authoritative_source(tools_path: Path) -> tuple[dict[str, Any], ...]:
+    """Extract the public @is_tool interface without importing or sending Python source."""
+
+    module = ast.parse(tools_path.read_text(encoding="utf-8"), filename=tools_path.as_posix())
+    contracts: list[dict[str, Any]] = []
+    for node in ast.walk(module):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        is_tool = any(
+            isinstance(decorator, ast.Call)
+            and isinstance(decorator.func, (ast.Name, ast.Attribute))
+            and getattr(decorator.func, "id", getattr(decorator.func, "attr", None)) == "is_tool"
+            for decorator in node.decorator_list
+        )
+        if not is_tool:
+            continue
+        positional = [argument.arg for argument in node.args.args if argument.arg not in {"self", "cls"}]
+        defaults_start = len(positional) - len(node.args.defaults)
+        required = positional[:defaults_start]
+        optional = positional[defaults_start:]
+        kwonly = [argument.arg for argument in node.args.kwonlyargs]
+        for name, default in zip(kwonly, node.args.kw_defaults):
+            (required if default is None else optional).append(name)
+        description = ast.get_docstring(node, clean=True) or ""
+        description = description.split("\nArgs:", 1)[0].split("\nReturns:", 1)[0].strip()
+        contracts.append({
+            "tool_name": node.name,
+            "arguments": [*positional, *kwonly],
+            "required_arguments": required,
+            "optional_arguments": optional,
+            "description": " ".join(description.split()),
+        })
+    return tuple(sorted(contracts, key=lambda item: item["tool_name"]))
+
+
+def load_authoritative_domain_contexts(
+    tau2_root: Path,
+) -> dict[str, dict[str, Any]]:
+    contexts: dict[str, dict[str, Any]] = {}
+    for domain in ("airline", "retail"):
+        policy_path = tau2_root / f"data/tau2/domains/{domain}/policy.md"
+        tools_path = tau2_root / f"src/tau2/domains/{domain}/tools.py"
+        if not policy_path.is_file() or not tools_path.is_file():
+            raise RuntimeContractError(f"Authoritative {domain} Policy/tool definitions are missing.")
+        contexts[domain] = {
+            "original_domain_policy": policy_path.read_text(encoding="utf-8"),
+            "available_tool_contracts": _tool_contracts_from_authoritative_source(tools_path),
+        }
+    return contexts
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -205,15 +258,61 @@ def build_campaign_dry_plan(campaign: dict[str, Any], batch_map: dict[str, Any])
     }
 
 
+def build_policy_grounded_recovery_plan(
+    campaign: dict[str, Any], batch_map: dict[str, Any], resume_state: dict[str, Any],
+) -> dict[str, Any]:
+    """Describe the required restart without running a rollout or model call."""
+
+    validate_campaign_contract(campaign)
+    _validate_batch_map(batch_map, campaign)
+    if (
+        resume_state.get("protocol_version") != PROTOCOL_VERSION
+        or resume_state.get("completed_steps") != 2
+        or resume_state.get("current_parent", {}).get("version") != "S0"
+    ):
+        raise RuntimeContractError("Policy-grounded recovery expects the paused two-Step S0 run.")
+    identity_fields = ["task_id", "initial_state", "rollout_index", "rollout_seed"]
+    return {
+        "schema_version": "autonomous_gse_policy_grounded_recovery_plan_0.13.0",
+        "protocol_version": PROTOCOL_VERSION,
+        "run_label": "v13 pre-policy-grounded-diagnosis debugging run",
+        "step_3_paused": True,
+        "formal_execution_authorized": False,
+        "preserve_existing_artifacts": True,
+        "restart": [
+            "reuse_saved_step_1_s0_raw_parent_trajectories",
+            "rerun_compliance_judge_with_policy_and_tool_contracts",
+            "regenerate_four_state_evidence",
+            "rerun_step_1_diagnosis_and_editor",
+            "generate_a_new_candidate_without_reusing_old_candidate_lineage",
+            "run_new_matched_candidate_replay_and_existing_downstream_checks",
+        ],
+        "step_2_parent_rule": {
+            "if_new_step_1_rejects": {
+                "parent": "S0",
+                "reuse_saved_step_2_s0_raw_parent_trajectories_when_identity_matches": identity_fields,
+                "then": ["rerun_compliance_judge", "rerun_diagnosis"],
+            },
+            "if_new_step_1_accepts": {
+                "parent": "S1",
+                "reuse_old_step_2_s0_parent_trajectories": False,
+                "then": ["generate_new_step_2_parent_rollouts"],
+            },
+        },
+    }
+
+
 def _build_governed_evidence(
     *, source_id: str, domain: str, task: Any, simulation: Any,
-    domain_policy: str, judge_caller: JudgeCaller,
+    domain_policy: str, available_tool_contracts: Sequence[dict[str, Any]],
+    judge_caller: JudgeCaller,
 ) -> dict[str, Any]:
     simulation_value = simulation.model_dump(mode="json") if hasattr(simulation, "model_dump") else simulation
     evaluation = official_task_evaluation(simulation_value)
     trajectory = stable_trajectory(simulation_value.get("messages") or [])
     judgment = judge_compliance(
         domain_policy, task_context(task, domain=domain), trajectory,
+        available_tool_contracts=available_tool_contracts,
         domain=domain, caller=judge_caller,
     )
     violations = []
@@ -251,6 +350,7 @@ class Tau3RolloutAdapter:
         self.repo_root = repo_root.resolve()
         self.tau2_root = (self.repo_root / campaign["benchmark"]["path"]).resolve()
         self.judge_caller = judge_caller
+        self.domain_contexts = load_authoritative_domain_contexts(self.tau2_root)
 
     def run(
         self, *, domain: str, task_id: str, phase: str, skill_version: str,
@@ -267,11 +367,14 @@ class Tau3RolloutAdapter:
                 task_split="test" if phase == "test" else "train",
             )
             policy_path = self.tau2_root / f"data/tau2/domains/{domain}/policy.md"
-            policy = policy_path.read_text(encoding="utf-8")
+            domain_context = self.domain_contexts[domain]
+            policy = domain_context["original_domain_policy"]
             source_id = f"{phase}_{domain}_{task_id}_rollout_{rollout_index:02d}"
             evidence = _build_governed_evidence(
                 source_id=source_id, domain=domain, task=task, simulation=simulation,
-                domain_policy=policy, judge_caller=self.judge_caller,
+                domain_policy=policy,
+                available_tool_contracts=domain_context["available_tool_contracts"],
+                judge_caller=self.judge_caller,
             )
             raw_result_path = output_path.with_name(output_path.stem + "_tau3_raw.json")
             raw_result_path.parent.mkdir(parents=True, exist_ok=True)
@@ -516,6 +619,10 @@ def run_v13_campaign(
     if resume_state is not None:
         if resume_state.get("protocol_version") != PROTOCOL_VERSION:
             raise RuntimeContractError("v0.13 resume protocol is invalid.")
+        if resume_state.get("evidence_contract_version") != EVIDENCE_CONTRACT_VERSION:
+            raise RuntimeContractError(
+                "The paused pre-policy-grounded v13 run cannot continue to Step 3; restart from Step 1 raw Parent trajectories."
+            )
         completed_steps = resume_state.get("completed_steps")
         if not isinstance(completed_steps, int) or not 0 <= completed_steps <= 3:
             raise RuntimeContractError("v0.13 completed Step count is invalid.")
@@ -529,6 +636,9 @@ def run_v13_campaign(
     if not parent_path.is_file():
         raise RuntimeContractError("Current Parent Skill artifact is missing.")
     operator = MultiRolloutDiagnosisProposalOperator()
+    domain_contexts = load_authoritative_domain_contexts(
+        _resolved_path(campaign["benchmark"]["path"])
+    )
     for step_number, batch in enumerate(batch_map["batches"], start=1):
         if step_number <= completed_steps:
             continue
@@ -544,7 +654,7 @@ def run_v13_campaign(
                     candidate_id=f"candidate_{step_number:03d}",
                     parent_skill=v12._method_skill(parent_path.read_text(encoding="utf-8")),
                     current_batch_governed_evidence=tuple(experiences),
-                ), diagnoser, editor,
+                ), diagnoser, editor, domain_contexts=domain_contexts,
             )
         except DiagnosisContractError as error:
             diagnoses = [item.as_dict() for item in error.validations]
@@ -572,6 +682,7 @@ def run_v13_campaign(
             })
             _write_json(root / "resume_state.json", {
                 "protocol_version": PROTOCOL_VERSION, "completed_steps": step_number,
+                "evidence_contract_version": EVIDENCE_CONTRACT_VERSION,
                 "current_parent": parent, "steps": report_steps,
             })
             continue
@@ -601,6 +712,7 @@ def run_v13_campaign(
         })
         _write_json(root / "resume_state.json", {
             "protocol_version": PROTOCOL_VERSION, "completed_steps": step_number,
+            "evidence_contract_version": EVIDENCE_CONTRACT_VERSION,
             "current_parent": parent, "steps": report_steps,
         })
     report = {

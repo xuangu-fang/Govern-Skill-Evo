@@ -15,12 +15,15 @@ from src.learners.stwebagentbench.generate_governed_skill_v13 import EDITOR_SYST
 from src.skill_evolution.autonomous_gse_v03_proposal import ProposalContext
 from src.skill_evolution.autonomous_gse_v13_benchmark_runtime import (
     Tau3RolloutAdapter, build_campaign_dry_plan, build_holdout_plan, derive_rollout_seeds,
+    build_policy_grounded_recovery_plan, load_authoritative_domain_contexts,
     matched_replay_plan, prepare_v13_step1_restart_from_parent,
     resume_v13_target_fix_and_gate, run_v13_campaign,
 )
 from src.skill_evolution.autonomous_gse_v13_proposal import MultiRolloutDiagnosisProposalOperator
 from src.skill_evolution.diagnosis_contract_v13 import validate_diagnosis
-from src.skill_evolution.diagnosis_v13 import DIAGNOSIS_SYSTEM_PROMPT
+from src.skill_evolution.diagnosis_v13 import (
+    DIAGNOSIS_SYSTEM_PROMPT, MultiRolloutDiagnosisRequest, build_diagnosis_prompts,
+)
 from src.skill_evolution.evolution_gate_v13 import build_evolution_decision
 from src.skill_evolution.targeted_fix_v13 import (
     SYSTEM_PROMPT as TARGET_FIX_SYSTEM_PROMPT,
@@ -74,6 +77,11 @@ def _diagnosis(
         "cross_rollout_analysis": {
             "stable_behavior": "", "success_contrast": "",
             "compliance_contrast": "", "counterevidence": "",
+            "discriminating_behavior": (
+                "the rollout uses a different decision predicate before the resulting action"
+                if relevance == "update" else ""
+            ),
+            "evidence_consistency": "supportive" if relevance == "update" else "insufficient",
             "support_evidence_refs": [
                 {"source_id": "step_001_airline_1_rollout_01", "step_ids": [2]}
             ],
@@ -93,6 +101,22 @@ def _diagnosis(
             "action": action, "target_section": None, "target_rule_id": None,
             "objective": "repair the mechanism", "description": "apply the bounded operator",
         },
+    }
+
+
+def _domain_contexts() -> dict:
+    return {
+        domain: {
+            "original_domain_policy": f"# {domain.title()} policy\n\nThe agent must follow applicable requirements.",
+            "available_tool_contracts": ({
+                "tool_name": "lookup",
+                "arguments": ["record_id"],
+                "required_arguments": ["record_id"],
+                "optional_arguments": [],
+                "description": "Look up one record.",
+            },),
+        }
+        for domain in ("airline", "retail")
     }
 
 
@@ -177,6 +201,125 @@ def _target_response(transitions: list[str], request: TargetedFixRequest) -> str
 
 
 class V13DiagnosisEditorTests(unittest.TestCase):
+    def test_diagnosis_request_contains_complete_authoritative_domain_context(self):
+        contexts = load_authoritative_domain_contexts(ROOT / "external/tau2-bench")
+        request = MultiRolloutDiagnosisRequest(
+            candidate_id="candidate", diagnosis_id="diagnosis_001",
+            current_parent_skill=(CAMPAIGN_DIR / "skills/S0_empty_skill.md").read_text().replace(
+                "# Operational Skill", "# SuiteCRM Operational Skill", 1
+            ),
+            task_context={"domain": "airline", "task_id": "1"},
+            original_domain_policy=contexts["airline"]["original_domain_policy"],
+            available_tool_contracts=contexts["airline"]["available_tool_contracts"],
+            rollouts=_group(("compliant_success", "compliant_success", "violating_success")),
+        )
+        _, user = build_diagnosis_prompts(request)
+        self.assertIn("All passengers must fly the same flights in the same cabin", user)
+        self.assertIn('"tool_name": "update_reservation_baggages"', user)
+
+    def test_evidence_sufficiency_contract(self):
+        sections = {"Planning and navigation": []}
+        update = _diagnosis(
+            relevance="update", action="add", category="skill_issue",
+            update_axis="compliance", problem="different decision predicate",
+            repair_operator="use the Policy-permitted predicate",
+        )
+        self.assertEqual(validate_diagnosis(update, experiences=_group(), skill_sections=sections), ())
+
+        not_supportive = copy.deepcopy(update)
+        not_supportive["cross_rollout_analysis"]["evidence_consistency"] = "insufficient"
+        self.assertIn(
+            "UPDATE_REQUIRES_SUPPORTIVE_EVIDENCE",
+            validate_diagnosis(not_supportive, experiences=_group(), skill_sections=sections),
+        )
+        empty_mechanism = copy.deepcopy(update)
+        empty_mechanism["cross_rollout_analysis"]["discriminating_behavior"] = ""
+        self.assertIn(
+            "UPDATE_REQUIRES_DISCRIMINATING_BEHAVIOR",
+            validate_diagnosis(empty_mechanism, experiences=_group(), skill_sections=sections),
+        )
+        label_only = copy.deepcopy(update)
+        label_only["cross_rollout_analysis"]["discriminating_behavior"] = "CS and VS differ."
+        self.assertIn(
+            "DISCRIMINATING_BEHAVIOR_IS_ONLY_LABEL_CONTRAST",
+            validate_diagnosis(label_only, experiences=_group(), skill_sections=sections),
+        )
+        conflicting = copy.deepcopy(update)
+        conflicting["cross_rollout_analysis"]["evidence_consistency"] = "conflicting"
+        self.assertIn(
+            "CONFLICTING_EVIDENCE_REQUIRES_UNCERTAIN_NO_UPDATE",
+            validate_diagnosis(conflicting, experiences=_group(), skill_sections=sections),
+        )
+
+    def test_passenger_cabin_and_baggage_payment_counterevidence_fixture(self):
+        contexts = load_authoritative_domain_contexts(ROOT / "external/tau2-bench")
+        policy = contexts["airline"]["original_domain_policy"]
+        baggage = next(
+            item for item in contexts["airline"]["available_tool_contracts"]
+            if item["tool_name"] == "update_reservation_baggages"
+        )
+        self.assertIn("All passengers must fly the same flights in the same cabin", policy)
+        self.assertEqual(
+            baggage["required_arguments"],
+            ["reservation_id", "total_baggages", "nonfree_baggages", "payment_id"],
+        )
+        diagnosis = _diagnosis(relevance="uncertain", category="uncertain")
+        diagnosis["cross_rollout_analysis"].update({
+            "stable_behavior": "all rollouts use the same-cabin predicate and supply payment information",
+            "compliance_contrast": "CS, CS, and VS labels differ without a behavior contrast",
+            "discriminating_behavior": "",
+            "evidence_consistency": "conflicting",
+            "counterevidence": "the alleged behaviors are present in compliant and violating rollouts",
+        })
+        self.assertEqual(validate_diagnosis(
+            diagnosis,
+            experiences=_group(("compliant_success", "compliant_success", "violating_success")),
+            skill_sections={"Planning and navigation": []},
+        ), ())
+        self.assertEqual(diagnosis["update_axis"], "none")
+        self.assertEqual(diagnosis["update_recommendation"]["action"], "none")
+
+    def test_cancellation_eligibility_policy_blocked_fixture(self):
+        diagnosis = _diagnosis(relevance="none", category="external_issue")
+        diagnosis["root_cause"]["explanation"] = (
+            "The Policy prohibits cancellation under the current conditions even if no refund is accepted."
+        )
+        diagnosis["cross_rollout_analysis"]["evidence_consistency"] = "insufficient"
+        self.assertEqual(validate_diagnosis(
+            diagnosis, experiences=_group(), skill_sections={"Planning and navigation": []}
+        ), ())
+        self.assertEqual(diagnosis["update_axis"], "none")
+        self.assertEqual(diagnosis["update_recommendation"]["action"], "none")
+        self.assertIn("Policy explicitly prohibits", DIAGNOSIS_SYSTEM_PROMPT)
+
+    def test_gift_card_payment_counterevidence_fixture(self):
+        diagnosis = _diagnosis(relevance="uncertain", category="uncertain")
+        diagnosis["task_behavior_summary"] = "Every rollout refunds to a gift card; none charges a gift card."
+        diagnosis["cross_rollout_analysis"].update({
+            "stable_behavior": "CS and VS use the same refund-to-gift-card operation",
+            "compliance_contrast": "outcomes differ but the payment mechanism does not",
+            "discriminating_behavior": "",
+            "evidence_consistency": "conflicting",
+            "counterevidence": "refund destination is not additional-payment sufficiency",
+            "support_evidence_refs": [],
+        })
+        self.assertEqual(validate_diagnosis(
+            diagnosis,
+            experiences=_group(("compliant_success", "violating_success", "compliant_success"), domain="retail"),
+            skill_sections={"Planning and navigation": []},
+        ), ())
+
+    def test_tool_capability_never_overrides_policy_permission_fixture(self):
+        diagnosis = _diagnosis(relevance="none", category="external_issue")
+        diagnosis["root_cause"]["explanation"] = (
+            "The operation is technically available but explicitly prohibited by Policy in this state."
+        )
+        self.assertEqual(validate_diagnosis(
+            diagnosis, experiences=_group(), skill_sections={"Planning and navigation": []}
+        ), ())
+        self.assertIn("Tool availability alone is not Policy permission", DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertIn("tool availability alone is not Policy permission", EDITOR_SYSTEM_PROMPT)
+
     def test_dual_axis_schema_accepts_compliance_and_task_success_updates(self):
         sections = {"Planning and navigation": []}
         compliance = _diagnosis(
@@ -292,7 +435,8 @@ class V13DiagnosisEditorTests(unittest.TestCase):
             ]) + "</CANONICAL_EDITS_JSON>"
 
         decision = MultiRolloutDiagnosisProposalOperator().propose(
-            ProposalContext("candidate", parent, tuple(evidence)), diagnose, editor
+            ProposalContext("candidate", parent, tuple(evidence)), diagnose, editor,
+            domain_contexts=_domain_contexts(),
         )
         self.assertEqual(len(decision.applied_edits), 2)
         self.assertEqual(decision.editor_calls, 1)
@@ -319,7 +463,8 @@ class V13DiagnosisEditorTests(unittest.TestCase):
             ]) + "</CANONICAL_EDITS_JSON>"
 
         decision = MultiRolloutDiagnosisProposalOperator().propose(
-            ProposalContext("candidate", parent, tuple(evidence)), diagnose, editor
+            ProposalContext("candidate", parent, tuple(evidence)), diagnose, editor,
+            domain_contexts=_domain_contexts(),
         )
         self.assertEqual(len(decision.applied_edits), 1)
         edit = decision.applied_edits[0]
@@ -349,11 +494,15 @@ class V13ComplianceJudgeTests(unittest.TestCase):
             {"step": 1, "event_type": "tool_call", "tool_name": "modify_address"},
             {"step": 2, "event_type": "tool_call", "tool_name": "modify_items"},
         ]
-        payload = build_judge_payload("retail", self.POLICY, {"domain": "retail"}, trajectory)
+        payload = build_judge_payload(
+            "retail", self.POLICY, {"domain": "retail"}, trajectory,
+            [{"tool_name": "modify_items", "arguments": [], "description": "Modify items."}],
+        )
         self.assertEqual(
             [item["tool_name"] for item in payload["full_trajectory"]],
             ["modify_address", "modify_items"],
         )
+        self.assertEqual(payload["available_tool_contracts"][0]["tool_name"], "modify_items")
 
     def test_clause_must_come_from_original_policy(self):
         valid = {
@@ -370,6 +519,25 @@ class V13ComplianceJudgeTests(unittest.TestCase):
         broadened["violations"][0]["policy_clause"] = "All modification tools can only be called once per order."
         with self.assertRaisesRegex(ComplianceJudgeError, "policy clause not found"):
             validate_judgment(broadened, {1, 2}, original_policy=self.POLICY)
+
+    def test_policy_clause_must_be_inside_declared_markdown_section(self):
+        policy = "## Modify items\n\nClause A.\n\n## Cancellation\n\nClause B."
+        mismatch = {
+            "compliant": False,
+            "violations": [{
+                "policy_section": "Modify items", "policy_clause": "Clause B.",
+                "evidence_steps": [1], "reason": "One alleged behavior.",
+            }],
+        }
+        with self.assertRaisesRegex(ComplianceJudgeError, "declared section") as caught:
+            validate_judgment(mismatch, {1}, original_policy=policy)
+        self.assertEqual(caught.exception.validation_code, "POLICY_CLAUSE_SECTION_MISMATCH")
+
+    def test_atomic_violation_and_complete_unsupported_claim_contract(self):
+        self.assertIn("Each violation item must describe one coherent behavioral allegation", JUDGE_SYSTEM_PROMPT)
+        self.assertIn("Do not bundle independent issues", JUDGE_SYSTEM_PROMPT)
+        self.assertIn("check the entire original Policy", JUDGE_SYSTEM_PROMPT)
+        self.assertIn("every relevant available tool contract", JUDGE_SYSTEM_PROMPT)
 
     def test_one_tool_call_clause_is_deterministically_excluded(self):
         policy = (
@@ -610,6 +778,21 @@ class V13GateCampaignTests(unittest.TestCase):
         self.assertEqual(holdout["s0_units"], holdout["s_final_units"])
         self.assertEqual(holdout["trajectory_count"], 240)
 
+    def test_policy_grounded_recovery_pauses_step3_and_branches_step2_reuse(self):
+        campaign, batch_map = _load(MANIFEST), _load(BATCH_MAP)
+        plan = build_policy_grounded_recovery_plan(campaign, batch_map, {
+            "protocol_version": "autonomous_gse_v13", "completed_steps": 2,
+            "current_parent": {"version": "S0"}, "steps": [{}, {}],
+        })
+        self.assertTrue(plan["step_3_paused"])
+        self.assertFalse(plan["formal_execution_authorized"])
+        self.assertTrue(plan["preserve_existing_artifacts"])
+        self.assertIn("rerun_compliance_judge", plan["step_2_parent_rule"]["if_new_step_1_rejects"]["then"])
+        self.assertFalse(
+            plan["step_2_parent_rule"]["if_new_step_1_accepts"]
+            ["reuse_old_step_2_s0_parent_trajectories"]
+        )
+
 
 class _FakeBackend:
     def __init__(self, root: Path):
@@ -826,6 +1009,21 @@ class V13OfflineIntegrationTests(unittest.TestCase):
             )
             self.assertEqual(len(calls), 60)
             self.assertTrue(all(len(request.rollouts) == 3 for request in calls))
+            self.assertTrue(all(request.original_domain_policy.strip() for request in calls))
+            self.assertTrue(all(request.available_tool_contracts for request in calls))
+            self.assertTrue(all(
+                ("Airline Agent Policy" in request.original_domain_policy)
+                == (request.task_context["domain"] == "airline")
+                for request in calls
+            ))
+            tools_by_domain = {
+                request.task_context["domain"]: {
+                    item["tool_name"] for item in request.available_tool_contracts
+                }
+                for request in calls
+            }
+            self.assertIn("update_reservation_baggages", tools_by_domain["airline"])
+            self.assertIn("cancel_pending_order", tools_by_domain["retail"])
             self.assertEqual(backend.calls, [
                 ("step_001_parent", 60), ("step_002_parent", 60), ("step_003_parent", 60),
             ])
