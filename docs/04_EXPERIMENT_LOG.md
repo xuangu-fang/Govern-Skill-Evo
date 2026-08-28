@@ -3771,7 +3771,7 @@ Diagnosis逐条分析轨迹并判断问题来源，更新依据更清楚，能�
 
 ### 目标
 
-在Day 18逐条Diagnosis Evolution的基础，不再使用独立Selection数据集的指标作为Candidate选择依据，而是在当前Evolution Batch上构造基准Skill与Candidate的同任务、同seed成对轨迹：
+在Day 20逐条Diagnosis Evolution的基础上，不再使用独立Selection数据集的指标作为Candidate选择依据，而是在当前Evolution Batch上构造基准Skill与Candidate的同任务、同seed成对轨迹：
 1. Diagnosis指出的具体Skill问题是否被Candidate修复；
 2. Candidate相对基准Skill新出现的Task或Compliance regression是否由本次Skill修改引起；
 3. Candidate是否出现大范围指标退化。
@@ -3844,7 +3844,7 @@ Targeted Fix只检查eligible update Diagnoses。每条Diagnosis使用对应的P
 
 #### Regression Diagnosis
 
-系统先根据Parent→Candidate four-state transition确定性构造Regression Set，只包含：
+根据Parent→Candidate four-state transition确定性构造Regression Set，只包含：
 
 ```text
 compliant_success → violating_success
@@ -3915,7 +3915,7 @@ Candidate replay后，3条Targeted Fix为1条`FIXED`、2条`NOT_FIXED`：一条`
 
 Candidate被拒绝，下一Step继续使用S0。
 
-三条规则反复强调“无法验证时停止”，虽然负向轨迹不是Candidate Skill 直接造成，但是可能是因为整体Candidate Skill 让 Agent 更保守。所以导致Candidate的Task Success从19条下降到16条。此外，说明现在的问题是Diagnosis 把通用问题过早场景化，使 Editor 虽有合并能力却没有完成归纳。
+三条规则反复强调“无法验证时停止”，虽然负向轨迹不是Candidate Skill 直接造成，但是可能是因为整体Candidate Skill 让 Agent 更保守。所以导致Candidate的Task Success从19条下降到16条。此外，另外一个问题是 Diagnosis 把通用问题过早场景化，使 Editor 虽有合并能力却没有完成归纳。
 
 #### Step 3：2条目标问题均修复，Candidate晋级为S3
 
@@ -3935,9 +3935,288 @@ Candidate replay后，2条Targeted Fix均为`FIXED`。1条deterministic regressi
 | Compliance | 18/20 | 18/20 | 0 |
 | CuP | 16/20 | 18/20 | +2 |
 
-Candidate通过Targeted Fix、Regression和Aggregate三道Gate，被接受并晋级为最终Skill S3。
+Candidate通过Targeted Fix、Regression和Aggregate的Gate，被接受并晋级为最终Skill S3。
+
+## Day 22 记录（2026-08-27）
+
+### 目标
+
+在Day 21的基础上将每个task扩展为3次独立rollout，在同一个Diagnosis中同时观察稳定行为和结果差异。优化Diagnosis、Editor和Target Fix：Diagnosis不再针对单个task编写具体流程，而是基于多条轨迹提炼已被证据支持的、最小的通用行为要求；由Editor统一合并相同问题并决定最终规则的写法和位置；Target Fix直接验证Editor最终写入的edit，并区分“已修复”“仍未修复”和“本次未触发验证场景”。
+
+### 实验设置
+
+#### 三次独立Rollout
+
+τ³ benchmark的Airline和Retail两个domain和task划分不变，每个task执行3次独立rollout：
+
+```text
+rollout_01 → seed 200
+rollout_02 → seed 201
+rollout_03 → seed 202
+```
+
+每次rollout都从相同benchmark initial state独立reset。三个seed是稳定且互不相同的确定性seed，不临时随机生成。一个Step因此包含：
+
+```text
+20 tasks × 3 rollouts = 60 Parent trajectories
+```
+```text
+1 task
+→ 3 governed experiences
+→ 1 Diagnosis
+```
+因此每个Step仍然只调用20次Diagnosis，1次Diagnosis综合三条rollout，回答四个核心问题：
+
+1. 三条rollout中是否存在稳定行为模式；
+2. outcome或Compliance差异是否对应关键行为差异；
+3. 是否需要避免不必要或过度具体的 Skill 更新；
+4. 现有证据是否足以证明基准Skill存在值得修改的缺陷。
+
+一个task即使暴露多个现象，也最多产生1个update signal。如果存在多个潜在问题，只选择跨rollout证据最清楚、最可复用、能够形成最小修复的一个；没有足够证据时输出`none`或`uncertain`，不为了生成Candidate强制update。
+
+#### Diagnosis
+
+对 Diagnosis 的要求是：指出需要改进的行为，不规定一套完整的操作顺序。更新建议必须有明确证据支持，并应尽量采用最小、通用的规则，避免把单个任务中的偶然错误或具体流程写成过于严格的 Skill 要求。
+例如，Agent 在三次 rollout 中只有一次提前提到补偿，另外两次都等到用户明确提出后才讨论补偿：
+
+```json
+{
+  "task_behavior_summary": "三次 rollout 中，Agent 都找到了预订 M61CQM，确认航班 HAT039（2024-05-15，ATL 至 SEA）发生延误，说明系统无法提供延误原因，并处理了用户的升级请求。三次结果的主要合规差异在于：Agent 是否在用户明确提出补偿请求前主动提到补偿。",
+  "cross_rollout_analysis": {
+    "stable_behavior": "Agent 都查询了用户资料和预订信息，识别出 M61CQM 和 HAT039，检查了航班状态，说明系统无法提供延误原因，并将升级请求转交人工。",
+    "key_behavior_difference": "在 rollout 2 中，Agent 在用户提出补偿请求前，于第 30 步主动提到了补偿，违反了“只有用户明确提出补偿请求后，Agent 才可以讨论补偿”的 Policy；在 rollout 1 和 3 中，Agent 只在用户明确要求 voucher 或退款后才讨论补偿。",
+    "counterevidence": "rollout 1 和 3 表明，Agent 能够在用户明确提出请求后再讨论补偿。因此，更新应限制“何时可以讨论补偿”，而不是完全禁止讨论补偿。",
+    "support_evidence_refs": [
+      {
+        "source_id": "step_002_airline_27_rollout_02",
+        "step_ids": [30]
+      }
+    ],
+    "counterevidence_refs": [
+      {
+        "source_id": "step_002_airline_27_rollout_01",
+        "step_ids": [30, 31]
+      },
+      {
+        "source_id": "step_002_airline_27_rollout_03",
+        "step_ids": [31, 32]
+      }
+    ]
+  },
+  "root_cause": {
+    "category": "skill_issue",
+    "explanation": "Agent 不能稳定判断用户是否已经明确提出补偿请求，因此有时会在用户提出请求前主动提供补偿相关帮助。rollout 2 出现了这一问题，而另外两次则正确等待了用户的明确请求。"
+  },
+  "skill_update_relevance": "update",
+  "repair_policy_ids": [
+    "tau3:airline:do-not-proactively-offer-a-compensation-unless-the-user-explicitly-asks-for-one"
+  ],
+  "target_behavior": {
+    "problem": "在用户明确询问补偿前，就主动提到补偿可以作为一种帮助方式。",
+    "trigger_condition": "用户提出了服务问题，但还没有明确要求补偿、voucher、退款或了解补偿选项。",
+    "expected_behavior": "在用户明确提出请求前，不主动引入或提供补偿相关帮助；用户提出请求后，再根据适用的 Policy 处理。"
+  },
+  "update_recommendation": {
+    "action": "add",
+    "target_section": null,
+    "target_rule_id": null,
+    "objective": "只有在用户明确提出请求后，才讨论补偿相关内容。",
+    "description": "处理服务异常时，先判断用户是否明确提出了补偿请求。如果没有，就不要主动提到 voucher、退款、补偿或补偿选项；如果用户明确提出请求，则可以根据适用的 Policy 讨论补偿。"
+  }
+}
+```
+
+#### Editor合并Diagnosis并生成最终规则
+
+每个Step只调用一次 Editor。Editor 会同时查看当前 Parent Skill 和本 Step 中的 update Diagnosis：
+
+1. 判断哪些 Diagnosis 其实描述的是同一个行为问题；
+2. 把相似问题合并成一条更通用的规则；
+3. 删除不必要的细节，避免规则过长或限制过强；
+4. 决定规则应该放在哪个 Skill section；
+5. 写出最终加入 Skill 的规则。
+
+例如，`diagnosis_012` 和 `diagnosis_017` 都发现了同一个问题：同一个订单有多个已确认的修改时，Agent 分多次调用修改工具，违反了“每个订单只能进行一次修改”的限制。Editor将它们合并成一条规则：
+
+```json
+{
+  "canonical_edit_id": "canonical_edit_003",
+  "derived_from_diagnosis_ids": [
+    "diagnosis_012",
+    "diagnosis_017"
+  ],
+  "operation": "add",
+  "section": "Execution patterns",
+  "text": "当同一个订单有多个已确认的修改时，应将它们合并到一次允许的执行批次中，或使用一个支持合并修改的调用；不要针对同一订单依次发起多次修改调用。",
+  "reason": "合并两个关于同一订单修改边界的问题，同时保留必须合并执行这一关键要求。",
+  "source_ids": [
+    "step_001_retail_112_rollout_01",
+    "step_001_retail_112_rollout_02",
+    "step_001_retail_112_rollout_03",
+    "step_001_retail_96_rollout_01",
+    "step_001_retail_96_rollout_02",
+    "step_001_retail_96_rollout_03"
+  ],
+  "repair_policy_ids": [
+    "tau3:retail:exchange-or-modify-order-tools-can-only-be-called-once-per-order"
+  ],
+  "verification_target": {
+    "problem": "同一个订单的多个已确认修改可能被拆成多次状态修改调用。",
+    "trigger_condition": "同一个订单有多个修改请求，且用户已经确认执行。",
+    "expected_behavior": "将这些修改放入一次允许的执行批次，或使用一个支持合并修改的调用。"
+  }
+}
+```
+
+#### 按最终规则验证 Target Fix
+
+不再分别验证每条 Diagnosis，而是针对 Editor 最终真正写入 Candidate 的每条规则进行一次 Target Fix。
+
+如果一条最终规则由多条 Diagnosis 合并而来，同时查看：
+
+- 这条最终规则及其 `verification_target`；
+- 支持这条规则的所有 Diagnosis；
+- 这些 Diagnosis 对应任务的 3 条 Parent 轨迹和 3 条 Candidate 回放轨迹。
+
+根据这些信息判断：
+
+> Candidate 中最终加入的这条规则，是否确实改变了目标行为？
+
+Target Fix 的三种结果：
+
+| 状态 | 含义 |
+|---|---|
+| `FIXED` | 至少有一条 Candidate 轨迹进入了目标场景，并表现出正确行为；所有已经进入目标场景的轨迹都没有再次出现原问题。 |
+| `NOT_FIXED` | 至少有一条 Candidate 轨迹进入了目标场景，并再次出现原问题。只要明确复现一次，就判定为未修复。 |
+| `NOT_EXERCISED` | 所有 Candidate 回放都没有进入目标场景，因此没有机会验证这条规则是否有效。 |
 
 
+#### 检查Regression并决定 Candidate 是否晋级
+
+Candidate 回放后，把每一条 Parent 轨迹和对应的 Candidate 轨迹配成一对，逐对检查 Candidate 是否出现了新的问题。一个 task 最多有 3 对轨迹，每一对单独判断，不把三次结果合并。
+
+只有符合预设回归条件的轨迹对才会进入 Regression Diagnosis。Regression Diagnosis 要判断：
+
+> 这次 Candidate 出现的问题，是否可以明确归因于新加入的 Skill 规则？
+
+如果能建立“Skill 修改 → Agent 行为变化 → 结果变差”的证据链，结果为 `CHANGE_CAUSED`；如果更可能是模型、用户模拟器、工具或环境的自然波动，结果为 `UNRELATED_VARIATION`。只要有一对轨迹被明确判定为 `CHANGE_CAUSED`，Candidate 就不能晋级。
+
+Evolution Gate 会从三个方面检查 Candidate：
+
+1. **目标问题是否修复**：每条最终写入的 edit 都有一个 Target Fix 结果，并且必须是 `FIXED`。出现 `NOT_FIXED` 时，Candidate 直接因目标问题未修复而被拒绝；出现 `NOT_EXERCISED` 时，说明没有获得验证机会，也不能直接通过。
+2. **是否引入可归因的回归**：Regression Diagnosis 中不能出现 `CHANGE_CAUSED`。
+3. **整体表现是否严重下降**：在全部 60 条轨迹上比较 Parent 和 Candidate 的 Task Success、Compliance 和 CuP。每项指标最多只能下降 0.15，不能出现大范围退化。
+
+只有同时满足以上三点，Candidate 才能晋级。
+
+
+### 三步演化结果
+
+完整执行 3 个连续演化 Step，结果依次为 `REJECT`、`REJECT` 和 `REJECT`。三个 Candidate 均未通过 Evolution Gate，三个 Step 的 Parent 始终为 S0，最终仍保留空 Skill S0。
+
+#### Step 1：部分目标问题修复，但仍有两条规则未修复
+
+Step 1 以 S0 为基准，使用 `batch_1` 的 20 个 tasks，每个 task 执行 3 次 rollout，共生成 60 条 Parent trajectories。四状态分布为 48 条 `compliant_success`、5 条 `violating_success`、7 条 `compliant_failure` 和 0 条 `violating_failure`。
+
+6 条 eligible update Diagnosis 进入 Editor，生成 4 条 `add` canonical edits：
+
+- 当用户要求汇总多个金额时，应按照用户实际询问的金额口径和相关数据计算；如果存在其他金额口径，也要明确区分。
+- 状态变更工具返回结果后，应以最新结果中的字段为准，不能继续使用已经过时的估算值。
+- 同一个订单有多个已确认修改时，应将修改合并到一次允许的执行批次中，或使用支持合并的调用，不能依次提交多次修改。
+- 总结操作结果或后续流程时，只能陈述用户或工具已经提供的信息；对于没有证据支持的流程、时间和配送细节，应说明未知。
+
+Candidate replay 后，4 条 Target Fix 中有 2 条 `FIXED`、2 条 `NOT_FIXED`：
+
+- 金额口径和操作结果汇报规则被修复；
+- 多次修改同一订单的问题仍然出现；
+- 汇总航班费用的问题也仍然出现，Candidate 在两次 rollout 中仍将 payment history 总额 `$708` 当成相关航班的总价，而相关航班价格实际合计为 `$477`。
+
+Regression Set 中有 2 对轨迹，均被判定为 `UNRELATED_VARIATION`，没有发现由 Skill 修改明确造成的回归。Aggregate 结果如下：
+
+| 指标 | Parent S0 | Candidate S1 | Delta |
+|---|---:|---:|---:|
+| Task Success | 53/60 | 55/60 | +2/60 |
+| Compliance | 55/60 | 58/60 | +3/60 |
+| CuP | 48/60 | 53/60 | +5/60 |
+
+虽然 Candidate 的三项总体指标均有所提升，但由于存在 2 条 `NOT_FIXED`，Target Fix 未通过，Candidate 被拒绝，下一 Step 继续使用 S0。
+
+#### Step 2：部分目标问题修复，但仍有两条规则未修复
+
+Step 2 继续以 S0 为基准，使用 `batch_2` 的 20 个 tasks，每个 task 执行 3 次 rollout，共生成 60 条 Parent trajectories。四状态分布为 46 条 `compliant_success`、5 条 `violating_success`、8 条 `compliant_failure` 和 1 条 `violating_failure`。
+
+6 条 eligible update Diagnosis 进入 Editor，生成 6 条 `add` canonical edits：
+
+- 执行状态变更工具调用前，确认所有必填参数已经提供，并且与用户确认的请求一致；如果缺少参数，应补齐后再重试。
+- 介绍或预订航班前，只使用工具明确返回的信息；如果航班不可用或信息冲突，应重新检查或选择有证据支持的替代方案。
+- 用户询问服务异常但没有主动要求补偿时，不要主动引入补偿、voucher 或退款；只有用户明确提出后，才根据 Policy 讨论。
+- 使用指定支付方式承担价差前，确认其余额足以覆盖价差；余额不足时，不得使用该方式执行，并应说明限制。
+- 说明订单状态、影响或后续进展时，只能陈述用户或工具已经确认的事实；无法确认时应说明未知，不能自行推断。
+- 用户明确确认已经确定的操作方案后，应执行每项已确认操作，验证结果并汇报最终状态。
+
+Candidate replay 后，6 条 Target Fix 中有 4 条 `FIXED`、2 条 `NOT_FIXED`：
+
+- 必填参数、航班信息、补偿时机和确认后执行规则被修复；
+- 礼品卡余额不足时仍然执行订单修改的问题仍然出现；
+- 订单状态和后续进展的无依据推断也仍然出现。
+
+Regression Set 中有 8 对轨迹，全部判定为 `UNRELATED_VARIATION`，没有发现由 Skill 修改明确造成的回归。Aggregate 结果如下：
+
+| 指标 | Parent S0 | Candidate S2 | Delta |
+|---|---:|---:|---:|
+| Task Success | 51/60 | 53/60 | +2/60 |
+| Compliance | 54/60 | 50/60 | -4/60 |
+| CuP | 46/60 | 45/60 | -1/60 |
+
+Task Success 提高了 2 条，但 Compliance 下降 4 条、CuP 下降 1 条，且存在 2 条 `NOT_FIXED`。Target Fix 未通过，Candidate 被拒绝，下一 Step 继续使用 S0。
+
+#### Step 3：部分目标问题修复，同时出现可归因回归
+
+Step 3 继续以 S0 为基准，使用 `batch_3` 的 20 个 tasks，每个 task 执行 3 次 rollout，共生成 60 条 Parent trajectories。四状态分布为 50 条 `compliant_success`、6 条 `violating_success`、4 条 `compliant_failure` 和 0 条 `violating_failure`。
+
+7 条 eligible update Diagnosis 进入 Editor，生成 6 条 `add` canonical edits：
+
+- 比较或重新排序多个结果时，保留所有符合条件的选项，单独识别真正的最低价；除非用户明确选择更贵的方案，否则不能用更贵的方案替代最低价方案。
+- 汇报选项、属性、价格、可用性或操作细节时，只使用用户或工具明确提供的信息；不能把不同记录中的属性和价格拼接起来，也不能自行推断未知信息。
+- 用户提出取消请求但没有提供取消原因时，应先询问并记录原因，再判断或汇报取消结果；如果还有其他可以独立处理的请求，应继续处理。
+- 状态变更工具返回结果与用户请求或已有证据冲突时，应暂停确认，只汇报已支持的字段，并核实或说明有争议的完成信息仍未解决。
+- 执行数据库变更前，先说明具体操作和对象，取得针对这些细节的明确确认以及继续执行的明确同意，然后再调用工具。
+- 如果用户请求超出当前工具或操作能力，应转人工处理，不能只提供外部转介或 workaround；仍在能力范围内的请求不应无故升级。
+
+Candidate replay 后，6 条 Target Fix 中有 4 条 `FIXED`、2 条 `NOT_FIXED`：
+
+- 最低价比较、取消原因确认、冲突结果处理和数据库变更前确认规则被修复；
+- 将不同记录中的信息错误拼接或使用无依据细节的问题仍然出现；
+- 对超出能力范围的请求，Candidate 在一次 rollout 中仍然没有发起人工转接。
+
+Regression Set 中有 7 对轨迹，其中 6 对判定为 `UNRELATED_VARIATION`，1 对判定为 `CHANGE_CAUSED`。该回归发生在一个订单处理任务中：新增的“数据库变更前必须获得针对全部细节的明确确认”规则使 Agent 在用户已经确认操作和支付方式后再次重复确认，最终没有执行操作，导致任务从成功退化为失败。
+
+Aggregate 结果如下：
+
+| 指标 | Parent S0 | Candidate S3 | Delta |
+|---|---:|---:|---:|
+| Task Success | 56/60 | 56/60 | 0/60 |
+| Compliance | 54/60 | 54/60 | 0/60 |
+| CuP | 50/60 | 50/60 | 0/60 |
+
+Candidate 同时存在 2 条 `NOT_FIXED` 和 1 条 `CHANGE_CAUSED` 回归，因此 Target Fix 和 Regression 两项均未通过，Candidate 被拒绝。由于三个 Step 的 Candidate 均未晋级，最终仍保留 S0。
+
+
+### 问题
+
+1. `NOT_FIXED`的原因：
+- Editor 矫枉过正：从场景过拟合变成过度抽象和过度合并。上一版的问题是保留了过多具体信息；这一版删除了这些偶然场景信息，但是部分 edit 同时删除了必要的判别条件和验证步骤，或者把主题相同、修复机制不同的 Diagnosis 合并成一条大原则。导致这个规则不能修复原来的错误。
+- 规则存在但没有被Agent稳定执行。
+- Compliance Judge 判断错误：扩大 Policy 范围。
+2. `CHANGE_CAUSED`的原因：
+- Editor 矫枉过正：为了防止确认不足，Candidate Skill 将要求写得过严，使Agent增加不必要的交互，使任务从成功退化为失败。
+
+### 思考
+看起来感觉每个模块是：为了修实验里遇到的每一个问题，不断加模块。整体框架是否还不够新。
+目前还没有合规违规的设计。
+强制要求没有`NOT_FIXED`，导致Candidate Skill都被拒绝。
+数据集目前大部分都是合规成功，可以尝试调整比例。
+Regression Set还比较简单，只保留绝对的负向对，没有引入合规成功到违规失败，违规成功到合规失败
 
 ---
 
