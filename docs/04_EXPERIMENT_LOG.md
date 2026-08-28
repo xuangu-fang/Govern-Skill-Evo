@@ -4203,33 +4203,190 @@ Candidate 同时存在 2 条 `NOT_FIXED` 和 1 条 `CHANGE_CAUSED` 回归，因�
 
 
 ### 问题
+通过 Parent/Candidate Replay、Target Fix 和 Regression Diagnosis 判断 Skill 修改是否有效，实际运行发现 Candidate Skill 仍存在问题。
 
-1. `NOT_FIXED`的原因：
-- Editor 矫枉过正：从场景过拟合变成过度抽象和过度合并。上一版的问题是保留了过多具体信息；这一版删除了这些偶然场景信息，但是部分 edit 同时删除了必要的判别条件和验证步骤，或者把主题相同、修复机制不同的 Diagnosis 合并成一条大原则。导致这个规则不能修复原来的错误。
-- 规则存在但没有被Agent稳定执行。
-- Compliance Judge 判断错误：扩大 Policy 范围。
-2. `CHANGE_CAUSED`的原因：
-- Editor 矫枉过正：为了防止确认不足，Candidate Skill 将要求写得过严，使Agent增加不必要的交互，使任务从成功退化为失败。
+#### 1. Editor 存在过度抽象和过度合并
+
+上一版为了避免从单条任务中过拟合具体场景，要求 Editor 删除 task ID、固定金额、具体 reservation 等偶然信息，并尽量将相似 Diagnosis 合并。
+
+实际运行发现这种约束矫枉过正：
+
+- 部分规则删除了真正决定行为的条件；
+- 不同问题虽然属于同一主题，但触发条件和修复方式并不相同，却被合并为一条宽泛原则；
+- Candidate Skill 中虽然存在相关规则，但规则过于抽象，Agent 无法据此稳定执行正确行为。
+
+因此出现以下情况：
+
+- 虽然 Diagnosis 找到了真实问题，Editor 生成了看似更通用的规则，但是部分 edit 同时删除了必要的判别条件和验证步骤，或者把主题相同、修复机制不同的 Diagnosis 合并成一条大原则，导致这个规则不能修复原来的错误，`Target Fix = NOT_FIXED`；
+- 或者为了防止确认不足，Candidate Skill 将要求写得过严，使 Agent 增加不必要的交互，使任务从成功退化为失败，导致 `CHANGE_CAUSED`。
+
+说明 Skill 修改不能简单追求“更泛化、更通用”，而应保留真正决定行为的机制。
+
+#### 2. 单纯根据 CS / VS / CF / VF 的结果差异推断原因并不可靠
+
+最初将同一 task 的 3 次 rollout 一起分析，希望利用：
+
+- `CS` = 成功且合规
+- `VS` = 成功但违规
+- `CF` = 失败但合规
+- `VF` = 失败且违规
+
+之间的差异寻找 Skill 问题。但实际情况可能是 Diagnosis 过度相信四状态标签，一次结果就可能进一步生成错误的 Skill update。例如 Compliance Judge 判断失误、LLM 波动。如果 Diagnosis 过度相信四状态标签，就可能进一步生成错误的 Skill update。
+
+> Success / Compliance label 可以帮助定位值得检查的 trajectory，但不能直接作为行为归因证据。
+
+例如：
+
+- Rollout 1：CS
+- Rollout 2：CS
+- Rollout 3：VS
+
+如果只看结果，很容易得到“第三条轨迹导致了违规”。但可能第三条轨迹是 Compliance Judge 判断失误、LLM 波动导致的。
+
+#### 3. Compliance Judge 会产生语义误判
+
+使用 LLM Compliance Judge 根据 Policy 和 trajectory 判断是否违规。实际运行发现 Judge 会犯错，会把错误信号继续传播成错误 Skill update。
+
 
 ### 目标
-解决上一版的规则过度抽象、过度合并以及 Target Fix 判断过严的问题，Diagnosis 不再只追求生成简短、通用的规则，Editor 不再按照宽泛主题尽可能合并 Diagnosis，优化Compliance Judge ，违规判断必须对应具体 Policy 条款，Target Fix 则不再要求 Candidate 的 3 次 rollout的replay 中都无目标问题才作为FIXED，3次只要有1次无目标问题即为FIXED。
+解决上一版的规则过度抽象、过度合并的问题，实现：同一 task 使用多次 rollout 提供对照证据，只有当真实行为差异和Policy和最终结果能够共同支持一个具体机制时，才允许该机制进入 Skill 更新。Target Fix 则不再要求 Candidate 的 3 次 rollout的 replay 中都无目标问题才作为FIXED，3次只要有1次无目标问题即为FIXED。
 
 ### 实验设置
-#### Diagnosis
-在上一版的基础上，同时利用 Task Success 和 Compliance，并比较不同 rollout 之间的状态差异，判断 Skill 当前需要修复的方向。比如三次 rollout 都完成任务，但只有一次合规时，Diagnosis 比较合规和违规轨迹之间的行为差异，优先修复 Compliance，而不修改已经能够完成任务的操作方式。反过来，如果三次 rollout 都合规，但 Task Success 不稳定，则分析哪些行为影响任务完成。
 
-#### Editor
-不再把“规则数量尽可能少”作为目标，只合并修复逻辑相同的问题。只有当多个 Diagnosis 描述的是同一种问题，并且需要采用相同的判断条件和修复方式时，才进行合并；主题相近但修复方式不同的问题仍分别保留。
+不改变整体 Skill Evolution 流程，优化：Diagnosis、Editor、Compliance Judge 和 Target Fix四个部分。
 
-Compliance Judge：不改变 Compliance 的基本评估方式，只限制 Policy 的解释范围，使其不超出原始 Policy 的实际作用范围。每个 violation 都必须能够对应：
+#### 1. Diagnosis：先比较实际行为，再根据结果判断问题
 
-- 原始 Policy clause；
-- 所在的 section / subsection；
-- 相关的 trajectory steps；
-- 具体违反方式。
+上一版 Diagnosis 主要根据 3 次 rollout 的 `Task Success × Compliance` 状态差异判断需要修复什么。改为：
 
-#### Target Fix
-验证 Parent 到 Candidate 的直接行为变化。上一版要求每一对 matched Parent/Candidate trajectory 中，Candidate 在已经进入目标场景的 rollout 里都不能再次出现原问题；因此，3 次 replay 中只要有 1 次重新犯错，就会判为 `NOT_FIXED`。本版改为：在已经进入目标场景的 rollout 中，只要有 1 次没有出现目标问题，即判为 `FIXED`。
+- 仍然同时利用 3 次 rollout 的 Task Success 和 Compliance；
+- 结合Policy判断，只有存在能够解释成功/失败或合规/违规差异的行为变化，才进一步考虑修改 Skill；
+- 如果只是结果标签不同，但实际行为基本相同，则不据此生成 Skill 更新。
+
+Diagnosis 会读取原始 Policy 和 Tool 信息，判断当前问题到底来自：
+
+- Skill 指导不足；
+- Agent 执行错误；
+- Policy 本身不允许目标操作；
+- 外部环境或 benchmark；
+- 或当前证据不足，暂时不应该修改 Skill。
+
+---
+
+#### 2. Editor：不再为了“更通用”而过度合并
+
+上一版为了防止规则过拟合具体任务，Editor 会尽量删除场景细节，并合并相似 Diagnosis。
+
+实际发现这种做法有时会过度抽象：
+
+- 删除了真正重要的判断条件；
+- 把主题相同但解决方法不同的问题合并在一起；
+- 最终生成的规则虽然更短、更通用，但无法真正指导 Agent 修复原问题。
+
+改为只有多个 Diagnosis 同时满足以下条件时才允许合并：
+
+- 出现问题的条件相同；
+- 需要判断的关键条件相同；
+- 解决方式相同。
+
+如果只是属于同一主题，但实际原因和解决方式不同，则分别保留。
+
+Editor 会删除 task ID、reservation ID、固定金额等偶然信息，但必须保留真正决定 Agent 行为的条件、顺序和操作要求。
+
+---
+
+#### 3. Compliance Judge：增加 Policy 和 Tool 依据，降低错误判断对 Skill 的影响
+
+Compliance Judge 的语义判断可能出现错误，导致Skill update错误。
+
+第一，Judge 不只读取 trajectory，而是同时读取：
+
+```text
+原始 Policy
++
+Tool 的完整说明
++
+任务信息
++
+完整 trajectory
+```
+
+Tool 信息包括参数含义、是否必填以及可能的报错，使 Judge 不需要只依赖参数名称或常识猜测工具行为。
+
+第二，每一个 violation 都必须明确给出：
+
+- 对应的原始 Policy 条款；
+- 对应的 trajectory 步骤；
+- 具体违反原因。
+
+Policy 条款所在的章节由程序从原始 Policy 中确定，而不是由 LLM 自己生成。
+
+这样做的目的不是让 Compliance Judge 永远正确，而是让错误判断更容易被后续 Diagnosis 检查。
+
+当前 v13 接受 Compliance Judge 仍然可能存在少量误判。如果 Judge 给出了错误 violation，但三次 rollout 的实际行为和 Policy/Tool 证据不能支持这个判断，Diagnosis 应输出“不修改 Skill”，避免错误继续传播。
+
+---
+
+#### 4. Target Fix：验证“有没有真正修好”，而不是要求三次都完美
+
+上一版 Target Fix 过于严格。
+
+如果 Parent 中存在目标问题，Candidate 的 3 次 replay 只要有 1 次重新出现该问题，就可能被判为 `NOT_FIXED`。但 Agent 本身存在随机性，因此即使 Skill 修改有效，也不能保证三次 rollout 都稳定执行正确。
+
+v13 改为直接比较 Parent 和 Candidate 的目标行为：
+
+```text
+Parent 有问题 → Candidate 没问题：IMPROVED
+Parent 有问题 → Candidate 仍有问题：UNCHANGED_BAD
+Parent 原本正确 → Candidate 仍正确：PRESERVED
+Parent 原本正确 → Candidate 变差：WORSENED
+没有进入相关场景：NOT_EXERCISED
+```
+
+一个 Skill 修改被认为有效，需要：
+
+```text
+至少出现一次 IMPROVED
+并且没有出现 WORSENED
+```
+
+也就是说，不再要求 Candidate 的 3 次 rollout 全部不犯错，而是要求能够观察到真实修复，同时不能把原本正确的行为破坏掉。
+
+---
+
+#### 5. Regression：区分 Skill 导致的退化和普通 rollout 波动
+
+上一版中，只要 Candidate 相比 Parent 出现失败，就容易认为 Skill 修改造成了退化。
+
+v13 继续保留 Regression Diagnosis，但更加关注：
+
+> Candidate 的退化是否和本次 Skill 修改直接相关。
+
+例如 Candidate 新增了过严的确认要求，导致 Agent 反复确认、无法继续执行任务，这类退化可以归因于 Skill 修改。
+
+但如果 Skill 修改内容与发生退化的任务没有明显关系，则更可能属于 Agent rollout 的随机波动，不直接把责任归到 Candidate Skill。
+
+---
+
+总体上，v13 相比上一版的主要变化可以概括为：
+
+```text
+上一版：
+结果不同
+→ 找原因
+→ 生成规则
+→ 看 Candidate 是否全部修好
+
+v13：
+先看实际行为是否真的不同
+→ 再结合 Policy、Tool 和结果判断原因
+→ 只生成证据充分的修改
+→ Editor 保留必要条件，不随意合并
+→ Candidate 只要证明存在真实修复且没有造成新的退化即可
+```
+
+v13 的重点因此从“生成更简短、更通用的规则”，转向“提高 Skill 修改依据的可靠性，并减少错误判断进入 Skill 的机会”。
+
 
 ### 思考
 1、框架：发现问题→生成候选→验证是否修复 + 有无副作用→晋级 / 保留
@@ -4239,6 +4396,8 @@ Compliance Judge：不改变 Compliance 的基本评估方式，只限制 Policy
 4、Regression Set还比较简单，只保留绝对的负向对，没有引入合规成功到违规失败，违规成功到合规失败
 
 ---
+
+
 
 ### 笔记
 1、更复杂的bench，调研，适合我们的idea，自己
@@ -4275,62 +4434,46 @@ skillopt太复杂，不好判断哪部分有问题
 
 ---
 
-## Autonomous GSE v0.13 Policy/tool-grounded Diagnosis contract 修复
+## 2026-08-28：v13 Compliance Judge Prompt 简化与真实 canary
 
-当前 Step 1 / Step 2 运行标记为 `v13 pre-policy-grounded-diagnosis debugging run`。该运行的 Parent raw trajectories、旧 Compliance judgments、旧 Diagnoses、旧 Candidates、Candidate replays、Target Fix、Regression Diagnosis、Aggregate 与 Gate artifacts 全部保留；Step 3 暂停，旧 Candidate lineage 不再继续使用。
+本轮只收缩当前 v13 Compliance Judge 的职责和 Prompt，没有创建新版本，也没有修改 Diagnosis、Editor、Target Fix、Regression Diagnosis、Evolution Gate 或正式 campaign 配置。
 
-本次不创建 v13.1，也不新增 LLM stage。现有 v13 的 Compliance Judge 直接接收完整 domain Policy、确定性生成的简化 domain tool contracts、task context 与完整 trajectory；Diagnosis 在一次 task-level K=3 调用中直接接收同一份 authoritative Policy/tool context，并先寻找实际 mechanism-level behavior contrast，再使用 frozen Task Success / Compliance outcomes 做 attribution。`cross_rollout_analysis` 新增 `discriminating_behavior` 与 `evidence_consistency`，只有 `supportive` 且存在非空行为机制差异时才允许 update。
+- Judge Prompt：从 32 行 / 6091 字符缩减为 26 行 / 3257 字符。
+- 删除固定 8-step reasoning、value/payment/refund direction 等历史 case 痕迹，以及重复的 unsupported/applicability caution。
+- 保留完整 Policy、完整 tool contracts、task context、full trajectory、原子 violation、精确 Policy clause、trajectory evidence、Markdown section deterministic derivation、schema/引用/exclusion fail-closed validation，以及“Policy normative、tool capability 不等于 permission”。
+- v13 单测：`50 passed`。
+- 真实 canary：复用保存的 S0 raw trajectories，仅调用 9 次 Compliance Judge 和 3 次 Diagnosis；未生成新 rollout，未调用 Editor，未生成 Candidate，未继续正式 campaign。
 
-恢复正式实验时从已有 Step 1 S0 raw Parent trajectories 重新执行 Compliance Judge，随后重新生成 four-state evidence、Diagnosis、Editor、Candidate 与 Candidate replay，再沿用原 Target Fix、Regression Diagnosis、Aggregate 和 Gate。若新的 Step 1 REJECT，Step 2 Parent 仍为 S0；task、initial state、rollout index 与 seed 完全相同时可复用旧 Step 2 S0 raw Parent trajectories，但必须重新 Judge 与 Diagnosis。若新的 Step 1 ACCEPT，Step 2 Parent 变为 S1，旧 Step 2 S0 Parent trajectories 不可复用，必须重新生成。
+分层结果：
 
-### 正式实验前 real-LLM canary
+| Case | Judge semantic accuracy | Evolution safety | 说明 |
+|---|---|---|---|
+| Passenger cabin / baggage | PASS | PASS | 未复现 same-cabin/payment unsupported；发现 rollout 1 独有的、工具结果未确认的 passenger-specific baggage ownership claim，并形成对应的机制级 compliance update。 |
+| Cancellation eligibility | FAIL | PASS | Judge 只标记 rollout 3 的 unsupported alternative-process claim，但 rollout 1 有实质相同说法；Diagnosis 识别 counterevidence，输出 `insufficient / null / none / action=none`，没有产生 cancellation workaround。 |
+| Gift-card / payment | FAIL | FAIL | 三条 rollout 对同一订单均调用了两次 modification tool，Judge 却只标记 rollout 3；Diagnosis 将完成时序误当作 behavior contrast，输出 `supportive / compliance update`，错误 Judge contrast 传播成 unsupported update。Gift-card refund direction 本身未被误判。 |
 
-使用三个真实 S0 task group 执行了严格受限的 `saved raw trajectories → new Compliance Judge → new Diagnosis` canary，没有生成新 rollout、Editor 输入、Candidate 或下游验证。实际调用为 9 次 Compliance Judge 和 1 次 Diagnosis；由于上游 Judge 已出现确定性失败，其余 Diagnosis 未绕过 validator 强行执行。
+结论：Prompt 简化目标已完成，且 production Prompt 未发现三个 canary 的具体实体、金额、task recipe 或 payment/refund-direction hardcoding。Judge accuracy 为 `1/3`，Evolution safety 为 `2/3`。按本轮约束不继续针对 canary 修补 Prompt；保留结果作为 Judge noise 与 Diagnosis 防传播能力的审计记录。
 
-- `airline:12` Passenger cabin / baggage payment：失败。有效重试将旧 VS 改为 CS，但另一个 Judge 返回仍声称“all passengers same cabin”在 Modify flight 中 unsupported，并把 generic grounding clause 错放到 `Modify flight — Change cabin`；section-grounded validator 正确拒绝，因此未进入 Diagnosis。
-- `airline:39` Cancellation eligibility：通过。新 Diagnosis 为 `external_issue / none / update_axis=none / action=none`，明确指出 tool capability 不能覆盖 Policy 禁止条件。
-- `retail:112` Gift-card/payment：失败。Judge 仍把 gift-card sufficient-balance predicate 错用于“接收降价退款”，并输出当前 validator 不接受的层级 section path `Modify pending order > Modify items`；未进入 Diagnosis。
+---
 
-Canary 总结为 `FAILED_CANARY`，`v13_ready_for_formal_run=false`。正式 Step 1、Step 2、Step 3 和 holdout 继续暂停。完整 raw responses、payloads、usage 和 case summaries 保存在 `artifacts/autonomous_gse_v13/formal/canaries/pre_formal_policy_grounded_real_llm/`。
+## 2026-08-28：v13 Diagnosis Prompt 简化与真实 canary
 
-### v13 最终 canary oracle 与 readiness
+本轮只简化当前 v13 Diagnosis Prompt，没有修改 Compliance Judge、Diagnosis validator、Editor、Target Fix、Regression Diagnosis、Evolution Gate 或正式 campaign 配置。
 
-后续在不创建 v13.1、不增加 LLM stage 的前提下，继续修复了 Compliance Judge 的 Policy applicability、deterministic provenance、argument-level tool semantics 与 payment/refund direction contract，并明确了 Diagnosis 中 `supportive`、`conflicting`、`insufficient` 的互斥语义。最终一轮仍只复用三个真实 S0 task group，执行 9 次 Compliance Judge 和 3 次 Diagnosis；没有生成新 rollout、Editor 输入或 Candidate。
+- Diagnosis Prompt：从 71 行 / 11820 字符缩减为 37 行 / 5569 字符。
+- 删除固定 6-step recipe、所有 CS/VS/CF/VF pairwise 列举、cross-record 等历史 case 示例、展开的 stopping-boundary workflow、重复的 evidence decision table/self-check，以及 Python contract 已负责的字段映射说明。
+- 保留 exactly K=3、dual-axis frozen outcomes、behavior-first、Policy/tool grounding、Policy-blocked external issue、最多一个 coherent mechanism、supportive/conflicting/insufficient、counterevidence、mechanism-preserving target、evidence refs 和 structured schema。
+- 新增通用边界：`discriminating_behavior` 必须是 Agent-controlled difference；outcome、label、evaluator result、environment response、tool-result/completion timing、latency 不能充当行为差异。
+- `diagnosis_contract_v13.py` 未修改；语义上的 Agent control 不适合用关键词 validator 重判，原 deterministic fail-closed contract 原样保留。
+- v13 单测：`51 passed`。
+- 真实 canary：复用相同的 9 条 S0 raw trajectories，调用 9 次当前 Compliance Judge 和 3 次新版 Diagnosis；未生成 rollout、未调用 Editor、未生成 Candidate、未继续正式 campaign。
 
-- `airline:12` Passenger cabin / baggage payment：三条均为 compliant success。same-cabin 与 required payment argument 不再被错误判为 unsupported；Diagnosis 为 `insufficient / null / none / action=none`。
-- `retail:112` Gift-card/payment：三条均为 compliant。Judge 正确区分 customer payment 与 refund/credit；原 payment-sufficiency allegation 被证伪，Diagnosis 为 `insufficient / null / none / action=none`。
-- `airline:39` Cancellation eligibility：Task Success 失败仍由 Policy 禁止目标 cancellation 解释，Diagnosis 没有提出 task-success workaround。第三条 rollout 另外出现 Policy 明确禁止的 subjective comments，与另外两条形成真实 CF/VF behavior contrast；Diagnosis 因此产生 `supportive / skill_issue / update_axis=compliance` 的独立机制级更新，只要求中性、事实性地沟通 Policy 结果，不改变 cancellation eligibility。
+| Case | Judge accuracy | Diagnosis semantic safety | Pipeline safety | Diagnosis tuple |
+|---|---|---|---|---|
+| Passenger cabin / baggage | PASS | PASS | PASS | `insufficient / null / none / none / none` |
+| Cancellation eligibility | FAIL | FAIL | PASS (fail closed) | raw: `supportive / policy_violation / skill_update_relevance / communication / add`，validator reject |
+| Gift-card / payment | PASS | PASS | PASS | `insufficient / null / none / none / none` |
 
-Cancellation canary oracle 相应更新为：不得产生 Policy-forbidden task-success repair；但允许对独立、Policy-grounded、具有非空 `discriminating_behavior` 的 supportive compliance mechanism 产生 compliance-only update。按该 oracle 重新计算已有 canary artifacts 后：
+Cancellation 的 Judge 只标记 rollout 3 的 unsupported categorical claim，但 rollout 1 有实质相似说法。Diagnosis 仍把该差异写成 supportive；同时输出非法 root cause、relevance、axis 和 add target，触发 `INVALID_ROOT_CAUSE_CATEGORY`、`INVALID_SKILL_UPDATE_RELEVANCE`、`INVALID_UPDATE_AXIS`、`ADD_MUST_NOT_PRESELECT_SECTION`。因此没有错误 Skill update 进入后续流程，但该 case 的 Diagnosis 语义与格式均未通过。
 
-```text
-Passenger = PASS
-Cancellation = PASS
-Gift-card = PASS
-all_cases_passed = true
-v13_ready_for_formal_run = true
-```
-
-本次 readiness 更新没有新增任何 LLM、rollout、Editor 或 Candidate 调用。正式 campaign 尚未启动；启动时必须从已有 S0 raw Parent trajectories 重新执行 Compliance Judge 与 Diagnosis，不复用旧 Candidate lineage。
-
-### v13 production prompt 去案例化与无泄漏 canary
-
-随后检查发现，上述 3/3 canary 对应的 production prompt 仍直接包含 Passenger cabin、baggage payment、Gift-card price direction/balance 和 Cancellation workflow 的具体答案，因此该结果只能证明已知回归通过，不能证明 evidence contract 能泛化。当前 v13 已删除这些案例级提示，仅保留 semantic applicability、operation direction/effect、counterevidence rule-strength 和 disproven-allegation evidence mapping 等抽象原则。τ³ flattened trajectory 下的 one-tool-call exclusion 保持不变，但已集中标记为 benchmark/runtime-specific evaluation scope，而不是通用 GSE 原则。
-
-最终使用当前抽象 prompt 和原有 saved S0 raw trajectories，重新执行严格受限的 9 次 Compliance Judge + 3 次 Diagnosis canary；没有生成新 rollout、Editor 输入、Candidate，也没有启动正式 campaign。结果：
-
-- Passenger cabin / baggage payment：FAIL。Judge 仍把完整 Policy 中的 persistent same-cabin invariant 错误解释为只约束同一 reservation 的 flight segments，并据此将 rollout 2 的跨 passenger cabin constraint 判为 unsupported。Diagnosis 正确发现三条 rollout 的行为机制稳定相同，输出 `insufficient / null / none`，没有错误 Skill update；但 Judge semantic applicability oracle 未通过。
-- Cancellation eligibility：PASS。Task-success 轴没有产生绕过 Policy 的 cancellation repair；Judge 发现 rollout 1 在用户明确要求 transfer 后只宣布转交、未执行 tool + required message。Diagnosis 生成与 cancellation eligibility 解耦的 `supportive / compliance` handoff stopping-boundary update，具有非空 discriminating behavior，且没有过强 workflow ordering。
-- Gift-card/payment：PASS。Judge 没有再输出 gift-card balance/payment-sufficiency allegation；Diagnosis 根据跨 rollout counterevidence 输出 `insufficient / null / none / action=none`。
-
-最终状态：
-
-```text
-Passenger = FAIL
-Cancellation = PASS
-Gift-card = PASS
-all_cases_passed = false
-v13_ready_for_formal_run = false
-```
-
-完整结果保存在 `artifacts/autonomous_gse_v13/formal/canaries/pre_formal_abstract_prompts_real_llm/`。正式 campaign 继续暂停；本轮失败后没有把 Passenger 的具体答案重新硬编码回 production prompt。
+Gift-card 中上一轮的 completion-timing 伪 contrast 已消失：三条行为被识别为 materially stable，输出 `insufficient / no update`。按本轮约束，不根据 Cancellation 结果继续追加 Prompt 规则。

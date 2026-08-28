@@ -41,7 +41,8 @@ from src.skill_evolution.two_dimensional_gate import classify_state
 
 ROOT = REPO_ROOT
 FORMAL_ROOT = ROOT / "artifacts/autonomous_gse_v13/formal"
-OUTPUT_ROOT = FORMAL_ROOT / "canaries/pre_formal_abstract_prompts_real_llm"
+SAVED_FORMAL_ROOT = ROOT / "artifacts/autonomous_gse_v12/formal"
+OUTPUT_ROOT = FORMAL_ROOT / "canaries/pre_formal_simplified_judge_and_diagnosis_real_llm"
 CASES = (
     ("passenger_cabin_baggage_payment", 2, "airline", "12"),
     ("cancellation_eligibility", 2, "airline", "39"),
@@ -193,6 +194,7 @@ def main() -> None:
         "protocol_version": PROTOCOL_VERSION,
         "judge_prompt_version": JUDGE_PROMPT_VERSION,
         "mode": "saved_s0_raw_trajectories_to_new_judge_to_new_diagnosis",
+        "saved_rollout_root": SAVED_FORMAL_ROOT.as_posix(),
         "new_rollouts": 0,
         "editor_calls": 0,
         "candidate_created": False,
@@ -220,7 +222,7 @@ def main() -> None:
             print(f"[{case_number}/3] {case_id}: preserved prior failed result", flush=True)
             continue
         context = contexts[domain]
-        rollout_root = FORMAL_ROOT / f"rollouts/train/step_{step:03d}_parent"
+        rollout_root = SAVED_FORMAL_ROOT / f"rollouts/train/step_{step:03d}_parent"
         paths = sorted(rollout_root.glob(f"{domain}_{task_id}_rollout_0[123].json"))
         if len(paths) != 3:
             raise RuntimeError(f"{case_id}: expected exactly three saved rollouts")

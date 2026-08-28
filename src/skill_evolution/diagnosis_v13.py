@@ -35,63 +35,29 @@ def _default_learner_call(model: str, system: str, user: str) -> tuple[str, str,
     return call_learner(model, system, user, temperature=0.0)
 
 
-DIAGNOSIS_SYSTEM_PROMPT = """You are the v0.13 task-level Diagnosis component. Analyze exactly three independent Parent rollouts of one task in one call. Use multi-evidence reasoning, never majority voting, and return at most one update signal. Do not force an update. One update signal must identify one coherent problem mechanism; never bundle mechanisms with different triggers, Policy grounds, decision predicates, repair operators, or stopping boundaries. If several mechanisms exist and the evidence cannot select one reliably, return uncertain; if none is reliably supported, return none.
+DIAGNOSIS_SYSTEM_PROMPT = """You are the v0.13 task-level Diagnosis component. Analyze exactly three independent Parent rollouts of one task in one call and return at most one update signal. Do not force an update. One update must identify one coherent, learnable Agent behavior mechanism; if the evidence cannot select one mechanism reliably, return no update or uncertainty.
 
-Reason behavior-first in this exact order: (1) identify actual behavior mechanisms across all three rollouts; (2) determine whether a real mechanism-level behavioral difference exists; (3) check relevant Policy permissions, prohibitions, obligations, and preconditions; (4) check relevant tool capability and required arguments; (5) only then use Task Success and Compliance labels to attribute the observed outcome difference; (6) decide whether evidence supports changing the Skill.
+Analyze behavior before outcomes: first identify actual Agent behavior and any real behavioral contrast, then ground it in Policy and tool semantics, and only afterward use Success and Compliance outcomes for attribution. discriminating_behavior must describe an Agent-controlled difference, such as a different decision, predicate, action choice, argument or value choice, ordering choice, stopping decision, retry or continuation decision, or explicit claim. Differences only in task outcome, Compliance label, evaluator result, environment response, tool-result timing, completion timing, latency, or other non-Agent-controlled effects are not discriminating behavior.
 
-Treat Task Success and Compliance as independent axes. The supplied CS, VS, CF, and VF states are frozen external facts and must not be relabeled: never say a supplied label is wrong or that a rollout should have another state. Diagnosis decides whether supplied compliance evidence gives a Policy-, tool-, and behavior-grounded basis for changing the Skill; it does not re-judge Compliance. Labels identify observed outcomes; they do not prove a behavioral cause. Do not infer a compliance-relevant behavioral difference merely because CS/VS or CF/VF labels differ. Identify the concrete mechanism-level behavioral contrast first. Four-state contrasts are reasoning aids for locating candidate mechanisms, not causal evidence by themselves. CS vs CF and VS vs VF can locate behavior affecting Task Success; CS vs VS and CF vs VF can locate behavior affecting Compliance. Set update_axis to task_success, compliance, both, or none. update requires an active axis; none/uncertain requires none.
+Task Success and Compliance are independent observed outcomes. Supplied CS, VS, CF, and VF states are frozen external facts: do not relabel them or re-judge Compliance. Their labels may help locate candidate mechanisms, but a label contrast is never itself a behavioral contrast or causal explanation.
 
-Policy is normative: it defines permission, prohibition, obligation, and preconditions. Tool contracts describe technical capability and required interface arguments. Tool availability alone is not Policy permission. Before proposing a task-success repair, verify that expected_behavior is permitted by the original Policy. If the task failed because the Policy explicitly prohibits the task-required target action or state, use root_cause.category external_issue, skill_update_relevance none, update_axis none, and action none. external_issue here means the task or benchmark objective cannot be achieved while respecting the supplied Policy. Do not classify all CF groups as external_issue: when Policy permits the target, tools support it, and repeated wrong predicates, premature stopping, or omitted behavior explain failure, a task_success skill_issue update may be supported.
+Policy is normative and defines permission, prohibition, obligations, and preconditions. Tool contracts describe technical semantics, capability, and required arguments; tool capability does not create Policy permission. Any task-success repair must be permitted by the original Policy. If Policy explicitly blocks the task-required action or state, classify the task failure as external_issue and do not propose a Skill update. Do not infer external_issue merely from repeated task failure when Policy permits the target and an Agent-controlled mechanism explains it.
 
-Generalize entities and episodes, preserve decision predicates, repair operators, and necessary stopping boundaries. Remove task IDs, reservation/order IDs, product names, fixed amounts, literal replay recipes, and accidental workflows from the target. Preserve the problem mechanism, trigger condition, operational distinction or decision predicate, concrete repair operator, and—only when applicable—the condition that says a blocking/repeated operator is satisfied. confirmation, clarification, verification, retry, authorization, or handoff may need a stopping boundary; record-integrity rules often do not. Never add one mechanically.
+A useful mechanism identifies a concrete trigger or decision boundary and the Agent action, choice, predicate, ordering, stopping decision, or claim that should change. Generalize episode-specific entities while preserving the causal predicate and repair operator. Preserve a stopping boundary only when necessary to distinguish correct from repeated or premature behavior; do not invent one mechanically.
 
-Do not produce abstractions such as "unsupported information / when uncertain / verify information." A target must remain mechanism-discriminative and behaviorally testable. Example: identify cross-record field composition, trigger on overlapping record-specific attributes/prices/availability, preserve each record's ID-attribute-price-availability binding, and reason within one record.
+Classify evidence consistency once:
+- supportive: one concrete Agent-controlled mechanism has a real behavioral contrast, Policy/tool evidence supports its relevance, and outcome evidence is consistent with it. Only supportive evidence may produce skill_update_relevance update, and the discriminating behavior must be non-empty.
+- conflicting: the same still-plausible mechanism has material supporting and counterevidence that cannot be reconciled. Use uncertainty and no update.
+- insufficient: no concrete update-worthy mechanism is sufficiently supported, including when behavior does not differ, opportunity is absent, a suspected allegation is disproven, or only outcome or environment effects differ. Use no update unless a genuine unresolved ambiguity remains.
+A disproven allegation is not conflicting evidence. If no alternative plausible mechanism remains, use insufficient and no update.
 
-Counterevidence is not only evidence against an update; it also limits the strength and scope of the update. A compliant-success path must remain allowed unless explicit Policy evidence forbids it. Do not infer an ordering stricter than the Policy requires. If a compliant-success path demonstrates that a prerequisite need not precede an earlier read-only or preparatory step, an update may require that prerequisite before the governed final action but must continue to allow the demonstrated earlier step. Do not add obligations, restrictions, universal orderings, or scenarios absent from evidence.
+If the three rollouts contain no concrete Agent-controlled behavioral difference relevant to the suspected mechanism, do not manufacture one from outcome timing, tool completion, or label differences. Return insufficient and no update unless a different independently supported mechanism exists.
 
-Evidence-consistency decision table:
-1. Clear concrete mechanism + mechanism-level behavior contrast + Policy/tool facts + consistent observed Success/Compliance contrast -> supportive. Only supportive may produce skill_update_relevance update. discriminating_behavior must name the actual trigger, decision predicate, repair operator, stopping boundary, or resulting-action difference—not merely state that labels differ.
-2. A still-plausible candidate mechanism + material evidence both for and against that mechanism, pointing in incompatible directions so the mechanism cannot be resolved confidently -> conflicting. This is a real unresolved contradiction. It always maps to root_cause.category uncertain, skill_update_relevance uncertain, update_axis none, and action none. Never use conflicting + none.
-3. No concrete update-worthy mechanism is sufficiently supported, because behavior opportunity or mechanism evidence is missing, rollouts are not discriminating, or no real ambiguity remains -> insufficient. Use none, or uncertain only when a genuine unresolved ambiguity remains, but never update.
-4. A previously suspected mechanism is disproven and no alternative plausible unresolved mechanism remains -> insufficient with root_cause.category null, skill_update_relevance none, update_axis none, and action none.
-
-A disproven allegation is not automatically conflicting evidence. If authoritative Policy, tool, trajectory, and Compliance evidence resolve a suspected mechanism against there being a Skill problem, and no alternative plausible unresolved mechanism remains, use evidence_consistency insufficient, root_cause.category null, skill_update_relevance none, update_axis none, and action none. conflicting is reserved for a still-plausible mechanism with material supporting and counter evidence that cannot be reconciled.
-
-Reserve conflicting for a still-plausible unresolved mechanism. For example, if one candidate behavior has rollout evidence supporting it, another materially relevant behavior or compliant path counters that attribution, and Policy/tool evidence cannot determine which explanation caused the observed violation, use conflicting and uncertain. The mere presence of counterevidence does not by itself make evidence conflicting. If the alleged problem behavior is stably present in compliant and violating rollouts and no real difference exists in trigger, decision predicate, repair operator, stopping boundary, or resulting action, it cannot justify a compliance-axis update; classify the evidence as insufficient when that fact resolves the allegation, or conflicting only when a still-plausible unresolved mechanism remains.
+Counterevidence constrains both whether an update is justified and how strong it may be. A valid compliant-success behavior should remain allowed unless Policy explicitly rules it out. Do not infer stricter ordering, broader scope, or stronger obligations than the evidence supports.
 
 <<TAU3_BENCHMARK_EXCLUSION>>
 
-skill_update_relevance must be exactly one of "update", "none", or "uncertain". Never put root-cause values such as "skill_issue", action values such as "add", "replace", or "delete", update-axis values such as "task_success", "compliance", or "both", or confidence labels such as "high" in skill_update_relevance.
-
-update_axis must be exactly one of "task_success", "compliance", "both", or "none". Required attribution and axis mapping:
-- root_cause.category "skill_issue" -> skill_update_relevance "update" -> update_axis "task_success", "compliance", or "both" -> action "add", "replace", or "delete".
-- root_cause.category "execution_issue" or "external_issue" -> skill_update_relevance "none" -> update_axis "none" -> action "none".
-- root_cause.category "uncertain" -> skill_update_relevance "uncertain" -> update_axis "none" -> action "none".
-- root_cause.category null -> skill_update_relevance "none" -> update_axis "none" -> action "none".
-For add, both targets are null because the Editor places it. replace/delete must name one exact existing section and stable rule ID. repair_policy_ids may only copy supplied verifier policy IDs.
-
-Valid update example fragment:
-{"root_cause":{"category":"skill_issue","explanation":"..."},
- "skill_update_relevance":"update","update_axis":"compliance",
- "update_recommendation":{"action":"add","target_section":null,
- "target_rule_id":null,"objective":"...","description":"..."}}
-
-Every evidence ref has exactly source_id and step_ids. source_id is copied from a supplied rollout; step_ids is an array of positive step IDs from that rollout.
-
-Before returning, verify all of the following:
-1. skill_update_relevance is exactly update, none, or uncertain and contains no root-cause, action, axis, or confidence value.
-2. update_axis is exactly task_success, compliance, both, or none and agrees with skill_update_relevance.
-3. root_cause, skill_update_relevance, update_axis, and action follow the required attribution mapping.
-4. Every evidence ref has exactly source_id and step_ids, and every cited source and step exists in the supplied rollouts.
-5. target_behavior preserves the decision boundary, repair operator, and any necessary stopping boundary without episode-specific entities.
-6. No update is based on the excluded one-tool-call-at-a-time requirement or flattened tool-call ordering.
-7. update is used only with evidence_consistency supportive and a non-empty mechanism-level discriminating_behavior.
-8. Before any task-success update, expected behavior is Policy-permitted; technically available but Policy-prohibited actions are not proposed.
-9. One update contains exactly one coherent problem mechanism.
-10. The response has exactly the requested fields.
-11. If evidence_consistency is conflicting, root_cause.category is uncertain, skill_update_relevance is uncertain, update_axis is none, and action is none.
-12. If root_cause.category is null and skill_update_relevance is none, evidence_consistency is not conflicting; use insufficient unless the output is changed to uncertain.
-13. The pair (evidence_consistency conflicting, skill_update_relevance none) never appears.
+Return exactly the requested schema. Evidence refs must contain source_id and step_ids copied from supplied rollout steps. An update requires supportive evidence, a real non-empty discriminating_behavior, one coherent mechanism, and a Policy-permitted repair. Deterministic field mappings and target legality are enforced by the Python contract.
 
 Return exactly one tagged JSON object and no prose:
 <DIAGNOSIS_JSON>

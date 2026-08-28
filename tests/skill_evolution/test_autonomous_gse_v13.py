@@ -344,7 +344,7 @@ class V13DiagnosisEditorTests(unittest.TestCase):
         ), ())
         self.assertEqual(diagnosis["update_axis"], "none")
         self.assertEqual(diagnosis["update_recommendation"]["action"], "none")
-        self.assertIn("Policy explicitly prohibits", DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertIn("Policy explicitly blocks the task-required action or state", DIAGNOSIS_SYSTEM_PROMPT)
 
     def test_cancellation_canary_accepts_independent_compliance_mechanism(self):
         diagnosis = _diagnosis(
@@ -406,9 +406,9 @@ class V13DiagnosisEditorTests(unittest.TestCase):
             experiences=_group(("compliant_success", "violating_success", "compliant_success"), domain="retail"),
             skill_sections={"Planning and navigation": []},
         ), ())
-        self.assertIn("A disproven allegation is not automatically conflicting evidence", DIAGNOSIS_SYSTEM_PROMPT)
-        self.assertIn("Evidence-consistency decision table", DIAGNOSIS_SYSTEM_PROMPT)
-        self.assertIn("Never use conflicting + none", DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertIn("A disproven allegation is not conflicting evidence", DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertIn("Classify evidence consistency once", DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertIn("If no alternative plausible mechanism remains", DIAGNOSIS_SYSTEM_PROMPT)
 
     def test_tool_capability_never_overrides_policy_permission_fixture(self):
         diagnosis = _diagnosis(relevance="none", category="external_issue")
@@ -418,7 +418,7 @@ class V13DiagnosisEditorTests(unittest.TestCase):
         self.assertEqual(validate_diagnosis(
             diagnosis, experiences=_group(), skill_sections={"Planning and navigation": []}
         ), ())
-        self.assertIn("Tool availability alone is not Policy permission", DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertIn("tool capability does not create Policy permission", DIAGNOSIS_SYSTEM_PROMPT)
         self.assertIn("tool availability alone is not Policy permission", EDITOR_SYSTEM_PROMPT)
 
     def test_dual_axis_schema_accepts_compliance_and_task_success_updates(self):
@@ -463,44 +463,37 @@ class V13DiagnosisEditorTests(unittest.TestCase):
             self.assertEqual(diagnosis["skill_update_relevance"], invalid)
 
     def test_dual_axis_prompt_and_abstraction_boundary_contract(self):
-        for contrast in ("CS vs CF", "VS vs VF", "CS vs VS", "CF vs VF"):
-            self.assertIn(contrast, DIAGNOSIS_SYSTEM_PROMPT)
-        self.assertIn("Task Success and Compliance as independent axes", DIAGNOSIS_SYSTEM_PROMPT)
-        self.assertIn("Generalize entities and episodes", DIAGNOSIS_SYSTEM_PROMPT)
-        self.assertIn("preserve decision predicates, repair operators", DIAGNOSIS_SYSTEM_PROMPT)
-        self.assertIn("limits the strength and scope", DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertIn("Task Success and Compliance are independent observed outcomes", DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertIn("frozen external facts", DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertIn("Analyze behavior before outcomes", DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertIn("Generalize episode-specific entities", DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertIn("preserving the causal predicate and repair operator", DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertIn("constrains both whether an update is justified and how strong", DIAGNOSIS_SYSTEM_PROMPT)
         self.assertIn('"update_axis":"none"', DIAGNOSIS_SYSTEM_PROMPT)
         self.assertIn("Tau3 benchmark/runtime exclusion", DIAGNOSIS_SYSTEM_PROMPT)
         self.assertIn("propose serialization", DIAGNOSIS_SYSTEM_PROMPT)
-        self.assertIn("Do not infer an ordering stricter than the Policy requires", DIAGNOSIS_SYSTEM_PROMPT)
-        self.assertIn("A disproven allegation is not automatically conflicting evidence", DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertIn("Do not infer stricter ordering", DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertIn("A disproven allegation is not conflicting evidence", DIAGNOSIS_SYSTEM_PROMPT)
+        for removed_recipe in ("CS vs CF", "VS vs VF", "CS vs VS", "CF vs VF", "cross-record"):
+            self.assertNotIn(removed_recipe, DIAGNOSIS_SYSTEM_PROMPT)
         self.assertNotIn("gift-card", DIAGNOSIS_SYSTEM_PROMPT.casefold())
         self.assertNotIn("cancellation reason", DIAGNOSIS_SYSTEM_PROMPT.casefold())
         self.assertNotIn("PARTIALLY_FIXED", DIAGNOSIS_SYSTEM_PROMPT)
 
-    def test_diagnosis_prompt_prevents_relevance_field_confusion(self):
-        self.assertIn(
-            'skill_update_relevance must be exactly one of "update", "none", or "uncertain"',
-            DIAGNOSIS_SYSTEM_PROMPT,
-        )
-        for invalid in (
-            '"skill_issue"', '"add"', '"replace"', '"delete"',
-            '"task_success"', '"compliance"', '"both"', '"high"',
+    def test_diagnosis_prompt_delegates_deterministic_mappings_to_contract(self):
+        self.assertIn("Deterministic field mappings and target legality", DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertNotIn("Required attribution and axis mapping", DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertNotIn("Before returning, verify all of the following", DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertNotIn("Valid update example fragment", DIAGNOSIS_SYSTEM_PROMPT)
+
+    def test_discriminating_behavior_requires_agent_controlled_difference(self):
+        self.assertIn("discriminating_behavior must describe an Agent-controlled difference", DIAGNOSIS_SYSTEM_PROMPT)
+        for excluded in (
+            "task outcome", "Compliance label", "evaluator result", "environment response",
+            "tool-result timing", "completion timing", "latency",
         ):
-            self.assertIn(invalid, DIAGNOSIS_SYSTEM_PROMPT)
-        self.assertIn(
-            '"skill_update_relevance":"update","update_axis":"compliance"',
-            DIAGNOSIS_SYSTEM_PROMPT,
-        )
-        self.assertIn("Before returning, verify all of the following", DIAGNOSIS_SYSTEM_PROMPT)
-        self.assertIn(
-            "root_cause, skill_update_relevance, update_axis, and action",
-            DIAGNOSIS_SYSTEM_PROMPT,
-        )
-        self.assertIn(
-            "The pair (evidence_consistency conflicting, skill_update_relevance none) never appears",
-            DIAGNOSIS_SYSTEM_PROMPT,
-        )
+            self.assertIn(excluded, DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertIn("do not manufacture one from outcome timing", DIAGNOSIS_SYSTEM_PROMPT)
 
     def test_stopping_boundary_is_optional_and_mechanism_specific(self):
         confirmation = _diagnosis(
@@ -593,10 +586,9 @@ class V13ComplianceJudgeTests(unittest.TestCase):
     POLICY = "# Modify items\n\nThis action can only be called once.\n\n# Modify address\n\nAddresses may be modified."
 
     def test_action_local_rule_is_not_expanded_to_sibling_tools(self):
-        self.assertIn("Policy provenance and semantic applicability are different", JUDGE_SYSTEM_PROMPT)
-        self.assertIn('"this action"', JUDGE_SYSTEM_PROMPT)
-        self.assertIn("not every neighboring mutation", JUDGE_SYSTEM_PROMPT)
-        self.assertIn("Tool affordance is not policy permission", JUDGE_SYSTEM_PROMPT)
+        self.assertIn("Determine Policy applicability from the clause semantics", JUDGE_SYSTEM_PROMPT)
+        self.assertIn("Do not broaden an action-local rule beyond its stated scope", JUDGE_SYSTEM_PROMPT)
+        self.assertIn("Tool capability does not create Policy permission", JUDGE_SYSTEM_PROMPT)
         self.assertIn("Tau3 benchmark/runtime exclusion", JUDGE_SYSTEM_PROMPT)
         self.assertIn("Never output or paraphrase the excluded requirement", JUDGE_SYSTEM_PROMPT)
         trajectory = [
@@ -617,8 +609,7 @@ class V13ComplianceJudgeTests(unittest.TestCase):
         self.assertEqual(payload["available_tool_contracts"][0]["tool_name"], "modify_items")
 
     def test_passenger_same_cabin_constraint_remains_cross_flow_grounding(self):
-        self.assertIn("persistent entity or state invariant", JUDGE_SYSTEM_PROMPT)
-        self.assertIn("later mutations of the same governed entity", JUDGE_SYSTEM_PROMPT)
+        self.assertIn("do not artificially localize a persistent constraint", JUDGE_SYSTEM_PROMPT)
         self.assertNotIn("same cabin", JUDGE_SYSTEM_PROMPT.casefold())
         self.assertNotIn("passenger", JUDGE_SYSTEM_PROMPT.casefold())
         self.assertNotIn("modify-flight", JUDGE_SYSTEM_PROMPT.casefold())
@@ -683,9 +674,8 @@ class V13ComplianceJudgeTests(unittest.TestCase):
 
     def test_atomic_violation_and_complete_unsupported_claim_contract(self):
         self.assertIn("Each violation item must describe one coherent behavioral allegation", JUDGE_SYSTEM_PROMPT)
-        self.assertIn("Do not bundle independent issues", JUDGE_SYSTEM_PROMPT)
-        self.assertIn("check the entire original Policy", JUDGE_SYSTEM_PROMPT)
-        self.assertIn("every relevant tool-level and argument-level contract", JUDGE_SYSTEM_PROMPT)
+        self.assertIn("Do not bundle independent issues into one item", JUDGE_SYSTEM_PROMPT)
+        self.assertIn("check the supplied Policy, relevant tool semantics, and trajectory evidence", JUDGE_SYSTEM_PROMPT)
 
     def test_one_tool_call_clause_is_deterministically_excluded(self):
         policy = (
@@ -836,24 +826,34 @@ def exchange_item(payment_method_id: str, note: str | None = None):
             "description": "If the gift card cannot cover a positive price difference.",
         }])
 
-    def test_judge_uses_abstract_operation_direction_and_effect_semantics(self):
-        self.assertIn("different directions or effects", JUDGE_SYSTEM_PROMPT)
-        self.assertIn("tool description, argument semantics, tool result, and trajectory", JUDGE_SYSTEM_PROMPT)
-        self.assertIn("Do not transfer a precondition from another direction or effect", JUDGE_SYSTEM_PROMPT)
+    def test_judge_uses_compact_operation_effect_semantics(self):
+        self.assertIn("Interpret the actual operation and its effects", JUDGE_SYSTEM_PROMPT)
+        self.assertIn("before applying effect-specific preconditions", JUDGE_SYSTEM_PROMPT)
+        self.assertNotIn("value-transfer direction", JUDGE_SYSTEM_PROMPT.casefold())
+        self.assertNotIn("payment direction", JUDGE_SYSTEM_PROMPT.casefold())
+        self.assertNotIn("refund direction", JUDGE_SYSTEM_PROMPT.casefold())
+        self.assertNotIn("debit", JUDGE_SYSTEM_PROMPT.casefold())
+        self.assertNotIn("credit", JUDGE_SYSTEM_PROMPT.casefold())
         self.assertNotIn("gift card", JUDGE_SYSTEM_PROMPT.casefold())
         self.assertNotIn("positive price difference", JUDGE_SYSTEM_PROMPT.casefold())
         self.assertNotIn("negative price difference", JUDGE_SYSTEM_PROMPT.casefold())
 
     def test_judge_uses_semantic_applicability_without_canary_answer(self):
-        self.assertIn("persistent entity or state invariant", JUDGE_SYSTEM_PROMPT)
-        self.assertIn("An action-local rule does not extend to sibling actions", JUDGE_SYSTEM_PROMPT)
-        self.assertIn("not mechanically from the section heading", JUDGE_SYSTEM_PROMPT)
+        self.assertIn("clause semantics and governed behavior or state", JUDGE_SYSTEM_PROMPT)
+        self.assertIn("Do not broaden an action-local rule", JUDGE_SYSTEM_PROMPT)
+        self.assertIn("do not artificially localize a persistent constraint", JUDGE_SYSTEM_PROMPT)
         self.assertNotIn("same cabin", JUDGE_SYSTEM_PROMPT.casefold())
         self.assertNotIn("modify-flight", JUDGE_SYSTEM_PROMPT.casefold())
 
     def test_unsupported_information_is_fallback_after_complete_grounding_check(self):
-        self.assertIn("unsupported-information clause only as a fallback", JUDGE_SYSTEM_PROMPT)
-        self.assertIn("Absence from the current subsection is not evidence", JUDGE_SYSTEM_PROMPT)
+        self.assertIn("Before claiming that information or behavior is unsupported", JUDGE_SYSTEM_PROMPT)
+        self.assertIn("If support, applicability, or evidence remains unclear", JUDGE_SYSTEM_PROMPT)
+
+    def test_judge_prompt_has_no_fixed_reasoning_recipe_or_diagnosis_role(self):
+        self.assertNotIn("For each suspected violation, reason in this order", JUDGE_SYSTEM_PROMPT)
+        self.assertNotIn("(1) identify", JUDGE_SYSTEM_PROMPT)
+        self.assertIn("Do not perform Skill-update attribution", JUDGE_SYSTEM_PROMPT)
+        self.assertIn("Do not perform Skill-update attribution, multi-rollout causal comparison", JUDGE_SYSTEM_PROMPT)
 
     def test_judge_output_schema_forbids_free_form_policy_section(self):
         raw = {
