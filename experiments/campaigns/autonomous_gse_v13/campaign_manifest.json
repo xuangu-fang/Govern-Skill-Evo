@@ -1,0 +1,22 @@
+{
+  "schema_version": "autonomous_gse_campaign_0.13.0",
+  "protocol_version": "autonomous_gse_v13",
+  "campaign_id": "autonomous_gse_v13",
+  "campaign_seed": 200,
+  "status": "ready",
+  "execution": {"parallelism_unit": "task_x_rollout", "max_concurrency": 6},
+  "benchmark": {"name": "tau3", "repository": "sierra-research/tau2-bench", "path": "external/tau2-bench", "domains": ["airline", "retail"], "official_task_success": "reward == 1.0", "official_components_saved": ["reward", "DB", "COMMUNICATE"]},
+  "initial_parent": {"kind": "empty_skill", "version": "S0", "path": "experiments/campaigns/autonomous_gse_v13/skills/S0_empty_skill.md", "rollout_semantics": "benchmark_default_prompt_without_learned_skill_injection"},
+  "schedule": {"evolution_steps": 3},
+  "evolution": {"source_split": "official_train", "tasks": 60, "airline_tasks": 30, "retail_tasks": 30, "batches": 3, "tasks_per_batch": 20, "airline_tasks_per_batch": 10, "retail_tasks_per_batch": 10, "rollouts_per_task": 3, "batch_map": "experiments/campaigns/autonomous_gse_v13/batch_map.json", "outcome_independent_assignment": true, "cumulative_evidence": false, "replay_previous_batches": false},
+  "holdout": {"source_split": "official_test", "tasks": 40, "airline_tasks": 20, "retail_tasks": 20, "rollouts_per_task": 3, "compare": ["S0", "S_final"], "learning_access": "forbidden", "feedback_to_learner": "forbidden", "automatic_execution": false},
+  "skill_evolution": {"proposal_operator": "v13_dual_axis_mechanism_preserving_bounded_edit", "diagnosis_calls_per_task": 1, "targeted_fix_unit": "canonical_edit_matched_behavior", "counterevidence_enabled": true, "maximum_editor_calls_per_step": 1, "allowed_operations": ["add", "replace", "delete"], "stable_parent_rule_id": true, "maximum_skill_rules": 18, "maximum_skill_words": 900, "task_specific_recipe": "forbidden", "preserve_constraints": "forbidden", "regression_feedback_to_editor": "forbidden", "holdout_feedback_to_learner": "forbidden"},
+  "judges": {"diagnosis": {"model": "openai/gpt-5.6-luna", "temperature": 0}, "editor": {"model": "openai/gpt-5.6-luna", "temperature": 0}, "targeted_fix": {"model": "openai/gpt-5.6-luna", "temperature": 0}, "regression_diagnosis": {"model": "openai/gpt-5.6-luna", "temperature": 0}},
+  "compliance_judge": {"model": "openai/gpt-5.6-luna", "temperature": 0, "prompt_version": "tau3_policy_scope_grounded_judge_v13_scope_exclusion", "frozen_across_phases_and_methods": true, "failure_mode": "COMPLIANCE_JUDGE_ERROR", "fallback": "forbidden"},
+  "official_evaluator": {"implementation": "tau3_official_evaluator", "nl_assertions_model": "openai/gpt-5.6-luna", "nl_assertions_temperature": 0.0},
+  "agent": {"implementation_s0": "llm_agent", "implementation_learned_skill": "llm_agent_manual_skill", "skill_environment_variable": "TAU2_AGENT_SKILL_PATH", "model": "openai/deepseek-v4-flash", "temperature": 0.0, "thinking": "high", "reasoning_effort": "high", "max_tokens": 8192, "empty_response_retries": 2, "empty_response_retry_max_tokens": 8192, "max_steps": 200, "seed_strategy": "campaign_seed_plus_execution_offset_plus_rollout_index"},
+  "user_simulator": {"implementation": "user_simulator", "model": "openai/deepseek-v4-flash", "temperature": 0.0, "thinking": "high", "reasoning_effort": "high", "max_tokens": 8192, "empty_response_retries": 2, "empty_response_retry_max_tokens": 8192, "seed_strategy": "same_recorded_rollout_seed_passed_to_official_orchestrator"},
+  "gate": {"every_applied_canonical_edit_must_be_fixed": true, "target_worsened_veto": true, "not_exercised_acceptance": "forbidden", "change_caused_regression_veto": true, "aggregate_catastrophic_rate_threshold": -0.15, "metrics": ["task_success", "compliance", "cup"], "weighted_score": "forbidden"},
+  "budget": {"evolution_parent_trajectories": 180, "maximum_candidate_replay_trajectories": 180, "maximum_evolution_trajectories": 360, "final_holdout_trajectories_if_authorized": 240, "maximum_total_including_holdout": 600, "maximum_candidates": 3, "maximum_parent_diagnosis_calls": 60, "maximum_editor_calls": 3, "maximum_targeted_fix_calls": 54, "maximum_regression_diagnosis_calls": 180},
+  "provenance": {"domain_policy_source": "external/tau2-bench/data/tau2/domains/<domain>/policy.md", "raw_tau3_result_required": true}
+}

@@ -3937,7 +3937,7 @@ Candidate replay后，2条Targeted Fix均为`FIXED`。1条deterministic regressi
 
 Candidate通过Targeted Fix、Regression和Aggregate的Gate，被接受并晋级为最终Skill S3。
 
-## Day 22 记录（2026-08-27）
+## Day 22-23 记录（2026-08-27 28）
 
 ### 目标
 
@@ -4099,7 +4099,7 @@ Candidate 回放后，把每一条 Parent 轨迹和对应的 Candidate 轨迹配
 
 > 这次 Candidate 出现的问题，是否可以明确归因于新加入的 Skill 规则？
 
-如果能建立“Skill 修改 → Agent 行为变化 → 结果变差”的证据链，结果为 `CHANGE_CAUSED`；如果更可能是模型、用户模拟器、工具或环境的自然波动，结果为 `UNRELATED_VARIATION`。只要有一对轨迹被明确判定为 `CHANGE_CAUSED`，Candidate 就不能晋级。
+如果能建立“Skill 修改 → Agent 行为变化 → 结果变差”的证据链，即Candidate 的结果变差，并且能找到一个由新 Skill 合理诱导出来的行为变化，而这个行为变化又直接导致了结果退化，结果为 `CHANGE_CAUSED`；如果更可能是模型、用户模拟器、工具或环境的自然波动，结果为 `UNRELATED_VARIATION`。只要有一对轨迹被明确判定为 `CHANGE_CAUSED`，Candidate 就不能晋级。
 
 Evolution Gate 会从三个方面检查 Candidate：
 
@@ -4211,10 +4211,30 @@ Candidate 同时存在 2 条 `NOT_FIXED` 和 1 条 `CHANGE_CAUSED` 回归，因�
 2. `CHANGE_CAUSED`的原因：
 - Editor 矫枉过正：为了防止确认不足，Candidate Skill 将要求写得过严，使Agent增加不必要的交互，使任务从成功退化为失败。
 
+### 目标
+解决上一版的规则过度抽象、过度合并以及 Target Fix 判断过严的问题，Diagnosis 不再只追求生成简短、通用的规则，Editor 不再按照宽泛主题尽可能合并 Diagnosis，优化Compliance Judge ，违规判断必须对应具体 Policy 条款，Target Fix 则不再要求 Candidate 的 3 次 rollout的replay 中都无目标问题才作为FIXED，3次只要有1次无目标问题即为FIXED。
+
+### 实验设置
+#### Diagnosis
+在上一版的基础上，同时利用 Task Success 和 Compliance，并比较不同 rollout 之间的状态差异，判断 Skill 当前需要修复的方向。比如三次 rollout 都完成任务，但只有一次合规时，Diagnosis 比较合规和违规轨迹之间的行为差异，优先修复 Compliance，而不修改已经能够完成任务的操作方式。反过来，如果三次 rollout 都合规，但 Task Success 不稳定，则分析哪些行为影响任务完成。
+
+#### Editor
+不再把“规则数量尽可能少”作为目标，只合并修复逻辑相同的问题。只有当多个 Diagnosis 描述的是同一种问题，并且需要采用相同的判断条件和修复方式时，才进行合并；主题相近但修复方式不同的问题仍分别保留。
+
+Compliance Judge：不改变 Compliance 的基本评估方式，只限制 Policy 的解释范围，使其不超出原始 Policy 的实际作用范围。每个 violation 都必须能够对应：
+
+- 原始 Policy clause；
+- 所在的 section / subsection；
+- 相关的 trajectory steps；
+- 具体违反方式。
+
+#### Target Fix
+验证 Parent 到 Candidate 的直接行为变化。上一版要求每一对 matched Parent/Candidate trajectory 中，Candidate 在已经进入目标场景的 rollout 里都不能再次出现原问题；因此，3 次 replay 中只要有 1 次重新犯错，就会判为 `NOT_FIXED`。本版改为：在已经进入目标场景的 rollout 中，只要有 1 次没有出现目标问题，即判为 `FIXED`。
+
 ### 思考
-看起来感觉每个模块是：为了修实验里遇到的每一个问题，不断加模块。整体框架是否还不够新。
-目前还没有合规违规的设计。
-强制要求没有`NOT_FIXED`，导致Candidate Skill都被拒绝。
+框架：发现问题→生成候选→验证是否修复 + 有无副作用→晋级 / 保留
+看起来感觉每个模块都是为了解决实验里遇到的问题，从而不断加模块。感觉太工程，整体框架感觉创新性不足。
+目前还没有合规违规的创新设计，合规违规部分考虑的少。
 数据集目前大部分都是合规成功，可以尝试调整比例。
 Regression Set还比较简单，只保留绝对的负向对，没有引入合规成功到违规失败，违规成功到合规失败
 
