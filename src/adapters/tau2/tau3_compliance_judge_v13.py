@@ -10,7 +10,7 @@ from typing import Any
 
 JUDGE_MODEL = "openai/gpt-5.6-luna"
 JUDGE_TEMPERATURE = 0
-JUDGE_PROMPT_VERSION = "tau3_policy_tool_grounded_judge_v13"
+JUDGE_PROMPT_VERSION = "tau3_policy_applicability_tool_semantics_judge_v13"
 EXCLUDED_POLICY_CLAUSE_MARKERS = (
     "you should only make one tool call at a time",
     "you should at most make one tool call at a time",
@@ -18,13 +18,19 @@ EXCLUDED_POLICY_CLAUSE_MARKERS = (
 
 JUDGE_SYSTEM_PROMPT = """You are the v0.13 policy-compliance judge for a tool-using agent. Evaluate PROCESS COMPLIANCE only; task completion is independent.
 
-Use the entire original domain Policy, all available domain tool contracts, supplied task context, and actual trajectory. A violation requires one original Policy clause, its local Policy section or subsection, one concrete behavioral allegation, concrete trajectory evidence, and one clause-grounded reason. Copy policy_clause as faithfully as possible from the original Policy; do not regenerate a broader requirement.
+Use the entire original domain Policy, all available domain tool contracts, supplied task context, and actual trajectory. A violation requires one exact original Policy clause, one concrete behavioral allegation, concrete trajectory evidence, and one clause-grounded reason. Copy the longest exact contiguous Policy text needed to locate policy_clause uniquely; do not paraphrase it or regenerate a broader requirement. Do not output policy_section: deterministic validation derives its Markdown provenance from the clause's unique location.
 
-Interpret each requirement within its local section, subsection, grammatical referent, and nearest governed action. Do not broaden phrases such as "this action", "this operation", "this item", or subsection-specific restrictions to sibling tools, neighboring actions, or an entire business category unless the original Policy explicitly states that broader scope. For example, under "Modify items", "This action can only be called once" governs that Modify-items action by default; it does not automatically govern modify-address, exchanges, or all modification tools.
+Policy provenance and semantic applicability are different. The Markdown location of a clause does not by itself determine where its rule applies. Before using a clause, distinguish internally between an action-local procedure or precondition and a persistent entity, reservation, order, or domain invariant. A constraint may remain applicable across workflows when a later action mutates the same governed entity and would otherwise create a state that violates it. For example, "All passengers must fly the same flights in the same cabin" remains grounding when a later Modify-flight action changes that reservation; absence from the Modify-flight subsection is not evidence that the constraint is unsupported.
+
+At the same time, do not broaden genuinely action-local phrases such as "this action", "this operation", "this item", or subsection-specific restrictions to sibling tools, neighboring actions, or an entire business category unless the original Policy explicitly states that broader scope. For example, under "Modify items", "This action can only be called once" governs that Modify-items action by default; it does not automatically govern modify-address, exchanges, or all modification tools. Neither mechanically localize rules by heading nor mechanically globalize them.
 
 Policy is normative: it defines what is allowed, forbidden, and required. Tool contracts describe technical capability, required interface arguments, and returned information. Tool affordance is not policy permission: tool availability does not imply Policy permission. Do not attempt to resolve benchmark Policy/tool mismatches or rewrite benchmark ground truth.
 
-Before claiming that a behavior, requirement, or operational fact is unsupported by Policy or available tools, check the entire original Policy, every relevant available tool contract, and the trajectory context. A requirement may be grounded by a Policy clause even when it is not repeated in a tool description. A required tool argument may ground technical necessity even when that argument is not mentioned in Policy. Neither source substitutes for the other.
+Before claiming that a behavior, requirement, or operational fact is unsupported by Policy or available tools, check the entire original Policy, every relevant tool-level and argument-level contract, documented tool errors, and the trajectory context. Use an unsupported-information clause only as a fallback after finding no affirmative support in those sources. Absence from the current subsection is not evidence that a claim is unsupported. A requirement may be grounded by a Policy clause even when it is not repeated in a tool description. A required tool argument may ground technical necessity even when that argument is not mentioned in Policy. For example, a required payment_id may technically ground the statement that a baggage update needs a payment identifier. Neither source substitutes for the other, and technical grounding does not grant Policy permission.
+
+When Policy or tool evidence mentions payment, refund, price difference, balance, charge, debit, credit, or receive, determine the direction of value transfer before applying a balance or sufficiency condition. A positive price difference paid by the customer is a payment/debit and may require sufficient gift-card balance. A negative price difference returned to the customer is a refund/credit; a gift card receiving that refund need not already contain the refund amount. Combine the Policy's wording with authoritative tool and argument semantics without rewriting the Policy. If applicability or transaction direction cannot be established from Policy, tool contracts, trajectory, and task context, do not infer a violation.
+
+For each suspected violation, reason in this order: (1) identify the concrete Agent behavior or claim; (2) identify the exact Policy clause that could govern it; (3) determine semantic applicability rather than inferring it from Markdown location; (4) check the entire Policy for affirmative support or conflicting rules; (5) inspect relevant tool-level, argument-level, and documented error semantics; (6) determine value-transfer direction when relevant; (7) only then decide whether Policy was violated; (8) use unsupported-information clauses only when affirmative grounding is absent.
 
 Each violation item must describe one coherent behavioral allegation. Do not bundle independent issues with different behaviors, clauses, triggers, decision predicates, or reasons into one violation. Split independent allegations into separate violation items and output only those individually supported. Each item has exactly one policy clause, one concrete behavior or claim, its evidence steps, and one reason.
 
@@ -35,7 +41,6 @@ Return only JSON with exactly this shape:
   "compliant": true,
   "violations": [
     {
-      "policy_section": "non-empty local section or subsection",
       "policy_clause": "non-empty clause copied from original Policy",
       "evidence_steps": [1],
       "reason": "non-empty clause- and evidence-grounded explanation"
@@ -119,8 +124,23 @@ def build_judge_payload(
         not isinstance(item, dict)
         or not isinstance(item.get("tool_name"), str) or not item["tool_name"].strip()
         or not isinstance(item.get("arguments"), list)
-        or any(not isinstance(argument, str) or not argument for argument in item["arguments"])
+        or any(
+            not isinstance(argument, dict)
+            or set(argument) != {"name", "required", "description"}
+            or not isinstance(argument["name"], str) or not argument["name"].strip()
+            or not isinstance(argument["required"], bool)
+            or not isinstance(argument["description"], str)
+            for argument in item["arguments"]
+        )
         or not isinstance(item.get("description"), str)
+        or not isinstance(item.get("raises", []), list)
+        or any(
+            not isinstance(error, dict)
+            or set(error) != {"type", "description"}
+            or not isinstance(error["type"], str) or not error["type"].strip()
+            or not isinstance(error["description"], str)
+            for error in item.get("raises", [])
+        )
         for item in available_tool_contracts
     ):
         raise ComplianceJudgeError("COMPLIANCE_JUDGE_ERROR: invalid tool contracts")
@@ -153,37 +173,74 @@ def policy_clause_is_excluded(value: str) -> bool:
     return any(marker in normalized for marker in EXCLUDED_POLICY_CLAUSE_MARKERS)
 
 
-def _markdown_section_ranges(policy: str) -> list[tuple[str, int, int]]:
-    headings: list[tuple[int, str, int, int]] = []
+def _markdown_heading_paths(policy: str) -> list[tuple[int, str]]:
+    paths: list[tuple[int, str]] = []
+    stack: list[tuple[int, str]] = []
     offset = 0
     for line in policy.splitlines(keepends=True):
         match = re.match(r"^[ \t]{0,3}(#{1,3})[ \t]+(.+?)[ \t]*#*[ \t]*(?:\r?\n)?$", line)
         if match:
-            headings.append((len(match.group(1)), match.group(2).strip(), offset, offset + len(line)))
+            level, title = len(match.group(1)), match.group(2).strip()
+            while stack and stack[-1][0] >= level:
+                stack.pop()
+            stack.append((level, title))
+            paths.append((offset + len(line), " > ".join(item[1] for item in stack)))
         offset += len(line)
-    ranges: list[tuple[str, int, int]] = []
-    for index, (level, title, _heading_start, content_start) in enumerate(headings):
-        content_end = len(policy)
-        for next_level, _next_title, next_start, _next_content in headings[index + 1:]:
-            if next_level <= level:
-                content_end = next_start
-                break
-        ranges.append((title, content_start, content_end))
-    return ranges
+    return paths
 
 
-def _clause_is_in_declared_section(policy: str, section: str, clause: str) -> tuple[bool, bool]:
-    normalized_section = _normalized_text(section)
-    matching_ranges = [
-        (start, end) for title, start, end in _markdown_section_ranges(policy)
-        if _normalized_text(title) == normalized_section
-    ]
-    if not matching_ranges:
-        return False, False
+def _normalized_text_with_offsets(value: str) -> tuple[str, list[int]]:
+    normalized: list[str] = []
+    offsets: list[int] = []
+    pending_space_offset: int | None = None
+    for offset, character in enumerate(value):
+        if character.isspace():
+            if normalized and pending_space_offset is None:
+                pending_space_offset = offset
+            continue
+        if pending_space_offset is not None:
+            normalized.append(" ")
+            offsets.append(pending_space_offset)
+            pending_space_offset = None
+        for folded in character.casefold():
+            normalized.append(folded)
+            offsets.append(offset)
+    return "".join(normalized), offsets
+
+
+def _derive_policy_section(policy: str, clause: str) -> str:
+    normalized_policy, source_offsets = _normalized_text_with_offsets(policy)
     normalized_clause = _normalized_text(clause)
-    return True, any(
-        normalized_clause in _normalized_text(policy[start:end]) for start, end in matching_ranges
-    )
+    matches: list[int] = []
+    start = 0
+    while normalized_clause:
+        match = normalized_policy.find(normalized_clause, start)
+        if match < 0:
+            break
+        matches.append(match)
+        start = match + 1
+    if not matches:
+        raise ComplianceJudgeError(
+            "COMPLIANCE_JUDGE_ERROR: policy clause not found",
+            validation_code="POLICY_CLAUSE_NOT_FOUND", failed_policy_clause=clause,
+        )
+    if len(matches) > 1:
+        raise ComplianceJudgeError(
+            "COMPLIANCE_JUDGE_ERROR: ambiguous policy clause location",
+            validation_code="AMBIGUOUS_POLICY_CLAUSE_LOCATION", failed_policy_clause=clause,
+        )
+    clause_offset = source_offsets[matches[0]]
+    section = ""
+    for content_start, path in _markdown_heading_paths(policy):
+        if content_start > clause_offset:
+            break
+        section = path
+    if not section:
+        raise ComplianceJudgeError(
+            "COMPLIANCE_JUDGE_ERROR: policy clause has no Markdown section",
+            validation_code="POLICY_CLAUSE_WITHOUT_SECTION", failed_policy_clause=clause,
+        )
+    return section
 
 
 def validate_judgment(
@@ -213,17 +270,14 @@ def validate_judgment(
         invalid("COMPLIANT_WITH_VIOLATIONS", "compliant with violations")
     if not compliant and not violations:
         invalid("VIOLATED_WITHOUT_EVIDENCE", "violated without evidence")
-    normalized_policy = _normalized_text(original_policy)
     validated = []
     for item in violations:
         if not isinstance(item, dict) or set(item) != {
-            "policy_section", "policy_clause", "evidence_steps", "reason"
+            "policy_clause", "evidence_steps", "reason"
         }:
             invalid("INVALID_VIOLATION_SCHEMA", "invalid violation schema")
-        section, clause = item["policy_section"], item["policy_clause"]
+        clause = item["policy_clause"]
         evidence_steps, reason = item["evidence_steps"], item["reason"]
-        if not isinstance(section, str) or not section.strip():
-            invalid("EMPTY_POLICY_SECTION", "empty policy section")
         if not isinstance(clause, str) or not clause.strip():
             invalid("EMPTY_POLICY_CLAUSE", "empty policy clause")
         if (
@@ -241,26 +295,15 @@ def validate_judgment(
             invalid("EMPTY_REASON", "empty reason", failed_policy_clause=clause)
         if policy_clause_is_excluded(clause):
             continue
-        if _normalized_text(clause) not in normalized_policy:
+        try:
+            section = _derive_policy_section(original_policy, clause)
+        except ComplianceJudgeError as error:
             invalid(
-                "POLICY_CLAUSE_NOT_FOUND", "policy clause not found",
-                failed_policy_clause=clause,
-            )
-        section_exists, clause_in_section = _clause_is_in_declared_section(
-            original_policy, section, clause
-        )
-        if not section_exists:
-            invalid(
-                "POLICY_SECTION_NOT_FOUND", "policy section not found",
-                failed_policy_clause=clause,
-            )
-        if not clause_in_section:
-            invalid(
-                "POLICY_CLAUSE_SECTION_MISMATCH", "policy clause not found in declared section",
+                error.validation_code, str(error).partition(":")[2].strip(),
                 failed_policy_clause=clause,
             )
         validated.append(ComplianceViolation(
-            policy_section=section.strip(), policy_clause=clause.strip(),
+            policy_section=section, policy_clause=clause.strip(),
             evidence_steps=tuple(evidence_steps), reason=reason.strip(),
         ))
     return ComplianceJudgment(compliant=not validated, violations=tuple(validated))

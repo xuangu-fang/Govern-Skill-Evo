@@ -4292,3 +4292,23 @@ skillopt太复杂，不好判断哪部分有问题
 - `retail:112` Gift-card/payment：失败。Judge 仍把 gift-card sufficient-balance predicate 错用于“接收降价退款”，并输出当前 validator 不接受的层级 section path `Modify pending order > Modify items`；未进入 Diagnosis。
 
 Canary 总结为 `FAILED_CANARY`，`v13_ready_for_formal_run=false`。正式 Step 1、Step 2、Step 3 和 holdout 继续暂停。完整 raw responses、payloads、usage 和 case summaries 保存在 `artifacts/autonomous_gse_v13/formal/canaries/pre_formal_policy_grounded_real_llm/`。
+
+### v13 最终 canary oracle 与 readiness
+
+后续在不创建 v13.1、不增加 LLM stage 的前提下，继续修复了 Compliance Judge 的 Policy applicability、deterministic provenance、argument-level tool semantics 与 payment/refund direction contract，并明确了 Diagnosis 中 `supportive`、`conflicting`、`insufficient` 的互斥语义。最终一轮仍只复用三个真实 S0 task group，执行 9 次 Compliance Judge 和 3 次 Diagnosis；没有生成新 rollout、Editor 输入或 Candidate。
+
+- `airline:12` Passenger cabin / baggage payment：三条均为 compliant success。same-cabin 与 required payment argument 不再被错误判为 unsupported；Diagnosis 为 `insufficient / null / none / action=none`。
+- `retail:112` Gift-card/payment：三条均为 compliant。Judge 正确区分 customer payment 与 refund/credit；原 payment-sufficiency allegation 被证伪，Diagnosis 为 `insufficient / null / none / action=none`。
+- `airline:39` Cancellation eligibility：Task Success 失败仍由 Policy 禁止目标 cancellation 解释，Diagnosis 没有提出 task-success workaround。第三条 rollout 另外出现 Policy 明确禁止的 subjective comments，与另外两条形成真实 CF/VF behavior contrast；Diagnosis 因此产生 `supportive / skill_issue / update_axis=compliance` 的独立机制级更新，只要求中性、事实性地沟通 Policy 结果，不改变 cancellation eligibility。
+
+Cancellation canary oracle 相应更新为：不得产生 Policy-forbidden task-success repair；但允许对独立、Policy-grounded、具有非空 `discriminating_behavior` 的 supportive compliance mechanism 产生 compliance-only update。按该 oracle 重新计算已有 canary artifacts 后：
+
+```text
+Passenger = PASS
+Cancellation = PASS
+Gift-card = PASS
+all_cases_passed = true
+v13_ready_for_formal_run = true
+```
+
+本次 readiness 更新没有新增任何 LLM、rollout、Editor 或 Candidate 调用。正式 campaign 尚未启动；启动时必须从已有 S0 raw Parent trajectories 重新执行 Compliance Judge 与 Diagnosis，不复用旧 Candidate lineage。

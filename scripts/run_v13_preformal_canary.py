@@ -9,12 +9,15 @@ import sys
 from dataclasses import asdict
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from src.adapters.tau2.tau3_compliance_judge_v13 import (
     JUDGE_MODEL,
+    JUDGE_PROMPT_VERSION,
     JUDGE_TEMPERATURE,
     build_judge_payload,
     build_judge_prompts,
@@ -38,7 +41,7 @@ from src.skill_evolution.two_dimensional_gate import classify_state
 
 ROOT = REPO_ROOT
 FORMAL_ROOT = ROOT / "artifacts/autonomous_gse_v13/formal"
-OUTPUT_ROOT = FORMAL_ROOT / "canaries/pre_formal_policy_grounded_real_llm"
+OUTPUT_ROOT = FORMAL_ROOT / "canaries/pre_formal_diagnosis_consistency_real_llm"
 CASES = (
     ("passenger_cabin_baggage_payment", 2, "airline", "12"),
     ("cancellation_eligibility", 2, "airline", "39"),
@@ -71,26 +74,73 @@ def _case_checks(case_id: str, judge_results: list[dict], diagnosis: dict, valid
             for result in judge_results
             for violation in result["new_judgment"]["violations"]
         ).casefold()
+        update_text = json.dumps(
+            {
+                "target_behavior": diagnosis.get("target_behavior"),
+                "update_recommendation": recommendation,
+            },
+            ensure_ascii=False,
+        ).casefold()
         bad_unsupported_claim = (
             ("same cabin" in violation_text or "same-cabin" in violation_text)
             and "unsupported" in violation_text
         ) or ("payment" in violation_text and "unsupported" in violation_text)
+        bad_old_mechanism_update = diagnosis.get("skill_update_relevance") == "update" and (
+            "same cabin" in update_text
+            or "same-cabin" in update_text
+            or "payment sufficiency" in update_text
+            or "payment method is unsupported" in update_text
+        )
         return {
             "diagnosis_contract_valid": valid,
             "judge_has_no_unsupported_same_cabin_or_payment_claim": not bad_unsupported_claim,
-            "no_compliance_update": not (
-                diagnosis.get("skill_update_relevance") == "update"
-                and diagnosis.get("update_axis") in {"compliance", "both"}
-            ),
-            "action_none": recommendation.get("action") == "none",
+            "no_update_for_same_cabin_or_payment_sufficiency": not bad_old_mechanism_update,
         }
     if case_id == "cancellation_eligibility":
+        relevance = diagnosis.get("skill_update_relevance")
+        axis = diagnosis.get("update_axis")
+        category = root_cause.get("category")
+        action = recommendation.get("action")
+        target_text = json.dumps(
+            {
+                "discriminating_behavior": analysis.get("discriminating_behavior"),
+                "target_behavior": diagnosis.get("target_behavior"),
+                "update_recommendation": recommendation,
+            },
+            ensure_ascii=False,
+        ).casefold()
+        external_no_update = (
+            category == "external_issue"
+            and relevance == "none"
+            and axis == "none"
+            and action == "none"
+        )
+        subjective_mechanism = any(marker in target_text for marker in (
+            "subjective", "praise", "emotional", "evaluative", "neutral", "factual",
+        ))
+        forbidden_cancellation_repair = any(marker in target_text for marker in (
+            "allow cancellation", "cancel ineligible", "cancel non-eligible",
+            "cancel despite", "cancel regardless", "accepts no refund",
+        ))
+        independent_compliance_update = (
+            analysis.get("evidence_consistency") == "supportive"
+            and category == "skill_issue"
+            and relevance == "update"
+            and axis == "compliance"
+            and action in {"add", "replace", "delete"}
+            and bool((analysis.get("discriminating_behavior") or "").strip())
+            and bool(diagnosis.get("repair_policy_ids"))
+            and subjective_mechanism
+            and not forbidden_cancellation_repair
+        )
         return {
             "diagnosis_contract_valid": valid,
-            "root_cause_external_issue": root_cause.get("category") == "external_issue",
-            "skill_update_relevance_none": diagnosis.get("skill_update_relevance") == "none",
-            "update_axis_none": diagnosis.get("update_axis") == "none",
-            "action_none": recommendation.get("action") == "none",
+            "policy_forbidden_task_success_repair_absent": (
+                axis not in {"task_success", "both"} and not forbidden_cancellation_repair
+            ),
+            "external_no_update_or_independent_compliance_update": (
+                external_no_update or independent_compliance_update
+            ),
         }
     target_text = json.dumps(
         {
@@ -101,10 +151,12 @@ def _case_checks(case_id: str, judge_results: list[dict], diagnosis: dict, valid
     ).casefold()
     return {
         "diagnosis_contract_valid": valid,
-        "evidence_consistency_conflicting": analysis.get("evidence_consistency") == "conflicting",
-        "skill_update_relevance_uncertain": diagnosis.get("skill_update_relevance") == "uncertain",
+        "evidence_consistency_insufficient": analysis.get("evidence_consistency") == "insufficient",
+        "root_cause_null": root_cause.get("category") is None,
+        "skill_update_relevance_none": diagnosis.get("skill_update_relevance") == "none",
         "update_axis_none": diagnosis.get("update_axis") == "none",
         "action_none": recommendation.get("action") == "none",
+        "repair_policy_ids_empty": diagnosis.get("repair_policy_ids") == [],
         "no_payment_sufficiency_update": not (
             diagnosis.get("skill_update_relevance") == "update"
             and ("payment" in target_text or "gift" in target_text)
@@ -113,6 +165,7 @@ def _case_checks(case_id: str, judge_results: list[dict], diagnosis: dict, valid
 
 
 def main() -> None:
+    load_dotenv(ROOT / ".env")
     if (OUTPUT_ROOT / "run_summary.json").exists():
         raise RuntimeError(f"Refusing to overwrite existing canary: {OUTPUT_ROOT}")
     OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
@@ -136,6 +189,7 @@ def main() -> None:
     summary = {
         "schema_version": "autonomous_gse_v13_real_llm_canary_0.13.0",
         "protocol_version": PROTOCOL_VERSION,
+        "judge_prompt_version": JUDGE_PROMPT_VERSION,
         "mode": "saved_s0_raw_trajectories_to_new_judge_to_new_diagnosis",
         "new_rollouts": 0,
         "editor_calls": 0,

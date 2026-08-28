@@ -18,6 +18,7 @@ from src.skill_evolution.autonomous_gse_v13_benchmark_runtime import (
     build_policy_grounded_recovery_plan, load_authoritative_domain_contexts,
     matched_replay_plan, prepare_v13_step1_restart_from_parent,
     resume_v13_target_fix_and_gate, run_v13_campaign,
+    _tool_contracts_from_authoritative_source,
 )
 from src.skill_evolution.autonomous_gse_v13_proposal import MultiRolloutDiagnosisProposalOperator
 from src.skill_evolution.diagnosis_contract_v13 import validate_diagnosis
@@ -30,6 +31,7 @@ from src.skill_evolution.targeted_fix_v13 import (
     TargetedFixRequest, build_targeted_fix_prompts, derive_edit_verdict,
     parse_targeted_fix_response,
 )
+from scripts.run_v13_preformal_canary import _case_checks
 
 ROOT = Path(__file__).resolve().parents[2]
 V12_DIR = ROOT / "experiments/campaigns/autonomous_gse_v12"
@@ -251,6 +253,50 @@ class V13DiagnosisEditorTests(unittest.TestCase):
             validate_diagnosis(conflicting, experiences=_group(), skill_sections=sections),
         )
 
+    def test_disproven_allegation_is_insufficient_none(self):
+        diagnosis = _diagnosis(relevance="none", category=None)
+        diagnosis["task_behavior_summary"] = (
+            "Policy and tool evidence disprove the suspected mechanism, with no alternative."
+        )
+        diagnosis["cross_rollout_analysis"].update({
+            "stable_behavior": "the grounded behavior is permitted across all rollouts",
+            "compliance_contrast": "no compliance-relevant contrast remains",
+            "discriminating_behavior": "",
+            "evidence_consistency": "insufficient",
+            "counterevidence": "the original allegation is resolved against a Skill problem",
+            "support_evidence_refs": [],
+        })
+        self.assertEqual(validate_diagnosis(
+            diagnosis, experiences=_group(), skill_sections={"Planning and navigation": []}
+        ), ())
+        self.assertIsNone(diagnosis["root_cause"]["category"])
+        self.assertEqual(diagnosis["skill_update_relevance"], "none")
+
+    def test_true_conflicting_evidence_is_uncertain_no_update(self):
+        diagnosis = _diagnosis(relevance="uncertain", category="uncertain")
+        diagnosis["cross_rollout_analysis"].update({
+            "discriminating_behavior": "",
+            "evidence_consistency": "conflicting",
+            "counterevidence": (
+                "a still-plausible mechanism has supporting evidence and material counterevidence"
+            ),
+        })
+        self.assertEqual(validate_diagnosis(
+            diagnosis, experiences=_group(), skill_sections={"Planning and navigation": []}
+        ), ())
+        self.assertEqual(diagnosis["update_axis"], "none")
+        self.assertEqual(diagnosis["update_recommendation"]["action"], "none")
+
+    def test_conflicting_with_none_remains_invalid(self):
+        diagnosis = _diagnosis(relevance="none", category=None)
+        diagnosis["cross_rollout_analysis"]["evidence_consistency"] = "conflicting"
+        self.assertIn(
+            "CONFLICTING_EVIDENCE_REQUIRES_UNCERTAIN_NO_UPDATE",
+            validate_diagnosis(
+                diagnosis, experiences=_group(), skill_sections={"Planning and navigation": []}
+            ),
+        )
+
     def test_passenger_cabin_and_baggage_payment_counterevidence_fixture(self):
         contexts = load_authoritative_domain_contexts(ROOT / "external/tau2-bench")
         policy = contexts["airline"]["original_domain_policy"]
@@ -260,9 +306,17 @@ class V13DiagnosisEditorTests(unittest.TestCase):
         )
         self.assertIn("All passengers must fly the same flights in the same cabin", policy)
         self.assertEqual(
-            baggage["required_arguments"],
+            [
+                argument["name"] for argument in baggage["arguments"]
+                if argument["required"]
+            ],
             ["reservation_id", "total_baggages", "nonfree_baggages", "payment_id"],
         )
+        payment = next(
+            argument for argument in baggage["arguments"]
+            if argument["name"] == "payment_id"
+        )
+        self.assertTrue(payment["description"])
         diagnosis = _diagnosis(relevance="uncertain", category="uncertain")
         diagnosis["cross_rollout_analysis"].update({
             "stable_behavior": "all rollouts use the same-cabin predicate and supply payment information",
@@ -292,15 +346,42 @@ class V13DiagnosisEditorTests(unittest.TestCase):
         self.assertEqual(diagnosis["update_recommendation"]["action"], "none")
         self.assertIn("Policy explicitly prohibits", DIAGNOSIS_SYSTEM_PROMPT)
 
+    def test_cancellation_canary_accepts_independent_compliance_mechanism(self):
+        diagnosis = _diagnosis(
+            relevance="update", category="skill_issue", action="add",
+            update_axis="compliance", problem="subjective praise in procedural updates",
+            repair_operator="communicate policy outcomes neutrally and factually",
+        )
+        diagnosis["repair_policy_ids"] = ["tau3:airline:no-subjective-comments"]
+        diagnosis["cross_rollout_analysis"].update({
+            "evidence_consistency": "supportive",
+            "discriminating_behavior": (
+                "one rollout adds subjective emotional praise while two report facts neutrally"
+            ),
+        })
+        checks = _case_checks("cancellation_eligibility", [], diagnosis, True)
+        self.assertTrue(all(checks.values()))
+
+    def test_cancellation_canary_rejects_policy_forbidden_task_success_repair(self):
+        diagnosis = _diagnosis(
+            relevance="update", category="skill_issue", action="add",
+            update_axis="task_success", problem="ineligible cancellation was not completed",
+            repair_operator="allow cancellation despite Policy when the user accepts no refund",
+        )
+        diagnosis["repair_policy_ids"] = ["tau3:airline:cancellation"]
+        checks = _case_checks("cancellation_eligibility", [], diagnosis, True)
+        self.assertFalse(checks["policy_forbidden_task_success_repair_absent"])
+        self.assertFalse(checks["external_no_update_or_independent_compliance_update"])
+
     def test_gift_card_payment_counterevidence_fixture(self):
-        diagnosis = _diagnosis(relevance="uncertain", category="uncertain")
+        diagnosis = _diagnosis(relevance="none", category=None)
         diagnosis["task_behavior_summary"] = "Every rollout refunds to a gift card; none charges a gift card."
         diagnosis["cross_rollout_analysis"].update({
-            "stable_behavior": "CS and VS use the same refund-to-gift-card operation",
-            "compliance_contrast": "outcomes differ but the payment mechanism does not",
+            "stable_behavior": "all compliant rollouts use the same refund-to-gift-card operation",
+            "compliance_contrast": "no compliance-relevant contrast remains",
             "discriminating_behavior": "",
-            "evidence_consistency": "conflicting",
-            "counterevidence": "refund destination is not additional-payment sufficiency",
+            "evidence_consistency": "insufficient",
+            "counterevidence": "refund direction disproves additional-payment sufficiency",
             "support_evidence_refs": [],
         })
         self.assertEqual(validate_diagnosis(
@@ -308,6 +389,9 @@ class V13DiagnosisEditorTests(unittest.TestCase):
             experiences=_group(("compliant_success", "violating_success", "compliant_success"), domain="retail"),
             skill_sections={"Planning and navigation": []},
         ), ())
+        self.assertIn("A disproven allegation is not automatically conflicting evidence", DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertIn("Evidence-consistency decision table", DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertIn("Never use conflicting + none", DIAGNOSIS_SYSTEM_PROMPT)
 
     def test_tool_capability_never_overrides_policy_permission_fixture(self):
         diagnosis = _diagnosis(relevance="none", category="external_issue")
@@ -390,6 +474,10 @@ class V13DiagnosisEditorTests(unittest.TestCase):
         self.assertIn("Before returning, verify all of the following", DIAGNOSIS_SYSTEM_PROMPT)
         self.assertIn(
             "root_cause, skill_update_relevance, update_axis, and action",
+            DIAGNOSIS_SYSTEM_PROMPT,
+        )
+        self.assertIn(
+            "The pair (evidence_consistency conflicting, skill_update_relevance none) never appears",
             DIAGNOSIS_SYSTEM_PROMPT,
         )
 
@@ -483,8 +571,8 @@ class V13DiagnosisEditorTests(unittest.TestCase):
 class V13ComplianceJudgeTests(unittest.TestCase):
     POLICY = "# Modify items\n\nThis action can only be called once.\n\n# Modify address\n\nAddresses may be modified."
 
-    def test_prompt_binds_clause_to_local_scope(self):
-        self.assertIn("local section, subsection, grammatical referent", JUDGE_SYSTEM_PROMPT)
+    def test_action_local_rule_is_not_expanded_to_sibling_tools(self):
+        self.assertIn("Policy provenance and semantic applicability are different", JUDGE_SYSTEM_PROMPT)
         self.assertIn('"this action"', JUDGE_SYSTEM_PROMPT)
         self.assertIn("does not automatically govern modify-address", JUDGE_SYSTEM_PROMPT)
         self.assertIn("Tool affordance is not policy permission", JUDGE_SYSTEM_PROMPT)
@@ -496,7 +584,10 @@ class V13ComplianceJudgeTests(unittest.TestCase):
         ]
         payload = build_judge_payload(
             "retail", self.POLICY, {"domain": "retail"}, trajectory,
-            [{"tool_name": "modify_items", "arguments": [], "description": "Modify items."}],
+            [{
+                "tool_name": "modify_items", "arguments": [],
+                "description": "Modify items.", "raises": [],
+            }],
         )
         self.assertEqual(
             [item["tool_name"] for item in payload["full_trajectory"]],
@@ -504,11 +595,20 @@ class V13ComplianceJudgeTests(unittest.TestCase):
         )
         self.assertEqual(payload["available_tool_contracts"][0]["tool_name"], "modify_items")
 
+    def test_passenger_same_cabin_constraint_remains_cross_flow_grounding(self):
+        self.assertIn(
+            "All passengers must fly the same flights in the same cabin",
+            JUDGE_SYSTEM_PROMPT,
+        )
+        self.assertIn(
+            "remains grounding when a later Modify-flight action changes that reservation",
+            JUDGE_SYSTEM_PROMPT,
+        )
+
     def test_clause_must_come_from_original_policy(self):
         valid = {
             "compliant": False,
             "violations": [{
-                "policy_section": "Modify items",
                 "policy_clause": "This action can only be called once.",
                 "evidence_steps": [2], "reason": "modify_items was called twice",
             }],
@@ -520,24 +620,54 @@ class V13ComplianceJudgeTests(unittest.TestCase):
         with self.assertRaisesRegex(ComplianceJudgeError, "policy clause not found"):
             validate_judgment(broadened, {1, 2}, original_policy=self.POLICY)
 
-    def test_policy_clause_must_be_inside_declared_markdown_section(self):
-        policy = "## Modify items\n\nClause A.\n\n## Cancellation\n\nClause B."
-        mismatch = {
+    def test_policy_section_is_derived_as_canonical_heading_path(self):
+        policy = "## Modify pending order\n\n### Modify items\n\nClause A."
+        raw = {
             "compliant": False,
             "violations": [{
-                "policy_section": "Modify items", "policy_clause": "Clause B.",
+                "policy_clause": "Clause A.",
                 "evidence_steps": [1], "reason": "One alleged behavior.",
             }],
         }
-        with self.assertRaisesRegex(ComplianceJudgeError, "declared section") as caught:
-            validate_judgment(mismatch, {1}, original_policy=policy)
-        self.assertEqual(caught.exception.validation_code, "POLICY_CLAUSE_SECTION_MISMATCH")
+        judgment = validate_judgment(raw, {1}, original_policy=policy)
+        self.assertEqual(
+            judgment.violations[0].policy_section,
+            "Modify pending order > Modify items",
+        )
+
+    def test_non_heading_label_uses_nearest_markdown_heading(self):
+        policy = "## Modify flight\n\nChange cabin:\nClause B."
+        raw = {
+            "compliant": False,
+            "violations": [{
+                "policy_clause": "Clause B.", "evidence_steps": [1],
+                "reason": "One alleged behavior.",
+            }],
+        }
+        judgment = validate_judgment(raw, {1}, original_policy=policy)
+        self.assertEqual(judgment.violations[0].policy_section, "Modify flight")
+
+    def test_ambiguous_policy_clause_location_fails_closed(self):
+        policy = "## A\n\nSame clause.\n\n## B\n\nSame clause."
+        raw = {
+            "compliant": False,
+            "violations": [{
+                "policy_clause": "Same clause.", "evidence_steps": [1],
+                "reason": "One alleged behavior.",
+            }],
+        }
+        with self.assertRaises(ComplianceJudgeError) as caught:
+            validate_judgment(raw, {1}, original_policy=policy)
+        self.assertEqual(
+            caught.exception.validation_code,
+            "AMBIGUOUS_POLICY_CLAUSE_LOCATION",
+        )
 
     def test_atomic_violation_and_complete_unsupported_claim_contract(self):
         self.assertIn("Each violation item must describe one coherent behavioral allegation", JUDGE_SYSTEM_PROMPT)
         self.assertIn("Do not bundle independent issues", JUDGE_SYSTEM_PROMPT)
         self.assertIn("check the entire original Policy", JUDGE_SYSTEM_PROMPT)
-        self.assertIn("every relevant available tool contract", JUDGE_SYSTEM_PROMPT)
+        self.assertIn("every relevant tool-level and argument-level contract", JUDGE_SYSTEM_PROMPT)
 
     def test_one_tool_call_clause_is_deterministically_excluded(self):
         policy = (
@@ -547,7 +677,6 @@ class V13ComplianceJudgeTests(unittest.TestCase):
         excluded = {
             "compliant": False,
             "violations": [{
-                "policy_section": "General requirements",
                 "policy_clause": "You should only make one tool call at a time.",
                 "evidence_steps": [1, 2],
                 "reason": "Two calls appeared before their results.",
@@ -561,7 +690,6 @@ class V13ComplianceJudgeTests(unittest.TestCase):
         raw = {
             "compliant": False,
             "violations": [{
-                "policy_section": "General requirements",
                 "policy_clause": (
                     "You should only make one tool call at a time, including lookup calls."
                 ),
@@ -580,7 +708,6 @@ class V13ComplianceJudgeTests(unittest.TestCase):
         raw = {
             "compliant": False,
             "violations": [{
-                "policy_section": "Modify items",
                 "policy_clause": "All modification tools can only be called once.",
                 "evidence_steps": [1], "reason": "A modification was repeated.",
             }],
@@ -634,7 +761,6 @@ class V13ComplianceJudgeTests(unittest.TestCase):
             "compliant": False,
             "violations": [
                 {
-                    "policy_section": "Generic action rules",
                     "policy_clause": (
                         "You should at most make one tool call at a time, and if you take a tool call, "
                         "you should not respond to the user at the same time."
@@ -642,7 +768,6 @@ class V13ComplianceJudgeTests(unittest.TestCase):
                     "evidence_steps": [1, 2], "reason": "Two tool calls were listed.",
                 },
                 {
-                    "policy_section": "Generic action rules",
                     "policy_clause": "The user must confirm cancellation.",
                     "evidence_steps": [3], "reason": "Cancellation occurred without confirmation.",
                 },
@@ -654,6 +779,68 @@ class V13ComplianceJudgeTests(unittest.TestCase):
             [item.policy_clause for item in judgment.violations],
             ["The user must confirm cancellation."],
         )
+
+    def test_tool_contract_preserves_argument_and_raises_semantics(self):
+        source = '''
+def is_tool(value):
+    return value
+
+@is_tool("write")
+def exchange_item(payment_method_id: str, note: str | None = None):
+    """Exchange an item.
+
+    Args:
+        payment_method_id: The payment method used to pay or receive
+            refund for the price difference.
+        note: An optional audit note.
+
+    Raises:
+        InsufficientBalanceError: If the gift card cannot cover a positive
+            price difference.
+    """
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            tools_path = Path(directory) / "tools.py"
+            tools_path.write_text(source, encoding="utf-8")
+            contract = _tool_contracts_from_authoritative_source(tools_path)[0]
+        self.assertEqual(contract["description"], "Exchange an item.")
+        self.assertEqual(contract["arguments"], [
+            {
+                "name": "payment_method_id", "required": True,
+                "description": (
+                    "The payment method used to pay or receive refund for the price difference."
+                ),
+            },
+            {"name": "note", "required": False, "description": "An optional audit note."},
+        ])
+        self.assertEqual(contract["raises"], [{
+            "type": "InsufficientBalanceError",
+            "description": "If the gift card cannot cover a positive price difference.",
+        }])
+
+    def test_gift_card_positive_difference_is_payment_direction(self):
+        self.assertIn("positive price difference paid by the customer", JUDGE_SYSTEM_PROMPT)
+
+    def test_gift_card_negative_difference_is_refund_direction(self):
+        self.assertIn("negative price difference returned to the customer", JUDGE_SYSTEM_PROMPT)
+        self.assertIn("gift card receiving that refund need not already contain", JUDGE_SYSTEM_PROMPT)
+
+    def test_unsupported_information_is_fallback_after_complete_grounding_check(self):
+        self.assertIn("unsupported-information clause only as a fallback", JUDGE_SYSTEM_PROMPT)
+        self.assertIn("Absence from the current subsection is not evidence", JUDGE_SYSTEM_PROMPT)
+
+    def test_judge_output_schema_forbids_free_form_policy_section(self):
+        raw = {
+            "compliant": False,
+            "violations": [{
+                "policy_section": "Modify flight — Change cabin",
+                "policy_clause": "This action can only be called once.",
+                "evidence_steps": [1], "reason": "One alleged behavior.",
+            }],
+        }
+        with self.assertRaises(ComplianceJudgeError) as caught:
+            validate_judgment(raw, {1}, original_policy=self.POLICY)
+        self.assertEqual(caught.exception.validation_code, "INVALID_VIOLATION_SCHEMA")
 
 
 class V13TargetFixTests(unittest.TestCase):

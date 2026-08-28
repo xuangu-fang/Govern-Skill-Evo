@@ -6,6 +6,7 @@ import argparse
 import ast
 import copy
 import json
+import re
 import shutil
 import traceback
 from collections.abc import Callable, Sequence
@@ -50,6 +51,50 @@ class RuntimeContractError(ValueError):
 def _tool_contracts_from_authoritative_source(tools_path: Path) -> tuple[dict[str, Any], ...]:
     """Extract the public @is_tool interface without importing or sending Python source."""
 
+    def doc_contract(node: ast.FunctionDef | ast.AsyncFunctionDef) -> tuple[
+        str, dict[str, str], list[dict[str, str]]
+    ]:
+        lines = (ast.get_docstring(node, clean=True) or "").splitlines()
+        sections = {"Args:", "Returns:", "Raises:"}
+        first_section = next((index for index, line in enumerate(lines) if line.strip() in sections), len(lines))
+        description = " ".join(line.strip() for line in lines[:first_section] if line.strip())
+
+        arguments: dict[str, str] = {}
+        raises: list[dict[str, str]] = []
+        section: str | None = None
+        current_name: str | None = None
+        current_description: list[str] = []
+
+        def flush() -> None:
+            nonlocal current_name, current_description
+            if current_name is None:
+                return
+            text = " ".join(current_description).strip()
+            if section == "Args":
+                arguments[current_name] = text
+            elif section == "Raises":
+                raises.append({"type": current_name, "description": text})
+            current_name = None
+            current_description = []
+
+        for line in lines[first_section:]:
+            stripped = line.strip()
+            if stripped in sections:
+                flush()
+                section = stripped[:-1]
+                continue
+            if section not in {"Args", "Raises"}:
+                continue
+            entry = re.match(r"^([^:]+):\s*(.*)$", stripped)
+            if entry:
+                flush()
+                current_name = entry.group(1).strip()
+                current_description = [entry.group(2).strip()] if entry.group(2).strip() else []
+            elif stripped and current_name is not None:
+                current_description.append(stripped)
+        flush()
+        return description, arguments, raises
+
     module = ast.parse(tools_path.read_text(encoding="utf-8"), filename=tools_path.as_posix())
     contracts: list[dict[str, Any]] = []
     for node in ast.walk(module):
@@ -70,14 +115,20 @@ def _tool_contracts_from_authoritative_source(tools_path: Path) -> tuple[dict[st
         kwonly = [argument.arg for argument in node.args.kwonlyargs]
         for name, default in zip(kwonly, node.args.kw_defaults):
             (required if default is None else optional).append(name)
-        description = ast.get_docstring(node, clean=True) or ""
-        description = description.split("\nArgs:", 1)[0].split("\nReturns:", 1)[0].strip()
+        description, argument_descriptions, raises = doc_contract(node)
+        required_set = set(required)
         contracts.append({
             "tool_name": node.name,
-            "arguments": [*positional, *kwonly],
-            "required_arguments": required,
-            "optional_arguments": optional,
-            "description": " ".join(description.split()),
+            "arguments": [
+                {
+                    "name": name,
+                    "required": name in required_set,
+                    "description": argument_descriptions.get(name, ""),
+                }
+                for name in [*positional, *kwonly]
+            ],
+            "description": description,
+            "raises": raises,
         })
     return tuple(sorted(contracts, key=lambda item: item["tool_name"]))
 
