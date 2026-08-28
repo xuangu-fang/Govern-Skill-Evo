@@ -41,7 +41,7 @@ from src.skill_evolution.two_dimensional_gate import classify_state
 
 ROOT = REPO_ROOT
 FORMAL_ROOT = ROOT / "artifacts/autonomous_gse_v13/formal"
-OUTPUT_ROOT = FORMAL_ROOT / "canaries/pre_formal_diagnosis_consistency_real_llm"
+OUTPUT_ROOT = FORMAL_ROOT / "canaries/pre_formal_abstract_prompts_real_llm"
 CASES = (
     ("passenger_cabin_baggage_payment", 2, "airline", "12"),
     ("cancellation_eligibility", 2, "airline", "39"),
@@ -115,12 +115,13 @@ def _case_checks(case_id: str, judge_results: list[dict], diagnosis: dict, valid
             and axis == "none"
             and action == "none"
         )
-        subjective_mechanism = any(marker in target_text for marker in (
-            "subjective", "praise", "emotional", "evaluative", "neutral", "factual",
-        ))
         forbidden_cancellation_repair = any(marker in target_text for marker in (
             "allow cancellation", "cancel ineligible", "cancel non-eligible",
             "cancel despite", "cancel regardless", "accepts no refund",
+        ))
+        overstrong_ordering = any(marker in target_text for marker in (
+            "before every lookup", "before any lookup", "before retrieving",
+            "before checking eligibility", "before reading",
         ))
         independent_compliance_update = (
             analysis.get("evidence_consistency") == "supportive"
@@ -130,14 +131,15 @@ def _case_checks(case_id: str, judge_results: list[dict], diagnosis: dict, valid
             and action in {"add", "replace", "delete"}
             and bool((analysis.get("discriminating_behavior") or "").strip())
             and bool(diagnosis.get("repair_policy_ids"))
-            and subjective_mechanism
             and not forbidden_cancellation_repair
+            and not overstrong_ordering
         )
         return {
             "diagnosis_contract_valid": valid,
             "policy_forbidden_task_success_repair_absent": (
                 axis not in {"task_success", "both"} and not forbidden_cancellation_repair
             ),
+            "no_overstrong_workflow_ordering": not overstrong_ordering,
             "external_no_update_or_independent_compliance_update": (
                 external_no_update or independent_compliance_update
             ),

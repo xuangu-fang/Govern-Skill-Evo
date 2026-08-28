@@ -362,6 +362,23 @@ class V13DiagnosisEditorTests(unittest.TestCase):
         checks = _case_checks("cancellation_eligibility", [], diagnosis, True)
         self.assertTrue(all(checks.values()))
 
+    def test_cancellation_canary_accepts_independent_handoff_mechanism(self):
+        diagnosis = _diagnosis(
+            relevance="update", category="skill_issue", action="add",
+            update_axis="compliance", problem="announced handoff is not completed",
+            repair_operator="complete the required transfer tool and message sequence",
+            stopping_boundary="stop only after both required handoff operations complete",
+        )
+        diagnosis["repair_policy_ids"] = ["tau3:airline:required-handoff"]
+        diagnosis["cross_rollout_analysis"].update({
+            "evidence_consistency": "supportive",
+            "discriminating_behavior": (
+                "one rollout stops after announcing a handoff while another completes it"
+            ),
+        })
+        checks = _case_checks("cancellation_eligibility", [], diagnosis, True)
+        self.assertTrue(all(checks.values()))
+
     def test_cancellation_canary_rejects_policy_forbidden_task_success_repair(self):
         diagnosis = _diagnosis(
             relevance="update", category="skill_issue", action="add",
@@ -453,8 +470,12 @@ class V13DiagnosisEditorTests(unittest.TestCase):
         self.assertIn("preserve decision predicates, repair operators", DIAGNOSIS_SYSTEM_PROMPT)
         self.assertIn("limits the strength and scope", DIAGNOSIS_SYSTEM_PROMPT)
         self.assertIn('"update_axis":"none"', DIAGNOSIS_SYSTEM_PROMPT)
-        self.assertIn("one-tool-call-at-a-time requirement is outside v0.13 learning scope", DIAGNOSIS_SYSTEM_PROMPT)
-        self.assertIn("Do not produce a serialization", DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertIn("Tau3 benchmark/runtime exclusion", DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertIn("propose serialization", DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertIn("Do not infer an ordering stricter than the Policy requires", DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertIn("A disproven allegation is not automatically conflicting evidence", DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertNotIn("gift-card", DIAGNOSIS_SYSTEM_PROMPT.casefold())
+        self.assertNotIn("cancellation reason", DIAGNOSIS_SYSTEM_PROMPT.casefold())
         self.assertNotIn("PARTIALLY_FIXED", DIAGNOSIS_SYSTEM_PROMPT)
 
     def test_diagnosis_prompt_prevents_relevance_field_confusion(self):
@@ -574,10 +595,10 @@ class V13ComplianceJudgeTests(unittest.TestCase):
     def test_action_local_rule_is_not_expanded_to_sibling_tools(self):
         self.assertIn("Policy provenance and semantic applicability are different", JUDGE_SYSTEM_PROMPT)
         self.assertIn('"this action"', JUDGE_SYSTEM_PROMPT)
-        self.assertIn("does not automatically govern modify-address", JUDGE_SYSTEM_PROMPT)
+        self.assertIn("not every neighboring mutation", JUDGE_SYSTEM_PROMPT)
         self.assertIn("Tool affordance is not policy permission", JUDGE_SYSTEM_PROMPT)
-        self.assertIn("outside this Judge's evaluation scope", JUDGE_SYSTEM_PROMPT)
-        self.assertIn("Never output a violation whose policy_clause", JUDGE_SYSTEM_PROMPT)
+        self.assertIn("Tau3 benchmark/runtime exclusion", JUDGE_SYSTEM_PROMPT)
+        self.assertIn("Never output or paraphrase the excluded requirement", JUDGE_SYSTEM_PROMPT)
         trajectory = [
             {"step": 1, "event_type": "tool_call", "tool_name": "modify_address"},
             {"step": 2, "event_type": "tool_call", "tool_name": "modify_items"},
@@ -596,14 +617,11 @@ class V13ComplianceJudgeTests(unittest.TestCase):
         self.assertEqual(payload["available_tool_contracts"][0]["tool_name"], "modify_items")
 
     def test_passenger_same_cabin_constraint_remains_cross_flow_grounding(self):
-        self.assertIn(
-            "All passengers must fly the same flights in the same cabin",
-            JUDGE_SYSTEM_PROMPT,
-        )
-        self.assertIn(
-            "remains grounding when a later Modify-flight action changes that reservation",
-            JUDGE_SYSTEM_PROMPT,
-        )
+        self.assertIn("persistent entity or state invariant", JUDGE_SYSTEM_PROMPT)
+        self.assertIn("later mutations of the same governed entity", JUDGE_SYSTEM_PROMPT)
+        self.assertNotIn("same cabin", JUDGE_SYSTEM_PROMPT.casefold())
+        self.assertNotIn("passenger", JUDGE_SYSTEM_PROMPT.casefold())
+        self.assertNotIn("modify-flight", JUDGE_SYSTEM_PROMPT.casefold())
 
     def test_clause_must_come_from_original_policy(self):
         valid = {
@@ -818,12 +836,20 @@ def exchange_item(payment_method_id: str, note: str | None = None):
             "description": "If the gift card cannot cover a positive price difference.",
         }])
 
-    def test_gift_card_positive_difference_is_payment_direction(self):
-        self.assertIn("positive price difference paid by the customer", JUDGE_SYSTEM_PROMPT)
+    def test_judge_uses_abstract_operation_direction_and_effect_semantics(self):
+        self.assertIn("different directions or effects", JUDGE_SYSTEM_PROMPT)
+        self.assertIn("tool description, argument semantics, tool result, and trajectory", JUDGE_SYSTEM_PROMPT)
+        self.assertIn("Do not transfer a precondition from another direction or effect", JUDGE_SYSTEM_PROMPT)
+        self.assertNotIn("gift card", JUDGE_SYSTEM_PROMPT.casefold())
+        self.assertNotIn("positive price difference", JUDGE_SYSTEM_PROMPT.casefold())
+        self.assertNotIn("negative price difference", JUDGE_SYSTEM_PROMPT.casefold())
 
-    def test_gift_card_negative_difference_is_refund_direction(self):
-        self.assertIn("negative price difference returned to the customer", JUDGE_SYSTEM_PROMPT)
-        self.assertIn("gift card receiving that refund need not already contain", JUDGE_SYSTEM_PROMPT)
+    def test_judge_uses_semantic_applicability_without_canary_answer(self):
+        self.assertIn("persistent entity or state invariant", JUDGE_SYSTEM_PROMPT)
+        self.assertIn("An action-local rule does not extend to sibling actions", JUDGE_SYSTEM_PROMPT)
+        self.assertIn("not mechanically from the section heading", JUDGE_SYSTEM_PROMPT)
+        self.assertNotIn("same cabin", JUDGE_SYSTEM_PROMPT.casefold())
+        self.assertNotIn("modify-flight", JUDGE_SYSTEM_PROMPT.casefold())
 
     def test_unsupported_information_is_fallback_after_complete_grounding_check(self):
         self.assertIn("unsupported-information clause only as a fallback", JUDGE_SYSTEM_PROMPT)
@@ -875,8 +901,8 @@ class V13TargetFixTests(unittest.TestCase):
         self.assertIn("matched Parent-to-Candidate behavior change", TARGET_FIX_SYSTEM_PROMPT)
         self.assertIn("It is not Task Success, Compliance, CS/VS/CF/VF", TARGET_FIX_SYSTEM_PROMPT)
         self.assertIn("IMPROVED + UNCHANGED_BAD remains FIXED", TARGET_FIX_SYSTEM_PROMPT)
-        self.assertIn("one-tool-call-at-a-time requirement is outside v0.13 evaluation scope", TARGET_FIX_SYSTEM_PROMPT)
-        self.assertIn("classify every pair NOT_EXERCISED", TARGET_FIX_SYSTEM_PROMPT)
+        self.assertIn("Tau3 benchmark/runtime exclusion", TARGET_FIX_SYSTEM_PROMPT)
+        self.assertIn("classify every pair and the edit NOT_EXERCISED", TARGET_FIX_SYSTEM_PROMPT)
         self.assertNotIn("PARTIALLY_FIXED", TARGET_FIX_SYSTEM_PROMPT)
 
     def test_prompt_forbids_cross_side_step_copy_when_source_ids_match(self):

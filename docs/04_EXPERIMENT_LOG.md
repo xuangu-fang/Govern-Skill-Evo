@@ -4312,3 +4312,25 @@ v13_ready_for_formal_run = true
 ```
 
 本次 readiness 更新没有新增任何 LLM、rollout、Editor 或 Candidate 调用。正式 campaign 尚未启动；启动时必须从已有 S0 raw Parent trajectories 重新执行 Compliance Judge 与 Diagnosis，不复用旧 Candidate lineage。
+
+### v13 production prompt 去案例化与无泄漏 canary
+
+随后检查发现，上述 3/3 canary 对应的 production prompt 仍直接包含 Passenger cabin、baggage payment、Gift-card price direction/balance 和 Cancellation workflow 的具体答案，因此该结果只能证明已知回归通过，不能证明 evidence contract 能泛化。当前 v13 已删除这些案例级提示，仅保留 semantic applicability、operation direction/effect、counterevidence rule-strength 和 disproven-allegation evidence mapping 等抽象原则。τ³ flattened trajectory 下的 one-tool-call exclusion 保持不变，但已集中标记为 benchmark/runtime-specific evaluation scope，而不是通用 GSE 原则。
+
+最终使用当前抽象 prompt 和原有 saved S0 raw trajectories，重新执行严格受限的 9 次 Compliance Judge + 3 次 Diagnosis canary；没有生成新 rollout、Editor 输入、Candidate，也没有启动正式 campaign。结果：
+
+- Passenger cabin / baggage payment：FAIL。Judge 仍把完整 Policy 中的 persistent same-cabin invariant 错误解释为只约束同一 reservation 的 flight segments，并据此将 rollout 2 的跨 passenger cabin constraint 判为 unsupported。Diagnosis 正确发现三条 rollout 的行为机制稳定相同，输出 `insufficient / null / none`，没有错误 Skill update；但 Judge semantic applicability oracle 未通过。
+- Cancellation eligibility：PASS。Task-success 轴没有产生绕过 Policy 的 cancellation repair；Judge 发现 rollout 1 在用户明确要求 transfer 后只宣布转交、未执行 tool + required message。Diagnosis 生成与 cancellation eligibility 解耦的 `supportive / compliance` handoff stopping-boundary update，具有非空 discriminating behavior，且没有过强 workflow ordering。
+- Gift-card/payment：PASS。Judge 没有再输出 gift-card balance/payment-sufficiency allegation；Diagnosis 根据跨 rollout counterevidence 输出 `insufficient / null / none / action=none`。
+
+最终状态：
+
+```text
+Passenger = FAIL
+Cancellation = PASS
+Gift-card = PASS
+all_cases_passed = false
+v13_ready_for_formal_run = false
+```
+
+完整结果保存在 `artifacts/autonomous_gse_v13/formal/canaries/pre_formal_abstract_prompts_real_llm/`。正式 campaign 继续暂停；本轮失败后没有把 Passenger 的具体答案重新硬编码回 production prompt。

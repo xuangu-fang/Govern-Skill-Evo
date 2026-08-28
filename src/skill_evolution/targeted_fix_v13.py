@@ -9,6 +9,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+from src.adapters.tau2.tau3_evaluation_scope_v13 import benchmark_exclusion_prompt
+
 LEARNER_MODEL = "openai/gpt-5.6-luna"
 TARGETED_FIX_STATUSES = {"FIXED", "NOT_FIXED", "NOT_EXERCISED"}
 PAIR_TRANSITIONS = {"IMPROVED", "UNCHANGED_BAD", "PRESERVED", "WORSENED", "NOT_EXERCISED"}
@@ -52,7 +54,7 @@ For every matched task + rollout_index pair, independently classify the target b
 
 BAD/GOOD means whether the canonical edit's problem behavior versus expected behavior occurred. It is not Task Success, Compliance, CS/VS/CF/VF, or a four-state transition. A behavior BAD -> GOOD remains IMPROVED even if the external outcome changes VS -> CF. Do not relabel external outcomes and do not use them as an automatic behavior verdict.
 
-The one-tool-call-at-a-time requirement is outside v0.13 evaluation scope. Several flattened tool_call steps appearing before their listed tool_result steps are not BAD and cannot by themselves support IMPROVED, UNCHANGED_BAD, or WORSENED. If a canonical edit or verification target asks only for serialization, waiting after every tool call, or a single tool call at a time, classify every pair NOT_EXERCISED and the edit NOT_EXERCISED. If the target also contains another independently testable mechanism, evaluate only that in-scope mechanism and never use tool-call batching as evidence.
+<<TAU3_BENCHMARK_EXCLUSION>>
 
 Every non-NOT_EXERCISED transition must cite both Parent and Candidate evidence. Each ref has exactly source_id and step_ids; source_id is copied from that side's supplied rollout and step_ids is a nonempty array of positive IDs from that same rollout's valid_step_ids. Parent and Candidate may intentionally have the same source_id string, but they are different trajectories and may have different valid_step_ids. For parent_evidence_refs, copy steps only from that pair's parent_rollout.valid_step_ids. For candidate_evidence_refs, copy steps only from that pair's candidate_rollout.valid_step_ids. Never copy a Parent step into Candidate evidence or a Candidate step into Parent evidence, even when the source_id strings match. Never infer, renumber, or cite a step absent from the selected side's valid_step_ids. NOT_EXERCISED has both evidence lists empty. Keep diagnosis_id, domain, task_id, and rollout_index exactly aligned with each supplied matched pair.
 
@@ -64,7 +66,7 @@ Return exactly one tagged JSON object and no prose:
 <TARGETED_FIX_JSON>
 {"canonical_edit_id":"canonical_edit_001","status":"NOT_EXERCISED","pair_transitions":[{"diagnosis_id":"diagnosis_001","domain":"airline","task_id":"1","rollout_index":1,"transition":"NOT_EXERCISED","reason":"","parent_evidence_refs":[],"candidate_evidence_refs":[]}],"reason":""}
 </TARGETED_FIX_JSON>
-"""
+""".replace("<<TAU3_BENCHMARK_EXCLUSION>>", benchmark_exclusion_prompt("target_fix"))
 
 
 def _actions(row: dict[str, Any]) -> list[dict[str, Any]]:

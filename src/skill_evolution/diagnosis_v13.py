@@ -7,6 +7,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+from src.adapters.tau2.tau3_evaluation_scope_v13 import benchmark_exclusion_prompt
 from src.skill_evolution.autonomous_gse_v05_proposal import annotate_parent_skill
 from src.skill_evolution.diagnosis_contract_v13 import validate_task_evidence_group
 
@@ -46,7 +47,7 @@ Generalize entities and episodes, preserve decision predicates, repair operators
 
 Do not produce abstractions such as "unsupported information / when uncertain / verify information." A target must remain mechanism-discriminative and behaviorally testable. Example: identify cross-record field composition, trigger on overlapping record-specific attributes/prices/availability, preserve each record's ID-attribute-price-availability binding, and reason within one record.
 
-Counterevidence is not only evidence against an update; it also limits the strength and scope of the update. A compliant-success path must remain allowed unless explicit policy evidence forbids it. If lookup then asking a cancellation reason then canceling succeeds compliantly, a repair may require obtaining the reason before cancellation but may not require asking before lookup. Do not add obligations, restrictions, universal orderings, or scenarios absent from evidence.
+Counterevidence is not only evidence against an update; it also limits the strength and scope of the update. A compliant-success path must remain allowed unless explicit Policy evidence forbids it. Do not infer an ordering stricter than the Policy requires. If a compliant-success path demonstrates that a prerequisite need not precede an earlier read-only or preparatory step, an update may require that prerequisite before the governed final action but must continue to allow the demonstrated earlier step. Do not add obligations, restrictions, universal orderings, or scenarios absent from evidence.
 
 Evidence-consistency decision table:
 1. Clear concrete mechanism + mechanism-level behavior contrast + Policy/tool facts + consistent observed Success/Compliance contrast -> supportive. Only supportive may produce skill_update_relevance update. discriminating_behavior must name the actual trigger, decision predicate, repair operator, stopping boundary, or resulting-action difference—not merely state that labels differ.
@@ -54,11 +55,11 @@ Evidence-consistency decision table:
 3. No concrete update-worthy mechanism is sufficiently supported, because behavior opportunity or mechanism evidence is missing, rollouts are not discriminating, or no real ambiguity remains -> insufficient. Use none, or uncertain only when a genuine unresolved ambiguity remains, but never update.
 4. A previously suspected mechanism is disproven and no alternative plausible unresolved mechanism remains -> insufficient with root_cause.category null, skill_update_relevance none, update_axis none, and action none.
 
-A disproven allegation is not automatically conflicting evidence. If Policy, tool, trajectory, and Compliance evidence resolve the suspected mechanism against there being a Skill problem, and no other plausible unresolved mechanism remains, use evidence_consistency insufficient, root_cause.category null, skill_update_relevance none, update_axis none, and action none. For example, suppose three rollouts were suspected of a gift-card payment-sufficiency problem. If grounded evaluation shows all three are compliant, the transaction is refund/credit rather than customer payment, the gift card need not have pre-existing balance to receive the refund, and no other concrete compliance-relevant behavior difference remains, the allegation is disproven: use insufficient / null / none / none / none, not conflicting.
+A disproven allegation is not automatically conflicting evidence. If authoritative Policy, tool, trajectory, and Compliance evidence resolve a suspected mechanism against there being a Skill problem, and no alternative plausible unresolved mechanism remains, use evidence_consistency insufficient, root_cause.category null, skill_update_relevance none, update_axis none, and action none. conflicting is reserved for a still-plausible mechanism with material supporting and counter evidence that cannot be reconciled.
 
 Reserve conflicting for a still-plausible unresolved mechanism. For example, if one candidate behavior has rollout evidence supporting it, another materially relevant behavior or compliant path counters that attribution, and Policy/tool evidence cannot determine which explanation caused the observed violation, use conflicting and uncertain. The mere presence of counterevidence does not by itself make evidence conflicting. If the alleged problem behavior is stably present in compliant and violating rollouts and no real difference exists in trigger, decision predicate, repair operator, stopping boundary, or resulting action, it cannot justify a compliance-axis update; classify the evidence as insufficient when that fact resolves the allegation, or conflicting only when a still-plausible unresolved mechanism remains.
 
-The one-tool-call-at-a-time requirement is outside v0.13 learning scope. Never infer concurrency or outstanding operations merely because several flattened tool_call steps appear before their listed tool_result steps; the benchmark may sequentially execute multiple tool calls from one assistant message. Do not produce a serialization, wait-for-each-result, or single-tool-call update from that pattern, even if a supplied compliance label or violation text mentions it. If this is the only alleged issue, use root_cause.category null, skill_update_relevance none, update_axis none, and action none. This exclusion does not create permission for unrelated Policy violations.
+<<TAU3_BENCHMARK_EXCLUSION>>
 
 skill_update_relevance must be exactly one of "update", "none", or "uncertain". Never put root-cause values such as "skill_issue", action values such as "add", "replace", or "delete", update-axis values such as "task_success", "compliance", or "both", or confidence labels such as "high" in skill_update_relevance.
 
@@ -105,7 +106,7 @@ Return exactly one tagged JSON object and no prose:
   "update_recommendation":{"action":"none","target_section":null,"target_rule_id":null,"objective":"","description":""}
 }
 </DIAGNOSIS_JSON>
-"""
+""".replace("<<TAU3_BENCHMARK_EXCLUSION>>", benchmark_exclusion_prompt("diagnosis"))
 
 
 def build_diagnosis_prompts(request: MultiRolloutDiagnosisRequest) -> tuple[str, str]:
