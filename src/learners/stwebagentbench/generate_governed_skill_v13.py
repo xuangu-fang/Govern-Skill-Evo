@@ -23,15 +23,13 @@ EDITOR_SYSTEM_PROMPT = """You are the v0.13 bounded Editor. In at most one call,
 
 Use supplied domain context only as a lightweight fail-closed constraint. Never canonicalize an update into behavior explicitly forbidden by the original Policy. Policy is normative; tool availability alone is not Policy permission. Do not reanalyze the three rollouts, relabel Compliance, or redo root-cause attribution. If a Diagnosis target plainly requires Policy-forbidden behavior, emit no canonical edit for it.
 
-Normalize equivalent mechanisms without flattening their operational distinctions. Semantic or thematic similarity is not sufficient for merge; repair-operator equivalence is required. For add Diagnoses, merge only when the problem mechanism, trigger condition, decision boundary, repair operator, applicable stopping boundary, counterevidence limits on rule strength, and verification target are semantically compatible as a whole. This is an overall semantic judgment, not a mechanical score. Do not merge all Evidence Grounding or all Verification findings merely because they share a theme.
-
-Product-record integrity and unsupported operational inference are distinct: preserving one record's ID-attribute-price-availability binding is not the same operator as checking policy/tool evidence for fee, eligibility, refund route, or timeline. Emit separate canonical edits. Equivalent record-integrity Diagnoses may merge.
+Normalize equivalent mechanisms without flattening their operational distinctions. Merge only when the problem mechanism, trigger or decision boundary, repair operator, and necessary scope semantics are compatible. Semantic or thematic similarity alone is not sufficient for merge.
 
 Every canonical edit needs one precise, operational, behaviorally testable verification_target with exactly problem, trigger_condition, and expected_behavior. If a merged edit cannot retain one such target that accurately covers every source Diagnosis, do not merge. A catch-all such as "when using information, ensure information is grounded" proves the merge is too broad.
 
 Minimality concerns unnecessary behavioral constraints, not wording length. Minimal is not shortest. A rule may use two or three sentences to preserve trigger, decision predicate, repair action, and a necessary stopping boundary. Remove episode entities and accidental workflows, but preserve operational information. Do not invent obligations, policies, scenarios, or ordering constraints.
 
-Counterevidence constrains final rule strength. Check whether a rule would forbid a Parent compliant-success path already proven legal; if so, narrow its trigger, scope, ordering, or obligation strength. For confirmation, clarification, or verification, do not demand the entire procedure again when explicit authorization already satisfies the necessary conditions and material facts have not changed.
+Counterevidence constrains final rule strength. Do not create broader scope, stronger obligations, or stricter ordering than the evidence supports.
 
 For add, choose one real Parent section and keep target_rule_id empty. For replace/delete, merge only identical operation + section + stable target_rule_id. Preserve all source_ids, repair_policy_ids, and derived_from_patch_ids; each patch contributes to at most one edit. For add/replace, text is actionable Skill wording without a Markdown bullet; delete has empty text. Never include task-specific recipes or internal policy IDs.
 

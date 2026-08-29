@@ -23,10 +23,11 @@ from src.skill_evolution.diagnosis_contract_v13 import (
 from src.skill_evolution.diagnosis_v13 import Diagnoser, MultiRolloutDiagnosisRequest
 
 _TASK_SPECIFIC_RULE_PATTERNS = (
-    re.compile(r"\b(?:enter|fill|set|select|choose)\b[^.!?\n]{0,120}\bfirst\b[^.!?\n]{0,120}\b(?:then|second)\b", re.IGNORECASE),
-    re.compile(r"\b(?:enter|fill)\b[^.!?\n]{0,120}\bincluding\b[^.!?\n]{0,80}\bbefore\b[^.!?\n]{0,80}", re.IGNORECASE),
-    re.compile(r"\b(?:[Ss]et|[Ss]elect|[Cc]hoose)\b[^.!?\n]{0,80}\bto\s+(?:a\s+|an\s+|the\s+)?[A-Z][A-Za-z0-9_-]*\b"),
-    re.compile(r"(?:\b\d{4}-\d{2}-\d{2}\b|\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b|https?://\S+)", re.IGNORECASE),
+    re.compile(
+        r"(?:\b\d{4}-\d{2}-\d{2}\b|\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b|"
+        r"https?://\S+|\b[A-Z]{2,}\d{2,}[A-Z0-9_-]*\b)",
+        re.IGNORECASE,
+    ),
 )
 
 

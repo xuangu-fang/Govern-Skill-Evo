@@ -20,7 +20,9 @@ from src.skill_evolution.autonomous_gse_v13_benchmark_runtime import (
     resume_v13_target_fix_and_gate, run_v13_campaign,
     _tool_contracts_from_authoritative_source,
 )
-from src.skill_evolution.autonomous_gse_v13_proposal import MultiRolloutDiagnosisProposalOperator
+from src.skill_evolution.autonomous_gse_v13_proposal import (
+    MultiRolloutDiagnosisProposalOperator, _contains_task_specific_recipe,
+)
 from src.skill_evolution.diagnosis_contract_v13 import validate_diagnosis
 from src.skill_evolution.diagnosis_v13 import (
     DIAGNOSIS_SYSTEM_PROMPT, MultiRolloutDiagnosisRequest, build_diagnosis_prompts,
@@ -589,11 +591,31 @@ class V13DiagnosisEditorTests(unittest.TestCase):
         self.assertIn("fields from different records", edit["verification_target"]["problem"])
 
     def test_editor_prompt_requires_mechanism_equivalence_and_operational_target(self):
-        self.assertIn("repair-operator equivalence is required", EDITOR_SYSTEM_PROMPT)
+        self.assertIn("Semantic or thematic similarity alone is not sufficient", EDITOR_SYSTEM_PROMPT)
+        self.assertIn("necessary scope semantics are compatible", EDITOR_SYSTEM_PROMPT)
         self.assertIn("Minimality concerns unnecessary behavioral constraints, not wording length", EDITOR_SYSTEM_PROMPT)
         self.assertIn("If a merged edit cannot retain one", EDITOR_SYSTEM_PROMPT)
-        self.assertIn("Product-record integrity and unsupported operational inference are distinct", EDITOR_SYSTEM_PROMPT)
-        self.assertIn("Parent compliant-success path", EDITOR_SYSTEM_PROMPT)
+        self.assertIn("Counterevidence constrains final rule strength", EDITOR_SYSTEM_PROMPT)
+        self.assertNotIn("Product-record integrity", EDITOR_SYSTEM_PROMPT)
+        self.assertNotIn("refund route", EDITOR_SYSTEM_PROMPT)
+        self.assertNotIn("explicit authorization", EDITOR_SYSTEM_PROMPT)
+
+    def test_task_specific_guard_allows_generic_workflow_ordering(self):
+        self.assertFalse(_contains_task_specific_recipe(
+            "First verify the required conditions, then perform the permitted action."
+        ))
+        self.assertFalse(_contains_task_specific_recipe(
+            "Confirm required inputs before invoking a state-changing tool."
+        ))
+
+    def test_task_specific_guard_rejects_obvious_episode_markers(self):
+        for text in (
+            "Use the value on 2026-08-29.",
+            "Send the result to user@example.com.",
+            "Open https://example.com/task/42.",
+            "Update reservation AB1234.",
+        ):
+            self.assertTrue(_contains_task_specific_recipe(text), text)
 
 
 class V13ComplianceJudgeTests(unittest.TestCase):
