@@ -42,7 +42,7 @@ from src.skill_evolution.two_dimensional_gate import classify_state
 ROOT = REPO_ROOT
 FORMAL_ROOT = ROOT / "artifacts/autonomous_gse_v13/formal"
 SAVED_FORMAL_ROOT = ROOT / "artifacts/autonomous_gse_v12/formal"
-OUTPUT_ROOT = FORMAL_ROOT / "canaries/pre_formal_simplified_judge_and_diagnosis_real_llm"
+OUTPUT_ROOT = FORMAL_ROOT / "canaries/pre_formal_diagnosis_output_contract_real_llm"
 CASES = (
     ("passenger_cabin_baggage_payment", 2, "airline", "12"),
     ("cancellation_eligibility", 2, "airline", "39"),

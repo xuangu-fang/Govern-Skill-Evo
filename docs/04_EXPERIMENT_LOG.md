@@ -4477,3 +4477,53 @@ skillopt太复杂，不好判断哪部分有问题
 Cancellation 的 Judge 只标记 rollout 3 的 unsupported categorical claim，但 rollout 1 有实质相似说法。Diagnosis 仍把该差异写成 supportive；同时输出非法 root cause、relevance、axis 和 add target，触发 `INVALID_ROOT_CAUSE_CATEGORY`、`INVALID_SKILL_UPDATE_RELEVANCE`、`INVALID_UPDATE_AXIS`、`ADD_MUST_NOT_PRESELECT_SECTION`。因此没有错误 Skill update 进入后续流程，但该 case 的 Diagnosis 语义与格式均未通过。
 
 Gift-card 中上一轮的 completion-timing 伪 contrast 已消失：三条行为被识别为 materially stable，输出 `insufficient / no update`。按本轮约束，不根据 Cancellation 结果继续追加 Prompt 规则。
+
+---
+
+## 2026-08-28：v13 Diagnosis 输出契约稳定性
+
+本轮只在简化后的 Diagnosis Prompt 中补充合法 enum、最小字段映射和 add/replace/delete target 约束，没有修改 Diagnosis 语义原则或 `diagnosis_contract_v13.py`。
+
+- Prompt：5569 → 6258 字符；仍明显短于简化前的 11820 字符。
+- 新增合法值：`root_cause.category`、`skill_update_relevance`、`update_axis`、`update_recommendation.action`。
+- 新增最小映射：`skill_issue → update → active axis → mutation action`；`execution_issue/external_issue/null → none`；`uncertain → uncertain / none / none`。
+- 新增 target 约束：add/none 的 target 必须为 null；replace/delete 必须指向现有 Parent Skill rule。
+- 不做非法值自动 normalization，Python contract 继续 fail closed。
+- v13 单测：`52 passed`。
+
+三个真实 canary 复用相同保存轨迹，仅调用 9 次 Judge 和 3 次 Diagnosis：
+
+| Case | Judge accuracy | Contract valid | Diagnosis tuple | Semantic safety | Evolution safety |
+|---|---|---|---|---|---|
+| Passenger | PASS | PASS | `supportive / skill_issue / update / compliance / add` | PASS | PASS |
+| Cancellation | FAIL | PASS | `supportive / skill_issue / update / compliance / add` | FAIL | FAIL |
+| Gift-card | PASS | PASS | `insufficient / null / none / none / none` | PASS | PASS |
+
+Contract validity 达到 3/3，未再出现 `policy_violation`、`communication` 等非法 enum。Cancellation 的 schema 已合法，但语义问题仍在：Diagnosis 错称 rollout 1/2 都执行了 transfer，忽略 rollout 1 与 rollout 3 的相似 unsupported/no-transfer counterevidence。因此该合法 update 会进入 Editor，属于本轮明确保留并单独记录的 semantic safety failure；没有继续修改 Prompt。
+
+随后从保存的 Step 1 S0 Parent trajectories 中确定性抽取 10 个额外 task groups（airline 5 个、retail 5 个），运行 30 次 Judge 和 10 次 Diagnosis：
+
+```text
+contract valid: 10/10 = 100%
+invalid output: 0
+supportive: 6
+conflicting: 0
+insufficient: 4
+update: 6/10 = 60%
+```
+
+人工检查全部 6 个 update：均包含具体 Agent-controlled claim/action contrast，未发现明显 label-only、non-Agent-controlled timing、unsupported 或 Policy-prohibited update。明显错误 update 数为 0。Calibration 未生成新 rollout、未调用 Editor、未生成 Candidate。
+
+---
+
+## 2026-08-28：v13 Cancellation 已知错误 Diagnosis 下游传播测试
+
+本轮不修改任何生产 Prompt 或算法组件，只将已保存的 Cancellation Parent K=3 trajectories 与当前已知错误 Diagnosis 送入现有 Editor、matched Candidate replay、Target Fix、Regression 和 Gate。
+
+- Editor 生成 1 条 edit：对超出 Policy/tool 能力、且用户明确要求人工或替代流程的请求，禁止猜测不存在的表单、例外或流程；调用人工转接工具、发送规定消息并停止处理。
+- Parent 与 Candidate seeds 严格匹配：`200 / 201 / 202`。
+- Target Fix transitions：`IMPROVED / PRESERVED / UNCHANGED_BAD`，汇总为 `FIXED`。
+- Parent 与 Candidate 四状态均为 `CF / CF / VF`；没有状态级 regression，aggregate 指标也完全不变。
+- Evolution Gate：`ACCEPT`。
+
+结论：这条已知错误 update 能穿透当前 v13。Target Fix 的既有判据只要求至少一个 matched pair `IMPROVED` 且零 `WORSENED`，因此一个 rollout 的偶然改善足以令 edit 成为 `FIXED`；剩余 `UNCHANGED_BAD` 不阻止通过。Regression 只观察状态回退，本次所有 matched pair 状态不变；aggregate guardrail 也因整体指标持平而通过。

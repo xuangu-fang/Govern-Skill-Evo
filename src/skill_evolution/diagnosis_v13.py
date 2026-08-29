@@ -59,6 +59,17 @@ Counterevidence constrains both whether an update is justified and how strong it
 
 Return exactly the requested schema. Evidence refs must contain source_id and step_ids copied from supplied rollout steps. An update requires supportive evidence, a real non-empty discriminating_behavior, one coherent mechanism, and a Policy-permitted repair. Deterministic field mappings and target legality are enforced by the Python contract.
 
+Output contract — use only these enum values:
+- root_cause.category: "skill_issue" | "execution_issue" | "external_issue" | "uncertain" | null
+- skill_update_relevance: "update" | "none" | "uncertain"
+- update_axis: "task_success" | "compliance" | "both" | "none"
+- update_recommendation.action: "add" | "replace" | "delete" | "none"
+Required mapping:
+- skill_issue -> update -> task_success | compliance | both -> add | replace | delete
+- execution_issue | external_issue | null -> none -> none -> none
+- uncertain -> uncertain -> none -> none
+For add, target_section and target_rule_id are null. For replace/delete, both identify an existing Parent Skill rule. For none, both are null.
+
 Return exactly one tagged JSON object and no prose:
 <DIAGNOSIS_JSON>
 {

@@ -486,6 +486,20 @@ class V13DiagnosisEditorTests(unittest.TestCase):
         self.assertNotIn("Before returning, verify all of the following", DIAGNOSIS_SYSTEM_PROMPT)
         self.assertNotIn("Valid update example fragment", DIAGNOSIS_SYSTEM_PROMPT)
 
+    def test_diagnosis_prompt_declares_minimal_output_contract(self):
+        for enum_contract in (
+            'root_cause.category: "skill_issue" | "execution_issue" | "external_issue" | "uncertain" | null',
+            'skill_update_relevance: "update" | "none" | "uncertain"',
+            'update_axis: "task_success" | "compliance" | "both" | "none"',
+            'update_recommendation.action: "add" | "replace" | "delete" | "none"',
+        ):
+            self.assertIn(enum_contract, DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertIn("skill_issue -> update", DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertIn("execution_issue | external_issue | null -> none", DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertIn("uncertain -> uncertain -> none -> none", DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertIn("For add, target_section and target_rule_id are null", DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertIn("For replace/delete, both identify an existing Parent Skill rule", DIAGNOSIS_SYSTEM_PROMPT)
+
     def test_discriminating_behavior_requires_agent_controlled_difference(self):
         self.assertIn("discriminating_behavior must describe an Agent-controlled difference", DIAGNOSIS_SYSTEM_PROMPT)
         for excluded in (
