@@ -66,7 +66,7 @@ def _violation_dict(domain: str, violation: object) -> dict[str, object]:
 
 
 def _case_checks(case_id: str, judge_results: list[dict], diagnosis: dict, valid: bool) -> dict[str, bool]:
-    analysis = diagnosis.get("cross_rollout_analysis") or {}
+    analysis = diagnosis.get("behavior_analysis") or {}
     root_cause = diagnosis.get("root_cause") or {}
     recommendation = diagnosis.get("update_recommendation") or {}
     if case_id == "passenger_cabin_baggage_payment":
@@ -104,7 +104,7 @@ def _case_checks(case_id: str, judge_results: list[dict], diagnosis: dict, valid
         action = recommendation.get("action")
         target_text = json.dumps(
             {
-                "discriminating_behavior": analysis.get("discriminating_behavior"),
+                "behavioral_mechanism": analysis.get("behavioral_mechanism"),
                 "target_behavior": diagnosis.get("target_behavior"),
                 "update_recommendation": recommendation,
             },
@@ -130,7 +130,7 @@ def _case_checks(case_id: str, judge_results: list[dict], diagnosis: dict, valid
             and relevance == "update"
             and axis == "compliance"
             and action in {"add", "replace", "delete"}
-            and bool((analysis.get("discriminating_behavior") or "").strip())
+            and bool((analysis.get("behavioral_mechanism") or "").strip())
             and bool(diagnosis.get("repair_policy_ids"))
             and not forbidden_cancellation_repair
             and not overstrong_ordering
@@ -360,7 +360,7 @@ def main() -> None:
             skill_sections=sections,
         )
         diagnosis = validation.structured_output or {}
-        analysis = diagnosis.get("cross_rollout_analysis") or {}
+        analysis = diagnosis.get("behavior_analysis") or {}
         root_cause = diagnosis.get("root_cause") or {}
         recommendation = diagnosis.get("update_recommendation") or {}
         checks = _case_checks(case_id, judge_results, diagnosis, validation.valid)
@@ -394,7 +394,7 @@ def main() -> None:
             "skill_update_relevance": diagnosis.get("skill_update_relevance"),
             "update_axis": diagnosis.get("update_axis"),
             "evidence_consistency": analysis.get("evidence_consistency"),
-            "discriminating_behavior": analysis.get("discriminating_behavior"),
+            "behavioral_mechanism": analysis.get("behavioral_mechanism"),
             "action": recommendation.get("action"),
             "checks": checks,
             "passed": passed,

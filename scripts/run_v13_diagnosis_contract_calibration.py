@@ -143,7 +143,7 @@ def main() -> None:
             skill_sections=sections,
         )
         diagnosis = validation.structured_output or {}
-        analysis = diagnosis.get("cross_rollout_analysis") or {}
+        analysis = diagnosis.get("behavior_analysis") or {}
         recommendation = diagnosis.get("update_recommendation") or {}
         root = diagnosis.get("root_cause") or {}
         summary = {
@@ -154,7 +154,9 @@ def main() -> None:
             "diagnosis_valid": validation.valid,
             "validation_errors": list(validation.validation_errors),
             "evidence_consistency": analysis.get("evidence_consistency"),
-            "discriminating_behavior": analysis.get("discriminating_behavior"),
+            "evidence_pattern": analysis.get("evidence_pattern"),
+            "behavioral_mechanism": analysis.get("behavioral_mechanism"),
+            "parent_skill_coverage": diagnosis.get("parent_skill_coverage"),
             "counterevidence": analysis.get("counterevidence"),
             "root_cause": root.get("category"),
             "skill_update_relevance": diagnosis.get("skill_update_relevance"),

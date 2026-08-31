@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import copy
-import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -14,8 +13,13 @@ UPDATE_RELEVANCE = {"update", "none", "uncertain"}
 UPDATE_AXES = {"task_success", "compliance", "both", "none"}
 UPDATE_ACTIONS = {"add", "replace", "delete", "none"}
 EVIDENCE_CONSISTENCIES = {"supportive", "conflicting", "insufficient"}
+EVIDENCE_PATTERNS = {"contrastive", "recurrent", "insufficient"}
+AXIS_RELATIONS = {"supportive", "contradictory", "insufficient", "not_applicable"}
+PARENT_SKILL_COVERAGE = {
+    "missing", "incorrect", "underspecified", "already_covered", "not_applicable",
+}
 DIAGNOSIS_FIELDS = {
-    "task_behavior_summary", "cross_rollout_analysis", "root_cause",
+    "task_behavior_summary", "behavior_analysis", "parent_skill_coverage", "root_cause",
     "skill_update_relevance", "update_axis", "repair_policy_ids",
     "target_behavior", "update_recommendation",
 }
@@ -67,7 +71,7 @@ def _validate_refs(value: Any, evidence_by_source: dict[str, dict[str, Any]], pr
         if source_id not in evidence_by_source:
             errors.append(f"{prefix}_EVIDENCE_SOURCE_NOT_FOUND")
             continue
-        if not isinstance(steps, list) or any(
+        if not isinstance(steps, list) or not steps or any(
             not isinstance(step, int) or isinstance(step, bool) or step <= 0 for step in steps
         ):
             errors.append(f"INVALID_{prefix}_EVIDENCE_STEPS")
@@ -126,22 +130,48 @@ def validate_diagnosis(
         item["source_id"]: item for item in experiences
         if isinstance(item, dict) and isinstance(item.get("source_id"), str)
     }
-    analysis = diagnosis.get("cross_rollout_analysis")
+    analysis = diagnosis.get("behavior_analysis")
     expected_analysis = {
-        "stable_behavior", "success_contrast", "compliance_contrast", "counterevidence",
-        "discriminating_behavior", "evidence_consistency",
+        "evidence_pattern", "stable_behavior", "behavioral_mechanism",
+        "task_success_relation", "compliance_relation", "evidence_consistency",
+        "counterevidence",
         "support_evidence_refs", "counterevidence_refs",
     }
     if not isinstance(analysis, dict) or set(analysis) != expected_analysis:
-        errors.append("INVALID_CROSS_ROLLOUT_ANALYSIS")
+        errors.append("INVALID_BEHAVIOR_ANALYSIS")
     else:
         if any(not isinstance(analysis.get(key), str) for key in (
-            "stable_behavior", "success_contrast", "compliance_contrast",
-            "discriminating_behavior", "evidence_consistency", "counterevidence"
+            "evidence_pattern", "stable_behavior", "behavioral_mechanism",
+            "task_success_relation", "compliance_relation", "evidence_consistency",
+            "counterevidence",
         )):
-            errors.append("INVALID_CROSS_ROLLOUT_ANALYSIS")
+            errors.append("INVALID_BEHAVIOR_ANALYSIS")
         errors.extend(_validate_refs(analysis.get("support_evidence_refs"), evidence_by_source, "SUPPORT"))
         errors.extend(_validate_refs(analysis.get("counterevidence_refs"), evidence_by_source, "COUNTER"))
+    coverage = diagnosis.get("parent_skill_coverage")
+    coverage_status = None
+    if not isinstance(coverage, dict) or set(coverage) != {
+        "status", "related_rule_ids", "explanation",
+    }:
+        errors.append("INVALID_PARENT_SKILL_COVERAGE")
+    else:
+        coverage_status = coverage.get("status")
+        related_rule_ids = coverage.get("related_rule_ids")
+        if coverage_status not in PARENT_SKILL_COVERAGE:
+            errors.append("INVALID_PARENT_SKILL_COVERAGE_STATUS")
+        if not isinstance(coverage.get("explanation"), str):
+            errors.append("INVALID_PARENT_SKILL_COVERAGE")
+        if not isinstance(related_rule_ids, list) or any(
+            not isinstance(rule_id, str) or not rule_id for rule_id in related_rule_ids
+        ):
+            errors.append("INVALID_RELATED_RULE_IDS")
+        else:
+            known_rule_ids = {
+                rule.get("rule_id") for rules in skill_sections.values() for rule in rules
+                if isinstance(rule, dict) and isinstance(rule.get("rule_id"), str)
+            }
+            if not set(related_rule_ids) <= known_rule_ids:
+                errors.append("RELATED_RULE_ID_NOT_FOUND")
     root = diagnosis.get("root_cause")
     category = None
     if not isinstance(root, dict) or set(root) != {"category", "explanation"}:
@@ -162,20 +192,39 @@ def validate_diagnosis(
     if relevance in UPDATE_RELEVANCE and relevance != expected_relevance:
         errors.append("ROOT_CAUSE_RELEVANCE_MISMATCH")
     consistency = analysis.get("evidence_consistency") if isinstance(analysis, dict) else None
-    discriminating = analysis.get("discriminating_behavior") if isinstance(analysis, dict) else None
+    evidence_pattern = analysis.get("evidence_pattern") if isinstance(analysis, dict) else None
+    mechanism = analysis.get("behavioral_mechanism") if isinstance(analysis, dict) else None
+    task_relation = analysis.get("task_success_relation") if isinstance(analysis, dict) else None
+    compliance_relation = analysis.get("compliance_relation") if isinstance(analysis, dict) else None
     if consistency not in EVIDENCE_CONSISTENCIES:
         errors.append("INVALID_EVIDENCE_CONSISTENCY")
+    if evidence_pattern not in EVIDENCE_PATTERNS:
+        errors.append("INVALID_EVIDENCE_PATTERN")
+    if task_relation not in AXIS_RELATIONS:
+        errors.append("INVALID_TASK_SUCCESS_RELATION")
+    if compliance_relation not in AXIS_RELATIONS:
+        errors.append("INVALID_COMPLIANCE_RELATION")
     if relevance == "update":
         if consistency != "supportive":
             errors.append("UPDATE_REQUIRES_SUPPORTIVE_EVIDENCE")
-        if not isinstance(discriminating, str) or not discriminating.strip():
-            errors.append("UPDATE_REQUIRES_DISCRIMINATING_BEHAVIOR")
-        elif set(re.findall(r"[a-z]+", discriminating.casefold())) <= {
-            "cs", "vs", "cf", "vf", "and", "differ", "differs", "different",
-            "label", "labels", "outcome", "outcomes", "state", "states", "contrast",
-            "task", "success", "compliance", "in",
-        }:
-            errors.append("DISCRIMINATING_BEHAVIOR_IS_ONLY_LABEL_CONTRAST")
+        if not isinstance(mechanism, str) or not mechanism.strip():
+            errors.append("UPDATE_REQUIRES_BEHAVIORAL_MECHANISM")
+        if evidence_pattern not in {"contrastive", "recurrent"}:
+            errors.append("UPDATE_REQUIRES_CONTRASTIVE_OR_RECURRENT_EVIDENCE")
+        if category != "skill_issue":
+            errors.append("UPDATE_REQUIRES_SKILL_ISSUE")
+        if coverage_status not in {"missing", "incorrect", "underspecified"}:
+            errors.append("UPDATE_REQUIRES_SKILL_COVERAGE_GAP")
+        if not isinstance(analysis, dict) or not analysis.get("support_evidence_refs"):
+            errors.append("UPDATE_REQUIRES_SUPPORT_EVIDENCE_REFS")
+        if task_relation != "supportive" and compliance_relation != "supportive":
+            errors.append("UPDATE_REQUIRES_SUPPORTIVE_AXIS")
+    if evidence_pattern == "insufficient" and relevance == "update":
+        errors.append("INSUFFICIENT_EVIDENCE_PATTERN_FORBIDS_UPDATE")
+    if coverage_status == "already_covered" and category == "skill_issue" and relevance == "update":
+        errors.append("ALREADY_COVERED_FORBIDS_SKILL_UPDATE")
+    if coverage_status == "already_covered" and category != "execution_issue":
+        errors.append("ALREADY_COVERED_REQUIRES_EXECUTION_ISSUE")
     if consistency == "conflicting" and not (
         category == "uncertain" and relevance == "uncertain"
     ):
@@ -187,6 +236,15 @@ def validate_diagnosis(
         errors.append("UPDATE_REQUIRES_ACTIVE_AXIS")
     elif relevance in {"none", "uncertain"} and update_axis != "none":
         errors.append("NON_UPDATE_AXIS_MUST_BE_NONE")
+    if relevance == "update":
+        expected_axis = (
+            "both" if task_relation == compliance_relation == "supportive"
+            else "task_success" if task_relation == "supportive"
+            else "compliance" if compliance_relation == "supportive"
+            else None
+        )
+        if update_axis != expected_axis:
+            errors.append("UPDATE_AXIS_RELATION_MISMATCH")
     policy_ids = diagnosis.get("repair_policy_ids")
     if not isinstance(policy_ids, list) or any(not isinstance(value, str) or not value for value in policy_ids):
         errors.append("INVALID_REPAIR_POLICY_IDS")

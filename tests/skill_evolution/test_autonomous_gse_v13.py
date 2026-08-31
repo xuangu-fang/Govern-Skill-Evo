@@ -77,22 +77,37 @@ def _group(states=("compliant_failure", "compliant_failure", "compliant_failure"
 
 def _diagnosis(
     *, relevance="none", action="none", category=None, update_axis="none",
-    problem="", repair_operator="", stopping_boundary="",
+    problem="", repair_operator="", stopping_boundary="", evidence_pattern=None,
+    task_success_relation=None, compliance_relation=None, coverage_status=None,
 ) -> dict:
+    updating = relevance == "update"
+    if evidence_pattern is None:
+        evidence_pattern = "contrastive" if updating else "insufficient"
+    if task_success_relation is None:
+        task_success_relation = "supportive" if update_axis in {"task_success", "both"} else "insufficient"
+    if compliance_relation is None:
+        compliance_relation = "supportive" if update_axis in {"compliance", "both"} else "insufficient"
+    if coverage_status is None:
+        coverage_status = "missing" if updating else "not_applicable"
     return {
         "task_behavior_summary": "summary",
-        "cross_rollout_analysis": {
-            "stable_behavior": "", "success_contrast": "",
-            "compliance_contrast": "", "counterevidence": "",
-            "discriminating_behavior": (
+        "behavior_analysis": {
+            "evidence_pattern": evidence_pattern, "stable_behavior": "",
+            "behavioral_mechanism": (
                 "the rollout uses a different decision predicate before the resulting action"
-                if relevance == "update" else ""
+                if updating else ""
             ),
-            "evidence_consistency": "supportive" if relevance == "update" else "insufficient",
+            "task_success_relation": task_success_relation,
+            "compliance_relation": compliance_relation,
+            "evidence_consistency": "supportive" if updating else "insufficient",
+            "counterevidence": "",
             "support_evidence_refs": [
                 {"source_id": "step_001_airline_1_rollout_01", "step_ids": [2]}
             ],
             "counterevidence_refs": [],
+        },
+        "parent_skill_coverage": {
+            "status": coverage_status, "related_rule_ids": [], "explanation": "explanation",
         },
         "root_cause": {"category": category, "explanation": "explanation"},
         "skill_update_relevance": relevance, "update_axis": update_axis,
@@ -234,39 +249,199 @@ class V13DiagnosisEditorTests(unittest.TestCase):
         self.assertEqual(validate_diagnosis(update, experiences=_group(), skill_sections=sections), ())
 
         not_supportive = copy.deepcopy(update)
-        not_supportive["cross_rollout_analysis"]["evidence_consistency"] = "insufficient"
+        not_supportive["behavior_analysis"]["evidence_consistency"] = "insufficient"
         self.assertIn(
             "UPDATE_REQUIRES_SUPPORTIVE_EVIDENCE",
             validate_diagnosis(not_supportive, experiences=_group(), skill_sections=sections),
         )
         empty_mechanism = copy.deepcopy(update)
-        empty_mechanism["cross_rollout_analysis"]["discriminating_behavior"] = ""
+        empty_mechanism["behavior_analysis"]["behavioral_mechanism"] = ""
         self.assertIn(
-            "UPDATE_REQUIRES_DISCRIMINATING_BEHAVIOR",
+            "UPDATE_REQUIRES_BEHAVIORAL_MECHANISM",
             validate_diagnosis(empty_mechanism, experiences=_group(), skill_sections=sections),
         )
-        label_only = copy.deepcopy(update)
-        label_only["cross_rollout_analysis"]["discriminating_behavior"] = "CS and VS differ."
+        insufficient_pattern = copy.deepcopy(update)
+        insufficient_pattern["behavior_analysis"]["evidence_pattern"] = "insufficient"
         self.assertIn(
-            "DISCRIMINATING_BEHAVIOR_IS_ONLY_LABEL_CONTRAST",
-            validate_diagnosis(label_only, experiences=_group(), skill_sections=sections),
+            "UPDATE_REQUIRES_CONTRASTIVE_OR_RECURRENT_EVIDENCE",
+            validate_diagnosis(insufficient_pattern, experiences=_group(), skill_sections=sections),
         )
         conflicting = copy.deepcopy(update)
-        conflicting["cross_rollout_analysis"]["evidence_consistency"] = "conflicting"
+        conflicting["behavior_analysis"]["evidence_consistency"] = "conflicting"
         self.assertIn(
             "CONFLICTING_EVIDENCE_REQUIRES_UNCERTAIN_NO_UPDATE",
             validate_diagnosis(conflicting, experiences=_group(), skill_sections=sections),
         )
+
+    def test_case_1_contrastive_skill_issue_updates(self):
+        diagnosis = _diagnosis(
+            relevance="update", action="add", category="skill_issue",
+            update_axis="task_success", evidence_pattern="contrastive",
+            problem="required condition is skipped", repair_operator="check it before acting",
+        )
+        diagnosis["behavior_analysis"]["behavioral_mechanism"] = (
+            "Successful rollouts check condition X before action Y; the failed rollout executes Y without X."
+        )
+        self.assertEqual(validate_diagnosis(
+            diagnosis,
+            experiences=_group(("compliant_success", "compliant_success", "compliant_failure")),
+            skill_sections={"Planning and navigation": []},
+        ), ())
+
+    def test_case_2_recurrent_skill_issue_updates_when_parent_is_missing_mechanism(self):
+        diagnosis = _diagnosis(
+            relevance="update", action="add", category="skill_issue",
+            update_axis="task_success", evidence_pattern="recurrent", coverage_status="missing",
+            problem="required condition is repeatedly skipped", repair_operator="check it before acting",
+        )
+        diagnosis["behavior_analysis"]["behavioral_mechanism"] = (
+            "All three rollouts execute action Y without first checking required condition X."
+        )
+        diagnosis["behavior_analysis"]["support_evidence_refs"] = [
+            {"source_id": f"step_001_airline_1_rollout_{index:02d}", "step_ids": [2]}
+            for index in (1, 2, 3)
+        ]
+        self.assertEqual(validate_diagnosis(
+            diagnosis, experiences=_group(), skill_sections={"Planning and navigation": []},
+        ), ())
+
+    def test_case_3_recurrent_execution_issue_when_parent_already_covers_mechanism(self):
+        sections = {"Planning and navigation": [{"rule_id": "rule_001"}]}
+        diagnosis = _diagnosis(
+            relevance="none", category="execution_issue", evidence_pattern="recurrent",
+            coverage_status="already_covered",
+        )
+        diagnosis["behavior_analysis"].update({
+            "behavioral_mechanism": "All three rollouts skip condition X before action Y.",
+            "stable_behavior": "the same prohibited shortcut recurs",
+        })
+        diagnosis["parent_skill_coverage"]["related_rule_ids"] = ["rule_001"]
+        self.assertEqual(validate_diagnosis(
+            diagnosis, experiences=_group(), skill_sections=sections,
+        ), ())
+        invalid_update = _diagnosis(
+            relevance="update", action="add", category="skill_issue",
+            update_axis="task_success", evidence_pattern="recurrent",
+            coverage_status="already_covered",
+        )
+        invalid_update["parent_skill_coverage"]["related_rule_ids"] = ["rule_001"]
+        errors = validate_diagnosis(invalid_update, experiences=_group(), skill_sections=sections)
+        self.assertIn("ALREADY_COVERED_FORBIDS_SKILL_UPDATE", errors)
+
+    def test_case_4_same_behavior_mixed_task_outcome_is_insufficient_for_task_axis(self):
+        diagnosis = _diagnosis(
+            relevance="none", category=None, evidence_pattern="recurrent",
+            task_success_relation="insufficient", compliance_relation="insufficient",
+        )
+        diagnosis["behavior_analysis"]["behavioral_mechanism"] = (
+            "All three rollouts take the same action B under the same observed condition."
+        )
+        self.assertEqual(validate_diagnosis(
+            diagnosis,
+            experiences=_group(("compliant_success", "compliant_failure", "compliant_failure")),
+            skill_sections={"Planning and navigation": []},
+        ), ())
+        self.assertEqual(diagnosis["behavior_analysis"]["task_success_relation"], "insufficient")
+
+    def test_case_5_recurrent_policy_violation_can_update_only_compliance_axis(self):
+        diagnosis = _diagnosis(
+            relevance="update", action="add", category="skill_issue",
+            update_axis="compliance", evidence_pattern="recurrent", coverage_status="missing",
+            task_success_relation="insufficient", compliance_relation="supportive",
+            problem="prohibited action B recurs", repair_operator="use the Policy-required alternative",
+        )
+        diagnosis["behavior_analysis"]["behavioral_mechanism"] = (
+            "All three rollouts perform Policy-prohibited action B when condition X holds."
+        )
+        self.assertEqual(validate_diagnosis(
+            diagnosis,
+            experiences=_group(("violating_success", "violating_failure", "violating_failure")),
+            skill_sections={"Planning and navigation": []},
+        ), ())
+
+    def test_case_6_recurrent_external_failure_does_not_update(self):
+        diagnosis = _diagnosis(
+            relevance="none", category="external_issue", evidence_pattern="insufficient",
+            task_success_relation="not_applicable", compliance_relation="not_applicable",
+            coverage_status="not_applicable",
+        )
+        diagnosis["root_cause"]["explanation"] = "The required capability is unavailable."
+        self.assertEqual(validate_diagnosis(
+            diagnosis, experiences=_group(), skill_sections={"Planning and navigation": []},
+        ), ())
+
+    def test_case_7_recurrent_positive_behavior_does_not_add_rule(self):
+        diagnosis = _diagnosis(
+            relevance="none", category=None, evidence_pattern="recurrent",
+            task_success_relation="not_applicable", compliance_relation="not_applicable",
+        )
+        diagnosis["behavior_analysis"]["stable_behavior"] = (
+            "All three rollouts correctly check X before Y and finish compliantly."
+        )
+        self.assertEqual(validate_diagnosis(
+            diagnosis,
+            experiences=_group(("compliant_success",) * 3),
+            skill_sections={"Planning and navigation": []},
+        ), ())
+        self.assertEqual(diagnosis["update_recommendation"]["action"], "none")
+
+    def test_case_8_label_only_difference_is_insufficient(self):
+        diagnosis = _diagnosis(relevance="none", category=None, evidence_pattern="insufficient")
+        diagnosis["task_behavior_summary"] = "Only CS/CF/VS/VF labels differ; no Agent behavior is identified."
+        self.assertEqual(validate_diagnosis(
+            diagnosis,
+            experiences=_group(("compliant_success", "compliant_failure", "violating_failure")),
+            skill_sections={"Planning and navigation": []},
+        ), ())
+        self.assertEqual(diagnosis["skill_update_relevance"], "none")
+
+    def test_new_schema_replaces_cross_rollout_contrast_fields(self):
+        diagnosis = _diagnosis()
+        self.assertIn("behavior_analysis", diagnosis)
+        self.assertIn("parent_skill_coverage", diagnosis)
+        self.assertNotIn("cross_rollout_analysis", diagnosis)
+        self.assertEqual(set(diagnosis["behavior_analysis"]), {
+            "evidence_pattern", "stable_behavior", "behavioral_mechanism",
+            "task_success_relation", "compliance_relation", "evidence_consistency",
+            "counterevidence", "support_evidence_refs", "counterevidence_refs",
+        })
+        for removed in ("success_contrast", "compliance_contrast", "discriminating_behavior"):
+            self.assertNotIn(removed, diagnosis["behavior_analysis"])
+
+    def test_repair_policy_ids_remain_violation_provenance_only(self):
+        task_only = _diagnosis(
+            relevance="update", action="add", category="skill_issue",
+            update_axis="task_success", evidence_pattern="recurrent",
+            problem="task behavior", repair_operator="use the permitted mechanism",
+        )
+        self.assertEqual(validate_diagnosis(
+            task_only, experiences=_group(), skill_sections={"Planning and navigation": []},
+        ), ())
+        compliance = _diagnosis(
+            relevance="update", action="add", category="skill_issue",
+            update_axis="compliance", evidence_pattern="recurrent",
+            problem="policy violation", repair_operator="follow the policy boundary",
+        )
+        compliance["repair_policy_ids"] = ["policy_observed"]
+        experiences = tuple(
+            _experience(rollout_index=index, policy_id="policy_observed") for index in (1, 2, 3)
+        )
+        self.assertEqual(validate_diagnosis(
+            compliance, experiences=experiences, skill_sections={"Planning and navigation": []},
+        ), ())
+        compliance["repair_policy_ids"] = ["policy_invented"]
+        self.assertIn("POLICY_ID_NOT_IN_EVIDENCE", validate_diagnosis(
+            compliance, experiences=experiences, skill_sections={"Planning and navigation": []},
+        ))
 
     def test_disproven_allegation_is_insufficient_none(self):
         diagnosis = _diagnosis(relevance="none", category=None)
         diagnosis["task_behavior_summary"] = (
             "Policy and tool evidence disprove the suspected mechanism, with no alternative."
         )
-        diagnosis["cross_rollout_analysis"].update({
+        diagnosis["behavior_analysis"].update({
             "stable_behavior": "the grounded behavior is permitted across all rollouts",
-            "compliance_contrast": "no compliance-relevant contrast remains",
-            "discriminating_behavior": "",
+            "behavioral_mechanism": "",
             "evidence_consistency": "insufficient",
             "counterevidence": "the original allegation is resolved against a Skill problem",
             "support_evidence_refs": [],
@@ -279,8 +454,8 @@ class V13DiagnosisEditorTests(unittest.TestCase):
 
     def test_true_conflicting_evidence_is_uncertain_no_update(self):
         diagnosis = _diagnosis(relevance="uncertain", category="uncertain")
-        diagnosis["cross_rollout_analysis"].update({
-            "discriminating_behavior": "",
+        diagnosis["behavior_analysis"].update({
+            "behavioral_mechanism": "",
             "evidence_consistency": "conflicting",
             "counterevidence": (
                 "a still-plausible mechanism has supporting evidence and material counterevidence"
@@ -294,7 +469,7 @@ class V13DiagnosisEditorTests(unittest.TestCase):
 
     def test_conflicting_with_none_remains_invalid(self):
         diagnosis = _diagnosis(relevance="none", category=None)
-        diagnosis["cross_rollout_analysis"]["evidence_consistency"] = "conflicting"
+        diagnosis["behavior_analysis"]["evidence_consistency"] = "conflicting"
         self.assertIn(
             "CONFLICTING_EVIDENCE_REQUIRES_UNCERTAIN_NO_UPDATE",
             validate_diagnosis(
@@ -323,10 +498,9 @@ class V13DiagnosisEditorTests(unittest.TestCase):
         )
         self.assertTrue(payment["description"])
         diagnosis = _diagnosis(relevance="uncertain", category="uncertain")
-        diagnosis["cross_rollout_analysis"].update({
+        diagnosis["behavior_analysis"].update({
             "stable_behavior": "all rollouts use the same-cabin predicate and supply payment information",
-            "compliance_contrast": "CS, CS, and VS labels differ without a behavior contrast",
-            "discriminating_behavior": "",
+            "behavioral_mechanism": "",
             "evidence_consistency": "conflicting",
             "counterevidence": "the alleged behaviors are present in compliant and violating rollouts",
         })
@@ -343,7 +517,7 @@ class V13DiagnosisEditorTests(unittest.TestCase):
         diagnosis["root_cause"]["explanation"] = (
             "The Policy prohibits cancellation under the current conditions even if no refund is accepted."
         )
-        diagnosis["cross_rollout_analysis"]["evidence_consistency"] = "insufficient"
+        diagnosis["behavior_analysis"]["evidence_consistency"] = "insufficient"
         self.assertEqual(validate_diagnosis(
             diagnosis, experiences=_group(), skill_sections={"Planning and navigation": []}
         ), ())
@@ -358,9 +532,9 @@ class V13DiagnosisEditorTests(unittest.TestCase):
             repair_operator="communicate policy outcomes neutrally and factually",
         )
         diagnosis["repair_policy_ids"] = ["tau3:airline:no-subjective-comments"]
-        diagnosis["cross_rollout_analysis"].update({
+        diagnosis["behavior_analysis"].update({
             "evidence_consistency": "supportive",
-            "discriminating_behavior": (
+            "behavioral_mechanism": (
                 "one rollout adds subjective emotional praise while two report facts neutrally"
             ),
         })
@@ -375,9 +549,9 @@ class V13DiagnosisEditorTests(unittest.TestCase):
             stopping_boundary="stop only after both required handoff operations complete",
         )
         diagnosis["repair_policy_ids"] = ["tau3:airline:required-handoff"]
-        diagnosis["cross_rollout_analysis"].update({
+        diagnosis["behavior_analysis"].update({
             "evidence_consistency": "supportive",
-            "discriminating_behavior": (
+            "behavioral_mechanism": (
                 "one rollout stops after announcing a handoff while another completes it"
             ),
         })
@@ -398,10 +572,9 @@ class V13DiagnosisEditorTests(unittest.TestCase):
     def test_gift_card_payment_counterevidence_fixture(self):
         diagnosis = _diagnosis(relevance="none", category=None)
         diagnosis["task_behavior_summary"] = "Every rollout refunds to a gift card; none charges a gift card."
-        diagnosis["cross_rollout_analysis"].update({
+        diagnosis["behavior_analysis"].update({
             "stable_behavior": "all compliant rollouts use the same refund-to-gift-card operation",
-            "compliance_contrast": "no compliance-relevant contrast remains",
-            "discriminating_behavior": "",
+            "behavioral_mechanism": "",
             "evidence_consistency": "insufficient",
             "counterevidence": "refund direction disproves additional-payment sufficiency",
             "support_evidence_refs": [],
@@ -440,6 +613,8 @@ class V13DiagnosisEditorTests(unittest.TestCase):
         ), ())
         task_success = copy.deepcopy(compliance)
         task_success["update_axis"] = "task_success"
+        task_success["behavior_analysis"]["task_success_relation"] = "supportive"
+        task_success["behavior_analysis"]["compliance_relation"] = "insufficient"
         self.assertEqual(validate_diagnosis(
             task_success,
             experiences=_group(("compliant_success", "compliant_failure", "compliant_success")),
@@ -505,14 +680,14 @@ class V13DiagnosisEditorTests(unittest.TestCase):
         self.assertIn("For add, target_section and target_rule_id are null", DIAGNOSIS_SYSTEM_PROMPT)
         self.assertIn("For replace/delete, both identify an existing Parent Skill rule", DIAGNOSIS_SYSTEM_PROMPT)
 
-    def test_discriminating_behavior_requires_agent_controlled_difference(self):
-        self.assertIn("discriminating_behavior must describe an Agent-controlled difference", DIAGNOSIS_SYSTEM_PROMPT)
+    def test_behavioral_mechanism_requires_agent_controlled_behavior(self):
+        self.assertIn("Use only Agent-controlled behavior", DIAGNOSIS_SYSTEM_PROMPT)
         for excluded in (
-            "task outcome", "Compliance label", "evaluator result", "environment response",
-            "tool-result timing", "completion timing", "latency",
+            "Task Success or Failure labels", "Compliance labels", "evaluator output",
+            "environment response", "tool latency", "completion timing",
         ):
             self.assertIn(excluded, DIAGNOSIS_SYSTEM_PROMPT)
-        self.assertNotIn("do not manufacture one from outcome timing", DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertNotIn("discriminating_behavior", DIAGNOSIS_SYSTEM_PROMPT)
 
     def test_stopping_boundary_is_optional_and_mechanism_specific(self):
         confirmation = _diagnosis(
@@ -544,12 +719,27 @@ class V13DiagnosisEditorTests(unittest.TestCase):
                 problem="cross-record composition" if record else "unsupported operational inference",
                 repair_operator="preserve one-record binding" if record else "verify each operational fact",
             )
-            value["cross_rollout_analysis"]["support_evidence_refs"] = [
+            value["behavior_analysis"]["support_evidence_refs"] = [
                 {"source_id": request.rollouts[0]["source_id"], "step_ids": [2]}
             ]
             return _tag(value)
 
         def editor(_request):
+            self.assertTrue(all(
+                {
+                    "target_behavior", "update_axis", "root_cause", "behavior_analysis",
+                    "parent_skill_coverage", "source_ids", "repair_policy_ids",
+                } <= set(signal)
+                for signal in _request.eligible_diagnoses
+            ))
+            self.assertTrue(all(
+                signal["behavior_analysis"]["behavioral_mechanism"]
+                and signal["behavior_analysis"]["evidence_pattern"] in {"contrastive", "recurrent"}
+                and signal["parent_skill_coverage"]["status"] in {
+                    "missing", "incorrect", "underspecified",
+                }
+                for signal in _request.eligible_diagnoses
+            ))
             self.assertTrue(all(
                 set(item) == {"domain", "original_domain_policy"}
                 for item in _request.domain_contexts
@@ -579,7 +769,7 @@ class V13DiagnosisEditorTests(unittest.TestCase):
                 relevance="update", action="add", category="skill_issue", update_axis="both",
                 problem="cross-record field composition", repair_operator="preserve one-record binding",
             )
-            value["cross_rollout_analysis"]["support_evidence_refs"] = [
+            value["behavior_analysis"]["support_evidence_refs"] = [
                 {"source_id": request.rollouts[0]["source_id"], "step_ids": [2]}
             ]
             return _tag(value)
@@ -1274,7 +1464,7 @@ class V13OfflineIntegrationTests(unittest.TestCase):
             def diagnose(request):
                 calls.append(request)
                 value = _diagnosis()
-                value["cross_rollout_analysis"]["support_evidence_refs"] = [
+                value["behavior_analysis"]["support_evidence_refs"] = [
                     {"source_id": request.rollouts[0]["source_id"], "step_ids": [1]}
                 ]
                 return _tag(value)
