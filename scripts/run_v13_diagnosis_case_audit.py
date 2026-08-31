@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import copy
 import json
 import os
@@ -30,19 +31,21 @@ from src.skill_evolution.diagnosis_v13 import (
     EMPTY_RESPONSE_RETRIES,
     LEARNER_MODEL,
     MultiRolloutDiagnosisRequest,
+    _json_parseable_diagnosis_response,
+    build_diagnosis_contract_repair_prompts,
     build_diagnosis_prompts,
 )
 
 FORMAL_ROOT = REPO_ROOT / "artifacts/autonomous_gse_v13/formal"
 ROLLOUT_ROOT = FORMAL_ROOT / "rollouts/train"
 MODEL_SLUG = LEARNER_MODEL.removeprefix("openai/").replace("/", "_")
-OUTPUT_ROOT = FORMAL_ROOT / f"audit/diagnosis_case_audit_evidence_attribution_{MODEL_SLUG}"
+OUTPUT_ROOT = FORMAL_ROOT / f"audit/diagnosis_case_audit_six_step_{MODEL_SLUG}"
 S0_SKILL = REPO_ROOT / "experiments/campaigns/autonomous_gse_v13/skills/S0_empty_skill.md"
 S1_SKILL = FORMAL_ROOT / "steps/step_001/candidate_skill.md"
 
 # S0 groups emphasize recurrent failure and outcome/compliance contrasts. The
 # skill-conditioned replay groups maximize exposure to the three existing S1 rules.
-CASES = (
+OLD_CASES = (
     ("s0_parent", "step_001_parent", S0_SKILL, "airline", "7"),
     ("s0_parent", "step_001_parent", S0_SKILL, "airline", "20"),
     ("s0_parent", "step_001_parent", S0_SKILL, "airline", "36"),
@@ -65,6 +68,32 @@ CASES = (
     ("skill_conditioned_replay", "step_001_candidate_replay", S1_SKILL, "retail", "96"),
 )
 
+# Disjoint saved rollout groups not used by OLD_CASES. The finite pool contains
+# only five wholly unseen domain/task identities; the remaining groups are new
+# Parent-vs-replay cases for task identities represented in the regression set.
+FRESH_CASES = (
+    ("s0_parent", "step_001_parent", S0_SKILL, "airline", "11"),
+    ("s0_parent", "step_001_parent", S0_SKILL, "airline", "17"),
+    ("s0_parent", "step_001_parent", S0_SKILL, "airline", "28"),
+    ("s0_parent", "step_001_parent", S0_SKILL, "airline", "42"),
+    ("s0_parent", "step_001_parent", S0_SKILL, "airline", "47"),
+    ("s0_parent", "step_001_parent", S0_SKILL, "airline", "49"),
+    ("s0_parent", "step_001_parent", S0_SKILL, "retail", "10"),
+    ("s0_parent", "step_001_parent", S0_SKILL, "retail", "13"),
+    ("s0_parent", "step_001_parent", S0_SKILL, "retail", "58"),
+    ("s0_parent", "step_001_parent", S0_SKILL, "retail", "82"),
+    ("s0_parent", "step_001_parent", S0_SKILL, "retail", "96"),
+    ("s0_parent", "step_001_parent", S0_SKILL, "retail", "112"),
+    ("skill_conditioned_replay", "step_001_candidate_replay", S1_SKILL, "airline", "17"),
+    ("skill_conditioned_replay", "step_001_candidate_replay", S1_SKILL, "airline", "28"),
+    ("skill_conditioned_replay", "step_001_candidate_replay", S1_SKILL, "airline", "36"),
+    ("skill_conditioned_replay", "step_001_candidate_replay", S1_SKILL, "airline", "47"),
+    ("skill_conditioned_replay", "step_001_candidate_replay", S1_SKILL, "retail", "13"),
+    ("skill_conditioned_replay", "step_001_candidate_replay", S1_SKILL, "retail", "28"),
+    ("skill_conditioned_replay", "step_001_candidate_replay", S1_SKILL, "retail", "58"),
+    ("skill_conditioned_replay", "step_001_candidate_replay", S1_SKILL, "retail", "104"),
+)
+
 STATE_ABBREVIATIONS = {
     "compliant_success": "CS",
     "violating_success": "VS",
@@ -72,30 +101,30 @@ STATE_ABBREVIATIONS = {
     "violating_failure": "VF",
 }
 
-REVIEWS = {
+OLD_REVIEWS = {
     "s0_parent:airline:7": (
-        "WRONG",
-        "The diagnosis turns 3/3 failures into a recurrent denial mechanism, but the trajectories differ materially: two rollouts recognize illness coverage and all three eventually process the requested cancellations. The stated mechanism is not recurrent and does not explain the communication-side failures.",
+        "PASS",
+        "The six-step prompt no longer turns 3/3 failures into a recurrent denial mechanism; it finds no common decision mechanism that explains the failures and returns insufficient/no update.",
     ),
     "s0_parent:airline:20": (
-        "PASS",
-        "All three rollouts contain the same subjective 'Great choice!' wording while only two saved labels mark it as a violation. The diagnosis correctly treats that label-only difference as insufficient rather than manufacturing a behavioral contrast.",
+        "WRONG",
+        "All three rollouts use the same 'Great choice!' wording under the same selection context, but one frozen rollout is compliant. The recurrent supportive claim fails the new falsification test because it does not reconcile that direct counterexample.",
     ),
     "s0_parent:airline:36": (
-        "PASS",
-        "The output correctly refuses to infer a mechanism from one differing compliance label when the relevant refusal/transfer behavior is materially the same.",
+        "WRONG",
+        "The refusal-without-transfer behavior occurs under the same relevant condition in all three rollouts while only one is violating. The output calls it recurrent supportive instead of conflicting/insufficient and remains contract-invalid due to an invalid target_behavior.",
     ),
     "s0_parent:retail:2": (
         "WRONG",
-        "The unsupported post-return printing claim is a sound compliance-only contrast, but the emitted add recommendation preselects a target section and fails the Python contract (ADD_MUST_NOT_PRESELECT_SECTION), so the Diagnosis is not usable downstream.",
+        "The unsupported printing claim is a concrete one-rollout compliance contrast against the empty S0 Skill. Repair makes the output valid by changing it to external_issue, but no Policy/tool/task infeasibility exists; the attribution should remain a missing Skill mechanism.",
     ),
     "s0_parent:retail:91": (
-        "PASS",
-        "The conditional-confirmation decision is concrete and Policy-grounded. Task Success remains insufficient while Compliance is supportive, yielding a compliance-only update against the empty S0 Skill.",
+        "WRONG",
+        "The conditional-confirmation contrast and compliance-only mechanism are sound, but the one repair retry still leaves ADD_MUST_NOT_PRESELECT_SECTION, so the output remains fail-closed and unusable.",
     ),
     "s0_parent:retail:104": (
-        "WRONG",
-        "Retry produced a real recurrent mechanism, but the diagnosis again treats the required address-plus-item update as a missing Skill rule. The task requires both changes, tools expose separate calls, and Policy permits only one modify call per order, so this should be external_issue; the add output also fails ADD_MUST_NOT_PRESELECT_SECTION.",
+        "PASS",
+        "The feasibility screen recognizes that the required address-plus-item change cannot be reconciled with separate tools and the one-modify-call Policy, and returns external_issue/no update.",
     ),
     "s0_parent:airline:5": (
         "PASS",
@@ -111,15 +140,15 @@ REVIEWS = {
     ),
     "skill_conditioned_replay:airline:7": (
         "WRONG",
-        "It appropriately refuses to infer a mechanism from 3/3 failures, but emits root_cause=uncertain with skill_update_relevance=none, violating the deterministic mapping (ROOT_CAUSE_RELEVANCE_MISMATCH).",
+        "The response is truncated by the completion length limit and is not JSON-parseable, so contract repair correctly does not retry it and the Diagnosis remains unavailable.",
     ),
     "skill_conditioned_replay:airline:20": (
         "PASS",
         "All three replays follow the neutral-wording rule and remain compliant successes. With no problematic mechanism, not_applicable coverage and no update are appropriate.",
     ),
     "skill_conditioned_replay:airline:49": (
-        "PASS",
-        "The omitted flight-status verification is a concrete contrast grounded in tool results and the Policy prohibition on unsupported claims. Existing rules do not cover that pre-claim verification boundary.",
+        "WRONG",
+        "The flight-status verification contrast is sound, but repair changes the original inconsistent execution attribution to already_covered even though none of the S1 rules covers pre-claim flight-status verification. It should be missing/skill_issue/update.",
     ),
     "skill_conditioned_replay:retail:2": (
         "PASS",
@@ -134,8 +163,8 @@ REVIEWS = {
         "All three replays are compliant successes under the explicit-confirmation rule. The output correctly avoids inventing a further coverage gap.",
     ),
     "skill_conditioned_replay:retail:112": (
-        "WRONG",
-        "The repeated two-tool modification behavior and compliance relation are real, but the diagnosis calls it a missing Skill rule. The task requires both address and item changes, the tools expose separate calls, and Policy says modify tools may be called only once per order; this is a Policy/tool/task incompatibility and should be external_issue, not an update.",
+        "PASS",
+        "The feasibility screen prevents the prior false recurrent Skill update and returns insufficient evidence with external_issue/no update for the Policy/tool/task incompatibility.",
     ),
     "skill_conditioned_replay:airline:11": (
         "PASS",
@@ -146,13 +175,72 @@ REVIEWS = {
         "Three compliant successes contain no problematic mechanism, so insufficient evidence and no update are appropriate.",
     ),
     "skill_conditioned_replay:retail:10": (
-        "QUESTIONABLE",
-        "The no-update decision is safe, but compliance_relation=supportive is not coherent with an empty behavioral mechanism and overall insufficient evidence. All three trajectories are compliant successes, so the axis relation should also be insufficient or not_applicable.",
+        "PASS",
+        "All three compliant successes now produce coherent insufficient axis relations and no update.",
     ),
     "skill_conditioned_replay:retail:96": (
-        "WRONG",
-        "The unsupported no-fee claim is a valid compliance-only contrast and coverage is correctly marked missing, but root_cause=execution_issue and no update contradict that missing-coverage attribution. A supported missing mechanism should be skill_issue/update, or coverage must be already_covered to justify execution_issue.",
+        "PASS",
+        "The unsupported no-fee claim remains a valid compliance-only contrast and the new contract/prompt combination now yields the consistent missing/skill_issue/update attribution.",
     ),
+}
+
+FRESH_REVIEWS: dict[str, tuple[str, str]] = {
+    "s0_parent:airline:11": ("PASS", "A one-off corrected tool-choice error is not promoted into recurrent evidence or an update."),
+    "s0_parent:airline:17": ("PASS", "Three compliant successes produce insufficient evidence and no update."),
+    "s0_parent:airline:28": ("PASS", "Three compliant successes produce insufficient evidence and no update."),
+    "s0_parent:airline:42": ("PASS", "No problematic decision mechanism is invented from stable successful behavior."),
+    "s0_parent:airline:47": ("PASS", "A Policy-grounded refusal in three successful rollouts is retained as positive behavior, not a repair target."),
+    "s0_parent:airline:49": ("QUESTIONABLE", "The no-update decision is safe, but root_cause=external_issue is unnecessary because all three rollouts are successful and no diagnosed problem exists; null would be cleaner."),
+    "s0_parent:retail:10": ("PASS", "Three compliant successes produce no mechanism and no update."),
+    "s0_parent:retail:13": ("PASS", "Three compliant successes produce no mechanism and no update."),
+    "s0_parent:retail:58": ("PASS", "The Diagnosis explicitly finds no problematic Agent-controlled mechanism and does not update."),
+    "s0_parent:retail:82": ("PASS", "Three compliant successes produce no mechanism and no update."),
+    "s0_parent:retail:96": ("PASS", "Three compliant successes produce no mechanism and no update."),
+    "s0_parent:retail:112": ("PASS", "Three compliant successes produce no mechanism and no update."),
+    "skill_conditioned_replay:airline:17": ("PASS", "Three compliant successes produce no mechanism and no duplicate S1 rule."),
+    "skill_conditioned_replay:airline:28": ("PASS", "Three compliant successes produce no mechanism and no update."),
+    "skill_conditioned_replay:airline:36": ("PASS", "The same refusal-without-transfer decision occurs under the same condition in all three rollouts while compliance labels disagree; recurrent plus conflicting/uncertain correctly preserves the counterexample and blocks update."),
+    "skill_conditioned_replay:airline:47": ("PASS", "Three compliant successes produce no mechanism and no update."),
+    "skill_conditioned_replay:retail:13": ("PASS", "Repair removes an unnecessary already_covered attribution from stable correct behavior and returns coherent insufficient/no update."),
+    "skill_conditioned_replay:retail:28": ("PASS", "Three compliant successes produce no mechanism and no update."),
+    "skill_conditioned_replay:retail:58": ("PASS", "Three compliant successes produce no mechanism and no update."),
+    "skill_conditioned_replay:retail:104": ("WRONG", "The denial-omission contrast is concrete and Policy-grounded, and S1 does not cover it. Repair makes the output valid by changing execution_issue to external_issue, but this should be missing/skill_issue/compliance update rather than external."),
+}
+
+AUDIT_ASSESSMENTS = {
+    "old": {
+        "wholly_unseen_domain_task_count": 0,
+        "original_recurrent_regressions": {
+            "case_ids": [
+                "s0_parent:airline:7", "s0_parent:retail:104",
+                "skill_conditioned_replay:retail:112",
+            ],
+            "pass": 3,
+            "wrong": 0,
+        },
+        "known_external_incompatibility_cases": 2,
+        "external_incompatibility_misclassified_as_skill_issue": 0,
+        "supportive_mechanisms_defeated_by_obvious_counterexample": 3,
+        "readiness": "DIAGNOSIS_NEEDS_MORE_WORK",
+        "readiness_reason": (
+            "The three original recurrent regressions improve, but three other old cases still "
+            "mark mechanisms supportive despite same-condition counterexamples, and three outputs "
+            "remain contract-invalid after one repair attempt."
+        ),
+    },
+    "fresh": {
+        "wholly_unseen_domain_task_count": 5,
+        "original_recurrent_regressions": None,
+        "known_external_incompatibility_cases": 0,
+        "external_incompatibility_misclassified_as_skill_issue": 0,
+        "supportive_mechanisms_defeated_by_obvious_counterexample": 0,
+        "readiness": "DIAGNOSIS_NEEDS_MORE_WORK",
+        "readiness_reason": (
+            "Fresh cases are mostly stable, but the finite pool is dominated by compliant-success "
+            "groups, contains only five wholly unseen task identities, and one clear missing Skill "
+            "mechanism is still misattributed as external after contract repair."
+        ),
+    },
 }
 
 
@@ -212,10 +300,16 @@ def _counts(cases: list[dict], field: str, values: tuple[str, ...]) -> dict[str,
     return {value: counts[value] for value in values}
 
 
-def _apply_review(summary: dict, *, output_available: bool) -> dict:
+def _apply_review(
+    summary: dict, *, output_available: bool,
+    reviews: dict[str, tuple[str, str]],
+) -> dict:
     result = copy.deepcopy(summary)
     result["output_available"] = output_available
-    verdict, notes = REVIEWS[result["case_id"]]
+    verdict, notes = reviews.get(result["case_id"], (
+        "PENDING",
+        "Pending manual trajectory, Policy, Tool, and Parent Skill review.",
+    ))
     result["audit_verdict"] = verdict
     result["audit_notes"] = notes
     return result
@@ -264,6 +358,12 @@ def _call_diagnosis(system: str, user: str) -> tuple[str, str, dict | None, dict
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--audit-set", choices=("old", "fresh"), required=True)
+    args = parser.parse_args()
+    cases = OLD_CASES if args.audit_set == "old" else FRESH_CASES
+    reviews = OLD_REVIEWS if args.audit_set == "old" else FRESH_REVIEWS
+    output_root = OUTPUT_ROOT / args.audit_set
     load_dotenv(REPO_ROOT / ".env")
     contexts = load_authoritative_domain_contexts(REPO_ROOT / "external/tau2-bench")
     summaries_by_index: dict[int, dict] = {}
@@ -271,14 +371,8 @@ def main() -> None:
     def run_case(index: int, case: tuple) -> tuple[int, dict]:
         cohort, rollout_dir, skill_path, domain, task_id = case
         case_id = f"{cohort}_{domain}_{task_id}"
-        case_root = OUTPUT_ROOT / "cases" / case_id
+        case_root = output_root / "cases" / case_id
         saved_case = case_root / "diagnosis.json"
-        if saved_case.is_file():
-            record = json.loads(saved_case.read_text(encoding="utf-8"))
-            if record.get("raw_response"):
-                return index, _apply_review(
-                    record["summary"], output_available=True,
-                )
 
         paths = sorted((ROLLOUT_ROOT / rollout_dir).glob(f"{domain}_{task_id}_rollout_0[123].json"))
         if len(paths) != 3:
@@ -299,7 +393,88 @@ def main() -> None:
             rollouts=experiences,
         )
         system, user = build_diagnosis_prompts(request)
-        raw, model, usage, completion = _call_diagnosis(system, user)
+        saved_record = (
+            json.loads(saved_case.read_text(encoding="utf-8"))
+            if saved_case.is_file() else None
+        )
+        if (
+            saved_record
+            and saved_record.get("completion", {}).get("initial", {}).get(
+                "contract_repair_retry_count"
+            ) == 1
+        ):
+            raw = saved_record["initial_raw_response"]
+            validation = parse_and_validate_diagnosis(
+                request.diagnosis_id, raw,
+                experiences=experiences, skill_sections=sections,
+            )
+            summary = _diagnosis_summary(
+                cohort=cohort, domain=domain, task_id=task_id,
+                experiences=experiences,
+                diagnosis=validation.structured_output or {},
+                valid=validation.valid,
+                validation_errors=list(validation.validation_errors),
+            )
+            summary["contract_repair_retry_count"] = 1
+            summary = _apply_review(
+                summary, output_available=True, reviews=reviews,
+            )
+            saved_record.update({
+                "completion": saved_record["completion"]["initial"],
+                "raw_response": raw,
+                "validation": validation.as_dict(),
+                "summary": summary,
+            })
+            _write_json(saved_case, saved_record)
+            return index, summary
+        if saved_record and saved_record.get("raw_response"):
+            saved_summary = saved_record["summary"]
+            if (
+                saved_summary["diagnosis_valid"]
+                or saved_record.get("completion", {}).get(
+                    "contract_repair_retry_count"
+                ) == 1
+                or not _json_parseable_diagnosis_response(saved_record["raw_response"])
+            ):
+                return index, _apply_review(
+                    saved_summary, output_available=True, reviews=reviews,
+                )
+            initial_raw = saved_record["raw_response"]
+            initial_completion = saved_record.get("completion")
+            repair_system, repair_user = build_diagnosis_contract_repair_prompts(
+                initial_raw, tuple(saved_summary["validation_errors"]),
+            )
+            raw, model, usage, repair_completion = _call_diagnosis(
+                repair_system, repair_user,
+            )
+            completion = {
+                "contract_repair_retry_count": 1,
+                "initial": initial_completion,
+                "repair": repair_completion,
+            }
+        else:
+            raw, model, usage, completion = _call_diagnosis(system, user)
+            initial_raw = raw
+            if raw:
+                initial_validation = parse_and_validate_diagnosis(
+                    request.diagnosis_id, raw,
+                    experiences=experiences, skill_sections=sections,
+                )
+                if (
+                    not initial_validation.valid
+                    and _json_parseable_diagnosis_response(raw)
+                ):
+                    repair_system, repair_user = build_diagnosis_contract_repair_prompts(
+                        raw, initial_validation.validation_errors,
+                    )
+                    raw, model, usage, repair_completion = _call_diagnosis(
+                        repair_system, repair_user,
+                    )
+                    completion = {
+                        "contract_repair_retry_count": 1,
+                        "initial": completion,
+                        "repair": repair_completion,
+                    }
         if raw:
             validation = parse_and_validate_diagnosis(
                 request.diagnosis_id,
@@ -331,13 +506,19 @@ def main() -> None:
             valid=valid,
             validation_errors=validation_errors,
         )
-        summary = _apply_review(summary, output_available=bool(raw))
+        summary["contract_repair_retry_count"] = completion.get(
+            "contract_repair_retry_count", 0,
+        )
+        summary = _apply_review(
+            summary, output_available=bool(raw), reviews=reviews,
+        )
         _write_json(saved_case, {
             "rollout_paths": [path.as_posix() for path in paths],
             "parent_skill_path": skill_path.as_posix(),
             "resolved_model": model,
             "usage": usage,
             "completion": completion,
+            "initial_raw_response": initial_raw,
             "raw_response": raw,
             "validation": validation_record,
             "summary": summary,
@@ -347,7 +528,7 @@ def main() -> None:
     with ThreadPoolExecutor(max_workers=4) as pool:
         futures = {
             pool.submit(run_case, index, case): (index, case)
-            for index, case in enumerate(CASES, start=1)
+            for index, case in enumerate(cases, start=1)
         }
         for future in as_completed(futures):
             index, case = futures[future]
@@ -358,13 +539,13 @@ def main() -> None:
                 raise RuntimeError(f"{cohort}:{domain}:{task_id} audit failed") from error
             summaries_by_index[result_index] = summary
             print(
-                f"[{len(summaries_by_index)}/{len(CASES)}] "
+                f"[{len(summaries_by_index)}/{len(cases)}] "
                 f"{cohort}_{domain}_{task_id}: valid={summary['diagnosis_valid']}; "
                 f"pattern={summary['evidence_pattern']}; root={summary['root_cause']}",
                 flush=True,
             )
 
-    summaries = [summaries_by_index[index] for index in range(1, len(CASES) + 1)]
+    summaries = [summaries_by_index[index] for index in range(1, len(cases) + 1)]
     available = [item for item in summaries if item["output_available"]]
     recurrent = [item for item in available if item["evidence_pattern"] == "recurrent"]
     updates = [item for item in available if item["skill_update_relevance"] == "update"]
@@ -372,7 +553,7 @@ def main() -> None:
     verdict_counts = Counter(item["audit_verdict"] for item in summaries)
     saved_judge_models = sorted({
         model
-        for _, rollout_dir, _, domain, task_id in CASES
+        for _, rollout_dir, _, domain, task_id in cases
         for path in (ROLLOUT_ROOT / rollout_dir).glob(f"{domain}_{task_id}_rollout_0[123].json")
         for model in [
             json.loads(path.read_text(encoding="utf-8"))
@@ -385,11 +566,15 @@ def main() -> None:
     report = {
         "schema_version": "autonomous_gse_v13_diagnosis_case_audit_0.13.0",
         "mode": "saved_real_rollouts_diagnosis_only",
+        "audit_set": args.audit_set,
         "model": LEARNER_MODEL,
         "reasoning_effort": REASONING_EFFORT,
         "max_completion_tokens": MAX_COMPLETION_TOKENS,
         "task_count": len(summaries),
         "unique_task_count": len({(item["domain"], item["task_id"]) for item in summaries}),
+        "wholly_unseen_domain_task_count": AUDIT_ASSESSMENTS[
+            args.audit_set
+        ]["wholly_unseen_domain_task_count"],
         "new_rollouts": 0,
         "editor_calls": 0,
         "candidate_created": False,
@@ -402,13 +587,16 @@ def main() -> None:
             "saved_compliance_judge_models": saved_judge_models,
             "compliance_rejudged_for_audit": False,
         },
-        "manual_review_complete": True,
+        "manual_review_complete": verdict_counts["PENDING"] == 0,
         "model_output": {
             "available": len(available),
             "empty": len(summaries) - len(available),
             "contract_valid": sum(item["diagnosis_valid"] for item in summaries),
             "contract_invalid": sum(
                 item["output_available"] and not item["diagnosis_valid"] for item in summaries
+            ),
+            "contract_repair_retries": sum(
+                item.get("contract_repair_retry_count", 0) for item in summaries
             ),
         },
         "distributions": {
@@ -429,12 +617,17 @@ def main() -> None:
                 "unavailable": len(summaries) - len(available),
             },
             "audit_verdict": {
-                value: verdict_counts[value] for value in ("PASS", "QUESTIONABLE", "WRONG")
+                value: verdict_counts[value]
+                for value in ("PASS", "QUESTIONABLE", "WRONG", "PENDING")
             },
         },
         "recurrent_root_cause": {
             value: sum(item["root_cause"] == value for item in recurrent)
             for value in ("skill_issue", "execution_issue", "external_issue", "uncertain")
+        },
+        "recurrent_audit_verdict": {
+            value: sum(item["audit_verdict"] == value for item in recurrent)
+            for value in ("PASS", "QUESTIONABLE", "WRONG")
         },
         "update_parent_skill_coverage": {
             value: sum(item["parent_skill_coverage"] == value for item in updates)
@@ -450,36 +643,10 @@ def main() -> None:
             }
             for item in underspecified
         ],
-        "mixed_axis_assessment": {
-            "majority_failure_used_as_task_success_causality": False,
-            "notes": (
-                "retail:91 correctly used task_success_relation=not_applicable and "
-                "compliance_relation=supportive; airline:5 used task_success_relation=insufficient "
-                "and compliance_relation=supportive. No output inferred task-success causality from "
-                "a majority of failures, although airline:5 mishandled compliance counterevidence."
-            ),
-        },
-        "already_covered_assessment": {
-            "supportive_problematic_cases_observed": 0,
-            "notes": (
-                "The available Skill-conditioned replay pool contains no real repeated violation of "
-                "one of the three existing S1 rules: the relevant airline:20, retail:2, and retail:91 "
-                "replays are all compliant successes. Therefore this audit cannot empirically validate "
-                "supportive + already_covered + execution_issue; that boundary remains unit-tested only."
-            ),
-        },
-        "freeze_recommendation": {
-            "recommend_enter_editor_optimization": False,
-            "reason": (
-                "Do not freeze Diagnosis yet. Empty-response retry recovered availability to 20/20, "
-                "but three outputs violate the contract, all recurrent outputs are semantically wrong, "
-                "a Policy/tool/task incompatibility is misattributed as a Skill issue, and the real "
-                "already_covered execution boundary is absent from the available replay pool."
-            ),
-        },
+        "quality_assessment": copy.deepcopy(AUDIT_ASSESSMENTS[args.audit_set]),
         "cases": summaries,
     }
-    _write_json(OUTPUT_ROOT / "audit_report.json", report)
+    _write_json(output_root / "audit_report.json", report)
     print(json.dumps(report, ensure_ascii=False), flush=True)
 
 

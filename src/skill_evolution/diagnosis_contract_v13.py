@@ -225,6 +225,8 @@ def validate_diagnosis(
         errors.append("ALREADY_COVERED_FORBIDS_SKILL_UPDATE")
     if coverage_status == "already_covered" and category != "execution_issue":
         errors.append("ALREADY_COVERED_REQUIRES_EXECUTION_ISSUE")
+    if category == "execution_issue" and coverage_status != "already_covered":
+        errors.append("EXECUTION_ISSUE_REQUIRES_ALREADY_COVERED")
     if consistency == "conflicting" and not (
         category == "uncertain" and relevance == "uncertain"
     ):

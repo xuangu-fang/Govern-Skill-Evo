@@ -28,8 +28,8 @@ from src.skill_evolution.autonomous_gse_v13_proposal import (
 )
 from src.skill_evolution.diagnosis_contract_v13 import validate_diagnosis
 from src.skill_evolution.diagnosis_v13 import (
-    DIAGNOSIS_SYSTEM_PROMPT, EMPTY_RESPONSE_RETRIES, MultiRolloutDiagnosisRequest,
-    build_diagnosis_prompts, call_diagnosis,
+    CONTRACT_REPAIR_RETRIES, DIAGNOSIS_SYSTEM_PROMPT, EMPTY_RESPONSE_RETRIES,
+    MultiRolloutDiagnosisRequest, build_diagnosis_prompts, call_diagnosis,
 )
 from src.skill_evolution.evolution_gate_v13 import build_evolution_decision
 from src.skill_evolution.targeted_fix_v13 import (
@@ -277,6 +277,50 @@ class V13DiagnosisEditorTests(unittest.TestCase):
             call_diagnosis(_diagnosis_request(), learner_call=learner_call)
         self.assertEqual(len(calls), 1)
 
+    def test_diagnosis_repairs_parseable_contract_error_once(self):
+        invalid = _diagnosis(relevance="none", category="uncertain")
+        repaired = _tag(_diagnosis())
+        calls = []
+
+        def learner_call(model, system, user):
+            calls.append((model, system, user))
+            if len(calls) == 1:
+                return json.dumps(invalid), model.removeprefix("openai/"), None
+            return repaired, model.removeprefix("openai/"), None
+
+        self.assertEqual(call_diagnosis(
+            _diagnosis_request(), learner_call=learner_call,
+        ), repaired)
+        self.assertEqual(CONTRACT_REPAIR_RETRIES, 1)
+        self.assertEqual(len(calls), 2)
+        self.assertIn("contract repair serializer", calls[1][1])
+        self.assertIn("UNPARSEABLE_DIAGNOSIS", calls[1][2])
+        self.assertIn(json.dumps(invalid), calls[1][2])
+
+    def test_diagnosis_does_not_contract_repair_non_json_response(self):
+        calls = []
+
+        def learner_call(model, system, user):
+            calls.append((model, system, user))
+            return '<DIAGNOSIS_JSON>{"task_behavior_summary":', model, None
+
+        response = call_diagnosis(_diagnosis_request(), learner_call=learner_call)
+        self.assertEqual(response, '<DIAGNOSIS_JSON>{"task_behavior_summary":')
+        self.assertEqual(len(calls), 1)
+
+    def test_diagnosis_contract_repair_is_not_retried_twice(self):
+        invalid = _tag(_diagnosis(relevance="none", category="uncertain"))
+        calls = []
+
+        def learner_call(model, system, user):
+            calls.append((model, system, user))
+            return invalid, model.removeprefix("openai/"), None
+
+        self.assertEqual(call_diagnosis(
+            _diagnosis_request(), learner_call=learner_call,
+        ), invalid)
+        self.assertEqual(len(calls), 2)
+
     def test_diagnosis_request_contains_complete_authoritative_domain_context(self):
         contexts = load_authoritative_domain_contexts(ROOT / "external/tau2-bench")
         request = MultiRolloutDiagnosisRequest(
@@ -454,6 +498,27 @@ class V13DiagnosisEditorTests(unittest.TestCase):
             skill_sections={"Planning and navigation": []},
         ), ())
         self.assertEqual(diagnosis["skill_update_relevance"], "none")
+
+    def test_case_f_execution_issue_requires_already_covered(self):
+        sections = {"Planning and navigation": [{"rule_id": "rule_001"}]}
+        for coverage_status in ("missing", "incorrect", "underspecified", "not_applicable"):
+            diagnosis = _diagnosis(
+                relevance="none", category="execution_issue",
+                evidence_pattern="recurrent", coverage_status=coverage_status,
+            )
+            errors = validate_diagnosis(
+                diagnosis, experiences=_group(), skill_sections=sections,
+            )
+            self.assertIn("EXECUTION_ISSUE_REQUIRES_ALREADY_COVERED", errors)
+
+        covered = _diagnosis(
+            relevance="none", category="execution_issue",
+            evidence_pattern="recurrent", coverage_status="already_covered",
+        )
+        covered["parent_skill_coverage"]["related_rule_ids"] = ["rule_001"]
+        self.assertEqual(validate_diagnosis(
+            covered, experiences=_group(), skill_sections=sections,
+        ), ())
 
     def test_new_schema_replaces_cross_rollout_contrast_fields(self):
         diagnosis = _diagnosis()
@@ -723,6 +788,39 @@ class V13DiagnosisEditorTests(unittest.TestCase):
         self.assertNotIn("gift-card", DIAGNOSIS_SYSTEM_PROMPT.casefold())
         self.assertNotIn("cancellation reason", DIAGNOSIS_SYSTEM_PROMPT.casefold())
         self.assertNotIn("PARTIALLY_FIXED", DIAGNOSIS_SYSTEM_PROMPT)
+
+    def test_six_step_feasibility_recurrence_and_falsification_discipline(self):
+        ordered_steps = (
+            "1. Identify actual Agent behavior",
+            "2. Check task x Policy x tool feasibility",
+            "3. Determine the behavioral evidence pattern",
+            "4. Falsify the proposed mechanism",
+            "5. Attribute the surviving mechanism",
+            "6. Use outcomes only as supporting axis evidence",
+        )
+        positions = [DIAGNOSIS_SYSTEM_PROMPT.index(step) for step in ordered_steps]
+        self.assertEqual(positions, sorted(positions))
+        self.assertIn("same problematic decision mechanism, not merely the same action", DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertIn("relevant decision opportunity", DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertIn("relevant condition or predicate", DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertIn("not a mechanical rollout-count threshold", DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertIn("Policy-permitted, technically supported", DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertIn("available at the relevant decision point", DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertIn("test it against every supplied rollout", DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertIn("actively search for counterexamples", DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertIn("same relevant condition", DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertIn("different trigger, state, argument, authorization condition", DIAGNOSIS_SYSTEM_PROMPT)
+        for forbidden_threshold in ("3/3 = recurrent", "2/3 = maybe recurrent"):
+            self.assertNotIn(forbidden_threshold, DIAGNOSIS_SYSTEM_PROMPT)
+
+    def test_feasibility_and_falsification_do_not_add_schema_fields(self):
+        diagnosis = _diagnosis()
+        serialized = json.dumps(diagnosis)
+        for forbidden_field in (
+            "feasibility_status", "counterfactual_action",
+            "falsification_result", "mechanism_confidence",
+        ):
+            self.assertNotIn(forbidden_field, serialized)
 
     def test_diagnosis_prompt_delegates_deterministic_mappings_to_contract(self):
         self.assertIn("Deterministic field mappings and target legality", DIAGNOSIS_SYSTEM_PROMPT)

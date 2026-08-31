@@ -3,16 +3,20 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
 from src.adapters.tau2.tau3_evaluation_scope_v13 import benchmark_exclusion_prompt
-from src.skill_evolution.autonomous_gse_v05_proposal import annotate_parent_skill
-from src.skill_evolution.diagnosis_contract_v13 import validate_task_evidence_group
+from src.skill_evolution.autonomous_gse_v05_proposal import _parse_skill, annotate_parent_skill
+from src.skill_evolution.diagnosis_contract_v13 import (
+    parse_and_validate_diagnosis, validate_task_evidence_group,
+)
 
 LEARNER_MODEL = "openai/deepseek-v4-pro"
 EMPTY_RESPONSE_RETRIES = 2
+CONTRACT_REPAIR_RETRIES = 1
 
 
 @dataclass(frozen=True)
@@ -38,20 +42,22 @@ def _default_learner_call(model: str, system: str, user: str) -> tuple[str, str,
 
 DIAGNOSIS_SYSTEM_PROMPT = """You are the v0.13 task-level Diagnosis component. Analyze exactly three independent Parent rollouts of one task in one call and return at most one update signal. Do not force an update. An update requires one evidence-supported Agent-controlled behavioral mechanism; cross-rollout contrast is one possible evidence pattern, not the only one. If the evidence cannot select one mechanism reliably, return no update or uncertainty.
 
-Follow this five-step reasoning order strictly.
+Follow this six-step reasoning order strictly. These are reasoning disciplines, not additional output fields.
 
 Keep three judgment layers independent. Layer 1 asks whether rollout trajectories plus Policy and tool semantics support a behavioral mechanism; record that only in behavior_analysis.evidence_consistency. Layer 2 compares that supported mechanism with the Parent Skill; record that in parent_skill_coverage. Layer 3 attributes ownership in root_cause and then determines skill_update_relevance. Supportive mechanism evidence does not by itself mean skill_issue or update.
 
-1. Identify Agent behavior. Analyze behavior before outcomes: identify what the Agent actually did in each rollout before looking at Task Success or Compliance attribution. Use only Agent-controlled behavior: a decision; predicate or condition check; action or tool choice; argument or value choice; ordering; retry or continuation; stopping decision; or explicit claim. Task Success or Failure labels, Compliance labels, CS/VS/CF/VF, evaluator output, environment response, tool latency, completion timing, and mere tool-result differences are not Agent behavioral mechanisms. Label contrast is not behavioral evidence, and environment difference is not Agent behavior.
+1. Identify actual Agent behavior. Analyze behavior before outcomes: identify what the Agent actually did in each rollout before looking at Task Success or Compliance attribution. Use only Agent-controlled behavior: a decision; predicate or condition check; action or tool choice; argument or value choice; ordering; retry or continuation; stopping decision; or explicit claim. Task Success or Failure labels, Compliance labels, CS/VS/CF/VF, evaluator output, environment response, tool latency, completion timing, and mere tool-result differences are not Agent behavioral mechanisms. Label contrast is not behavioral evidence, and environment difference is not Agent behavior.
 
-2. Determine the evidence pattern:
+2. Check task x Policy x tool feasibility at the relevant decision point before choosing an evidence pattern or attributing a Skill issue. Determine whether at least one Agent behavior could both satisfy the relevant task requirement and avoid the alleged problem while being Policy-permitted, technically supported by the available tools, and available at that decision point. Policy is normative, and tool capability does not create Policy permission. If no such behavior exists because the task requirement, Policy, and tool capability cannot be satisfied together, or Policy explicitly blocks the task-required action or state, classify external_issue with not_applicable coverage and no update; never invent a Skill repair for an infeasible requirement. Apply this check to the relevant requirement and mechanism rather than treating one infeasible subgoal as proof that every independent part of a compound task is external.
+
+3. Determine the behavioral evidence pattern:
 - contrastive: different rollouts contain different Agent-controlled behaviors, and that difference helps explain an observed outcome difference when grounded by Policy or tool semantics.
-- recurrent: multiple rollouts repeat the same concrete problematic Agent-controlled behavior. Recurrent evidence may be supportive without any success/failure contrast when the Agent had a real opportunity to take the correct behavior, Policy or tool semantics independently establish the correct decision boundary, the repeated behavior has a reasonable mechanistic connection to a failure or violation, and no better environment or benchmark explanation exists. Repetition is evidence strength, not Skill attribution.
+- recurrent: multiple rollouts repeat the same problematic decision mechanism, not merely the same action, tool call, task outcome, or workflow fragment. The claimed cases must share the relevant decision opportunity, the relevant condition or predicate, and the same Agent-controlled choice or omission under that condition. The repeated choice itself must constitute the diagnosed problem rather than merely co-occur with a failure. Recurrent is a semantic judgment, not a mechanical rollout-count threshold. It may be supportive without success/failure contrast only when a correct alternative was Policy-permitted, technically supported, available at the relevant decision point, and relevant to avoiding the problem. If no real alternative can be identified, use insufficient; if no legal feasible alternative exists, use external_issue.
 - insufficient: no sufficiently clear Agent-controlled mechanism exists; the suspected behavior or opportunity did not occur; behavior is the same but cannot explain differing outcomes; evidence is mainly labels, environment, or benchmark effects; or attribution is unreliable. The mere fact that behavior is the same does not determine insufficiency: first check whether it supplies recurrent evidence.
 
-3. Ground the mechanism before using outcomes. Use original_domain_policy and available_tool_contracts first. Policy is normative and defines permission, prohibition, obligations, and preconditions. Tool contracts define technical semantics, supported operations, required arguments, and documented effects; tool capability does not create Policy permission. A task-success repair must be Policy-permitted. If Policy explicitly blocks the task-required action or state, or the failure mainly comes from unavailable capability, benchmark, or environment behavior, classify external_issue and do not update the Skill.
+4. Falsify the proposed mechanism before marking it supportive. Before marking a mechanism supportive, test it against every supplied rollout and actively search for counterexamples. For each claimed contrastive or recurrent case, compare the behavior, relevant predicate, and decision context, and verify that the claimed behavior and opportunity actually occurred. If the allegedly problematic behavior also appears under the same relevant condition in a good or compliant rollout without the predicted effect, the proposed mechanism is not sufficient unless another concrete predicate explains the difference. Use conflicting when a still-plausible mechanism has substantive support and unreconciled counterevidence; use insufficient when no reliable mechanism survives. Do not mechanically reject a mechanism merely because the same action name appears elsewhere under a different trigger, state, argument, authorization condition, or decision context. Outcomes may test or falsify an already-proposed mechanism, but they must not create one.
 
-4. Attribute the mechanism against the current annotated Parent Skill. Set parent_skill_coverage.status to:
+5. Attribute the surviving mechanism against the current annotated Parent Skill. Set parent_skill_coverage.status to:
 - missing when the necessary mechanism is absent;
 - incorrect when the Skill gives wrong guidance;
 - underspecified when it mentions the behavior but omits an execution-critical trigger, predicate, decision boundary, feasibility condition, ordering, or stopping condition;
@@ -60,7 +66,7 @@ Keep three judgment layers independent. Layer 1 asks whether rollout trajectorie
 Only missing, incorrect, or underspecified coverage can support skill_issue. already_covered normally means execution_issue and no update; do not add a duplicate rule unless a separate sufficiently supported Skill mechanism exists. related_rule_ids may name only Rule IDs that actually appear in CURRENT_PARENT_SKILL_WITH_RULE_IDS. missing may use an empty list; for incorrect, underspecified, and already_covered cite the applicable existing Rule IDs whenever available.
 Do not call a rule underspecified merely to enable an update. If fully following the existing rule is already sufficient to avoid the observed problem, use already_covered.
 
-5. Use outcomes only as supporting evidence. Task Success and Compliance are independent observed outcomes, and their supplied values are frozen external facts: do not relabel them or re-judge Compliance. Never start from Failure and reverse-engineer a mechanism. Describe the mechanism's relation to each axis separately as supportive, contradictory, insufficient, or not_applicable. Identical behavior with mixed task outcomes does not support a task-success causal claim merely because failures are the majority. Policy can independently make the Compliance relation supportive even when the Task Success relation is insufficient. Set update_axis to task_success, compliance, or both according to exactly which axis relations support a Skill repair; do not require both axes to improve.
+6. Use outcomes only as supporting axis evidence. Task Success and Compliance are independent observed outcomes, and their supplied values are frozen external facts: do not relabel them or re-judge Compliance. Never start from Failure and reverse-engineer a mechanism. Describe the surviving mechanism's relation to each axis separately as supportive, contradictory, insufficient, or not_applicable. Identical behavior with mixed task outcomes does not support a task-success causal claim merely because failures are the majority. Policy can independently make the Compliance relation supportive even when the Task Success relation is insufficient. Set update_axis to task_success, compliance, or both according to exactly which axis relations support a Skill repair; do not require both axes to improve.
 
 Classify evidence consistency once in the overall evidence_consistency field:
 - supportive: a concrete Agent-controlled behavioral mechanism is supported by contrastive or recurrent trajectory evidence; Policy/tool grounding is sound; at least one relevant outcome axis is consistent with the mechanism's expected impact; and no material counterevidence defeats the mechanism. This evaluates the mechanism itself, not Parent Skill coverage, root cause, or update eligibility.
@@ -141,8 +147,42 @@ def build_diagnosis_prompts(request: MultiRolloutDiagnosisRequest) -> tuple[str,
     )
 
 
-def call_diagnosis(request: MultiRolloutDiagnosisRequest, *, learner_call: LearnerCall = _default_learner_call) -> str:
-    system, user = build_diagnosis_prompts(request)
+def _json_parseable_diagnosis_response(response: str) -> bool:
+    text = response.strip()
+    if re.fullmatch(r"```(?:json)?\s*.*?\s*```", text, flags=re.DOTALL | re.IGNORECASE):
+        text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text, flags=re.IGNORECASE)
+    if text.startswith("<DIAGNOSIS_JSON>") and text.endswith("</DIAGNOSIS_JSON>"):
+        text = text.removeprefix("<DIAGNOSIS_JSON>").removesuffix("</DIAGNOSIS_JSON>").strip()
+    try:
+        return isinstance(json.loads(text), dict)
+    except json.JSONDecodeError:
+        return False
+
+
+def build_diagnosis_contract_repair_prompts(
+    original_response: str, validation_errors: tuple[str, ...],
+) -> tuple[str, str]:
+    return (
+        "You are the v0.13 Diagnosis contract repair serializer. Repair exactly one "
+        "JSON response using the supplied deterministic validation errors. Preserve "
+        "the original behavioral mechanism, evidence assessment, Parent Skill "
+        "assessment, and attribution unless a reported consistency error requires a "
+        "field mapping change. Do not re-diagnose trajectories or introduce new "
+        "evidence. Return exactly one DIAGNOSIS_JSON tagged object and no prose.\n\n"
+        + DIAGNOSIS_SYSTEM_PROMPT,
+        "<ORIGINAL_DIAGNOSIS_RESPONSE>\n"
+        + original_response.strip()
+        + "\n</ORIGINAL_DIAGNOSIS_RESPONSE>\n\n"
+        + "<DETERMINISTIC_VALIDATION_ERRORS>\n"
+        + json.dumps(list(validation_errors), ensure_ascii=False)
+        + "\n</DETERMINISTIC_VALIDATION_ERRORS>\n\n"
+        + "Repair only the schema or deterministic field inconsistencies reported above.",
+    )
+
+
+def _call_nonempty_diagnosis(
+    learner_call: LearnerCall, system: str, user: str,
+) -> str:
     empty_error = None
     for _ in range(EMPTY_RESPONSE_RETRIES + 1):
         try:
@@ -158,3 +198,18 @@ def call_diagnosis(request: MultiRolloutDiagnosisRequest, *, learner_call: Learn
         "v0.13 Diagnosis returned an empty response after "
         f"{EMPTY_RESPONSE_RETRIES} retries."
     ) from empty_error
+
+
+def call_diagnosis(request: MultiRolloutDiagnosisRequest, *, learner_call: LearnerCall = _default_learner_call) -> str:
+    system, user = build_diagnosis_prompts(request)
+    response = _call_nonempty_diagnosis(learner_call, system, user)
+    validation = parse_and_validate_diagnosis(
+        request.diagnosis_id, response, experiences=request.rollouts,
+        skill_sections=_parse_skill(request.current_parent_skill),
+    )
+    if validation.valid or not _json_parseable_diagnosis_response(response):
+        return response
+    repair_system, repair_user = build_diagnosis_contract_repair_prompts(
+        response, validation.validation_errors,
+    )
+    return _call_nonempty_diagnosis(learner_call, repair_system, repair_user)
