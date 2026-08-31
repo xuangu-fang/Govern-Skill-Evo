@@ -215,7 +215,7 @@ def validate_campaign_contract(campaign: dict[str, Any]) -> None:
     }:
         raise RuntimeContractError("v0.13 Compliance Judge drifted.")
     evaluator = campaign.get("official_evaluator", {})
-    if evaluator.get("implementation") != "tau3_official_evaluator" or evaluator.get("nl_assertions_model") != "openai/gpt-5.6-luna" or evaluator.get("nl_assertions_temperature") != 0.0:
+    if evaluator.get("implementation") != "tau3_official_evaluator" or evaluator.get("nl_assertions_model") != "openai/deepseek-v4-pro" or evaluator.get("nl_assertions_temperature") != 0.0:
         raise RuntimeContractError("Official evaluator drifted.")
     method = campaign.get("skill_evolution", {})
     if any((
@@ -624,7 +624,7 @@ def _evaluate_candidate_step(
     for error_path in (step_root / "targeted_fix_error.json", root / "targeted_fix_error.json"):
         if error_path.is_file():
             error_path.unlink()
-    from src.skill_evolution.regression_diagnosis_v11 import (
+    from src.skill_evolution.regression_diagnosis_v13 import (
         RegressionDiagnosisRequest, build_regression_transition_report,
         call_regression_diagnosis,
     )

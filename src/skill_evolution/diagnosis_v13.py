@@ -11,7 +11,8 @@ from src.adapters.tau2.tau3_evaluation_scope_v13 import benchmark_exclusion_prom
 from src.skill_evolution.autonomous_gse_v05_proposal import annotate_parent_skill
 from src.skill_evolution.diagnosis_contract_v13 import validate_task_evidence_group
 
-LEARNER_MODEL = "openai/gpt-5.6-luna"
+LEARNER_MODEL = "openai/deepseek-v4-pro"
+EMPTY_RESPONSE_RETRIES = 2
 
 
 @dataclass(frozen=True)
@@ -39,6 +40,8 @@ DIAGNOSIS_SYSTEM_PROMPT = """You are the v0.13 task-level Diagnosis component. A
 
 Follow this five-step reasoning order strictly.
 
+Keep three judgment layers independent. Layer 1 asks whether rollout trajectories plus Policy and tool semantics support a behavioral mechanism; record that only in behavior_analysis.evidence_consistency. Layer 2 compares that supported mechanism with the Parent Skill; record that in parent_skill_coverage. Layer 3 attributes ownership in root_cause and then determines skill_update_relevance. Supportive mechanism evidence does not by itself mean skill_issue or update.
+
 1. Identify Agent behavior. Analyze behavior before outcomes: identify what the Agent actually did in each rollout before looking at Task Success or Compliance attribution. Use only Agent-controlled behavior: a decision; predicate or condition check; action or tool choice; argument or value choice; ordering; retry or continuation; stopping decision; or explicit claim. Task Success or Failure labels, Compliance labels, CS/VS/CF/VF, evaluator output, environment response, tool latency, completion timing, and mere tool-result differences are not Agent behavioral mechanisms. Label contrast is not behavioral evidence, and environment difference is not Agent behavior.
 
 2. Determine the evidence pattern:
@@ -51,18 +54,20 @@ Follow this five-step reasoning order strictly.
 4. Attribute the mechanism against the current annotated Parent Skill. Set parent_skill_coverage.status to:
 - missing when the necessary mechanism is absent;
 - incorrect when the Skill gives wrong guidance;
-- underspecified when it mentions the behavior but omits an execution-critical trigger, predicate, decision boundary, ordering, or stopping condition;
+- underspecified when it mentions the behavior but omits an execution-critical trigger, predicate, decision boundary, feasibility condition, ordering, or stopping condition;
 - already_covered when a clear, correct, executable existing rule covers it and the Agent failed to follow that rule;
 - not_applicable when the mechanism has no direct Parent Skill coverage relationship, such as an external issue.
 Only missing, incorrect, or underspecified coverage can support skill_issue. already_covered normally means execution_issue and no update; do not add a duplicate rule unless a separate sufficiently supported Skill mechanism exists. related_rule_ids may name only Rule IDs that actually appear in CURRENT_PARENT_SKILL_WITH_RULE_IDS. missing may use an empty list; for incorrect, underspecified, and already_covered cite the applicable existing Rule IDs whenever available.
+Do not call a rule underspecified merely to enable an update. If fully following the existing rule is already sufficient to avoid the observed problem, use already_covered.
 
 5. Use outcomes only as supporting evidence. Task Success and Compliance are independent observed outcomes, and their supplied values are frozen external facts: do not relabel them or re-judge Compliance. Never start from Failure and reverse-engineer a mechanism. Describe the mechanism's relation to each axis separately as supportive, contradictory, insufficient, or not_applicable. Identical behavior with mixed task outcomes does not support a task-success causal claim merely because failures are the majority. Policy can independently make the Compliance relation supportive even when the Task Success relation is insufficient. Set update_axis to task_success, compliance, or both according to exactly which axis relations support a Skill repair; do not require both axes to improve.
 
 Classify evidence consistency once in the overall evidence_consistency field:
-- supportive: a concrete Agent-controlled behavioral mechanism is supported by contrastive or recurrent evidence; Policy/tool grounding is sound; Parent Skill coverage supports skill_issue; at least one target axis relation is supportive; and no material counterevidence defeats the mechanism.
+- supportive: a concrete Agent-controlled behavioral mechanism is supported by contrastive or recurrent trajectory evidence; Policy/tool grounding is sound; at least one relevant outcome axis is consistent with the mechanism's expected impact; and no material counterevidence defeats the mechanism. This evaluates the mechanism itself, not Parent Skill coverage, root cause, or update eligibility.
 - conflicting: the same still-plausible mechanism has substantive supporting evidence and counterevidence that cannot be reconciled. Use uncertain and no update.
 - insufficient: mechanism evidence is inadequate. Use no update unless a genuine unresolved ambiguity remains.
 A disproven allegation is not conflicting evidence. If no alternative plausible mechanism remains, use insufficient and no update. Recurrent positive behavior is not a reason to add a duplicate Skill rule.
+In particular, recurrent + supportive + already_covered must map to execution_issue + none + update_axis none + action none when the Agent simply failed to follow the existing correct rule. Never interpret supportive as an automatic skill_issue.
 
 A useful mechanism identifies a concrete trigger or decision boundary and the Agent action, choice, predicate, ordering, stopping decision, or claim that should change. Generalize episode-specific entities while preserving the causal predicate and repair operator. Preserve a stopping boundary only when necessary; do not invent one mechanically. Counterevidence constrains both whether an update is justified and how strong it may be. A valid compliant-success behavior should remain allowed unless Policy explicitly rules it out. Do not infer stricter ordering, broader scope, or stronger obligations than the evidence supports.
 
@@ -138,7 +143,18 @@ def build_diagnosis_prompts(request: MultiRolloutDiagnosisRequest) -> tuple[str,
 
 def call_diagnosis(request: MultiRolloutDiagnosisRequest, *, learner_call: LearnerCall = _default_learner_call) -> str:
     system, user = build_diagnosis_prompts(request)
-    response, _, _ = learner_call(LEARNER_MODEL, system, user)
-    if not isinstance(response, str) or not response.strip():
-        raise RuntimeError("v0.13 Diagnosis returned an empty response.")
-    return response.strip()
+    empty_error = None
+    for _ in range(EMPTY_RESPONSE_RETRIES + 1):
+        try:
+            response, _, _ = learner_call(LEARNER_MODEL, system, user)
+        except RuntimeError as error:
+            if str(error) != "Learner returned an empty Skill.":
+                raise
+            empty_error = error
+            continue
+        if isinstance(response, str) and response.strip():
+            return response.strip()
+    raise RuntimeError(
+        "v0.13 Diagnosis returned an empty response after "
+        f"{EMPTY_RESPONSE_RETRIES} retries."
+    ) from empty_error

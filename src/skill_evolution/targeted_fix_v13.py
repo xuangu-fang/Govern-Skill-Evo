@@ -11,7 +11,7 @@ from typing import Any
 
 from src.adapters.tau2.tau3_evaluation_scope_v13 import benchmark_exclusion_prompt
 
-LEARNER_MODEL = "openai/gpt-5.6-luna"
+LEARNER_MODEL = "openai/deepseek-v4-pro"
 TARGETED_FIX_STATUSES = {"FIXED", "NOT_FIXED", "NOT_EXERCISED"}
 PAIR_TRANSITIONS = {"IMPROVED", "UNCHANGED_BAD", "PRESERVED", "WORSENED", "NOT_EXERCISED"}
 EVIDENCE_FIELDS = {"source_id", "step_ids"}

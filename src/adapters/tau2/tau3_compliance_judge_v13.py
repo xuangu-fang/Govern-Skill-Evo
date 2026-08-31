@@ -13,7 +13,7 @@ from src.adapters.tau2.tau3_evaluation_scope_v13 import (
     benchmark_exclusion_prompt,
 )
 
-JUDGE_MODEL = "openai/gpt-5.6-luna"
+JUDGE_MODEL = "openai/deepseek-v4-pro"
 JUDGE_TEMPERATURE = 0
 JUDGE_PROMPT_VERSION = "tau3_policy_applicability_tool_semantics_judge_v13"
 

@@ -30,7 +30,7 @@ from src.skill_evolution.autonomous_gse_v13_proposal import (
     DiagnosisEditorRequest,
     MultiRolloutDiagnosisProposalOperator,
 )
-from src.skill_evolution.regression_diagnosis_v11 import (
+from src.skill_evolution.regression_diagnosis_v13 import (
     LEARNER_MODEL as REGRESSION_MODEL,
     RegressionDiagnosisRequest,
     build_regression_diagnosis_prompts,

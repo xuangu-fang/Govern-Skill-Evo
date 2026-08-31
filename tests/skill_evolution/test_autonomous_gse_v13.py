@@ -28,7 +28,8 @@ from src.skill_evolution.autonomous_gse_v13_proposal import (
 )
 from src.skill_evolution.diagnosis_contract_v13 import validate_diagnosis
 from src.skill_evolution.diagnosis_v13 import (
-    DIAGNOSIS_SYSTEM_PROMPT, MultiRolloutDiagnosisRequest, build_diagnosis_prompts,
+    DIAGNOSIS_SYSTEM_PROMPT, EMPTY_RESPONSE_RETRIES, MultiRolloutDiagnosisRequest,
+    build_diagnosis_prompts, call_diagnosis,
 )
 from src.skill_evolution.evolution_gate_v13 import build_evolution_decision
 from src.skill_evolution.targeted_fix_v13 import (
@@ -142,6 +143,21 @@ def _domain_contexts() -> dict:
     }
 
 
+def _diagnosis_request() -> MultiRolloutDiagnosisRequest:
+    context = _domain_contexts()["airline"]
+    return MultiRolloutDiagnosisRequest(
+        candidate_id="candidate",
+        diagnosis_id="diagnosis_001",
+        current_parent_skill=(CAMPAIGN_DIR / "skills/S0_empty_skill.md").read_text().replace(
+            "# Operational Skill", "# SuiteCRM Operational Skill", 1
+        ),
+        task_context={"domain": "airline", "task_id": "1"},
+        original_domain_policy=context["original_domain_policy"],
+        available_tool_contracts=context["available_tool_contracts"],
+        rollouts=_group(),
+    )
+
+
 def _tag(value: dict) -> str:
     return "<DIAGNOSIS_JSON>" + json.dumps(value) + "</DIAGNOSIS_JSON>"
 
@@ -223,6 +239,44 @@ def _target_response(transitions: list[str], request: TargetedFixRequest) -> str
 
 
 class V13DiagnosisEditorTests(unittest.TestCase):
+    def test_diagnosis_retries_only_empty_completions(self):
+        calls = []
+        valid = _tag(_diagnosis())
+
+        def learner_call(model, system, user):
+            calls.append((model, system, user))
+            if len(calls) == 1:
+                raise RuntimeError("Learner returned an empty Skill.")
+            if len(calls) == 2:
+                return "   ", model.removeprefix("openai/"), None
+            return f"  {valid}  ", model.removeprefix("openai/"), None
+
+        self.assertEqual(call_diagnosis(_diagnosis_request(), learner_call=learner_call), valid)
+        self.assertEqual(len(calls), EMPTY_RESPONSE_RETRIES + 1)
+        self.assertTrue(all(call == calls[0] for call in calls[1:]))
+
+    def test_diagnosis_fails_after_empty_completion_retries_are_exhausted(self):
+        calls = []
+
+        def learner_call(model, system, user):
+            calls.append((model, system, user))
+            return "", model.removeprefix("openai/"), None
+
+        with self.assertRaisesRegex(RuntimeError, "after 2 retries"):
+            call_diagnosis(_diagnosis_request(), learner_call=learner_call)
+        self.assertEqual(len(calls), EMPTY_RESPONSE_RETRIES + 1)
+
+    def test_diagnosis_does_not_retry_non_empty_failures(self):
+        calls = []
+
+        def learner_call(model, system, user):
+            calls.append((model, system, user))
+            raise RuntimeError("provider unavailable")
+
+        with self.assertRaisesRegex(RuntimeError, "provider unavailable"):
+            call_diagnosis(_diagnosis_request(), learner_call=learner_call)
+        self.assertEqual(len(calls), 1)
+
     def test_diagnosis_request_contains_complete_authoritative_domain_context(self):
         contexts = load_authoritative_domain_contexts(ROOT / "external/tau2-bench")
         request = MultiRolloutDiagnosisRequest(
@@ -314,11 +368,17 @@ class V13DiagnosisEditorTests(unittest.TestCase):
         diagnosis["behavior_analysis"].update({
             "behavioral_mechanism": "All three rollouts skip condition X before action Y.",
             "stable_behavior": "the same prohibited shortcut recurs",
+            "task_success_relation": "supportive",
+            "evidence_consistency": "supportive",
         })
         diagnosis["parent_skill_coverage"]["related_rule_ids"] = ["rule_001"]
         self.assertEqual(validate_diagnosis(
             diagnosis, experiences=_group(), skill_sections=sections,
         ), ())
+        self.assertEqual(diagnosis["root_cause"]["category"], "execution_issue")
+        self.assertEqual(diagnosis["skill_update_relevance"], "none")
+        self.assertEqual(diagnosis["update_axis"], "none")
+        self.assertEqual(diagnosis["update_recommendation"]["action"], "none")
         invalid_update = _diagnosis(
             relevance="update", action="add", category="skill_issue",
             update_axis="task_success", evidence_pattern="recurrent",
@@ -654,6 +714,10 @@ class V13DiagnosisEditorTests(unittest.TestCase):
         self.assertIn("propose serialization", DIAGNOSIS_SYSTEM_PROMPT)
         self.assertIn("Do not infer stricter ordering", DIAGNOSIS_SYSTEM_PROMPT)
         self.assertIn("A disproven allegation is not conflicting evidence", DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertIn("Supportive mechanism evidence does not by itself mean skill_issue or update", DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertIn("This evaluates the mechanism itself, not Parent Skill coverage", DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertIn("recurrent + supportive + already_covered", DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertNotIn("Parent Skill coverage supports skill_issue", DIAGNOSIS_SYSTEM_PROMPT)
         for removed_recipe in ("CS vs CF", "VS vs VF", "CS vs VS", "CF vs VF", "cross-record"):
             self.assertNotIn(removed_recipe, DIAGNOSIS_SYSTEM_PROMPT)
         self.assertNotIn("gift-card", DIAGNOSIS_SYSTEM_PROMPT.casefold())
@@ -1214,7 +1278,14 @@ class V13GateCampaignTests(unittest.TestCase):
         ))
         self.assertEqual(v13_manifest["compliance_judge"]["temperature"], 0)
         self.assertEqual(v13_manifest["official_evaluator"]["nl_assertions_temperature"], 0.0)
-        self.assertEqual(v12_manifest["official_evaluator"], v13_manifest["official_evaluator"])
+        self.assertEqual(
+            v13_manifest["official_evaluator"],
+            {
+                "implementation": "tau3_official_evaluator",
+                "nl_assertions_model": "openai/deepseek-v4-pro",
+                "nl_assertions_temperature": 0.0,
+            },
+        )
         self.assertEqual(v12_manifest["evolution"]["rollouts_per_task"], 3)
         self.assertEqual(v13_manifest["evolution"]["rollouts_per_task"], 3)
         self.assertEqual(
@@ -1309,7 +1380,7 @@ class V13OfflineIntegrationTests(unittest.TestCase):
             for path in parent_paths:
                 value = _load(path)
                 value["compliance_evaluation"] = {
-                    "compliant": True, "judge_model": "openai/gpt-5.6-luna",
+                    "compliant": True, "judge_model": "openai/deepseek-v4-pro",
                     "judge_temperature": 0,
                     "judge_prompt_version": "tau3_policy_scope_grounded_judge_v13",
                     "violations": [],
@@ -1328,7 +1399,7 @@ class V13OfflineIntegrationTests(unittest.TestCase):
                 "evidence_steps": [1], "reason": "Multiple calls were listed.",
             }
             first["compliance_evaluation"] = {
-                "compliant": False, "judge_model": "openai/gpt-5.6-luna",
+                "compliant": False, "judge_model": "openai/deepseek-v4-pro",
                 "judge_temperature": 0,
                 "judge_prompt_version": "tau3_policy_scope_grounded_judge_v13",
                 "violations": [violation],
