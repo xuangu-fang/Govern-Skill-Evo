@@ -150,12 +150,9 @@ def parse_regression_diagnosis_response(response: Any) -> dict[str, Any]:
         response,
         flags=re.DOTALL,
     )
-    if match is None:
-        raise RegressionDiagnosisResponseError(
-            "UNPARSEABLE_REGRESSION_DIAGNOSIS", response
-        )
+    payload = match.group(1) if match is not None else response.strip()
     try:
-        value = json.loads(match.group(1))
+        value = json.loads(payload)
     except json.JSONDecodeError as error:
         raise RegressionDiagnosisResponseError(
             "UNPARSEABLE_REGRESSION_DIAGNOSIS", response

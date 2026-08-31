@@ -36,6 +36,9 @@ from src.skill_evolution.diagnosis_v13 import (
     MultiRolloutDiagnosisRequest, build_diagnosis_prompts, call_diagnosis,
 )
 from src.skill_evolution.evolution_gate_v13 import build_evolution_decision
+from src.skill_evolution.regression_diagnosis_v13 import (
+    parse_regression_diagnosis_response,
+)
 from src.skill_evolution.targeted_fix_v13 import (
     SYSTEM_PROMPT as TARGET_FIX_SYSTEM_PROMPT,
     TargetedFixRequest, build_targeted_fix_prompts, derive_edit_verdict,
@@ -48,6 +51,23 @@ V12_DIR = ROOT / "experiments/campaigns/autonomous_gse_v12"
 CAMPAIGN_DIR = ROOT / "experiments/campaigns/autonomous_gse_v13"
 MANIFEST = CAMPAIGN_DIR / "campaign_manifest.json"
 BATCH_MAP = CAMPAIGN_DIR / "batch_map.json"
+
+
+class RegressionDiagnosisV13TransportTests(unittest.TestCase):
+    def test_accepts_valid_bare_json_from_configured_model(self):
+        response = json.dumps({
+            "first_meaningful_divergence": "none",
+            "key_behavior_difference": "none",
+            "attribution": "UNRELATED_VARIATION",
+            "reason": "The observed transition is not induced by the edit.",
+            "parent_evidence_steps": [2],
+            "candidate_evidence_steps": [2],
+        })
+
+        parsed = parse_regression_diagnosis_response(response)
+
+        self.assertEqual(parsed["attribution"], "UNRELATED_VARIATION")
+        self.assertEqual(parsed["parent_evidence_steps"], [2])
 
 
 def _load(path: Path):
