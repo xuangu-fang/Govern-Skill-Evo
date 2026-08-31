@@ -11,10 +11,13 @@ from src.adapters.tau2.tau3_compliance_judge_v13 import (
     ComplianceJudgeError, JUDGE_SYSTEM_PROMPT, build_judge_payload,
     validate_judgment,
 )
-from src.learners.stwebagentbench.generate_governed_skill_v13 import EDITOR_SYSTEM_PROMPT
+from src.learners.stwebagentbench.generate_governed_skill_v13 import (
+    EDITOR_SYSTEM_PROMPT, build_editor_prompts,
+)
 from src.skill_evolution.autonomous_gse_v03_proposal import ProposalContext
 from src.skill_evolution.autonomous_gse_v13_benchmark_runtime import (
-    Tau3RolloutAdapter, build_campaign_dry_plan, build_holdout_plan, derive_rollout_seeds,
+    RuntimeContractError, Tau3RolloutAdapter, build_campaign_dry_plan,
+    build_holdout_plan, derive_rollout_seeds,
     build_policy_grounded_recovery_plan, load_authoritative_domain_contexts,
     matched_replay_plan, prepare_v13_step1_restart_from_parent,
     resume_v13_target_fix_and_gate, run_v13_campaign,
@@ -509,7 +512,7 @@ class V13DiagnosisEditorTests(unittest.TestCase):
             "tool-result timing", "completion timing", "latency",
         ):
             self.assertIn(excluded, DIAGNOSIS_SYSTEM_PROMPT)
-        self.assertIn("do not manufacture one from outcome timing", DIAGNOSIS_SYSTEM_PROMPT)
+        self.assertNotIn("do not manufacture one from outcome timing", DIAGNOSIS_SYSTEM_PROMPT)
 
     def test_stopping_boundary_is_optional_and_mechanism_specific(self):
         confirmation = _diagnosis(
@@ -547,6 +550,12 @@ class V13DiagnosisEditorTests(unittest.TestCase):
             return _tag(value)
 
         def editor(_request):
+            self.assertTrue(all(
+                set(item) == {"domain", "original_domain_policy"}
+                for item in _request.domain_contexts
+            ))
+            _, user_prompt = build_editor_prompts(_request)
+            self.assertNotIn("available_tool_contracts", user_prompt)
             return "<CANONICAL_EDITS_JSON>" + json.dumps([
                 _edit(["diagnosis_001"], record_integrity=True),
                 _edit(["diagnosis_002"], record_integrity=False),
@@ -996,14 +1005,25 @@ class V13GateCampaignTests(unittest.TestCase):
         )
         self.assertIn("AGGREGATE_COLLAPSE", collapsed["all_reasons"])
 
-    def test_campaign_is_v12_identity_matched_and_k3(self):
+    def test_campaign_sampling_is_frozen_matched_and_k3(self):
         v12_manifest, v13_manifest = _load(V12_DIR / "campaign_manifest.json"), _load(MANIFEST)
         v12_map, v13_map = _load(V12_DIR / "batch_map.json"), _load(BATCH_MAP)
         self.assertEqual(v12_map["assignment"], v13_map["assignment"])
         self.assertEqual(v12_map["batches"], v13_map["batches"])
         self.assertEqual(v12_manifest["campaign_seed"], v13_manifest["campaign_seed"])
-        self.assertEqual(v12_manifest["agent"], v13_manifest["agent"])
+        self.assertEqual(v13_manifest["agent"]["temperature"], 0.2)
+        self.assertEqual(
+            {key: value for key, value in v12_manifest["agent"].items() if key != "temperature"},
+            {key: value for key, value in v13_manifest["agent"].items() if key != "temperature"},
+        )
         self.assertEqual(v12_manifest["user_simulator"], v13_manifest["user_simulator"])
+        self.assertEqual(v13_manifest["user_simulator"]["temperature"], 0.0)
+        self.assertTrue(all(
+            config["temperature"] == 0
+            for config in v13_manifest["judges"].values()
+        ))
+        self.assertEqual(v13_manifest["compliance_judge"]["temperature"], 0)
+        self.assertEqual(v13_manifest["official_evaluator"]["nl_assertions_temperature"], 0.0)
         self.assertEqual(v12_manifest["official_evaluator"], v13_manifest["official_evaluator"])
         self.assertEqual(v12_manifest["evolution"]["rollouts_per_task"], 3)
         self.assertEqual(v13_manifest["evolution"]["rollouts_per_task"], 3)
@@ -1015,6 +1035,14 @@ class V13GateCampaignTests(unittest.TestCase):
         replay = matched_replay_plan(["airline:1", "retail:2"], 200)
         self.assertEqual(replay["parent"], replay["candidate"])
         self.assertEqual(len(replay["parent"]), 6)
+
+    def test_campaign_rejects_role_temperature_drift(self):
+        campaign, batch_map = _load(MANIFEST), _load(BATCH_MAP)
+        for role, invalid_temperature in (("agent", 0.0), ("user_simulator", 0.2)):
+            drifted = copy.deepcopy(campaign)
+            drifted[role]["temperature"] = invalid_temperature
+            with self.assertRaisesRegex(RuntimeContractError, f"Frozen {role} sampling"):
+                build_campaign_dry_plan(drifted, batch_map)
 
     def test_dry_plan_and_holdout_match_v12_scale(self):
         campaign, batch_map = _load(MANIFEST), _load(BATCH_MAP)

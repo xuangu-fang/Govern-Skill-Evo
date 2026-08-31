@@ -197,12 +197,15 @@ def validate_campaign_contract(campaign: dict[str, Any]) -> None:
     )):
         raise RuntimeContractError("v0.13 Holdout contract drifted.")
     frozen = {
-        "model": "openai/deepseek-v4-flash", "temperature": 0.0, "thinking": "high",
+        "model": "openai/deepseek-v4-flash", "thinking": "high",
         "reasoning_effort": "high", "max_tokens": 8192, "empty_response_retries": 2,
         "empty_response_retry_max_tokens": 8192,
     }
-    for role in ("agent", "user_simulator"):
-        if any(campaign.get(role, {}).get(key) != value for key, value in frozen.items()):
+    for role, temperature in (("agent", 0.2), ("user_simulator", 0.0)):
+        config = campaign.get(role, {})
+        if config.get("temperature") != temperature or any(
+            config.get(key) != value for key, value in frozen.items()
+        ):
             raise RuntimeContractError(f"Frozen {role} sampling configuration drifted.")
     if campaign.get("compliance_judge", {}) != {
         "model": JUDGE_MODEL, "temperature": JUDGE_TEMPERATURE,

@@ -47,8 +47,10 @@ def build_editor_prompts(request: DiagnosisEditorRequest) -> tuple[str, str]:
         raise ValueError("Parent and update Diagnoses are required.")
     if not request.domain_contexts or any(
         not isinstance(item, dict)
+        or not isinstance(item.get("domain"), str) or not item["domain"].strip()
         or not isinstance(item.get("original_domain_policy"), str)
-        or not isinstance(item.get("available_tool_contracts"), (list, tuple))
+        or not item["original_domain_policy"].strip()
+        or set(item) != {"domain", "original_domain_policy"}
         for item in request.domain_contexts
     ):
         raise ValueError("Authoritative domain context is required.")

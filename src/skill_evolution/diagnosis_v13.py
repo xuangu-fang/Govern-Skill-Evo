@@ -51,8 +51,6 @@ Classify evidence consistency once:
 - insufficient: no concrete update-worthy mechanism is sufficiently supported, including when behavior does not differ, opportunity is absent, a suspected allegation is disproven, or only outcome or environment effects differ. Use no update unless a genuine unresolved ambiguity remains.
 A disproven allegation is not conflicting evidence. If no alternative plausible mechanism remains, use insufficient and no update.
 
-If the three rollouts contain no concrete Agent-controlled behavioral difference relevant to the suspected mechanism, do not manufacture one from outcome timing, tool completion, or label differences. Return insufficient and no update unless a different independently supported mechanism exists.
-
 Counterevidence constrains both whether an update is justified and how strong it may be. A valid compliant-success behavior should remain allowed unless Policy explicitly rules it out. Do not infer stricter ordering, broader scope, or stronger obligations than the evidence supports.
 
 <<TAU3_BENCHMARK_EXCLUSION>>

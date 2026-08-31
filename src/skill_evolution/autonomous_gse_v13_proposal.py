@@ -250,9 +250,6 @@ class MultiRolloutDiagnosisProposalOperator:
                 domain_contexts=tuple({
                     "domain": domain,
                     "original_domain_policy": domain_contexts[domain]["original_domain_policy"],
-                    "available_tool_contracts": copy.deepcopy(
-                        domain_contexts[domain]["available_tool_contracts"]
-                    ),
                 } for domain in eligible_domains),
             ))
             return _guard_editor_response(response, request, set(sections))
