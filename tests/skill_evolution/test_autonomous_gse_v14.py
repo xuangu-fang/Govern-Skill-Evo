@@ -115,31 +115,42 @@ class TestV14FrozenSplit:
         assert not set(batches[0]) & set(batches[2])
         assert not set(batches[1]) & set(batches[2])
 
-    def test_monitor_is_explicit_fixed_and_maximally_feasible(self, campaign, batch_map):
+    def test_monitor_and_final_test_are_explicit_balanced_partitions(self, campaign, batch_map):
         monitor = batch_map["monitor"]
         assert monitor["monitor_id"] == "fixed_monitor_m"
         assert monitor["fixed_across_steps"] is True
-        assert monitor["source_split"] == "official_train"
+        assert monitor["source_split"] == "official_test"
         assert monitor["learning_access"] == "forbidden"
         assert monitor["feedback_to_learner"] == "forbidden"
         assert monitor["execution_enabled"] is False
-        assert len(monitor["task_ids"]) == 0
-        assert campaign["monitor"]["requested_tasks"] == 20
-        assert campaign["monitor"]["capacity_status"] == "insufficient_balanced_official_train_capacity"
+        assert len(monitor["task_ids"]) == 20
+        assert sum(item.startswith("airline:") for item in monitor["task_ids"]) == 10
+        assert sum(item.startswith("retail:") for item in monitor["task_ids"]) == 10
+        assert campaign["monitor"]["tasks"] == 20
+        assert len(batch_map["assignment"]["test"]["airline"]) == 10
+        assert len(batch_map["assignment"]["test"]["retail"]) == 10
+        assert campaign["test"]["tasks"] == 20
+        assert campaign["test"]["participates_in_step_gate"] is False
 
-    def test_official_pool_proves_balanced_monitor_capacity_is_zero(self, campaign, batch_map):
+    def test_official_test_partition_is_deterministic(self, campaign, batch_map):
         pools = v14.load_official_task_pools(ROOT / campaign["benchmark"]["path"])
-        assert len(pools["airline"]["official_train"]) == 30
-        assert len(pools["retail"]["official_train"]) == 74
-        derived = v14.derive_fixed_monitor_assignment(
+        derived = v14.derive_monitor_and_final_test_assignment(
             campaign_seed=campaign["campaign_seed"], official_pools=pools,
-            evolution_assignment=batch_map["assignment"]["evolution"],
         )
-        assert derived == {"airline": [], "retail": []}
-        assert derived == v14.derive_fixed_monitor_assignment(
+        assert derived == {
+            purpose: batch_map["assignment"][purpose]
+            for purpose in ("monitor", "test", "reserve")
+        }
+        assert derived == v14.derive_monitor_and_final_test_assignment(
             campaign_seed=campaign["campaign_seed"], official_pools=pools,
-            evolution_assignment=batch_map["assignment"]["evolution"],
         )
+
+    def test_split_helper_has_no_outcome_input_or_outcome_reads(self):
+        signature = inspect.signature(v14.derive_monitor_and_final_test_assignment)
+        assert set(signature.parameters) == {"campaign_seed", "official_pools"}
+        source = inspect.getsource(v14.derive_monitor_and_final_test_assignment)
+        for forbidden in ("reward", "compliance", "state", "trajectory", "difficulty", "diagnosis"):
+            assert forbidden not in source.casefold()
 
     def test_evolution_monitor_and_test_are_strictly_disjoint(self, campaign, batch_map):
         v14.validate_batch_map(batch_map, campaign)
@@ -149,7 +160,11 @@ class TestV14FrozenSplit:
             *(f"airline:{x}" for x in batch_map["assignment"]["test"]["airline"]),
             *(f"retail:{x}" for x in batch_map["assignment"]["test"]["retail"]),
         }
-        groups = [*batches, monitor, test]
+        reserve = {
+            *(f"airline:{x}" for x in batch_map["assignment"]["reserve"]["airline"]),
+            *(f"retail:{x}" for x in batch_map["assignment"]["reserve"]["retail"]),
+        }
+        groups = [*batches, monitor, test, reserve]
         assert all(
             not groups[left] & groups[right]
             for left in range(len(groups)) for right in range(left + 1, len(groups))
@@ -160,8 +175,13 @@ class TestV14FrozenSplit:
         assignment = batch_map["assignment"]
         for domain in ("airline", "retail"):
             assert set(assignment["evolution"][domain]) <= set(pools[domain]["official_train"])
-            assert set(assignment["monitor"][domain]) <= set(pools[domain]["official_train"])
+            assert set(assignment["monitor"][domain]) <= set(pools[domain]["official_test"])
             assert set(assignment["test"][domain]) <= set(pools[domain]["official_test"])
+            assert set(assignment["reserve"][domain]) <= set(pools[domain]["official_test"])
+            assert {
+                *assignment["monitor"][domain], *assignment["test"][domain],
+                *assignment["reserve"][domain],
+            } == set(pools[domain]["official_test"])
 
     @pytest.mark.parametrize("target", ("batch", "monitor", "test"))
     def test_overlap_fails_closed(self, campaign, batch_map, target):
@@ -169,12 +189,10 @@ class TestV14FrozenSplit:
         if target == "batch":
             drifted["batches"][1]["task_ids"][0] = drifted["batches"][0]["task_ids"][0]
         elif target == "monitor":
-            drifted["assignment"]["monitor"]["airline"] = [
-                drifted["assignment"]["evolution"]["airline"][0]
-            ]
-            drifted["monitor"]["task_ids"] = [drifted["batches"][0]["task_ids"][0]]
+            drifted["assignment"]["monitor"]["airline"][0] = drifted["assignment"]["test"]["airline"][0]
+            drifted["monitor"]["task_ids"][0] = f'airline:{drifted["assignment"]["test"]["airline"][0]}'
         else:
-            drifted["assignment"]["test"]["airline"][0] = drifted["assignment"]["evolution"]["airline"][0]
+            drifted["assignment"]["test"]["airline"][0] = drifted["assignment"]["monitor"]["airline"][0]
         with pytest.raises(v14.RuntimeContractError):
             v14.validate_batch_map(drifted, campaign)
 
@@ -188,11 +206,14 @@ class TestV14FrozenSplit:
 
 
 class TestV14LearnerIsolationAndPlan:
-    def test_monitor_or_test_evidence_cannot_enter_learner(self, campaign, batch_map):
+    @pytest.mark.parametrize("protected_set", ("monitor", "test"))
+    def test_monitor_or_test_evidence_cannot_enter_learner(self, campaign, batch_map, protected_set):
         batch_ids = batch_map["batches"][0]["task_ids"]
         protected = v14._protected_task_ids(batch_map)
         evidence = list(_evidence(batch_ids))
-        evidence[0]["domain"], evidence[0]["task_id"] = "airline", batch_map["assignment"]["test"]["airline"][0]
+        evidence[0]["domain"], evidence[0]["task_id"] = (
+            "airline", batch_map["assignment"][protected_set]["airline"][0]
+        )
         with pytest.raises(v14.RuntimeContractError, match="Monitor/Test evidence"):
             v14.validate_learner_evidence(
                 tuple(evidence), batch_task_ids=batch_ids, protected_task_ids=protected,
@@ -214,10 +235,11 @@ class TestV14LearnerIsolationAndPlan:
         assert [len(step["parent_rollout_units"]) for step in plan["steps"]] == [60, 60, 60]
         workload = plan["workload_summary"]
         assert workload["evolution"]["trajectories"] == 180
-        assert workload["monitor"]["requested_trajectories"] == 60
-        assert workload["monitor"]["defined_trajectories"] == 0
+        assert workload["monitor"]["defined_tasks"] == 20
+        assert workload["monitor"]["defined_trajectories"] == 60
         assert workload["monitor"]["execution_enabled"] is False
-        assert workload["test"]["trajectories_if_explicitly_authorized"] == 240
+        assert workload["test"]["tasks"] == 20
+        assert workload["test"]["trajectories_if_explicitly_authorized"] == 120
         assert plan["phase_3_and_later"] == "not_implemented"
 
     def test_contract_rejects_sampling_drift(self, campaign, batch_map):

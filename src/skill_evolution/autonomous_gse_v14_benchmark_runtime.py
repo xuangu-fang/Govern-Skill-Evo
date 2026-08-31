@@ -69,23 +69,24 @@ def load_official_task_pools(tau2_root: Path) -> dict[str, dict[str, tuple[str, 
     return pools
 
 
-def derive_fixed_monitor_assignment(
+def derive_monitor_and_final_test_assignment(
     *, campaign_seed: int, official_pools: dict[str, dict[str, tuple[str, ...]]],
-    evolution_assignment: dict[str, list[str]], requested_per_domain: int = 10,
-) -> dict[str, list[str]]:
-    """Select the largest feasible balanced monitor without looking at outcomes."""
+) -> dict[str, dict[str, list[str]]]:
+    """Partition official_test by seed and domain, without rollout outcomes."""
 
-    remaining: dict[str, list[str]] = {}
+    assignment = {
+        purpose: {domain: [] for domain in ("airline", "retail")}
+        for purpose in ("monitor", "test", "reserve")
+    }
     for offset, domain in enumerate(("airline", "retail"), start=1):
-        train = list(official_pools[domain]["official_train"])
-        used = set(evolution_assignment.get(domain, []))
-        if not used <= set(train):
-            raise RuntimeContractError(f"Evolution contains non-train {domain} task IDs.")
-        available = [task_id for task_id in train if task_id not in used]
-        random.Random(campaign_seed + offset).shuffle(available)
-        remaining[domain] = available
-    balanced_size = min(requested_per_domain, *(len(remaining[x]) for x in remaining))
-    return {domain: remaining[domain][:balanced_size] for domain in ("airline", "retail")}
+        official_test = list(official_pools[domain]["official_test"])
+        if len(official_test) < 20:
+            raise RuntimeContractError(f"Official {domain} test pool cannot supply Monitor and Final Test.")
+        random.Random(campaign_seed + offset).shuffle(official_test)
+        assignment["monitor"][domain] = official_test[:10]
+        assignment["test"][domain] = official_test[10:20]
+        assignment["reserve"][domain] = official_test[20:]
+    return assignment
 
 
 def _tagged(domain: str, task_ids: Sequence[str]) -> list[str]:
@@ -120,21 +121,19 @@ def validate_campaign_contract(campaign: dict[str, Any]) -> None:
 
     monitor = campaign.get("monitor", {})
     expected_monitor = {
-        "source_split": "official_train", "requested_tasks": 20,
-        "requested_airline_tasks": 10, "requested_retail_tasks": 10,
-        "tasks": 0, "airline_tasks": 0, "retail_tasks": 0,
+        "source_split": "official_test", "tasks": 20,
+        "airline_tasks": 10, "retail_tasks": 10,
         "rollouts_per_task": 3, "fixed_across_steps": True,
         "purpose": "distribution_monitor", "learning_access": "forbidden",
         "feedback_to_learner": "forbidden", "execution_enabled": False,
-        "capacity_status": "insufficient_balanced_official_train_capacity",
     }
     if monitor != expected_monitor:
         raise RuntimeContractError("v0.14 fixed Monitor contract drifted.")
 
     test = campaign.get("test", {})
     expected_test = {
-        "source_split": "official_test", "tasks": 40,
-        "airline_tasks": 20, "retail_tasks": 20, "rollouts_per_task": 3,
+        "source_split": "official_test", "tasks": 20,
+        "airline_tasks": 10, "retail_tasks": 10, "rollouts_per_task": 3,
         "compare": ["S0", "S_final"], "learning_access": "forbidden",
         "feedback_to_learner": "forbidden", "automatic_execution": False,
         "participates_in_step_gate": False,
@@ -168,6 +167,13 @@ def validate_campaign_contract(campaign: dict[str, Any]) -> None:
         raise RuntimeContractError("v0.14 learner stack is not the frozen v0.13 implementation.")
     if campaign.get("future_features") != {"phase_3_and_later": "not_implemented"}:
         raise RuntimeContractError("v0.14 Phase 1/2 boundary is invalid.")
+    if campaign.get("budget") != {
+        "defined_evolution_trajectories": 180,
+        "monitor_trajectories_per_skill_evaluation": 60,
+        "monitor_execution_enabled": False,
+        "final_test_trajectories_if_authorized": 120,
+    }:
+        raise RuntimeContractError("v0.14 Phase 1/2 workload budget drifted.")
 
 
 def validate_batch_map(
@@ -178,12 +184,14 @@ def validate_batch_map(
     if batch_map.get("schema_version") != "tau3_gse_task_split_0.14.0" or batch_map.get("campaign_seed") != campaign["campaign_seed"]:
         raise RuntimeContractError("Frozen v0.14 Batch Map identity is invalid.")
     assignment = batch_map.get("assignment", {})
-    if set(assignment) != {"evolution", "monitor", "test"}:
-        raise RuntimeContractError("v0.14 assignment must contain Evolution, Monitor, and Test only.")
-    expected_counts = {"evolution": 30, "monitor": 0, "test": 20}
+    if set(assignment) != {"evolution", "monitor", "test", "reserve"}:
+        raise RuntimeContractError("v0.14 assignment must contain Evolution, Monitor, Final Test, and Reserve.")
+    expected_counts = {"evolution": (30, 30), "monitor": (10, 10), "test": (10, 10), "reserve": (0, 20)}
     for purpose, count in expected_counts.items():
         value = assignment.get(purpose, {})
-        if set(value) != {"airline", "retail"} or any(len(value[d]) != count for d in value):
+        if set(value) != {"airline", "retail"} or (
+            len(value["airline"]), len(value["retail"])
+        ) != count:
             raise RuntimeContractError(f"Frozen {purpose} assignment has invalid domain counts.")
 
     flattened: list[str] = []
@@ -210,7 +218,7 @@ def validate_batch_map(
     ]
     if monitor != {
         "monitor_id": "fixed_monitor_m", "task_ids": monitor_ids,
-        "source_split": "official_train", "fixed_across_steps": True,
+        "source_split": "official_test", "fixed_across_steps": True,
         "purpose": "distribution_monitor", "learning_access": "forbidden",
         "feedback_to_learner": "forbidden", "execution_enabled": False,
     }:
@@ -220,26 +228,43 @@ def validate_batch_map(
         *_tagged("airline", assignment["test"]["airline"]),
         *_tagged("retail", assignment["test"]["retail"]),
     ]
+    reserve_ids = [
+        *_tagged("airline", assignment["reserve"]["airline"]),
+        *_tagged("retail", assignment["reserve"]["retail"]),
+    ]
     groups = [set(batch["task_ids"]) for batch in batch_map["batches"]]
-    groups.extend((set(monitor_ids), set(test_ids)))
+    groups.extend((set(monitor_ids), set(test_ids), set(reserve_ids)))
     if any(groups[left] & groups[right] for left in range(len(groups)) for right in range(left + 1, len(groups))):
-        raise RuntimeContractError("Evolution, Monitor, and Test task sets must be strictly disjoint.")
+        raise RuntimeContractError("Evolution, Monitor, Final Test, and Reserve must be strictly disjoint.")
 
     pools = official_pools or load_official_task_pools(_resolved_path(campaign["benchmark"]["path"]))
     for domain in ("airline", "retail"):
         train = set(pools[domain]["official_train"])
         test = set(pools[domain]["official_test"])
-        if not set(assignment["evolution"][domain]) <= train or not set(assignment["monitor"][domain]) <= train:
-            raise RuntimeContractError("Evolution and Monitor must come only from official_train.")
-        if not set(assignment["test"][domain]) <= test:
-            raise RuntimeContractError("Test must come only from official_test.")
-    derived_monitor = derive_fixed_monitor_assignment(
+        if not set(assignment["evolution"][domain]) <= train:
+            raise RuntimeContractError("Evolution must come only from official_train.")
+        official_test_partition = {
+            *assignment["monitor"][domain], *assignment["test"][domain],
+            *assignment["reserve"][domain],
+        }
+        if official_test_partition != test:
+            raise RuntimeContractError("Monitor, Final Test, and Reserve must partition official_test.")
+    derived = derive_monitor_and_final_test_assignment(
         campaign_seed=campaign["campaign_seed"], official_pools=pools,
-        evolution_assignment=assignment["evolution"],
-        requested_per_domain=campaign["monitor"]["requested_airline_tasks"],
     )
-    if assignment["monitor"] != derived_monitor:
-        raise RuntimeContractError("Monitor IDs drifted from deterministic split logic.")
+    if any(assignment[purpose] != derived[purpose] for purpose in derived):
+        raise RuntimeContractError("Official-test partition drifted from deterministic split logic.")
+    if batch_map.get("provenance") != {
+        "evolution_source_split": "official_train",
+        "monitor_source_split": "official_test",
+        "test_source_split": "official_test",
+        "evolution_assignment_copied_from": "autonomous_gse_v13",
+        "selection_basis": "campaign_seed_domain_and_official_split_ids_only",
+        "official_test_partition": "deterministic_outcome_independent_monitor_and_final_test_split",
+        "monitor_role": "future_step_level_candidate_selection",
+        "final_test_role": "untouched_final_s0_vs_s_final_evaluation",
+    }:
+        raise RuntimeContractError("v0.14 split provenance drifted.")
 
 
 def _protected_task_ids(batch_map: dict[str, Any]) -> set[str]:
@@ -321,15 +346,14 @@ def build_campaign_dry_plan(campaign: dict[str, Any], batch_map: dict[str, Any])
                 "trajectories": 180, "currently_executable": True,
             },
             "monitor": {
-                "requested_formula": "20 tasks x 3 rollouts", "requested_tasks": 20,
-                "requested_trajectories": 60, "defined_task_ids": monitor_ids,
+                "formula_per_skill_evaluation": "20 tasks x 3 rollouts",
+                "defined_task_ids": monitor_ids,
                 "defined_tasks": len(monitor_ids), "defined_trajectories": len(monitor_ids) * 3,
                 "fixed_across_steps": True, "execution_enabled": False,
-                "capacity_status": campaign["monitor"]["capacity_status"],
             },
             "test": {
-                "formula": "40 tasks x 2 skills x 3 rollouts", "task_ids": test_ids,
-                "tasks": 40, "trajectories_if_explicitly_authorized": 240,
+                "formula": "20 tasks x 2 skills x 3 rollouts", "task_ids": test_ids,
+                "tasks": 20, "trajectories_if_explicitly_authorized": 120,
                 "compare": ["S0", "S_final"], "currently_executable": False,
             },
         },
