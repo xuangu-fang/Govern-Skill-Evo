@@ -1,0 +1,21 @@
+{
+  "schema_version": "autonomous_gse_campaign_0.14.0",
+  "protocol_version": "autonomous_gse_v14",
+  "campaign_id": "autonomous_gse_v14",
+  "campaign_seed": 200,
+  "status": "phase_1_2_ready",
+  "benchmark": {"name": "tau3", "repository": "sierra-research/tau2-bench", "path": "external/tau2-bench", "domains": ["airline", "retail"]},
+  "initial_parent": {"kind": "empty_skill", "version": "S0", "path": "experiments/campaigns/autonomous_gse_v14/skills/S0_empty_skill.md", "rollout_semantics": "benchmark_default_prompt_without_learned_skill_injection"},
+  "schedule": {"evolution_steps": 3},
+  "evolution": {"source_split": "official_train", "tasks": 60, "airline_tasks": 30, "retail_tasks": 30, "batches": 3, "tasks_per_batch": 20, "airline_tasks_per_batch": 10, "retail_tasks_per_batch": 10, "rollouts_per_task": 3, "batch_map": "experiments/campaigns/autonomous_gse_v14/batch_map.json", "outcome_independent_assignment": true, "cumulative_evidence": false, "replay_previous_batches": false},
+  "monitor": {"source_split": "official_train", "requested_tasks": 20, "requested_airline_tasks": 10, "requested_retail_tasks": 10, "tasks": 0, "airline_tasks": 0, "retail_tasks": 0, "rollouts_per_task": 3, "fixed_across_steps": true, "purpose": "distribution_monitor", "learning_access": "forbidden", "feedback_to_learner": "forbidden", "execution_enabled": false, "capacity_status": "insufficient_balanced_official_train_capacity"},
+  "test": {"source_split": "official_test", "tasks": 40, "airline_tasks": 20, "retail_tasks": 20, "rollouts_per_task": 3, "compare": ["S0", "S_final"], "learning_access": "forbidden", "feedback_to_learner": "forbidden", "automatic_execution": false, "participates_in_step_gate": false},
+  "learner_stack": {"diagnosis": "src.skill_evolution.diagnosis_v13", "diagnosis_contract": "src.skill_evolution.diagnosis_contract_v13", "proposal_operator": "src.skill_evolution.autonomous_gse_v13_proposal.MultiRolloutDiagnosisProposalOperator", "editor": "src.learners.stwebagentbench.generate_governed_skill_v13.call_governed_editor", "frozen_from": "autonomous_gse_v13"},
+  "compliance_judge": {"implementation": "src.adapters.tau2.tau3_compliance_judge_v13", "model": "openai/deepseek-v4-pro", "temperature": 0, "prompt_version": "tau3_policy_applicability_tool_semantics_judge_v13", "frozen_from": "autonomous_gse_v13", "fallback": "forbidden"},
+  "judges": {"diagnosis": {"model": "openai/deepseek-v4-pro", "temperature": 0}, "editor": {"model": "openai/deepseek-v4-pro", "temperature": 0}},
+  "official_evaluator": {"implementation": "tau3_official_evaluator", "nl_assertions_model": "openai/deepseek-v4-pro", "nl_assertions_temperature": 0.0},
+  "agent": {"implementation_s0": "llm_agent", "implementation_learned_skill": "llm_agent_manual_skill", "skill_environment_variable": "TAU2_AGENT_SKILL_PATH", "model": "openai/deepseek-v4-flash", "temperature": 0.2, "thinking": "high", "reasoning_effort": "high", "max_tokens": 8192, "empty_response_retries": 2, "empty_response_retry_max_tokens": 8192, "max_steps": 200, "seed_strategy": "campaign_seed_plus_execution_offset_plus_rollout_index"},
+  "user_simulator": {"implementation": "user_simulator", "model": "openai/deepseek-v4-flash", "temperature": 0.0, "thinking": "high", "reasoning_effort": "high", "max_tokens": 8192, "empty_response_retries": 2, "empty_response_retry_max_tokens": 8192, "seed_strategy": "same_recorded_rollout_seed_passed_to_official_orchestrator"},
+  "budget": {"defined_evolution_trajectories": 180, "requested_monitor_trajectories": 60, "defined_monitor_trajectories": 0, "monitor_execution_enabled": false, "final_test_trajectories_if_authorized": 240},
+  "future_features": {"phase_3_and_later": "not_implemented"}
+}
