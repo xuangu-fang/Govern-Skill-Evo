@@ -24,6 +24,24 @@ DIAGNOSIS_FIELDS = {
     "target_behavior", "update_recommendation",
 }
 EVIDENCE_REF_FIELDS = {"source_id", "step_ids"}
+REPAIRABLE_CONTRACT_ERRORS = frozenset({
+    "ROOT_CAUSE_RELEVANCE_MISMATCH",
+    "NON_UPDATE_AXIS_MUST_BE_NONE",
+    "UPDATE_REQUIRES_ACTIVE_AXIS",
+    "UPDATE_AXIS_RELATION_MISMATCH",
+    "ADD_MUST_NOT_PRESELECT_SECTION",
+    "ADD_MUST_NOT_TARGET_RULE",
+    "NONE_MUST_NOT_HAVE_TARGET",
+    "NON_UPDATE_RELEVANCE_ACTION_MISMATCH",
+})
+
+_ROOT_CAUSE_RELEVANCE = {
+    "skill_issue": "update",
+    "execution_issue": "none",
+    "external_issue": "none",
+    "uncertain": "uncertain",
+    None: "none",
+}
 
 
 @dataclass(frozen=True)
@@ -185,10 +203,7 @@ def validate_diagnosis(
     relevance = diagnosis.get("skill_update_relevance")
     if relevance not in UPDATE_RELEVANCE:
         errors.append("INVALID_SKILL_UPDATE_RELEVANCE")
-    expected_relevance = {
-        "skill_issue": "update", "execution_issue": "none", "external_issue": "none",
-        "uncertain": "uncertain", None: "none",
-    }.get(category)
+    expected_relevance = _ROOT_CAUSE_RELEVANCE.get(category)
     if relevance in UPDATE_RELEVANCE and relevance != expected_relevance:
         errors.append("ROOT_CAUSE_RELEVANCE_MISMATCH")
     consistency = analysis.get("evidence_consistency") if isinstance(analysis, dict) else None
@@ -291,6 +306,72 @@ def validate_diagnosis(
         elif action == "none" and (section is not None or rule_id is not None):
             errors.append("NONE_MUST_NOT_HAVE_TARGET")
     return tuple(dict.fromkeys(errors))
+
+
+def repair_diagnosis_contract_fields(
+    diagnosis: Any, validation_errors: tuple[str, ...],
+) -> dict[str, Any] | None:
+    """Repair only contract fields uniquely determined by existing Diagnosis fields."""
+    errors = set(validation_errors)
+    if (
+        not isinstance(diagnosis, dict)
+        or not errors
+        or not errors <= REPAIRABLE_CONTRACT_ERRORS
+    ):
+        return None
+
+    repaired = copy.deepcopy(diagnosis)
+    analysis = repaired.get("behavior_analysis")
+    root = repaired.get("root_cause")
+    recommendation = repaired.get("update_recommendation")
+    if not all(isinstance(value, dict) for value in (analysis, root, recommendation)):
+        return None
+
+    if "ROOT_CAUSE_RELEVANCE_MISMATCH" in errors:
+        category = root.get("category")
+        if category not in _ROOT_CAUSE_RELEVANCE:
+            return None
+        repaired["skill_update_relevance"] = _ROOT_CAUSE_RELEVANCE[category]
+
+    relevance = repaired.get("skill_update_relevance")
+    if "NON_UPDATE_AXIS_MUST_BE_NONE" in errors:
+        if relevance not in {"none", "uncertain"}:
+            return None
+        repaired["update_axis"] = "none"
+
+    if errors & {"UPDATE_REQUIRES_ACTIVE_AXIS", "UPDATE_AXIS_RELATION_MISMATCH"}:
+        if relevance != "update":
+            return None
+        task_supportive = analysis.get("task_success_relation") == "supportive"
+        compliance_supportive = analysis.get("compliance_relation") == "supportive"
+        if not task_supportive and not compliance_supportive:
+            return None
+        repaired["update_axis"] = (
+            "both" if task_supportive and compliance_supportive
+            else "task_success" if task_supportive
+            else "compliance"
+        )
+
+    action = recommendation.get("action")
+    if errors & {"ADD_MUST_NOT_PRESELECT_SECTION", "ADD_MUST_NOT_TARGET_RULE"}:
+        if action != "add":
+            return None
+        recommendation["target_section"] = None
+        recommendation["target_rule_id"] = None
+
+    if "NON_UPDATE_RELEVANCE_ACTION_MISMATCH" in errors:
+        if relevance not in {"none", "uncertain"}:
+            return None
+        recommendation["action"] = "none"
+        recommendation["target_section"] = None
+        recommendation["target_rule_id"] = None
+    elif "NONE_MUST_NOT_HAVE_TARGET" in errors:
+        if action != "none":
+            return None
+        recommendation["target_section"] = None
+        recommendation["target_rule_id"] = None
+
+    return repaired
 
 
 def parse_and_validate_diagnosis(

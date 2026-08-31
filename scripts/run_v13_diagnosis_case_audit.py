@@ -26,13 +26,13 @@ from src.skill_evolution.autonomous_gse_v13_benchmark_runtime import (
     load_authoritative_domain_contexts,
 )
 from src.skill_evolution.autonomous_gse_v13_proposal import structured_skill
-from src.skill_evolution.diagnosis_contract_v13 import parse_and_validate_diagnosis
+from src.skill_evolution.diagnosis_contract_v13 import (
+    parse_and_validate_diagnosis, repair_diagnosis_contract_fields,
+)
 from src.skill_evolution.diagnosis_v13 import (
     EMPTY_RESPONSE_RETRIES,
     LEARNER_MODEL,
     MultiRolloutDiagnosisRequest,
-    _json_parseable_diagnosis_response,
-    build_diagnosis_contract_repair_prompts,
     build_diagnosis_prompts,
 )
 
@@ -397,84 +397,41 @@ def main() -> None:
             json.loads(saved_case.read_text(encoding="utf-8"))
             if saved_case.is_file() else None
         )
-        if (
-            saved_record
-            and saved_record.get("completion", {}).get("initial", {}).get(
-                "contract_repair_retry_count"
-            ) == 1
-        ):
-            raw = saved_record["initial_raw_response"]
-            validation = parse_and_validate_diagnosis(
-                request.diagnosis_id, raw,
-                experiences=experiences, skill_sections=sections,
-            )
-            summary = _diagnosis_summary(
-                cohort=cohort, domain=domain, task_id=task_id,
-                experiences=experiences,
-                diagnosis=validation.structured_output or {},
-                valid=validation.valid,
-                validation_errors=list(validation.validation_errors),
-            )
-            summary["contract_repair_retry_count"] = 1
-            summary = _apply_review(
-                summary, output_available=True, reviews=reviews,
-            )
-            saved_record.update({
-                "completion": saved_record["completion"]["initial"],
-                "raw_response": raw,
-                "validation": validation.as_dict(),
-                "summary": summary,
-            })
-            _write_json(saved_case, saved_record)
-            return index, summary
         if saved_record and saved_record.get("raw_response"):
-            saved_summary = saved_record["summary"]
-            if (
-                saved_summary["diagnosis_valid"]
-                or saved_record.get("completion", {}).get(
-                    "contract_repair_retry_count"
-                ) == 1
-                or not _json_parseable_diagnosis_response(saved_record["raw_response"])
-            ):
-                return index, _apply_review(
-                    saved_summary, output_available=True, reviews=reviews,
-                )
-            initial_raw = saved_record["raw_response"]
-            initial_completion = saved_record.get("completion")
-            repair_system, repair_user = build_diagnosis_contract_repair_prompts(
-                initial_raw, tuple(saved_summary["validation_errors"]),
-            )
-            raw, model, usage, repair_completion = _call_diagnosis(
-                repair_system, repair_user,
-            )
-            completion = {
-                "contract_repair_retry_count": 1,
-                "initial": initial_completion,
-                "repair": repair_completion,
-            }
+            initial_raw = saved_record.get("initial_raw_response") or saved_record["raw_response"]
+            raw = initial_raw
+            model = saved_record.get("resolved_model", MODEL_SLUG)
+            usage = saved_record.get("usage")
+            completion = copy.deepcopy(saved_record.get("completion") or {})
         else:
             raw, model, usage, completion = _call_diagnosis(system, user)
             initial_raw = raw
-            if raw:
-                initial_validation = parse_and_validate_diagnosis(
-                    request.diagnosis_id, raw,
-                    experiences=experiences, skill_sections=sections,
+        deterministic_repair_count = 0
+        if raw:
+            initial_validation = parse_and_validate_diagnosis(
+                request.diagnosis_id, raw,
+                experiences=experiences, skill_sections=sections,
+            )
+            if not initial_validation.valid:
+                repaired = repair_diagnosis_contract_fields(
+                    initial_validation.structured_output,
+                    initial_validation.validation_errors,
                 )
-                if (
-                    not initial_validation.valid
-                    and _json_parseable_diagnosis_response(raw)
-                ):
-                    repair_system, repair_user = build_diagnosis_contract_repair_prompts(
-                        raw, initial_validation.validation_errors,
+                if repaired is not None:
+                    candidate = (
+                        "<DIAGNOSIS_JSON>"
+                        + json.dumps(repaired, ensure_ascii=False, separators=(",", ":"))
+                        + "</DIAGNOSIS_JSON>"
                     )
-                    raw, model, usage, repair_completion = _call_diagnosis(
-                        repair_system, repair_user,
+                    candidate_validation = parse_and_validate_diagnosis(
+                        request.diagnosis_id, candidate,
+                        experiences=experiences, skill_sections=sections,
                     )
-                    completion = {
-                        "contract_repair_retry_count": 1,
-                        "initial": completion,
-                        "repair": repair_completion,
-                    }
+                    if candidate_validation.valid:
+                        raw = candidate
+                        deterministic_repair_count = 1
+        completion["contract_repair_retry_count"] = 0
+        completion["deterministic_contract_repair_count"] = deterministic_repair_count
         if raw:
             validation = parse_and_validate_diagnosis(
                 request.diagnosis_id,

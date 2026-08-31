@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -11,12 +10,12 @@ from typing import Any
 from src.adapters.tau2.tau3_evaluation_scope_v13 import benchmark_exclusion_prompt
 from src.skill_evolution.autonomous_gse_v05_proposal import _parse_skill, annotate_parent_skill
 from src.skill_evolution.diagnosis_contract_v13 import (
-    parse_and_validate_diagnosis, validate_task_evidence_group,
+    parse_and_validate_diagnosis, repair_diagnosis_contract_fields,
+    validate_task_evidence_group,
 )
 
 LEARNER_MODEL = "openai/deepseek-v4-pro"
 EMPTY_RESPONSE_RETRIES = 2
-CONTRACT_REPAIR_RETRIES = 1
 
 
 @dataclass(frozen=True)
@@ -147,39 +146,6 @@ def build_diagnosis_prompts(request: MultiRolloutDiagnosisRequest) -> tuple[str,
     )
 
 
-def _json_parseable_diagnosis_response(response: str) -> bool:
-    text = response.strip()
-    if re.fullmatch(r"```(?:json)?\s*.*?\s*```", text, flags=re.DOTALL | re.IGNORECASE):
-        text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text, flags=re.IGNORECASE)
-    if text.startswith("<DIAGNOSIS_JSON>") and text.endswith("</DIAGNOSIS_JSON>"):
-        text = text.removeprefix("<DIAGNOSIS_JSON>").removesuffix("</DIAGNOSIS_JSON>").strip()
-    try:
-        return isinstance(json.loads(text), dict)
-    except json.JSONDecodeError:
-        return False
-
-
-def build_diagnosis_contract_repair_prompts(
-    original_response: str, validation_errors: tuple[str, ...],
-) -> tuple[str, str]:
-    return (
-        "You are the v0.13 Diagnosis contract repair serializer. Repair exactly one "
-        "JSON response using the supplied deterministic validation errors. Preserve "
-        "the original behavioral mechanism, evidence assessment, Parent Skill "
-        "assessment, and attribution unless a reported consistency error requires a "
-        "field mapping change. Do not re-diagnose trajectories or introduce new "
-        "evidence. Return exactly one DIAGNOSIS_JSON tagged object and no prose.\n\n"
-        + DIAGNOSIS_SYSTEM_PROMPT,
-        "<ORIGINAL_DIAGNOSIS_RESPONSE>\n"
-        + original_response.strip()
-        + "\n</ORIGINAL_DIAGNOSIS_RESPONSE>\n\n"
-        + "<DETERMINISTIC_VALIDATION_ERRORS>\n"
-        + json.dumps(list(validation_errors), ensure_ascii=False)
-        + "\n</DETERMINISTIC_VALIDATION_ERRORS>\n\n"
-        + "Repair only the schema or deterministic field inconsistencies reported above.",
-    )
-
-
 def _call_nonempty_diagnosis(
     learner_call: LearnerCall, system: str, user: str,
 ) -> str:
@@ -203,13 +169,25 @@ def _call_nonempty_diagnosis(
 def call_diagnosis(request: MultiRolloutDiagnosisRequest, *, learner_call: LearnerCall = _default_learner_call) -> str:
     system, user = build_diagnosis_prompts(request)
     response = _call_nonempty_diagnosis(learner_call, system, user)
+    skill_sections = _parse_skill(request.current_parent_skill)
     validation = parse_and_validate_diagnosis(
         request.diagnosis_id, response, experiences=request.rollouts,
-        skill_sections=_parse_skill(request.current_parent_skill),
+        skill_sections=skill_sections,
     )
-    if validation.valid or not _json_parseable_diagnosis_response(response):
+    if validation.valid:
         return response
-    repair_system, repair_user = build_diagnosis_contract_repair_prompts(
-        response, validation.validation_errors,
+    repaired = repair_diagnosis_contract_fields(
+        validation.structured_output, validation.validation_errors,
     )
-    return _call_nonempty_diagnosis(learner_call, repair_system, repair_user)
+    if repaired is None:
+        return response
+    repaired_response = (
+        "<DIAGNOSIS_JSON>"
+        + json.dumps(repaired, ensure_ascii=False, separators=(",", ":"))
+        + "</DIAGNOSIS_JSON>"
+    )
+    repaired_validation = parse_and_validate_diagnosis(
+        request.diagnosis_id, repaired_response, experiences=request.rollouts,
+        skill_sections=skill_sections,
+    )
+    return repaired_response if repaired_validation.valid else response

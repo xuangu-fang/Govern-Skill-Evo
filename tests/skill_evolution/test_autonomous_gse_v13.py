@@ -26,9 +26,12 @@ from src.skill_evolution.autonomous_gse_v13_benchmark_runtime import (
 from src.skill_evolution.autonomous_gse_v13_proposal import (
     MultiRolloutDiagnosisProposalOperator, _contains_task_specific_recipe,
 )
-from src.skill_evolution.diagnosis_contract_v13 import validate_diagnosis
+from src.skill_evolution.diagnosis_contract_v13 import (
+    REPAIRABLE_CONTRACT_ERRORS, parse_and_validate_diagnosis,
+    repair_diagnosis_contract_fields, validate_diagnosis,
+)
 from src.skill_evolution.diagnosis_v13 import (
-    CONTRACT_REPAIR_RETRIES, DIAGNOSIS_SYSTEM_PROMPT, EMPTY_RESPONSE_RETRIES,
+    DIAGNOSIS_SYSTEM_PROMPT, EMPTY_RESPONSE_RETRIES,
     MultiRolloutDiagnosisRequest, build_diagnosis_prompts, call_diagnosis,
 )
 from src.skill_evolution.evolution_gate_v13 import build_evolution_decision
@@ -277,25 +280,31 @@ class V13DiagnosisEditorTests(unittest.TestCase):
             call_diagnosis(_diagnosis_request(), learner_call=learner_call)
         self.assertEqual(len(calls), 1)
 
-    def test_diagnosis_repairs_parseable_contract_error_once(self):
+    def test_contract_repair_root_cause_relevance_is_deterministic(self):
         invalid = _diagnosis(relevance="none", category="uncertain")
-        repaired = _tag(_diagnosis())
+        original = copy.deepcopy(invalid)
         calls = []
 
         def learner_call(model, system, user):
             calls.append((model, system, user))
-            if len(calls) == 1:
-                return json.dumps(invalid), model.removeprefix("openai/"), None
-            return repaired, model.removeprefix("openai/"), None
+            return _tag(invalid), model.removeprefix("openai/"), None
 
-        self.assertEqual(call_diagnosis(
+        response = call_diagnosis(
             _diagnosis_request(), learner_call=learner_call,
-        ), repaired)
-        self.assertEqual(CONTRACT_REPAIR_RETRIES, 1)
-        self.assertEqual(len(calls), 2)
-        self.assertIn("contract repair serializer", calls[1][1])
-        self.assertIn("UNPARSEABLE_DIAGNOSIS", calls[1][2])
-        self.assertIn(json.dumps(invalid), calls[1][2])
+        )
+        validation = parse_and_validate_diagnosis(
+            "diagnosis_001", response, experiences=_group(),
+            skill_sections={"Planning and navigation": []},
+        )
+        self.assertTrue(validation.valid)
+        repaired = validation.structured_output
+        self.assertEqual(repaired["skill_update_relevance"], "uncertain")
+        self.assertEqual(repaired["update_axis"], "none")
+        self.assertEqual(repaired["update_recommendation"]["action"], "none")
+        self.assertEqual(repaired["behavior_analysis"], original["behavior_analysis"])
+        self.assertEqual(repaired["parent_skill_coverage"], original["parent_skill_coverage"])
+        self.assertEqual(repaired["root_cause"], original["root_cause"])
+        self.assertEqual(len(calls), 1)
 
     def test_diagnosis_does_not_contract_repair_non_json_response(self):
         calls = []
@@ -308,18 +317,188 @@ class V13DiagnosisEditorTests(unittest.TestCase):
         self.assertEqual(response, '<DIAGNOSIS_JSON>{"task_behavior_summary":')
         self.assertEqual(len(calls), 1)
 
-    def test_diagnosis_contract_repair_is_not_retried_twice(self):
-        invalid = _tag(_diagnosis(relevance="none", category="uncertain"))
+    def test_contract_repair_add_targets_are_cleared_without_llm_call(self):
+        invalid = _diagnosis(
+            relevance="update", action="add", category="skill_issue",
+            update_axis="compliance", problem="policy boundary is skipped",
+            repair_operator="apply the supported boundary",
+        )
+        invalid["update_recommendation"].update({
+            "target_section": "Some Section", "target_rule_id": "R1",
+        })
         calls = []
 
         def learner_call(model, system, user):
             calls.append((model, system, user))
-            return invalid, model.removeprefix("openai/"), None
+            return _tag(invalid), model.removeprefix("openai/"), None
+
+        response = call_diagnosis(
+            _diagnosis_request(), learner_call=learner_call,
+        )
+        validation = parse_and_validate_diagnosis(
+            "diagnosis_001", response, experiences=_group(),
+            skill_sections={"Planning and navigation": []},
+        )
+        self.assertTrue(validation.valid)
+        recommendation = validation.structured_output["update_recommendation"]
+        self.assertIsNone(recommendation["target_section"])
+        self.assertIsNone(recommendation["target_rule_id"])
+        self.assertEqual(len(calls), 1)
+
+    def test_contract_repair_non_update_action_cleanup(self):
+        invalid = _diagnosis(relevance="none", action="add", category=None)
+        invalid["update_recommendation"].update({
+            "target_section": "Some Section", "target_rule_id": "R1",
+        })
+        response = call_diagnosis(
+            _diagnosis_request(),
+            learner_call=lambda model, system, user: (_tag(invalid), model, None),
+        )
+        validation = parse_and_validate_diagnosis(
+            "diagnosis_001", response, experiences=_group(),
+            skill_sections={"Planning and navigation": []},
+        )
+        self.assertTrue(validation.valid)
+        recommendation = validation.structured_output["update_recommendation"]
+        self.assertEqual(recommendation["action"], "none")
+        self.assertIsNone(recommendation["target_section"])
+        self.assertIsNone(recommendation["target_rule_id"])
+
+    def test_contract_repair_update_axis_uses_existing_relations(self):
+        invalid = _diagnosis(
+            relevance="update", action="add", category="skill_issue",
+            update_axis="both", task_success_relation="insufficient",
+            compliance_relation="supportive", problem="policy boundary is skipped",
+            repair_operator="apply the supported boundary",
+        )
+        original_analysis = copy.deepcopy(invalid["behavior_analysis"])
+        response = call_diagnosis(
+            _diagnosis_request(),
+            learner_call=lambda model, system, user: (_tag(invalid), model, None),
+        )
+        validation = parse_and_validate_diagnosis(
+            "diagnosis_001", response, experiences=_group(),
+            skill_sections={"Planning and navigation": []},
+        )
+        self.assertTrue(validation.valid)
+        self.assertEqual(validation.structured_output["update_axis"], "compliance")
+        self.assertEqual(validation.structured_output["behavior_analysis"], original_analysis)
+
+    def test_semantic_coverage_inconsistency_is_not_repaired(self):
+        invalid = _diagnosis(
+            relevance="none", category="execution_issue",
+            evidence_pattern="recurrent", coverage_status="missing",
+        )
+        raw = _tag(invalid)
+        calls = []
+
+        def learner_call(model, system, user):
+            calls.append((model, system, user))
+            return raw, model, None
 
         self.assertEqual(call_diagnosis(
             _diagnosis_request(), learner_call=learner_call,
-        ), invalid)
-        self.assertEqual(len(calls), 2)
+        ), raw)
+        self.assertEqual(len(calls), 1)
+        self.assertIn(
+            "EXECUTION_ISSUE_REQUIRES_ALREADY_COVERED",
+            validate_diagnosis(
+                invalid, experiences=_group(),
+                skill_sections={"Planning and navigation": []},
+            ),
+        )
+
+    def test_missing_behavioral_mechanism_is_not_repaired(self):
+        invalid = _diagnosis(
+            relevance="update", action="add", category="skill_issue",
+            update_axis="task_success", problem="required check is skipped",
+            repair_operator="perform the check",
+        )
+        invalid["behavior_analysis"]["behavioral_mechanism"] = ""
+        errors = validate_diagnosis(
+            invalid, experiences=_group(), skill_sections={"Planning and navigation": []},
+        )
+        self.assertIn("UPDATE_REQUIRES_BEHAVIORAL_MECHANISM", errors)
+        self.assertIsNone(repair_diagnosis_contract_fields(invalid, errors))
+
+    def test_update_relevance_action_mismatch_is_not_repaired(self):
+        invalid = _diagnosis(
+            relevance="update", action="none", category="skill_issue",
+            update_axis="task_success", problem="required check is skipped",
+            repair_operator="perform the check",
+        )
+        errors = validate_diagnosis(
+            invalid, experiences=_group(), skill_sections={"Planning and navigation": []},
+        )
+        self.assertEqual(errors, ("UPDATE_RELEVANCE_ACTION_MISMATCH",))
+        self.assertIsNone(repair_diagnosis_contract_fields(invalid, errors))
+
+    def test_invalid_target_behavior_is_not_repaired(self):
+        invalid = _diagnosis()
+        invalid["target_behavior"]["decision_boundary"] = None
+        errors = validate_diagnosis(
+            invalid, experiences=_group(), skill_sections={"Planning and navigation": []},
+        )
+        self.assertEqual(errors, ("INVALID_TARGET_BEHAVIOR",))
+        self.assertIsNone(repair_diagnosis_contract_fields(invalid, errors))
+
+    def test_mixed_mechanical_and_semantic_errors_are_not_partially_repaired(self):
+        invalid = _diagnosis(
+            relevance="update", action="add", category="skill_issue",
+            update_axis="task_success", problem="required check is skipped",
+            repair_operator="perform the check",
+        )
+        invalid["behavior_analysis"]["behavioral_mechanism"] = ""
+        invalid["update_recommendation"]["target_section"] = "Some Section"
+        errors = validate_diagnosis(
+            invalid, experiences=_group(), skill_sections={"Planning and navigation": []},
+        )
+        self.assertIn("ADD_MUST_NOT_PRESELECT_SECTION", errors)
+        self.assertIn("UPDATE_REQUIRES_BEHAVIORAL_MECHANISM", errors)
+        self.assertIsNone(repair_diagnosis_contract_fields(invalid, errors))
+        self.assertEqual(invalid["update_recommendation"]["target_section"], "Some Section")
+
+    def test_mechanical_repair_is_formally_revalidated(self):
+        invalid = _diagnosis(relevance="none", category="uncertain")
+        validator_path = "src.skill_evolution.diagnosis_v13.parse_and_validate_diagnosis"
+        with patch(validator_path, wraps=parse_and_validate_diagnosis) as validator:
+            response = call_diagnosis(
+                _diagnosis_request(),
+                learner_call=lambda model, system, user: (_tag(invalid), model, None),
+            )
+        self.assertEqual(validator.call_count, 2)
+        self.assertTrue(parse_and_validate_diagnosis(
+            "diagnosis_001", response, experiences=_group(),
+            skill_sections={"Planning and navigation": []},
+        ).valid)
+
+    def test_contract_invalid_never_calls_llm_repair(self):
+        repairable = _tag(_diagnosis(relevance="none", category="uncertain"))
+        semantic = _diagnosis(
+            relevance="none", category="execution_issue",
+            evidence_pattern="recurrent", coverage_status="missing",
+        )
+        for raw in (repairable, _tag(semantic)):
+            calls = []
+
+            def learner_call(model, system, user):
+                calls.append((model, system, user))
+                return raw, model, None
+
+            call_diagnosis(_diagnosis_request(), learner_call=learner_call)
+            self.assertEqual(len(calls), 1)
+
+    def test_contract_repair_whitelist_is_explicit(self):
+        self.assertEqual(REPAIRABLE_CONTRACT_ERRORS, frozenset({
+            "ROOT_CAUSE_RELEVANCE_MISMATCH",
+            "NON_UPDATE_AXIS_MUST_BE_NONE",
+            "UPDATE_REQUIRES_ACTIVE_AXIS",
+            "UPDATE_AXIS_RELATION_MISMATCH",
+            "ADD_MUST_NOT_PRESELECT_SECTION",
+            "ADD_MUST_NOT_TARGET_RULE",
+            "NONE_MUST_NOT_HAVE_TARGET",
+            "NON_UPDATE_RELEVANCE_ACTION_MISMATCH",
+        }))
 
     def test_diagnosis_request_contains_complete_authoritative_domain_context(self):
         contexts = load_authoritative_domain_contexts(ROOT / "external/tau2-bench")
