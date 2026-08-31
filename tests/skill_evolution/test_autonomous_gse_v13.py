@@ -24,7 +24,8 @@ from src.skill_evolution.autonomous_gse_v13_benchmark_runtime import (
     _tool_contracts_from_authoritative_source,
 )
 from src.skill_evolution.autonomous_gse_v13_proposal import (
-    MultiRolloutDiagnosisProposalOperator, _contains_task_specific_recipe,
+    DiagnosisEditorRequest, MultiRolloutDiagnosisProposalOperator,
+    _contains_task_specific_recipe,
 )
 from src.skill_evolution.diagnosis_contract_v13 import (
     REPAIRABLE_CONTRACT_ERRORS, parse_and_validate_diagnosis,
@@ -1132,13 +1133,96 @@ class V13DiagnosisEditorTests(unittest.TestCase):
 
     def test_editor_prompt_requires_mechanism_equivalence_and_operational_target(self):
         self.assertIn("Semantic or thematic similarity alone is not sufficient", EDITOR_SYSTEM_PROMPT)
-        self.assertIn("necessary scope semantics are compatible", EDITOR_SYSTEM_PROMPT)
+        self.assertIn("compatible necessary scope semantics", EDITOR_SYSTEM_PROMPT)
         self.assertIn("Minimality concerns unnecessary behavioral constraints, not wording length", EDITOR_SYSTEM_PROMPT)
         self.assertIn("If a merged edit cannot retain one", EDITOR_SYSTEM_PROMPT)
         self.assertIn("Counterevidence constrains final rule strength", EDITOR_SYSTEM_PROMPT)
         self.assertNotIn("Product-record integrity", EDITOR_SYSTEM_PROMPT)
         self.assertNotIn("refund route", EDITOR_SYSTEM_PROMPT)
         self.assertNotIn("explicit authorization", EDITOR_SYSTEM_PROMPT)
+
+    def test_editor_case_a_removes_episode_value_but_preserves_decision_predicate(self):
+        parent = (CAMPAIGN_DIR / "skills/S0_empty_skill.md").read_text().replace(
+            "# Operational Skill", "# SuiteCRM Operational Skill", 1
+        )
+        signal = {
+            "patch_id": "diagnosis_001",
+            "target_behavior": {
+                "problem": "An action proceeds without resolving an added resource requirement of 37 units.",
+                "trigger_condition": "The proposed change creates a positive resource delta.",
+                "decision_boundary": "A positive delta requires a feasible additional resource; a zero delta does not.",
+                "repair_operator": "Verify feasibility before the state-changing action.",
+                "stopping_boundary": "Do not execute while feasibility is unresolved.",
+                "expected_behavior": "Abstract the 37-unit example but preserve the positive-delta predicate.",
+            },
+        }
+        _, user = build_editor_prompts(DiagnosisEditorRequest(
+            candidate_id="candidate", current_parent_skill=parent,
+            eligible_diagnoses=(signal,),
+            domain_contexts=({"domain": "synthetic", "original_domain_policy": "# Policy\nAllowed."},),
+        ))
+        self.assertIn("37 units", user)
+        self.assertIn("positive resource delta", user)
+        self.assertIn("Generalize episode-specific values, not the conditions", EDITOR_SYSTEM_PROMPT)
+        self.assertIn("ask whether it determines the correct action", EDITOR_SYSTEM_PROMPT)
+
+    def test_editor_case_b_preserves_feasibility_conditions(self):
+        self.assertIn("feasibility condition", EDITOR_SYSTEM_PROMPT)
+        self.assertIn("If removing a predicate would make the rule apply", EDITOR_SYSTEM_PROMPT)
+
+    def test_editor_case_c_preserves_necessary_ordering(self):
+        self.assertIn("necessary ordering relation", EDITOR_SYSTEM_PROMPT)
+        self.assertIn("Preserve supported predicates and ordering", EDITOR_SYSTEM_PROMPT)
+
+    def test_editor_case_d_does_not_promote_accidental_episode_order(self):
+        self.assertIn("do not turn accidental episode order into a new obligation", EDITOR_SYSTEM_PROMPT)
+
+    def test_editor_case_e_thematic_similarity_does_not_enable_merge(self):
+        self.assertIn("Sharing a topic, domain, tool, object type", EDITOR_SYSTEM_PROMPT)
+        self.assertIn("is not mechanism equivalence", EDITOR_SYSTEM_PROMPT)
+
+    def test_editor_case_f_true_mechanism_equivalence_may_merge(self):
+        for condition in (
+            "same problem mechanism",
+            "compatible triggers and decision boundaries",
+            "same repair operator",
+            "compatible necessary scope semantics",
+        ):
+            self.assertIn(condition, EDITOR_SYSTEM_PROMPT)
+
+    def test_editor_case_g_catch_all_target_cannot_enable_merge(self):
+        self.assertIn("Do not make the verification_target broader", EDITOR_SYSTEM_PROMPT)
+        self.assertIn("Catch-all wording", EDITOR_SYSTEM_PROMPT)
+
+    def test_editor_case_h_stronger_obligation_is_forbidden(self):
+        self.assertIn("A stronger rule is not a safer canonicalization", EDITOR_SYSTEM_PROMPT)
+        self.assertIn("do not replace a conditional requirement with an always-rule", EDITOR_SYSTEM_PROMPT)
+
+    def test_editor_case_i_scope_cannot_expand_beyond_source_mechanisms(self):
+        self.assertIn("must not enlarge the trigger scope", EDITOR_SYSTEM_PROMPT)
+        self.assertIn("minimum reusable scope jointly supported", EDITOR_SYSTEM_PROMPT)
+
+    def test_editor_case_j_policy_may_veto_but_not_create_an_edit(self):
+        self.assertIn("Policy may veto an unsupported or forbidden canonicalization", EDITOR_SYSTEM_PROMPT)
+        self.assertIn("Policy alone must not create an edit or obligation", EDITOR_SYSTEM_PROMPT)
+
+    def test_editor_schema_and_input_boundary_remain_unchanged(self):
+        self.assertIn(
+            "fields derived_from_patch_ids, operation, section, target_rule_id, text, reason, "
+            "source_ids, repair_policy_ids, verification_target",
+            EDITOR_SYSTEM_PROMPT,
+        )
+        for absent in (
+            "generalization_check", "merge_confidence", "predicate_preservation", "scope_score",
+        ):
+            self.assertNotIn(absent, EDITOR_SYSTEM_PROMPT)
+        self.assertNotIn("available_tool_contracts", EDITOR_SYSTEM_PROMPT)
+
+    def test_multi_source_reason_must_explain_mechanism_equivalence(self):
+        self.assertIn("shared behavioral mechanism", EDITOR_SYSTEM_PROMPT)
+        self.assertIn("shared trigger or decision boundary", EDITOR_SYSTEM_PROMPT)
+        self.assertIn("identical repair operator", EDITOR_SYSTEM_PROMPT)
+        self.assertIn("preserves every source's necessary conditions", EDITOR_SYSTEM_PROMPT)
 
     def test_task_specific_guard_allows_generic_workflow_ordering(self):
         self.assertFalse(_contains_task_specific_recipe(
