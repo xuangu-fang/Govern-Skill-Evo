@@ -32,6 +32,22 @@ def resolve_skill_artifact_path(skill_path_identity: str) -> Path:
     return path if path.is_absolute() else REPO_ROOT / path
 
 
+def learner_skill_text(artifact_text: str) -> str:
+    """Convert canonical artifact text to the frozen learner's internal title."""
+
+    return artifact_text.replace(
+        "# Operational Skill", "# SuiteCRM Operational Skill", 1,
+    )
+
+
+def canonical_skill_text(learner_text: str) -> str:
+    """Convert learner output back to the canonical artifact title."""
+
+    return learner_text.replace(
+        "# SuiteCRM Operational Skill", "# Operational Skill", 1,
+    )
+
+
 @dataclass(frozen=True)
 class EvolutionServices:
     parent_rollouts: Callable[[int, dict[str, Any], dict[str, str]], dict[str, Any]]
@@ -119,11 +135,12 @@ def _immutable_candidate(
 ) -> dict[str, str]:
     identity = f"candidate_step_{step:02d}"
     path = root / "steps" / f"step_{step:02d}" / "candidate_skill.md"
-    if path.exists() and path.read_text(encoding="utf-8") != candidate_text:
+    artifact_text = canonical_skill_text(candidate_text)
+    if path.exists() and path.read_text(encoding="utf-8") != artifact_text:
         raise OrchestrationContractError("Immutable Candidate artifact would be overwritten.")
     path.parent.mkdir(parents=True, exist_ok=True)
     if not path.exists():
-        path.write_text(candidate_text, encoding="utf-8")
+        path.write_text(artifact_text, encoding="utf-8")
     return {"skill_id": identity, "skill_version": identity, "skill_path": path.as_posix()}
 
 
@@ -197,9 +214,9 @@ def run_evolution_step(
             proposal_path, batch_id=batch["batch_id"], parent=parent,
         )
         if proposal is None:
-            parent_text = resolve_skill_artifact_path(
+            parent_text = learner_skill_text(resolve_skill_artifact_path(
                 parent["skill_path"],
-            ).read_text(encoding="utf-8")
+            ).read_text(encoding="utf-8"))
             context = ProposalContext(
                 candidate_id=f"candidate_step_{step:02d}", parent_skill=parent_text,
                 current_batch_governed_evidence=tuple(copy.deepcopy(parent_bundle["evidence"])),

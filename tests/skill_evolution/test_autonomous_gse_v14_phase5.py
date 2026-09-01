@@ -9,11 +9,13 @@ from types import SimpleNamespace
 import pytest
 
 from src.skill_evolution.autonomous_gse_v14_orchestrator import (
-    EvolutionServices, _analysis_edits, resume_campaign, run_campaign,
+    EvolutionServices, _analysis_edits, _immutable_candidate,
+    canonical_skill_text, learner_skill_text, resume_campaign, run_campaign,
     run_evolution_step,
 )
 from src.skill_evolution import autonomous_gse_v14_benchmark_runtime as runtime
 from src.skill_evolution import autonomous_gse_v14_orchestrator as orchestrator
+from src.skill_evolution import autonomous_gse_v14_proposal as proposal_v14
 from src.skill_evolution.regression_analysis_v14 import (
     RegressionAnalysisRequest, analyze_regressions, select_adverse_pairs,
 )
@@ -187,6 +189,60 @@ def test_legal_noop_retains_without_candidate_cost(tmp_path):
     }
     assert next_parent == parent and next_monitor == {"S0": True}
     assert calls["monitor"] == [] and calls["replay"] == []
+
+
+def test_canonical_s0_artifact_is_normalized_only_for_learner_context(tmp_path):
+    artifact_text = (
+        "# Operational Skill\n\n"
+        "## Planning and navigation\n\n"
+        "## Execution patterns\n\n"
+        "## Form entry and verification\n\n"
+        "## Error recovery and stopping\n"
+    )
+    skill = tmp_path / "S0.md"
+    skill.write_text(artifact_text, encoding="utf-8")
+    parent = {"skill_id": "S0", "skill_version": "S0", "skill_path": str(skill)}
+    observed = []
+
+    def proposal(context, _step):
+        observed.append(context.parent_skill)
+        assert proposal_v14.structured_skill(context.parent_skill) == {
+            "Planning and navigation": [], "Execution patterns": [],
+            "Form entry and verification": [], "Error recovery and stopping": [],
+        }
+        return _noop()
+
+    run_evolution_step(
+        step=1, batch=_batches()[0], parent=parent, parent_monitor={"S0": True},
+        campaign={}, services=_services([], _calls(), proposal=proposal),
+        artifact_root=tmp_path / "artifacts",
+    )
+
+    assert observed[0].startswith("# SuiteCRM Operational Skill\n")
+    assert skill.read_text(encoding="utf-8") == artifact_text
+
+
+def test_candidate_is_saved_canonically_and_reloads_as_valid_learner_skill(tmp_path):
+    learner_text = (
+        "# SuiteCRM Operational Skill\n\n"
+        "## Planning and navigation\n\n"
+        "## Execution patterns\n\n"
+        "## Form entry and verification\n\n"
+        "## Error recovery and stopping\n"
+    )
+    candidate = _immutable_candidate(
+        root=tmp_path / "artifacts", step=1, candidate_text=learner_text,
+    )
+    path = Path(candidate["skill_path"])
+    artifact_text = path.read_text(encoding="utf-8")
+
+    assert artifact_text.startswith("# Operational Skill\n")
+    assert learner_skill_text(artifact_text) == learner_text
+    assert canonical_skill_text(learner_text) == artifact_text
+    assert proposal_v14.structured_skill(learner_skill_text(artifact_text)) == {
+        "Planning and navigation": [], "Execution patterns": [],
+        "Form entry and verification": [], "Error recovery and stopping": [],
+    }
 
 
 def test_successful_step_removes_stale_execution_error(tmp_path):
