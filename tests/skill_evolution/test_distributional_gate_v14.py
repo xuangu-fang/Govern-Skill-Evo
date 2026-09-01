@@ -29,13 +29,24 @@ def _synthetic_report(
             success_count += task_success
             compliance_count += task_compliance
             for rollout_index, (delta_success, delta_compliance) in enumerate(deltas, start=1):
+                parent_state, candidate_state = {
+                    (0, 0): ("CS", "CS"),
+                    (1, 0): ("CF", "CS"),
+                    (-1, 0): ("CS", "CF"),
+                    (0, 1): ("VS", "CS"),
+                    (0, -1): ("CS", "VS"),
+                    (1, 1): ("VF", "CS"),
+                    (1, -1): ("CF", "VS"),
+                    (-1, 1): ("VS", "CF"),
+                    (-1, -1): ("CS", "VF"),
+                }[(delta_success, delta_compliance)]
                 matched_pairs.append({
                     "domain": domain,
                     "task_id": task_id,
                     "rollout_index": rollout_index,
                     "rollout_seed": 199 + rollout_index,
-                    "parent_state": "VF",
-                    "candidate_state": "CS",
+                    "parent_state": parent_state,
+                    "candidate_state": candidate_state,
                     "delta_success": delta_success,
                     "delta_compliance": delta_compliance,
                 })
@@ -86,6 +97,41 @@ def test_epsilon_pareto_positive_region_boundaries(
     delta_success, delta_compliance, expected,
 ):
     assert gate.is_epsilon_pareto_positive(delta_success, delta_compliance) is expected
+
+
+@pytest.mark.parametrize(
+    ("parent_state", "candidate_state", "deltas", "valid"),
+    (
+        ("CF", "CS", (1, 0), True),
+        ("CF", "CS", (0, 0), False),
+        ("VS", "CF", (-1, 1), True),
+        ("VS", "CF", (1, -1), False),
+        ("CS", "CS", (0, 0), True),
+    ),
+)
+def test_state_transition_must_match_pair_deltas(
+    parent_state, candidate_state, deltas, valid,
+):
+    report = _synthetic_report()
+    pair = report["matched_pairs"][0]
+    pair.update({
+        "parent_state": parent_state,
+        "candidate_state": candidate_state,
+        "delta_success": deltas[0],
+        "delta_compliance": deltas[1],
+    })
+    effect = report["task_level_effects"][0]
+    effect["mean_delta_success"] = deltas[0] / 3
+    effect["mean_delta_compliance"] = deltas[1] / 3
+    report["overall_shift"] = {
+        "delta_success": deltas[0] / 60,
+        "delta_compliance": deltas[1] / 60,
+    }
+    if valid:
+        gate.build_distributional_gate_decision(report)
+    else:
+        with pytest.raises(gate.DistributionalGateContractError, match="disagrees"):
+            gate.build_distributional_gate_decision(report)
 
 
 def test_obviously_positive_candidate_is_accepted():

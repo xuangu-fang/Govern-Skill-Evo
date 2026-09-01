@@ -18,6 +18,12 @@ TASKS_PER_DOMAIN = 10
 ROLLOUTS_PER_TASK = 3
 TOTAL_TASKS = 20
 TOTAL_PAIRS = 60
+STATE_OUTCOMES = {
+    "CS": (1, 1),
+    "CF": (0, 1),
+    "VS": (1, 0),
+    "VF": (0, 0),
+}
 
 DEFAULT_GATE_CONFIG: dict[str, Any] = {
     "bootstrap_unit": "task",
@@ -123,6 +129,7 @@ def build_task_clusters(joint_report: dict[str, Any]) -> list[dict[str, Any]]:
         rollout_index, rollout_seed = pair.get("rollout_index"), pair.get("rollout_seed")
         delta_success = pair.get("delta_success")
         delta_compliance = pair.get("delta_compliance")
+        parent_state, candidate_state = pair.get("parent_state"), pair.get("candidate_state")
         if domain not in EXPECTED_DOMAINS or not isinstance(task_id, str) or not task_id:
             raise DistributionalGateContractError("Matched-pair task lineage is invalid.")
         if (
@@ -138,6 +145,19 @@ def build_task_clusters(joint_report: dict[str, Any]) -> list[dict[str, Any]]:
             or delta_compliance not in {-1, 0, 1}
         ):
             raise DistributionalGateContractError("Matched-pair deltas must be -1, 0, or 1.")
+        if parent_state not in STATE_OUTCOMES or candidate_state not in STATE_OUTCOMES:
+            raise DistributionalGateContractError("Matched-pair state transition is invalid.")
+        parent_outcome, candidate_outcome = (
+            STATE_OUTCOMES[parent_state], STATE_OUTCOMES[candidate_state]
+        )
+        expected_delta = (
+            candidate_outcome[0] - parent_outcome[0],
+            candidate_outcome[1] - parent_outcome[1],
+        )
+        if (delta_success, delta_compliance) != expected_delta:
+            raise DistributionalGateContractError(
+                "Matched-pair state transition disagrees with its deltas."
+            )
         key = (domain, task_id, rollout_index, rollout_seed)
         if key in lineage:
             raise DistributionalGateContractError("Matched-pair lineage is duplicated.")

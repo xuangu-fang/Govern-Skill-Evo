@@ -249,7 +249,11 @@ class TestV14LearnerIsolationAndPlan:
         assert gate["bootstrap_replicates"] == 10000
         assert gate["additional_trajectories"] == 0
         assert gate["automatic_candidate_execution"] is False
-        assert plan["phase_5_and_later"] == "not_implemented"
+        phase5 = workload["phase_5_orchestration"]
+        assert phase5["candidate_step_trajectories"] == 180
+        assert phase5["three_step_worst_case_trajectories"] == 540
+        assert phase5["final_test_automatic_execution"] is False
+        assert plan["phase_6_and_later"] == "not_implemented"
 
     def test_contract_rejects_sampling_drift(self, campaign, batch_map):
         drifted = copy.deepcopy(campaign)

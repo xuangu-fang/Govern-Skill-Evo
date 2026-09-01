@@ -1,8 +1,9 @@
-"""Phase 1-4 infrastructure for Autonomous GSE v0.14.
+"""Phase 1-5 infrastructure for Autonomous GSE v0.14.
 
 The learning side is intentionally the v0.13 implementation.  This module only
 adds the v0.14 campaign identity, frozen task partitions, leakage guards,
-matched Monitor measurement, a pure distributional gate, and a dry plan.
+matched Monitor measurement, a pure distributional gate, serial orchestration,
+logging-only current-batch analysis, and a dry plan.
 """
 
 from __future__ import annotations
@@ -26,7 +27,7 @@ from src.adapters.tau2.tau3_gse_runtime import (
 from src.learners.stwebagentbench import generate_governed_skill_v13 as editor_v13
 from src.skill_evolution import autonomous_gse_v13_proposal as proposal_v13
 from src.skill_evolution.autonomous_gse_v13_benchmark_runtime import (
-    load_authoritative_domain_contexts,
+    _build_governed_evidence, load_authoritative_domain_contexts,
 )
 from src.skill_evolution import diagnosis_contract_v13
 from src.skill_evolution import diagnosis_v13
@@ -57,7 +58,7 @@ V13_PROPOSAL_OPERATOR = MultiRolloutDiagnosisProposalOperator()
 
 
 class RuntimeContractError(ValueError):
-    """Raised when a v0.14 Phase 1-4 invariant is violated."""
+    """Raised when a v0.14 Phase 1-5 invariant is violated."""
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -191,14 +192,32 @@ def validate_campaign_contract(campaign: dict[str, Any]) -> None:
         raise RuntimeContractError("v0.14 learner stack is not the frozen v0.13 implementation.")
     if campaign.get("distributional_gate") != DEFAULT_GATE_CONFIG:
         raise RuntimeContractError("v0.14 Distributional Gate config drifted.")
-    if campaign.get("future_features") != {"phase_5_and_later": "not_implemented"}:
-        raise RuntimeContractError("v0.14 Phase 4 boundary is invalid.")
+    if campaign.get("orchestration") != {
+        "promotion_source": "distributional_gate_only",
+        "parent_monitor_cache_promotion": True,
+        "retain_reuses_parent_monitor": True,
+        "no_partial_promotion": True,
+    }:
+        raise RuntimeContractError("v0.14 Phase 5 orchestration contract drifted.")
+    if campaign.get("current_batch_analysis") != {
+        "target_behavior": {"enabled": True, "role": "logging_only"},
+        "regression": {
+            "enabled": True, "role": "logging_only", "selector": "any_negative_axis",
+        },
+        "feedback_to_learner": "forbidden",
+    }:
+        raise RuntimeContractError("v0.14 logging-only analysis contract drifted.")
+    if campaign.get("future_features") != {"phase_6_and_later": "not_implemented"}:
+        raise RuntimeContractError("v0.14 Phase 5 boundary is invalid.")
     if campaign.get("budget") != {
         "defined_evolution_trajectories": 180,
         "monitor_trajectories_per_skill_evaluation": 60,
         "monitor_execution_enabled": True,
         "joint_distribution_additional_trajectories": 0,
         "distributional_gate_additional_trajectories": 0,
+        "candidate_current_batch_replay_trajectories_worst_case": 180,
+        "candidate_monitor_trajectories_worst_case": 180,
+        "three_step_evolution_trajectories_worst_case": 540,
         "final_test_trajectories_if_authorized": 120,
     }:
         raise RuntimeContractError("v0.14 Phase 4 workload budget drifted.")
@@ -535,6 +554,127 @@ class MonitorRolloutBackend:
         return paths
 
 
+class EvolutionRolloutBackendV14:
+    """Execute cached official-train Parent/Candidate current-batch rollouts."""
+
+    def __init__(
+        self, campaign: dict[str, Any], *,
+        judge_caller: compliance_v13.JudgeCaller = compliance_v13.default_judge_caller,
+        artifact_root: Path | None = None,
+    ) -> None:
+        validate_campaign_contract(campaign)
+        self.campaign = copy.deepcopy(campaign)
+        self.root = artifact_root or REPO_ROOT / "artifacts" / PROTOCOL_VERSION / "formal"
+        self.tau2_root = _resolved_path(campaign["benchmark"]["path"])
+        self.contexts = load_authoritative_domain_contexts(self.tau2_root)
+        self.judge_caller = judge_caller
+
+    def _reusable(
+        self, path: Path, *, unit: dict[str, Any], skill: dict[str, str],
+    ) -> bool:
+        try:
+            value = _load_json(path)
+        except (OSError, ValueError, json.JSONDecodeError):
+            return False
+        return (
+            value.get("domain") == unit["domain"]
+            and str(value.get("task_id")) == unit["task_id"]
+            and value.get("phase") == "train"
+            and value.get("skill_version") == skill["skill_version"]
+            and value.get("rollout_index") == unit["rollout_index"]
+            and value.get("rollout_seed") == unit["rollout_seed"]
+            and value.get("provenance", {}).get("skill_id") == skill["skill_id"]
+            and value.get("provenance", {}).get("skill_path") == skill["skill_path"]
+        )
+
+    def _run_one(
+        self, *, unit: dict[str, Any], skill: dict[str, str], output: Path,
+        execution_phase: str,
+    ) -> None:
+        domain, task_id = unit["domain"], unit["task_id"]
+        error_path = output.with_name(output.stem + "_error.json")
+        try:
+            task, simulation = run_official_rollout(
+                tau2_root=self.tau2_root, domain=domain, task_id=task_id,
+                rollout_seed=unit["rollout_seed"], agent_config=self.campaign["agent"],
+                user_simulator_config=self.campaign["user_simulator"],
+                official_evaluator_config=self.campaign["official_evaluator"],
+                skill_path=None if skill["skill_version"] == "S0" else _resolved_path(skill["skill_path"]),
+                task_split="train",
+            )
+            context = self.contexts[domain]
+            evidence = _build_governed_evidence(
+                source_id=(
+                    f"{execution_phase}_{domain}_{task_id}_rollout_{unit['rollout_index']:02d}"
+                ),
+                domain=domain, task=task, simulation=simulation,
+                domain_policy=context["original_domain_policy"],
+                available_tool_contracts=context["available_tool_contracts"],
+                judge_caller=self.judge_caller,
+            )
+            write_rollout_artifact(
+                output, domain=domain, task_id=task_id, phase="train",
+                skill_version=skill["skill_version"], rollout_index=unit["rollout_index"],
+                rollout_seed=unit["rollout_seed"], governed_evidence=evidence,
+                provenance={
+                    "campaign_id": self.campaign["campaign_id"], "task_split": "official_train",
+                    "execution_phase": execution_phase, "skill_id": skill["skill_id"],
+                    "skill_path": skill["skill_path"],
+                    "skill_artifact_contract": "immutable_identity",
+                    "judge_config": copy.deepcopy(self.campaign["compliance_judge"]),
+                },
+            )
+            error_path.unlink(missing_ok=True)
+        except Exception as error:
+            _write_json(error_path, {
+                "schema_version": "autonomous_gse_evolution_rollout_error_0.14.0",
+                "campaign_id": self.campaign["campaign_id"],
+                "execution_phase": execution_phase, "skill_id": skill["skill_id"],
+                **copy.deepcopy(unit), "error_type": type(error).__name__,
+                "error_message": str(error), "traceback": traceback.format_exc(),
+            })
+            raise
+
+    def run_batch(
+        self, *, step: int, task_ids: list[str], skill: dict[str, str], role: str,
+    ) -> dict[str, Any]:
+        seeds = derive_monitor_rollout_seeds(self.campaign["campaign_seed"])
+        execution_phase = f"step_{step:02d}_{role}"
+        units = [
+            {"domain": domain, "task_id": task_id, "rollout_index": index, "rollout_seed": seed}
+            for tagged in task_ids for domain, task_id in (tagged.split(":", 1),)
+            for index, seed in enumerate(seeds, start=1)
+        ]
+        paths, pending = [], []
+        for unit in units:
+            output = self.root / "rollouts" / "train" / execution_phase / (
+                f"{unit['domain']}_{unit['task_id']}_rollout_{unit['rollout_index']:02d}.json"
+            )
+            paths.append(output)
+            if not self._reusable(output, unit=unit, skill=skill):
+                pending.append((unit, output))
+        with ThreadPoolExecutor(max_workers=self.campaign["execution"]["max_concurrency"]) as pool:
+            tuple(pool.map(
+                lambda item: self._run_one(
+                    unit=item[0], skill=skill, output=item[1], execution_phase=execution_phase,
+                ), pending,
+            ))
+        rows, evidence = [], []
+        for path in paths:
+            value = _load_json(path)
+            governed = value.get("governed_evidence")
+            if not isinstance(governed, dict):
+                raise RuntimeContractError("Evolution rollout governed evidence is missing.")
+            evidence.append(copy.deepcopy(governed))
+            rows.append({
+                **copy.deepcopy(governed), "domain": value["domain"],
+                "task_id": str(value["task_id"]), "rollout_index": value["rollout_index"],
+                "rollout_seed": value["rollout_seed"], "state": value["state"],
+                "trajectory_artifact_path": path.resolve().as_posix(),
+            })
+        return {"rows": rows, "evidence": evidence, "artifact_paths": [p.as_posix() for p in paths]}
+
+
 def _validate_skill_identity(skill: dict[str, Any]) -> dict[str, str]:
     if not isinstance(skill, dict) or set(skill) != {"skill_id", "skill_version", "skill_path"}:
         raise RuntimeContractError("Monitor Skill identity must contain skill_id, skill_version, and skill_path.")
@@ -713,14 +853,83 @@ def build_campaign_dry_plan(campaign: dict[str, Any], batch_map: dict[str, Any])
                 "additional_trajectories": 0,
                 "automatic_candidate_execution": False,
             },
+            "phase_5_orchestration": {
+                "candidate_step_trajectories": 180,
+                "learning_parent_trajectories": 60,
+                "candidate_current_batch_replay_trajectories": 60,
+                "candidate_monitor_trajectories": 60,
+                "three_step_worst_case_trajectories": 540,
+                "cached_s0_monitor_not_in_new_cost": 60,
+                "target_behavior_analysis_calls": "depends_on_canonical_edits_and_relevant_pairs",
+                "regression_analysis_calls": "depends_on_adverse_current_batch_pairs",
+                "final_test_automatic_execution": False,
+            },
             "test": {
                 "formula": "20 tasks x 2 skills x 3 rollouts", "task_ids": test_ids,
                 "tasks": 20, "trajectories_if_explicitly_authorized": 120,
                 "compare": ["S0", "S_final"], "currently_executable": False,
             },
         },
-        "phase_5_and_later": "not_implemented",
+        "phase_6_and_later": "not_implemented",
     }
+
+
+def build_evolution_services(
+    campaign: dict[str, Any], batch_map: dict[str, Any], *, artifact_root: Path,
+    evolution_backend: EvolutionRolloutBackendV14 | None = None,
+) -> Any:
+    """Bind Phase 5 orchestration to the existing v0.14 runtime capabilities."""
+
+    from src.skill_evolution.autonomous_gse_v14_orchestrator import EvolutionServices
+
+    backend = evolution_backend or EvolutionRolloutBackendV14(
+        campaign, artifact_root=artifact_root,
+    )
+    domain_contexts = load_authoritative_domain_contexts(
+        _resolved_path(campaign["benchmark"]["path"]),
+    )
+
+    def rollout(step: int, batch: dict[str, Any], skill: dict[str, str], role: str) -> dict[str, Any]:
+        return backend.run_batch(
+            step=step, task_ids=copy.deepcopy(batch["task_ids"]), skill=skill, role=role,
+        )
+
+    return EvolutionServices(
+        parent_rollouts=lambda step, batch, skill: rollout(step, batch, skill, "parent"),
+        propose=lambda context, step: propose_candidate(
+            context, campaign=campaign, batch_map=batch_map, step=step,
+            domain_contexts=domain_contexts,
+        ),
+        candidate_monitor=lambda skill: run_fixed_monitor(
+            campaign, batch_map, skill=skill, artifact_root=artifact_root,
+        ),
+        candidate_replay=lambda step, batch, skill: rollout(
+            step, batch, skill, "candidate_replay",
+        ),
+    )
+
+
+def run_v14_campaign(
+    campaign: dict[str, Any], batch_map: dict[str, Any], *, artifact_root: Path,
+    resume: bool = False, services: Any | None = None,
+) -> dict[str, Any]:
+    from src.skill_evolution.autonomous_gse_v14_orchestrator import (
+        resume_campaign, run_campaign,
+    )
+
+    validate_batch_map(batch_map, campaign)
+    execution_campaign = copy.deepcopy(campaign)
+    execution_campaign["initial_parent"]["path"] = _resolved_path(
+        campaign["initial_parent"]["path"],
+    ).as_posix()
+    bound = services or build_evolution_services(
+        campaign, batch_map, artifact_root=artifact_root,
+    )
+    if resume:
+        return resume_campaign(
+            execution_campaign, batch_map, bound, artifact_root=artifact_root,
+        )
+    return run_campaign(execution_campaign, batch_map, bound, artifact_root=artifact_root)
 
 
 def _campaign_files(campaign_path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -746,6 +955,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     gate_parser = subparsers.add_parser("gate")
     gate_parser.add_argument("--joint-report", type=Path, required=True)
     gate_parser.add_argument("--output", type=Path, required=True)
+    for command in ("run", "resume"):
+        campaign_parser = subparsers.add_parser(command)
+        campaign_parser.add_argument("--campaign", type=Path, required=True)
+        campaign_parser.add_argument("--artifact-root", type=Path)
     args = parser.parse_args(argv)
     if args.command == "joint-report":
         report = write_joint_distribution_report(
@@ -760,6 +973,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(json.dumps(decision, indent=2))
         return 0
     campaign, batch_map = _campaign_files(args.campaign.resolve())
+    if args.command in {"run", "resume"}:
+        root = (
+            REPO_ROOT / "artifacts" / campaign["campaign_id"] / "formal"
+            if args.artifact_root is None else args.artifact_root.resolve()
+        )
+        result = run_v14_campaign(
+            campaign, batch_map, artifact_root=root, resume=args.command == "resume",
+        )
+        print(json.dumps(result, indent=2))
+        return 0
     if args.command == "plan":
         print(json.dumps(build_campaign_dry_plan(campaign, batch_map), indent=2))
         return 0
