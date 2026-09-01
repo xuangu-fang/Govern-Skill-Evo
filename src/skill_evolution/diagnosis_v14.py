@@ -25,7 +25,7 @@ SEMANTIC_DIAGNOSIS_TEMPLATE = {
     "behavioral_mechanism": {
         "description": "",
         "evidence_status": "insufficient",
-        "support_evidence_refs": ["E001"],
+        "support_evidence_refs": [],
         "counterevidence_refs": [],
         "counterevidence": "",
     },
@@ -36,7 +36,7 @@ SEMANTIC_DIAGNOSIS_TEMPLATE = {
     "outcome_relation": {
         "task_success": "insufficient", "compliance": "insufficient",
     },
-    "repair_policy_refs": ["P001"],
+    "repair_policy_refs": [],
     "target_behavior": {
         "problem": "", "trigger_condition": "", "decision_boundary": "",
         "repair_operator": "", "stopping_boundary": "", "expected_behavior": "",
@@ -44,14 +44,7 @@ SEMANTIC_DIAGNOSIS_TEMPLATE = {
     "edit_intent": "not_applicable",
 }
 
-_ALIAS_ARRAY_SCHEMA = {
-    "type": "array",
-    "items": {"type": "string", "pattern": "^E[0-9]{3}$"},
-}
-_POLICY_ALIAS_ARRAY_SCHEMA = {
-    "type": "array",
-    "items": {"type": "string", "pattern": "^P[0-9]{3}$"},
-}
+_EMPTY_ALIAS_ARRAY_SCHEMA = {"type": "array", "maxItems": 0, "uniqueItems": True}
 SEMANTIC_DIAGNOSIS_JSON_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
@@ -71,8 +64,8 @@ SEMANTIC_DIAGNOSIS_JSON_SCHEMA = {
                 "evidence_status": {"type": "string", "enum": [
                     "contrastive_support", "recurrent_support", "conflicting", "insufficient",
                 ]},
-                "support_evidence_refs": _ALIAS_ARRAY_SCHEMA,
-                "counterevidence_refs": _ALIAS_ARRAY_SCHEMA,
+                "support_evidence_refs": _EMPTY_ALIAS_ARRAY_SCHEMA,
+                "counterevidence_refs": _EMPTY_ALIAS_ARRAY_SCHEMA,
                 "counterevidence": {"type": "string"},
             },
         },
@@ -112,7 +105,7 @@ SEMANTIC_DIAGNOSIS_JSON_SCHEMA = {
                 ]},
             },
         },
-        "repair_policy_refs": _POLICY_ALIAS_ARRAY_SCHEMA,
+        "repair_policy_refs": _EMPTY_ALIAS_ARRAY_SCHEMA,
         "target_behavior": {
             "type": "object", "additionalProperties": False,
             "required": [
@@ -128,14 +121,37 @@ SEMANTIC_DIAGNOSIS_JSON_SCHEMA = {
         },
     },
 }
-SEMANTIC_DIAGNOSIS_RESPONSE_FORMAT = {
-    "type": "json_schema",
-    "json_schema": {
-        "name": "v14_semantic_diagnosis",
-        "strict": True,
-        "schema": SEMANTIC_DIAGNOSIS_JSON_SCHEMA,
-    },
-}
+
+
+def _alias_array_schema(aliases: list[str]) -> dict[str, Any]:
+    schema: dict[str, Any] = {"type": "array", "uniqueItems": True}
+    if aliases:
+        schema["items"] = {"type": "string", "enum": aliases}
+    else:
+        schema["maxItems"] = 0
+    return schema
+
+
+def build_semantic_diagnosis_response_format(
+    alias_context: dict[str, Any],
+) -> dict[str, Any]:
+    """Build the strict response schema from aliases available for one task."""
+
+    evidence_refs = list(alias_context["evidence_aliases"])
+    policy_refs = list(alias_context["policy_aliases"])
+    schema = copy.deepcopy(SEMANTIC_DIAGNOSIS_JSON_SCHEMA)
+    mechanism = schema["properties"]["behavioral_mechanism"]["properties"]
+    mechanism["support_evidence_refs"] = _alias_array_schema(evidence_refs)
+    mechanism["counterevidence_refs"] = _alias_array_schema(evidence_refs)
+    schema["properties"]["repair_policy_refs"] = _alias_array_schema(policy_refs)
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "v14_semantic_diagnosis",
+            "strict": True,
+            "schema": schema,
+        },
+    }
 
 
 @dataclass(frozen=True)
@@ -208,7 +224,7 @@ Only cite Rule IDs present in CURRENT_PARENT_SKILL_WITH_RULE_IDS. Do not label a
 
 repair_policy_refs may contain only P### references shown in supplied violation evidence that directly ground the compliance repair.
 
-Use only E### references shown in the supplied rollouts. Use only P### references shown in supplied violation evidence. Never copy raw source IDs, step IDs, or canonical Policy IDs into these fields. Use an empty array when no applicable evidence or Policy reference exists.
+Use only E### references supplied for this task. Use only P### references supplied for this task. If none apply, return []. Never copy raw source IDs, step IDs, or canonical Policy IDs into these fields.
 
 Do not output root_cause, skill_update_relevance, update_axis, update_recommendation, action, target_section, target_rule_id, objective, evidence_pattern, or evidence_consistency. Those are absent from the Semantic Diagnosis authority.
 
@@ -224,7 +240,10 @@ Return only one JSON object matching this schema and no prose or tags:
 )
 
 
-def build_diagnosis_prompts(request: MultiRolloutDiagnosisRequest) -> tuple[str, str]:
+def build_diagnosis_prompts(
+    request: MultiRolloutDiagnosisRequest, *,
+    alias_context: dict[str, Any] | None = None,
+) -> tuple[str, str]:
     if not isinstance(request, MultiRolloutDiagnosisRequest):
         raise ValueError("v0.14 requires MultiRolloutDiagnosisRequest.")
     if not request.candidate_id or not request.diagnosis_id or not request.current_parent_skill.strip():
@@ -245,7 +264,8 @@ def build_diagnosis_prompts(request: MultiRolloutDiagnosisRequest) -> tuple[str,
     annotated = annotate_parent_skill(request.current_parent_skill).replace(
         "# SuiteCRM Operational Skill", "# Operational Skill", 1,
     )
-    alias_context = build_provenance_alias_context(request.rollouts)
+    if alias_context is None:
+        alias_context = build_provenance_alias_context(request.rollouts)
     payload = {
         "task_context": request.task_context,
         "original_domain_policy": request.original_domain_policy,
@@ -300,6 +320,7 @@ def _is_structured_output_capability_error(error: Exception) -> bool:
 
 def _call_with_structured_output(
     learner_call: LearnerCall, system: str, user: str,
+    response_format: dict[str, Any],
 ) -> DiagnosisResponse:
     global _STRUCTURED_OUTPUT_CAPABILITY, _STRUCTURED_OUTPUT_FALLBACK_REASON
 
@@ -312,8 +333,7 @@ def _call_with_structured_output(
         )
     try:
         response = _call_nonempty_diagnosis(
-            learner_call, system, user,
-            response_format=SEMANTIC_DIAGNOSIS_RESPONSE_FORMAT,
+            learner_call, system, user, response_format=response_format,
         )
     except Exception as error:
         if not _is_structured_output_capability_error(error):
@@ -359,8 +379,12 @@ def call_diagnosis(
 ) -> str:
     """Make one semantic learner call, with only transport-level empty retries."""
 
-    system, user = build_diagnosis_prompts(request)
-    response = _call_with_structured_output(learner_call, system, user)
+    alias_context = build_provenance_alias_context(request.rollouts)
+    system, user = build_diagnosis_prompts(request, alias_context=alias_context)
+    response_format = build_semantic_diagnosis_response_format(alias_context)
+    response = _call_with_structured_output(
+        learner_call, system, user, response_format,
+    )
     validation = parse_and_validate_diagnosis(
         request.diagnosis_id, response, experiences=request.rollouts,
         skill_sections=_parse_skill(request.current_parent_skill),

@@ -296,8 +296,50 @@ def test_json_schema_is_strict_at_every_object_layer_and_rejects_known_typos():
     assert "suports" not in outcome_enum
     assert schema["properties"]["behavioral_mechanism"]["properties"][
         "support_evidence_refs"
-    ]["items"]["pattern"] == "^E[0-9]{3}$"
-    assert schema["properties"]["repair_policy_refs"]["items"]["pattern"] == "^P[0-9]{3}$"
+    ]["maxItems"] == 0
+    assert schema["properties"]["repair_policy_refs"]["maxItems"] == 0
+
+
+def test_dynamic_schema_enumerates_only_current_task_aliases_and_requires_uniqueness():
+    response_format = diagnosis_v14.build_semantic_diagnosis_response_format({
+        "evidence_aliases": {"E001": {}, "E002": {}},
+        "policy_aliases": {"P001": {}},
+    })
+    schema = response_format["json_schema"]["schema"]
+    mechanism = schema["properties"]["behavioral_mechanism"]["properties"]
+    for field in ("support_evidence_refs", "counterevidence_refs"):
+        assert mechanism[field] == {
+            "type": "array",
+            "uniqueItems": True,
+            "items": {"type": "string", "enum": ["E001", "E002"]},
+        }
+        assert "E999" not in mechanism[field]["items"]["enum"]
+    assert schema["properties"]["repair_policy_refs"] == {
+        "type": "array",
+        "uniqueItems": True,
+        "items": {"type": "string", "enum": ["P001"]},
+    }
+
+
+def test_dynamic_schema_without_policy_aliases_only_allows_an_empty_array():
+    response_format = diagnosis_v14.build_semantic_diagnosis_response_format({
+        "evidence_aliases": {"E001": {}},
+        "policy_aliases": {},
+    })
+    policy_schema = response_format["json_schema"]["schema"]["properties"][
+        "repair_policy_refs"
+    ]
+    assert policy_schema == {"type": "array", "uniqueItems": True, "maxItems": 0}
+
+
+def test_semantic_template_does_not_suggest_task_specific_aliases():
+    mechanism = diagnosis_v14.SEMANTIC_DIAGNOSIS_TEMPLATE["behavioral_mechanism"]
+    assert mechanism["support_evidence_refs"] == []
+    assert mechanism["counterevidence_refs"] == []
+    assert diagnosis_v14.SEMANTIC_DIAGNOSIS_TEMPLATE["repair_policy_refs"] == []
+    serialized = json.dumps(diagnosis_v14.SEMANTIC_DIAGNOSIS_TEMPLATE)
+    assert '["E001"]' not in serialized
+    assert '["P001"]' not in serialized
 
 
 def test_old_provenance_copy_shapes_are_outside_new_semantic_authority():
@@ -409,7 +451,9 @@ def test_call_learner_adds_optional_response_format_without_affecting_default_ca
     generate_skill.call_learner("openai/model", "system", "user")
     generate_skill.call_learner(
         "openai/model", "system", "user",
-        response_format=diagnosis_v14.SEMANTIC_DIAGNOSIS_RESPONSE_FORMAT,
+        response_format=diagnosis_v14.build_semantic_diagnosis_response_format(
+            build_provenance_alias_context(_group()),
+        ),
     )
     assert "response_format" not in captured[0]
     assert captured[1]["response_format"]["type"] == "json_schema"
@@ -419,6 +463,9 @@ def test_call_learner_adds_optional_response_format_without_affecting_default_ca
 def test_structured_capability_fallback_is_narrow_and_cached():
     value = json.dumps(_semantic())
     calls = []
+    expected_format = diagnosis_v14.build_semantic_diagnosis_response_format(
+        build_provenance_alias_context(_group()),
+    )
 
     def learner(model, system, user, **kwargs):
         calls.append(kwargs.get("response_format"))
@@ -428,7 +475,7 @@ def test_structured_capability_fallback_is_narrow_and_cached():
 
     first = diagnosis_v14.call_diagnosis(_request(), learner_call=learner)
     second = diagnosis_v14.call_diagnosis(_request(), learner_call=learner)
-    assert calls == [diagnosis_v14.SEMANTIC_DIAGNOSIS_RESPONSE_FORMAT, None, None]
+    assert calls == [expected_format, None, None]
     assert first.structured_output_mode == "prompt_fallback"
     assert second.structured_output_mode == "prompt_fallback"
     assert first.structured_output_fallback_reason == "unsupported json_schema response_format"
@@ -438,6 +485,9 @@ def test_structured_capability_fallback_is_narrow_and_cached():
 @pytest.mark.parametrize("message", ["524 timeout", "request timeout", "rate limit", "generic 500"])
 def test_network_and_service_errors_do_not_trigger_prompt_fallback(message):
     calls = []
+    expected_format = diagnosis_v14.build_semantic_diagnosis_response_format(
+        build_provenance_alias_context(_group()),
+    )
 
     def learner(model, system, user, **kwargs):
         calls.append(kwargs.get("response_format"))
@@ -445,7 +495,7 @@ def test_network_and_service_errors_do_not_trigger_prompt_fallback(message):
 
     with pytest.raises(RuntimeError, match=message):
         diagnosis_v14.call_diagnosis(_request(), learner_call=learner)
-    assert calls == [diagnosis_v14.SEMANTIC_DIAGNOSIS_RESPONSE_FORMAT]
+    assert calls == [expected_format]
     assert diagnosis_v14._STRUCTURED_OUTPUT_CAPABILITY == "unknown"
 
 
