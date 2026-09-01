@@ -282,6 +282,15 @@ def test_diagnosis_contract_failure_persists_complete_validation_artifact(tmp_pa
             diagnosis_id="diagnosis_002", source_ids=("source_002",),
             raw_response="invalid response two", structured_output={"update_axis": "invalid"},
             valid=False, validation_errors=("INVALID_UPDATE_AXIS",),
+            repair_trace={
+                "attempted": True,
+                "raw_repair_response": "<DIAGNOSIS_JSON>{}</DIAGNOSIS_JSON>",
+                "parsed_patch": None,
+                "rejection_reason": "INVALID_ENVELOPE",
+                "final_validation": {
+                    "valid": False, "errors": ["INVALID_UPDATE_AXIS"],
+                },
+            },
         ),
         DiagnosisValidation(
             diagnosis_id="diagnosis_003", source_ids=("source_003",),
@@ -311,6 +320,15 @@ def test_diagnosis_contract_failure_persists_complete_validation_artifact(tmp_pa
         "raw_response": "invalid response two",
         "structured_output": {"update_axis": "invalid"},
         "validation": {"valid": False, "errors": ["INVALID_UPDATE_AXIS"]},
+        "repair_trace": {
+            "attempted": True,
+            "raw_repair_response": "<DIAGNOSIS_JSON>{}</DIAGNOSIS_JSON>",
+            "parsed_patch": None,
+            "rejection_reason": "INVALID_ENVELOPE",
+            "final_validation": {
+                "valid": False, "errors": ["INVALID_UPDATE_AXIS"],
+            },
+        },
     }
     execution = json.loads((step_root / "execution_error.json").read_text())
     assert execution["error_type"] == "DiagnosisContractError"

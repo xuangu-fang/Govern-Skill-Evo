@@ -60,6 +60,31 @@ Diagnoser = Callable[[MultiRolloutDiagnosisRequest], str]
 LearnerCall = Callable[[str, str, str], tuple[str, str, dict[str, Any] | None]]
 
 
+class DiagnosisResponse(str):
+    """String-compatible Diagnosis response carrying runtime-only audit metadata."""
+
+    repair_trace: dict[str, Any]
+
+    def __new__(cls, value: str, repair_trace: dict[str, Any]):
+        instance = super().__new__(cls, value)
+        instance.repair_trace = copy.deepcopy(repair_trace)
+        return instance
+
+
+@dataclass(frozen=True)
+class ContractRepairParseResult:
+    raw_response: str
+    patch: dict[str, Any] | None
+    parse_status: str
+    rejection_reason: str | None
+
+
+@dataclass(frozen=True)
+class ContractRepairApplyResult:
+    repaired_diagnosis: dict[str, Any] | None
+    rejection_reason: str | None
+
+
 def _default_learner_call(model: str, system: str, user: str) -> tuple[str, str, dict[str, Any] | None]:
     from src.learners.stwebagentbench.generate_skill import call_learner
 
@@ -211,7 +236,9 @@ def _tag_bare_json_response(response: str) -> str:
 
 
 def _call_contract_repair(
-    learner_call: LearnerCall, *, user: str,
+    learner_call: LearnerCall, *, task_context: dict[str, Any],
+    original_domain_policy: str, available_tool_contracts: tuple[dict[str, Any], ...],
+    rollouts: tuple[dict[str, Any], ...],
     original_diagnosis: dict[str, Any], validation_errors: tuple[str, ...],
 ) -> str:
     """Make one bounded field-patch call for whitelisted vocabulary errors."""
@@ -226,10 +253,16 @@ def _call_contract_repair(
     }
     repair_system = """You are the v0.14 bounded Diagnosis contract repair component.
 You are not re-performing Diagnosis. The original Diagnosis is frozen except for the explicitly listed contract-invalid fields. Return only one DIAGNOSIS_REPAIR_JSON object containing exactly the allowed field paths. Do not modify or restate any other Diagnosis field. Do not introduce new mechanisms, evidence, source IDs, Policy claims, root causes, target behaviors, or update recommendations. Return no prose."""
+    evidence_context = {
+        "task_context": task_context,
+        "original_domain_policy": original_domain_policy,
+        "available_tool_contracts": list(available_tool_contracts),
+        "rollouts": list(rollouts),
+    }
     repair_user = (
-        "<ORIGINAL_DIAGNOSIS_CONTEXT>\n"
-        + user
-        + "\n</ORIGINAL_DIAGNOSIS_CONTEXT>\n\n"
+        "<REPAIR_EVIDENCE_CONTEXT>\n"
+        + json.dumps(evidence_context, ensure_ascii=False, sort_keys=True)
+        + "\n</REPAIR_EVIDENCE_CONTEXT>\n\n"
         + "<FROZEN_ORIGINAL_DIAGNOSIS>\n"
         + json.dumps(original_diagnosis, ensure_ascii=False, sort_keys=True)
         + "\n</FROZEN_ORIGINAL_DIAGNOSIS>\n\n"
@@ -248,37 +281,53 @@ You are not re-performing Diagnosis. The original Diagnosis is frozen except for
     return response.strip()
 
 
-def _parse_contract_repair_patch(response: str) -> dict[str, Any] | None:
+def _parse_contract_repair_patch(response: str) -> ContractRepairParseResult:
     opening = "<DIAGNOSIS_REPAIR_JSON>"
     closing = "</DIAGNOSIS_REPAIR_JSON>"
     stripped = response.strip()
-    if not stripped.startswith(opening) or not stripped.endswith(closing):
-        return None
-    try:
-        patch = json.loads(stripped[len(opening):-len(closing)].strip())
-    except json.JSONDecodeError:
-        return None
-    return patch if isinstance(patch, dict) else None
+    if stripped.startswith(opening) and stripped.endswith(closing):
+        parse_status = "tagged_json_object"
+        payload = stripped[len(opening):-len(closing)].strip()
+        try:
+            patch = json.loads(payload)
+        except json.JSONDecodeError:
+            return ContractRepairParseResult(
+                response, None, "tagged_invalid_json", "INVALID_JSON",
+            )
+    else:
+        try:
+            patch = json.loads(stripped)
+        except json.JSONDecodeError:
+            return ContractRepairParseResult(
+                response, None, "invalid_envelope", "INVALID_ENVELOPE",
+            )
+        parse_status = "bare_json_object"
+    if not isinstance(patch, dict):
+        return ContractRepairParseResult(
+            response, None, parse_status.replace("object", "non_object"),
+            "PATCH_NOT_OBJECT",
+        )
+    return ContractRepairParseResult(response, patch, parse_status, None)
 
 
 def _apply_semantic_contract_patch(
     original: dict[str, Any], validation_errors: tuple[str, ...], patch: Any,
-) -> dict[str, Any] | None:
+) -> ContractRepairApplyResult:
     """Apply exactly the Python-authorized vocabulary fields to a deep copy."""
 
     errors = set(validation_errors)
     if not errors or not errors <= SEMANTIC_REPAIRABLE_ERRORS or not isinstance(patch, dict):
-        return None
+        return ContractRepairApplyResult(None, "PATCH_APPLY_FAILED")
     allowed_paths = {
         ".".join(SEMANTIC_REPAIR_FIELD_BY_ERROR[error]) for error in errors
     }
     if set(patch) != allowed_paths:
-        return None
+        return ContractRepairApplyResult(None, "PATCH_KEYS_MISMATCH")
     if any(
         value not in SEMANTIC_REPAIR_ALLOWED_VALUES_BY_PATH[path]
         for path, value in patch.items()
     ):
-        return None
+        return ContractRepairApplyResult(None, "INVALID_PATCH_VALUE")
 
     repaired = copy.deepcopy(original)
     for error in validation_errors:
@@ -286,10 +335,10 @@ def _apply_semantic_contract_patch(
         target: Any = repaired
         for key in path[:-1]:
             if not isinstance(target, dict) or not isinstance(target.get(key), dict):
-                return None
+                return ContractRepairApplyResult(None, "PATCH_APPLY_FAILED")
             target = target[key]
         target[path[-1]] = patch[".".join(path)]
-    return repaired
+    return ContractRepairApplyResult(repaired, None)
 
 
 def call_diagnosis(request: MultiRolloutDiagnosisRequest, *, learner_call: LearnerCall = _default_learner_call) -> str:
@@ -297,13 +346,14 @@ def call_diagnosis(request: MultiRolloutDiagnosisRequest, *, learner_call: Learn
     response = _tag_bare_json_response(
         _call_nonempty_diagnosis(learner_call, system, user)
     )
+    initial_response = response
     skill_sections = _parse_skill(request.current_parent_skill)
     validation = parse_and_validate_diagnosis(
         request.diagnosis_id, response, experiences=request.rollouts,
         skill_sections=skill_sections,
     )
     if validation.valid:
-        return response
+        return DiagnosisResponse(response, {"attempted": False})
     repaired = repair_diagnosis_contract_fields(
         validation.structured_output, validation.validation_errors,
     )
@@ -318,7 +368,7 @@ def call_diagnosis(request: MultiRolloutDiagnosisRequest, *, learner_call: Learn
             skill_sections=skill_sections,
         )
         if repaired_validation.valid:
-            return repaired_response
+            return DiagnosisResponse(repaired_response, {"attempted": False})
         response, validation = repaired_response, repaired_validation
     errors = set(validation.validation_errors)
     if (
@@ -326,24 +376,60 @@ def call_diagnosis(request: MultiRolloutDiagnosisRequest, *, learner_call: Learn
         or not errors <= SEMANTIC_REPAIRABLE_ERRORS
         or not isinstance(validation.structured_output, dict)
     ):
-        return response
+        return DiagnosisResponse(response, {"attempted": False})
+    allowed_fields = {
+        ".".join(SEMANTIC_REPAIR_FIELD_BY_ERROR[error]): sorted(
+            SEMANTIC_REPAIR_ALLOWED_VALUES_BY_PATH[
+                ".".join(SEMANTIC_REPAIR_FIELD_BY_ERROR[error])
+            ]
+        )
+        for error in validation.validation_errors
+    }
     repair_response = _call_contract_repair(
-        learner_call, user=user, original_diagnosis=validation.structured_output,
+        learner_call, task_context=request.task_context,
+        original_domain_policy=request.original_domain_policy,
+        available_tool_contracts=request.available_tool_contracts,
+        rollouts=request.rollouts, original_diagnosis=validation.structured_output,
         validation_errors=validation.validation_errors,
     )
-    patch = _parse_contract_repair_patch(repair_response)
-    semantic_repair = _apply_semantic_contract_patch(
-        validation.structured_output, validation.validation_errors, patch,
+    parse_result = _parse_contract_repair_patch(repair_response)
+    trace = {
+        "attempted": True,
+        "initial_raw_response": initial_response,
+        "validation_errors_before": list(validation.validation_errors),
+        "allowed_fields": allowed_fields,
+        "raw_repair_response": repair_response,
+        "parse_status": parse_result.parse_status,
+        "parsed_patch": copy.deepcopy(parse_result.patch),
+        "rejection_reason": parse_result.rejection_reason,
+        "final_validation": {
+            "valid": False, "errors": list(validation.validation_errors),
+        },
+    }
+    if parse_result.patch is None:
+        return DiagnosisResponse(response, trace)
+    apply_result = _apply_semantic_contract_patch(
+        validation.structured_output, validation.validation_errors, parse_result.patch,
     )
-    if semantic_repair is None:
-        return response
+    if apply_result.repaired_diagnosis is None:
+        trace["rejection_reason"] = apply_result.rejection_reason
+        return DiagnosisResponse(response, trace)
     semantic_repair_response = (
         "<DIAGNOSIS_JSON>"
-        + json.dumps(semantic_repair, ensure_ascii=False, separators=(",", ":"))
+        + json.dumps(
+            apply_result.repaired_diagnosis, ensure_ascii=False, separators=(",", ":"),
+        )
         + "</DIAGNOSIS_JSON>"
     )
     final_validation = parse_and_validate_diagnosis(
         request.diagnosis_id, semantic_repair_response, experiences=request.rollouts,
         skill_sections=skill_sections,
     )
-    return semantic_repair_response if final_validation.valid else response
+    trace["final_validation"] = {
+        "valid": final_validation.valid,
+        "errors": list(final_validation.validation_errors),
+    }
+    if final_validation.valid:
+        return DiagnosisResponse(semantic_repair_response, trace)
+    trace["rejection_reason"] = "FINAL_VALIDATION_FAILED"
+    return DiagnosisResponse(response, trace)

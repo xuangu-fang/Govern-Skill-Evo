@@ -52,15 +52,19 @@ class DiagnosisValidation:
     structured_output: dict[str, Any] | None
     valid: bool
     validation_errors: tuple[str, ...]
+    repair_trace: dict[str, Any] | None = None
 
     def as_dict(self) -> dict[str, Any]:
-        return {
+        result = {
             "diagnosis_id": self.diagnosis_id,
             "source_ids": list(self.source_ids),
             "raw_response": self.raw_response,
             "structured_output": copy.deepcopy(self.structured_output),
             "validation": {"valid": self.valid, "errors": list(self.validation_errors)},
         }
+        if self.repair_trace is not None:
+            result["repair_trace"] = copy.deepcopy(self.repair_trace)
+        return result
 
 
 def _step_ids(evidence: dict[str, Any]) -> set[int]:
@@ -388,4 +392,5 @@ def parse_and_validate_diagnosis(
         raw_response=response if isinstance(response, str) else repr(response),
         structured_output=copy.deepcopy(parsed), valid=not errors,
         validation_errors=errors,
+        repair_trace=copy.deepcopy(getattr(response, "repair_trace", None)),
     )
