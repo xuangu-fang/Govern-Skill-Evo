@@ -63,6 +63,7 @@ def _monitor_result(
     result = {
         "schema_version": "autonomous_gse_monitor_result_0.14.0",
         "campaign_id": "autonomous_gse_v14", "monitor_id": "fixed_monitor_m",
+        "skill_artifact_contract": "immutable_identity",
         "skill": {
             "skill_id": skill_id, "skill_version": skill_version,
             "skill_path": f"skills/{skill_id}.md",
@@ -157,6 +158,13 @@ def test_joint_report_transition_deltas_task_effects_and_overall_consistency(bat
     assert all(set(row) == set(joint.STATE_CODES) for row in matrix["counts"].values())
     assert matrix["total_pairs"] == 60
     assert sum(sum(row.values()) for row in matrix["counts"].values()) == 60
+    assert "probabilities" not in matrix
+    assert sum(sum(row.values()) for row in matrix["joint_probabilities"].values()) == pytest.approx(1.0)
+    for before in joint.STATE_CODES:
+        for after in joint.STATE_CODES:
+            assert matrix["joint_probabilities"][before][after] == pytest.approx(
+                matrix["counts"][before][after] / matrix["total_pairs"]
+            )
     assert len(report["task_level_effects"]) == 20
     assert all(item["matched_rollouts"] == 3 for item in report["task_level_effects"])
     first_task = report["task_level_effects"][0]
@@ -190,6 +198,14 @@ def test_task_without_three_pairs_fails_closed(batch_map):
         joint.build_joint_distribution_report(parent, candidate)
 
 
+@pytest.mark.parametrize(("field", "invalid"), (("source_id", "  "), ("source_id", None), ("trajectory_artifact_path", ""), ("trajectory_artifact_path", None)))
+def test_monitor_result_rejects_empty_trajectory_lineage(batch_map, field, invalid):
+    result = _monitor_result(batch_map, skill_id="S0", skill_version="S0")
+    result["rows"][0][field] = invalid
+    with pytest.raises(joint.JointDistributionContractError, match="trajectory lineage"):
+        joint.validate_monitor_result(result)
+
+
 def test_monitor_runtime_writes_rows_and_reuses_valid_cache(tmp_path, campaign, batch_map):
     backend = FakeMonitorBackend(tmp_path / "rollouts")
     skill = {
@@ -207,6 +223,24 @@ def test_monitor_runtime_writes_rows_and_reuses_valid_cache(tmp_path, campaign, 
     assert len(first["rows"]) == 60
     assert first["summary"]["total_rollouts"] == 60
     assert (tmp_path / "artifacts/monitor_results/S0.json").is_file()
+
+
+@pytest.mark.parametrize("field", ("skill_id", "skill_version", "skill_path"))
+def test_any_skill_identity_change_invalidates_monitor_cache(tmp_path, campaign, batch_map, field):
+    backend = FakeMonitorBackend(tmp_path / "rollouts")
+    skill = {
+        "skill_id": "S0", "skill_version": "S0",
+        "skill_path": "experiments/campaigns/autonomous_gse_v14/skills/S0_empty_skill.md",
+    }
+    result = v14.run_fixed_monitor(
+        campaign, batch_map, skill=skill, backend=backend, artifact_root=tmp_path / "artifacts",
+    )
+    changed = copy.deepcopy(skill)
+    changed[field] += "_new"
+    plan = v14.build_monitor_plan(campaign, batch_map)
+    assert not v14._cached_monitor_result_valid(
+        result, campaign=campaign, plan=plan, skill=changed,
+    )
 
 
 def test_monitor_runtime_never_invokes_learner(tmp_path, campaign, batch_map, monkeypatch):

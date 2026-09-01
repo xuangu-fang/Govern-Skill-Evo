@@ -64,6 +64,7 @@ def validate_monitor_result(result: dict[str, Any]) -> None:
         or result.get("schema_version") != "autonomous_gse_monitor_result_0.14.0"
         or not isinstance(result.get("campaign_id"), str)
         or result.get("monitor_id") != "fixed_monitor_m"
+        or result.get("skill_artifact_contract") != "immutable_identity"
         or result.get("rollouts_per_task") != 3
     ):
         raise JointDistributionContractError("Monitor result identity is invalid.")
@@ -105,7 +106,11 @@ def validate_monitor_result(result: dict[str, Any]) -> None:
             raise JointDistributionContractError("Monitor rollout index is invalid.")
         if not isinstance(row["rollout_seed"], int) or isinstance(row["rollout_seed"], bool):
             raise JointDistributionContractError("Monitor rollout seed is invalid.")
-        if not isinstance(row["source_id"], str) or not row["source_id"] or not isinstance(row["trajectory_artifact_path"], str) or not row["trajectory_artifact_path"]:
+        if (
+            not isinstance(row["source_id"], str) or not row["source_id"].strip()
+            or not isinstance(row["trajectory_artifact_path"], str)
+            or not row["trajectory_artifact_path"].strip()
+        ):
             raise JointDistributionContractError("Monitor trajectory lineage is missing.")
         actual_keys.add((row["domain"], str(row["task_id"]), row["rollout_index"]))
     if actual_keys != expected_keys or len(actual_keys) != len(rows):
@@ -159,7 +164,7 @@ def build_joint_distribution_report(
     transition_total = sum(sum(row.values()) for row in transition_counts.values())
     if transition_total != 60:
         raise JointDistributionContractError("Transition matrix does not contain 60 matched pairs.")
-    transition_probabilities = {
+    joint_probabilities = {
         before: {after: count / transition_total for after, count in row.items()}
         for before, row in transition_counts.items()
     }
@@ -202,7 +207,7 @@ def build_joint_distribution_report(
         "transition_matrix": {
             "state_order": list(STATE_CODES),
             "counts": transition_counts,
-            "probabilities": transition_probabilities,
+            "joint_probabilities": joint_probabilities,
             "total_pairs": transition_total,
         },
         "task_level_effects": task_level_effects,

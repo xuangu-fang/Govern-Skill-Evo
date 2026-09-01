@@ -201,6 +201,13 @@ def validate_campaign_contract(campaign: dict[str, Any]) -> None:
         "parallelism_unit": "task_x_rollout", "max_concurrency": 6,
     }:
         raise RuntimeContractError("v0.14 Monitor execution configuration drifted.")
+    if campaign.get("skill_artifact_contract") != {
+        "identity_fields": ["skill_id", "skill_version", "skill_path"],
+        "immutability": "required_after_first_monitor_run",
+        "content_change_requires": "new_skill_id_or_skill_version_or_skill_path",
+        "content_hashing": "not_used",
+    }:
+        raise RuntimeContractError("v0.14 immutable Skill artifact contract drifted.")
 
 
 def validate_batch_map(
@@ -477,6 +484,7 @@ class MonitorRolloutBackend:
                 provenance={
                     "campaign_id": self.campaign["campaign_id"], "monitor_id": "fixed_monitor_m",
                     "skill_id": skill_id, "skill_path": skill_path_identity,
+                    "skill_artifact_contract": "immutable_identity",
                     "task_split": "official_test",
                     "raw_tau3_result_path": raw_path.as_posix(),
                     "judge_config": copy.deepcopy(self.campaign["compliance_judge"]),
@@ -558,13 +566,18 @@ def _monitor_result_from_paths(
         if value.get("state") != classify_state(success, compliant).value:
             raise RuntimeContractError("Monitor rollout state is inconsistent.")
         source_id = value.get("governed_evidence", {}).get("source_id")
+        if not isinstance(source_id, str) or not source_id.strip():
+            raise RuntimeContractError("Monitor rollout source_id is missing.")
+        trajectory_artifact_path = path.resolve().as_posix()
+        if not trajectory_artifact_path.strip():
+            raise RuntimeContractError("Monitor trajectory artifact path is missing.")
         rows.append({
             "source_id": source_id, "domain": key[0], "task_id": key[1],
             "rollout_index": key[2], "rollout_seed": value["rollout_seed"],
             "skill_id": skill["skill_id"], "skill_version": skill["skill_version"],
             "task_success": success, "compliant": compliant,
             "state": value["state"], "state_code": code,
-            "trajectory_artifact_path": path.resolve().as_posix(),
+            "trajectory_artifact_path": trajectory_artifact_path,
         })
     order = {
         (unit["domain"], unit["task_id"], unit["rollout_index"]): index
@@ -574,6 +587,7 @@ def _monitor_result_from_paths(
     result = {
         "schema_version": "autonomous_gse_monitor_result_0.14.0",
         "campaign_id": campaign["campaign_id"], "monitor_id": plan["monitor_id"],
+        "skill_artifact_contract": "immutable_identity",
         "skill": copy.deepcopy(skill), "task_ids": copy.deepcopy(plan["task_ids"]),
         "rollouts_per_task": ROLLOUTS_PER_TASK, "rows": rows,
         "summary": distribution(rows),
