@@ -43,6 +43,18 @@ def _parent_skill() -> str:
     )
 
 
+def _diagnosis_request_v14() -> diagnosis_v14.MultiRolloutDiagnosisRequest:
+    context = _domain_contexts()["airline"]
+    return diagnosis_v14.MultiRolloutDiagnosisRequest(
+        candidate_id="candidate_001", diagnosis_id="diagnosis_001",
+        current_parent_skill=_parent_skill(),
+        task_context={"domain": "airline", "task_id": "1"},
+        original_domain_policy=context["original_domain_policy"],
+        available_tool_contracts=context["available_tool_contracts"],
+        rollouts=_group(),
+    )
+
+
 def _request_pair(diagnoses: tuple[dict, ...]):
     common = {
         "candidate_id": "candidate_001",
@@ -130,6 +142,82 @@ def test_diagnosis_prompt_and_configuration_are_semantically_identical():
     assert _normalize_version_identity(diagnosis_v14.DIAGNOSIS_SYSTEM_PROMPT) == (
         _normalize_version_identity(diagnosis_v13.DIAGNOSIS_SYSTEM_PROMPT)
     )
+
+
+def test_bare_json_diagnosis_is_tagged_locally_without_extra_call():
+    value = _diagnosis()
+    calls = []
+
+    def learner_call(model, system, user):
+        calls.append((model, system, user))
+        return json.dumps(value), model, None
+
+    response = diagnosis_v14.call_diagnosis(
+        _diagnosis_request_v14(), learner_call=learner_call,
+    )
+    validation = contract_v14.parse_and_validate_diagnosis(
+        "diagnosis_001", response, experiences=_group(),
+        skill_sections={"Planning and navigation": [], "Execution patterns": [],
+                        "Form entry and verification": [],
+                        "Error recovery and stopping": []},
+    )
+    assert len(calls) == 1
+    assert response.startswith("<DIAGNOSIS_JSON>")
+    assert response.endswith("</DIAGNOSIS_JSON>")
+    assert validation.valid
+
+
+def test_nonrepairable_enum_error_gets_one_bounded_contract_repair_call():
+    invalid = _diagnosis()
+    invalid["behavior_analysis"]["compliance_relation"] = "conflicting"
+    corrected = copy.deepcopy(invalid)
+    corrected["behavior_analysis"]["compliance_relation"] = "insufficient"
+    responses = iter((_tag(invalid), _tag(corrected)))
+    calls = []
+
+    def learner_call(model, system, user):
+        calls.append((model, system, user))
+        return next(responses), model, None
+
+    response = diagnosis_v14.call_diagnosis(
+        _diagnosis_request_v14(), learner_call=learner_call,
+    )
+    validation = contract_v14.parse_and_validate_diagnosis(
+        "diagnosis_001", response, experiences=_group(),
+        skill_sections={"Planning and navigation": [], "Execution patterns": [],
+                        "Form entry and verification": [],
+                        "Error recovery and stopping": []},
+    )
+    assert len(calls) == 2
+    assert "CONTRACT REPAIR MODE" in calls[1][1]
+    assert "INVALID_COMPLIANCE_RELATION" in calls[1][2]
+    assert "Preserve the task behavior summary" in calls[1][1]
+    assert validation.valid
+    assert validation.structured_output["behavior_analysis"]["compliance_relation"] == "insufficient"
+
+
+def test_contract_repair_is_bounded_to_one_additional_call_and_still_fails_closed():
+    invalid = _diagnosis()
+    invalid["behavior_analysis"]["compliance_relation"] = "conflicting"
+    raw = _tag(invalid)
+    calls = []
+
+    def learner_call(model, system, user):
+        calls.append((model, system, user))
+        return raw, model, None
+
+    response = diagnosis_v14.call_diagnosis(
+        _diagnosis_request_v14(), learner_call=learner_call,
+    )
+    validation = contract_v14.parse_and_validate_diagnosis(
+        "diagnosis_001", response, experiences=_group(),
+        skill_sections={"Planning and navigation": [], "Execution patterns": [],
+                        "Form entry and verification": [],
+                        "Error recovery and stopping": []},
+    )
+    assert len(calls) == 2
+    assert not validation.valid
+    assert validation.validation_errors == ("INVALID_COMPLIANCE_RELATION",)
 
 
 def test_editor_prompt_configuration_and_synthetic_call_are_equivalent():

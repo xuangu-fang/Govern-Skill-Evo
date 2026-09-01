@@ -12,6 +12,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from src.skill_evolution.autonomous_gse_v03_proposal import ProposalContext
+from src.skill_evolution.autonomous_gse_v14_proposal import DiagnosisContractError
 from src.skill_evolution.distributional_gate_v14 import build_distributional_gate_decision
 from src.skill_evolution.joint_distribution_v14 import build_joint_distribution_report
 from src.skill_evolution.regression_analysis_v14 import analyze_regressions
@@ -222,6 +223,21 @@ def run_evolution_step(
                 current_batch_governed_evidence=tuple(copy.deepcopy(parent_bundle["evidence"])),
             )
             proposal = services.propose(context, step)
+    except DiagnosisContractError as error:
+        contract_error_path = step_root / "diagnosis_contract_error.json"
+        _write_json(contract_error_path, {
+            "schema_version": "autonomous_gse_diagnosis_contract_error_0.14.0",
+            "campaign_id": campaign.get("campaign_id", "autonomous_gse_v14"),
+            "step": step, "batch_id": batch["batch_id"], "error_code": error.code,
+            "invalid_diagnosis_ids": list(error.invalid_diagnosis_ids),
+            "diagnoses": [item.as_dict() for item in error.validations],
+        })
+        _write_json(step_root / "execution_error.json", {
+            "stage": "learning_path", "error_type": type(error).__name__,
+            "error_message": str(error), "traceback": traceback.format_exc(),
+            "diagnosis_contract_error_path": contract_error_path.as_posix(),
+        })
+        raise
     except Exception as error:
         _write_json(step_root / "execution_error.json", {
             "stage": "learning_path", "error_type": type(error).__name__,
@@ -274,6 +290,7 @@ def run_evolution_step(
         }
         _write_json(step_root / "step_summary.json", summary)
         (step_root / "execution_error.json").unlink(missing_ok=True)
+        (step_root / "diagnosis_contract_error.json").unlink(missing_ok=True)
         return summary, copy.deepcopy(parent), parent_monitor
 
     candidate = _immutable_candidate(
@@ -386,6 +403,7 @@ def run_evolution_step(
     }
     _write_json(step_root / "step_summary.json", summary)
     (step_root / "execution_error.json").unlink(missing_ok=True)
+    (step_root / "diagnosis_contract_error.json").unlink(missing_ok=True)
     return summary, copy.deepcopy(next_parent), next_monitor
 
 

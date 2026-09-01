@@ -166,9 +166,48 @@ def _call_nonempty_diagnosis(
     ) from empty_error
 
 
+def _tag_bare_json_response(response: str) -> str:
+    """Add the required envelope to a bare JSON object without changing its content."""
+
+    stripped = response.strip()
+    try:
+        parsed = json.loads(stripped)
+    except (TypeError, json.JSONDecodeError):
+        return stripped
+    if not isinstance(parsed, dict):
+        return stripped
+    return f"<DIAGNOSIS_JSON>{stripped}</DIAGNOSIS_JSON>"
+
+
+def _call_contract_repair(
+    learner_call: LearnerCall, *, system: str, user: str,
+    invalid_response: str, validation_errors: tuple[str, ...],
+) -> str:
+    """Make one bounded repair call for contract-invalid Diagnosis output."""
+
+    repair_system = system + """
+
+CONTRACT REPAIR MODE: Repair only the listed Python contract violations in your previous response. Preserve the task behavior summary, behavioral mechanism, evidence pattern, evidence consistency, root-cause attribution, update relevance, target behavior, and every evidence reference unless a listed error directly requires changing that field. Do not introduce a new mechanism, update, policy claim, source ID, or evidence step. Use only the allowed enum values already defined above. Return exactly one DIAGNOSIS_JSON block and no prose."""
+    repair_user = user + (
+        "\n\n<PREVIOUS_CONTRACT_INVALID_RESPONSE>\n"
+        + invalid_response
+        + "\n</PREVIOUS_CONTRACT_INVALID_RESPONSE>\n\n"
+        + "<PYTHON_CONTRACT_VALIDATION_ERRORS>\n"
+        + json.dumps(list(validation_errors), ensure_ascii=False)
+        + "\n</PYTHON_CONTRACT_VALIDATION_ERRORS>\n\n"
+        + "Correct only these contract violations and return the complete DIAGNOSIS_JSON block."
+    )
+    response, _, _ = learner_call(LEARNER_MODEL, repair_system, repair_user)
+    if not isinstance(response, str) or not response.strip():
+        raise RuntimeError("v0.14 Diagnosis contract repair returned an empty response.")
+    return _tag_bare_json_response(response)
+
+
 def call_diagnosis(request: MultiRolloutDiagnosisRequest, *, learner_call: LearnerCall = _default_learner_call) -> str:
     system, user = build_diagnosis_prompts(request)
-    response = _call_nonempty_diagnosis(learner_call, system, user)
+    response = _tag_bare_json_response(
+        _call_nonempty_diagnosis(learner_call, system, user)
+    )
     skill_sections = _parse_skill(request.current_parent_skill)
     validation = parse_and_validate_diagnosis(
         request.diagnosis_id, response, experiences=request.rollouts,
@@ -179,15 +218,20 @@ def call_diagnosis(request: MultiRolloutDiagnosisRequest, *, learner_call: Learn
     repaired = repair_diagnosis_contract_fields(
         validation.structured_output, validation.validation_errors,
     )
-    if repaired is None:
-        return response
-    repaired_response = (
-        "<DIAGNOSIS_JSON>"
-        + json.dumps(repaired, ensure_ascii=False, separators=(",", ":"))
-        + "</DIAGNOSIS_JSON>"
+    if repaired is not None:
+        repaired_response = (
+            "<DIAGNOSIS_JSON>"
+            + json.dumps(repaired, ensure_ascii=False, separators=(",", ":"))
+            + "</DIAGNOSIS_JSON>"
+        )
+        repaired_validation = parse_and_validate_diagnosis(
+            request.diagnosis_id, repaired_response, experiences=request.rollouts,
+            skill_sections=skill_sections,
+        )
+        if repaired_validation.valid:
+            return repaired_response
+        response, validation = repaired_response, repaired_validation
+    return _call_contract_repair(
+        learner_call, system=system, user=user, invalid_response=response,
+        validation_errors=validation.validation_errors,
     )
-    repaired_validation = parse_and_validate_diagnosis(
-        request.diagnosis_id, repaired_response, experiences=request.rollouts,
-        skill_sections=skill_sections,
-    )
-    return repaired_response if repaired_validation.valid else response

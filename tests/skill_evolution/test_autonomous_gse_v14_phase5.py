@@ -16,6 +16,8 @@ from src.skill_evolution.autonomous_gse_v14_orchestrator import (
 from src.skill_evolution import autonomous_gse_v14_benchmark_runtime as runtime
 from src.skill_evolution import autonomous_gse_v14_orchestrator as orchestrator
 from src.skill_evolution import autonomous_gse_v14_proposal as proposal_v14
+from src.skill_evolution.autonomous_gse_v14_proposal import DiagnosisContractError
+from src.skill_evolution.diagnosis_contract_v14 import DiagnosisValidation
 from src.skill_evolution.regression_analysis_v14 import (
     RegressionAnalysisRequest, analyze_regressions, select_adverse_pairs,
 )
@@ -252,6 +254,8 @@ def test_successful_step_removes_stale_execution_error(tmp_path):
     error_path = tmp_path / "artifacts/steps/step_01/execution_error.json"
     error_path.parent.mkdir(parents=True, exist_ok=True)
     error_path.write_text('{"error_type":"stale"}\n', encoding="utf-8")
+    diagnosis_error_path = error_path.with_name("diagnosis_contract_error.json")
+    diagnosis_error_path.write_text('{"error_type":"stale"}\n', encoding="utf-8")
 
     run_evolution_step(
         step=1, batch=_batches()[0], parent=parent, parent_monitor={"S0": True},
@@ -261,6 +265,58 @@ def test_successful_step_removes_stale_execution_error(tmp_path):
 
     assert (tmp_path / "artifacts/steps/step_01/step_summary.json").is_file()
     assert not error_path.exists()
+    assert not diagnosis_error_path.exists()
+
+
+def test_diagnosis_contract_failure_persists_complete_validation_artifact(tmp_path):
+    skill = tmp_path / "S0.md"
+    skill.write_text("# S0\n", encoding="utf-8")
+    parent = {"skill_id": "S0", "skill_version": "S0", "skill_path": str(skill)}
+    validations = [
+        DiagnosisValidation(
+            diagnosis_id="diagnosis_001", source_ids=("source_001",),
+            raw_response="<DIAGNOSIS_JSON>{}</DIAGNOSIS_JSON>",
+            structured_output={}, valid=True, validation_errors=(),
+        ),
+        DiagnosisValidation(
+            diagnosis_id="diagnosis_002", source_ids=("source_002",),
+            raw_response="invalid response two", structured_output={"update_axis": "invalid"},
+            valid=False, validation_errors=("INVALID_UPDATE_AXIS",),
+        ),
+        DiagnosisValidation(
+            diagnosis_id="diagnosis_003", source_ids=("source_003",),
+            raw_response="invalid response three", structured_output=None,
+            valid=False, validation_errors=("DIAGNOSIS_JSON_NOT_FOUND",),
+        ),
+    ]
+
+    def fail_with_contract_details(_context, _step):
+        raise DiagnosisContractError(validations)
+
+    with pytest.raises(DiagnosisContractError, match="2 invalid Diagnoses"):
+        run_evolution_step(
+            step=1, batch=_batches()[0], parent=parent, parent_monitor={},
+            campaign={"campaign_id": "autonomous_gse_v14"},
+            services=_services([], _calls(), proposal=fail_with_contract_details),
+            artifact_root=tmp_path / "artifacts",
+        )
+
+    step_root = tmp_path / "artifacts/steps/step_01"
+    report = json.loads((step_root / "diagnosis_contract_error.json").read_text())
+    assert report["schema_version"] == "autonomous_gse_diagnosis_contract_error_0.14.0"
+    assert report["invalid_diagnosis_ids"] == ["diagnosis_002", "diagnosis_003"]
+    assert len(report["diagnoses"]) == 3
+    assert report["diagnoses"][1] == {
+        "diagnosis_id": "diagnosis_002", "source_ids": ["source_002"],
+        "raw_response": "invalid response two",
+        "structured_output": {"update_axis": "invalid"},
+        "validation": {"valid": False, "errors": ["INVALID_UPDATE_AXIS"]},
+    }
+    execution = json.loads((step_root / "execution_error.json").read_text())
+    assert execution["error_type"] == "DiagnosisContractError"
+    assert execution["diagnosis_contract_error_path"].endswith(
+        "steps/step_01/diagnosis_contract_error.json"
+    )
 
 
 def test_failed_step_keeps_current_execution_error(tmp_path):
