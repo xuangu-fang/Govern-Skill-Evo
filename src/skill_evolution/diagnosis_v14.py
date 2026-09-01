@@ -31,6 +31,18 @@ SEMANTIC_REPAIR_ALLOWED_VALUES_BY_PATH = {
     "behavior_analysis.evidence_consistency": EVIDENCE_CONSISTENCIES,
     "behavior_analysis.evidence_pattern": EVIDENCE_PATTERNS,
 }
+OUTCOME_SUPPORT_CHECKPOINT = """Outcome-support checkpoint for the final update decision:
+A Parent Skill coverage gap does not by itself justify root_cause.category = "skill_issue" or skill_update_relevance = "update". Decide the outcome-axis relations before deciding root cause and update relevance; do not change an outcome-axis relation to "supportive" merely to make an otherwise plausible Skill update satisfy the contract.
+
+Use this final decision order:
+1. Is there a supported Agent-controlled behavioral mechanism?
+2. Is there a real Parent Skill coverage weakness?
+3. Does at least one observed optimization-axis relation support the mechanism?
+4. Only then may root_cause.category be "skill_issue" and skill_update_relevance be "update"; update_axis must name exactly the supportive axis or axes.
+
+If the mechanism is supported and coverage is missing, incorrect, or underspecified, but neither task_success_relation nor compliance_relation is supportive, do not force an update. Preserve the observed coverage status, and use root_cause.category = "uncertain", skill_update_relevance = "uncertain", update_axis = "none", update_recommendation.action = "none", target_section = null, and target_rule_id = null. This represents a plausible Skill weakness whose effect on the optimization objectives is not sufficiently established by the supplied rollouts. Do not relabel it execution_issue merely to produce no update; execution_issue remains for an already_covered correct rule that the Agent failed to follow.
+
+Example: The Agent makes a questionable intermediate decision that is absent from the Parent Skill, but later self-corrects and all supplied rollouts still finish successfully and compliantly. The behavioral mechanism and coverage weakness may be real, but if the supplied outcomes do not support an effect on Task Success or Compliance, do not emit an update. Use uncertain, no active axis, and no action rather than inventing supportive outcome evidence."""
 
 
 @dataclass(frozen=True)
@@ -82,6 +94,8 @@ Do not call a rule underspecified merely to enable an update. If fully following
 
 6. Use outcomes only as supporting axis evidence. Task Success and Compliance are independent observed outcomes, and their supplied values are frozen external facts: do not relabel them or re-judge Compliance. Never start from Failure and reverse-engineer a mechanism. Describe the surviving mechanism's relation to each axis separately as supportive, contradictory, insufficient, or not_applicable. Identical behavior with mixed task outcomes does not support a task-success causal claim merely because failures are the majority. Policy can independently make the Compliance relation supportive even when the Task Success relation is insufficient. Set update_axis to task_success, compliance, or both according to exactly which axis relations support a Skill repair; do not require both axes to improve.
 
+<<V14_OUTCOME_SUPPORT_CHECKPOINT>>
+
 Classify evidence consistency once in the overall evidence_consistency field:
 - supportive: a concrete Agent-controlled behavioral mechanism is supported by contrastive or recurrent trajectory evidence; Policy/tool grounding is sound; at least one relevant outcome axis is consistent with the mechanism's expected impact; and no material counterevidence defeats the mechanism. This evaluates the mechanism itself, not Parent Skill coverage, root cause, or update eligibility.
 - conflicting: the same still-plausible mechanism has substantive supporting evidence and counterevidence that cannot be reconciled. Use uncertain and no update.
@@ -122,7 +136,9 @@ Return exactly one tagged JSON object and no prose:
   "update_recommendation":{"action":"none","target_section":null,"target_rule_id":null,"objective":"","description":""}
 }
 </DIAGNOSIS_JSON>
-""".replace("<<TAU3_BENCHMARK_EXCLUSION>>", benchmark_exclusion_prompt("diagnosis"))
+""".replace(
+    "<<V14_OUTCOME_SUPPORT_CHECKPOINT>>", OUTCOME_SUPPORT_CHECKPOINT,
+).replace("<<TAU3_BENCHMARK_EXCLUSION>>", benchmark_exclusion_prompt("diagnosis"))
 
 
 def build_diagnosis_prompts(request: MultiRolloutDiagnosisRequest) -> tuple[str, str]:

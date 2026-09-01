@@ -153,12 +153,84 @@ def test_diagnosis_contract_snapshot_equivalence_for_valid_invalid_and_repair():
     ).as_dict()
 
 
-def test_diagnosis_prompt_and_configuration_are_semantically_identical():
+def test_diagnosis_prompt_keeps_v13_lineage_with_v14_outcome_support_extension():
     assert diagnosis_v14.LEARNER_MODEL == diagnosis_v13.LEARNER_MODEL
     assert diagnosis_v14.EMPTY_RESPONSE_RETRIES == diagnosis_v13.EMPTY_RESPONSE_RETRIES
-    assert _normalize_version_identity(diagnosis_v14.DIAGNOSIS_SYSTEM_PROMPT) == (
+    v14_base = diagnosis_v14.DIAGNOSIS_SYSTEM_PROMPT.replace(
+        diagnosis_v14.OUTCOME_SUPPORT_CHECKPOINT + "\n\n", "",
+    )
+    assert _normalize_version_identity(v14_base) == (
         _normalize_version_identity(diagnosis_v13.DIAGNOSIS_SYSTEM_PROMPT)
     )
+
+
+def test_diagnosis_prompt_contains_general_outcome_support_checkpoint():
+    checkpoint = diagnosis_v14.OUTCOME_SUPPORT_CHECKPOINT
+    assert "coverage gap does not by itself justify" in checkpoint
+    assert "at least one observed optimization-axis relation" in checkpoint
+    assert "neither task_success_relation nor compliance_relation is supportive" in checkpoint
+    assert "do not force an update" in checkpoint
+    assert 'root_cause.category = "uncertain"' in checkpoint
+    assert 'skill_update_relevance = "uncertain"' in checkpoint
+    assert 'update_axis = "none"' in checkpoint
+    assert 'update_recommendation.action = "none"' in checkpoint
+    assert 'do not change an outcome-axis relation to "supportive"' in checkpoint
+    assert "later self-corrects" in checkpoint
+    assert "retail" not in checkpoint.lower()
+    assert "second preference" not in checkpoint.lower()
+
+
+def test_outcome_support_checkpoint_mappings_pass_the_existing_contract():
+    experiences = _group()
+    sections = {"Planning and navigation": [], "Execution patterns": [],
+                "Form entry and verification": [],
+                "Error recovery and stopping": []}
+    supported_updates = (
+        _diagnosis(
+            relevance="update", action="add", category="skill_issue",
+            update_axis="task_success", evidence_pattern="contrastive",
+            task_success_relation="supportive", compliance_relation="insufficient",
+            coverage_status="missing", problem="missing mechanism",
+            repair_operator="apply bounded mechanism",
+        ),
+        _diagnosis(
+            relevance="update", action="add", category="skill_issue",
+            update_axis="compliance", evidence_pattern="contrastive",
+            task_success_relation="insufficient", compliance_relation="supportive",
+            coverage_status="missing", problem="missing mechanism",
+            repair_operator="apply bounded mechanism",
+        ),
+        _diagnosis(
+            relevance="update", action="add", category="skill_issue",
+            update_axis="both", evidence_pattern="contrastive",
+            task_success_relation="supportive", compliance_relation="supportive",
+            coverage_status="missing", problem="missing mechanism",
+            repair_operator="apply bounded mechanism",
+        ),
+    )
+    for diagnosis in supported_updates:
+        assert contract_v14.validate_diagnosis(
+            diagnosis, experiences=experiences, skill_sections=sections,
+        ) == ()
+
+    no_outcome_support = _diagnosis(
+        relevance="uncertain", action="none", category="uncertain",
+        update_axis="none", evidence_pattern="contrastive",
+        task_success_relation="insufficient", compliance_relation="not_applicable",
+        coverage_status="missing",
+    )
+    no_outcome_support["behavior_analysis"]["evidence_consistency"] = "supportive"
+    no_outcome_support["behavior_analysis"]["behavioral_mechanism"] = (
+        "the Agent makes a concrete intermediate choice and later self-corrects"
+    )
+    assert contract_v14.validate_diagnosis(
+        no_outcome_support, experiences=experiences, skill_sections=sections,
+    ) == ()
+    assert no_outcome_support["parent_skill_coverage"]["status"] == "missing"
+    assert no_outcome_support["root_cause"]["category"] == "uncertain"
+    assert no_outcome_support["skill_update_relevance"] == "uncertain"
+    assert no_outcome_support["update_axis"] == "none"
+    assert no_outcome_support["update_recommendation"]["action"] == "none"
 
 
 def test_semantic_repair_whitelist_and_authoritative_paths_are_exact():
