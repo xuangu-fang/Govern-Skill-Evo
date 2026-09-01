@@ -918,18 +918,14 @@ def run_v14_campaign(
     )
 
     validate_batch_map(batch_map, campaign)
-    execution_campaign = copy.deepcopy(campaign)
-    execution_campaign["initial_parent"]["path"] = _resolved_path(
-        campaign["initial_parent"]["path"],
-    ).as_posix()
     bound = services or build_evolution_services(
         campaign, batch_map, artifact_root=artifact_root,
     )
     if resume:
         return resume_campaign(
-            execution_campaign, batch_map, bound, artifact_root=artifact_root,
+            campaign, batch_map, bound, artifact_root=artifact_root,
         )
-    return run_campaign(execution_campaign, batch_map, bound, artifact_root=artifact_root)
+    return run_campaign(campaign, batch_map, bound, artifact_root=artifact_root)
 
 
 def _campaign_files(campaign_path: Path) -> tuple[dict[str, Any], dict[str, Any]]:

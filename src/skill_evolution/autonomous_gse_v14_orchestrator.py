@@ -18,10 +18,18 @@ from src.skill_evolution.regression_analysis_v14 import analyze_regressions
 from src.skill_evolution.target_behavior_analysis_v14 import analyze_target_behaviors
 
 PROMOTION_SOURCE = "distributional_gate_only"
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class OrchestrationContractError(ValueError):
     """Raised when Phase 5 state or artifact lineage is invalid."""
+
+
+def resolve_skill_artifact_path(skill_path_identity: str) -> Path:
+    """Resolve an identity path for I/O without changing the identity string."""
+
+    path = Path(skill_path_identity)
+    return path if path.is_absolute() else REPO_ROOT / path
 
 
 @dataclass(frozen=True)
@@ -179,7 +187,9 @@ def run_evolution_step(
             proposal_path, batch_id=batch["batch_id"], parent=parent,
         )
         if proposal is None:
-            parent_text = Path(parent["skill_path"]).read_text(encoding="utf-8")
+            parent_text = resolve_skill_artifact_path(
+                parent["skill_path"],
+            ).read_text(encoding="utf-8")
             context = ProposalContext(
                 candidate_id=f"candidate_step_{step:02d}", parent_skill=parent_text,
                 current_batch_governed_evidence=tuple(copy.deepcopy(parent_bundle["evidence"])),
