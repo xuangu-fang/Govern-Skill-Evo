@@ -1,46 +1,29 @@
-"""Strict v0.14 contract; semantic snapshot of the final v0.13 contract."""
+"""Minimal Semantic Diagnosis contract for Autonomous GSE v0.14."""
 
 from __future__ import annotations
 
 import copy
+import json
 from dataclasses import dataclass
 from typing import Any
 
-from src.skill_evolution.diagnosis_contract_v11 import parse_diagnosis_response
-
-ROOT_CAUSES = {"skill_issue", "execution_issue", "external_issue", "uncertain"}
-UPDATE_RELEVANCE = {"update", "none", "uncertain"}
-UPDATE_AXES = {"task_success", "compliance", "both", "none"}
-UPDATE_ACTIONS = {"add", "replace", "delete", "none"}
-EVIDENCE_CONSISTENCIES = {"supportive", "conflicting", "insufficient"}
-EVIDENCE_PATTERNS = {"contrastive", "recurrent", "insufficient"}
-AXIS_RELATIONS = {"supportive", "contradictory", "insufficient", "not_applicable"}
-PARENT_SKILL_COVERAGE = {
+EVIDENCE_STATUSES = {
+    "contrastive_support", "recurrent_support", "conflicting", "insufficient",
+}
+FEASIBILITY_STATUSES = {"feasible", "infeasible", "uncertain"}
+SKILL_COVERAGE_STATUSES = {
     "missing", "incorrect", "underspecified", "already_covered", "not_applicable",
 }
-DIAGNOSIS_FIELDS = {
-    "task_behavior_summary", "behavior_analysis", "parent_skill_coverage", "root_cause",
-    "skill_update_relevance", "update_axis", "repair_policy_ids",
-    "target_behavior", "update_recommendation",
+OUTCOME_RELATIONS = {"supports", "contradicts", "insufficient", "not_applicable"}
+EDIT_INTENTS = {"replace", "delete", "not_applicable"}
+SEMANTIC_DIAGNOSIS_FIELDS = {
+    "behavioral_mechanism", "feasibility", "skill_coverage", "outcome_relation",
+    "repair_policy_ids", "target_behavior", "edit_intent",
 }
 EVIDENCE_REF_FIELDS = {"source_id", "step_ids"}
-REPAIRABLE_CONTRACT_ERRORS = frozenset({
-    "ROOT_CAUSE_RELEVANCE_MISMATCH",
-    "NON_UPDATE_AXIS_MUST_BE_NONE",
-    "UPDATE_REQUIRES_ACTIVE_AXIS",
-    "UPDATE_AXIS_RELATION_MISMATCH",
-    "ADD_MUST_NOT_PRESELECT_SECTION",
-    "ADD_MUST_NOT_TARGET_RULE",
-    "NONE_MUST_NOT_HAVE_TARGET",
-    "NON_UPDATE_RELEVANCE_ACTION_MISMATCH",
-})
-
-_ROOT_CAUSE_RELEVANCE = {
-    "skill_issue": "update",
-    "execution_issue": "none",
-    "external_issue": "none",
-    "uncertain": "uncertain",
-    None: "none",
+TARGET_BEHAVIOR_FIELDS = {
+    "problem", "trigger_condition", "decision_boundary", "repair_operator",
+    "stopping_boundary", "expected_behavior",
 }
 
 
@@ -52,19 +35,24 @@ class DiagnosisValidation:
     structured_output: dict[str, Any] | None
     valid: bool
     validation_errors: tuple[str, ...]
-    repair_trace: dict[str, Any] | None = None
+    compiled_decision: dict[str, Any] | None = None
+    compiler_trace: dict[str, Any] | None = None
 
     def as_dict(self) -> dict[str, Any]:
-        result = {
+        return {
             "diagnosis_id": self.diagnosis_id,
             "source_ids": list(self.source_ids),
-            "raw_response": self.raw_response,
-            "structured_output": copy.deepcopy(self.structured_output),
-            "validation": {"valid": self.valid, "errors": list(self.validation_errors)},
+            "semantic": {
+                "raw_response": self.raw_response,
+                "structured_output": copy.deepcopy(self.structured_output),
+                "validation": {
+                    "valid": self.valid,
+                    "errors": list(self.validation_errors),
+                },
+            },
+            "compiled_decision": copy.deepcopy(self.compiled_decision),
+            "compiler_trace": copy.deepcopy(self.compiler_trace),
         }
-        if self.repair_trace is not None:
-            result["repair_trace"] = copy.deepcopy(self.repair_trace)
-        return result
 
 
 def _step_ids(evidence: dict[str, Any]) -> set[int]:
@@ -81,7 +69,9 @@ def _step_ids(evidence: dict[str, Any]) -> set[int]:
     }
 
 
-def _validate_refs(value: Any, evidence_by_source: dict[str, dict[str, Any]], prefix: str) -> list[str]:
+def _validate_refs(
+    value: Any, evidence_by_source: dict[str, dict[str, Any]], prefix: str,
+) -> list[str]:
     if not isinstance(value, list):
         return [f"INVALID_{prefix}_EVIDENCE_REFS"]
     errors: list[str] = []
@@ -143,48 +133,64 @@ def validate_diagnosis(
 ) -> tuple[str, ...]:
     errors = list(validate_task_evidence_group(experiences))
     if not isinstance(diagnosis, dict):
-        return tuple(dict.fromkeys([*errors, "DIAGNOSIS_NOT_OBJECT"]))
-    if set(diagnosis) != DIAGNOSIS_FIELDS:
-        errors.append("INVALID_DIAGNOSIS_FIELDS")
-    if not isinstance(diagnosis.get("task_behavior_summary"), str):
-        errors.append("INVALID_TASK_BEHAVIOR_SUMMARY")
+        return tuple(dict.fromkeys([*errors, "SEMANTIC_DIAGNOSIS_NOT_OBJECT"]))
+    if set(diagnosis) != SEMANTIC_DIAGNOSIS_FIELDS:
+        errors.append("INVALID_SEMANTIC_DIAGNOSIS_FIELDS")
+
     evidence_by_source = {
         item["source_id"]: item for item in experiences
         if isinstance(item, dict) and isinstance(item.get("source_id"), str)
     }
-    analysis = diagnosis.get("behavior_analysis")
-    expected_analysis = {
-        "evidence_pattern", "stable_behavior", "behavioral_mechanism",
-        "task_success_relation", "compliance_relation", "evidence_consistency",
-        "counterevidence",
-        "support_evidence_refs", "counterevidence_refs",
+    mechanism = diagnosis.get("behavioral_mechanism")
+    mechanism_fields = {
+        "description", "evidence_status", "support_evidence_refs",
+        "counterevidence_refs", "counterevidence",
     }
-    if not isinstance(analysis, dict) or set(analysis) != expected_analysis:
-        errors.append("INVALID_BEHAVIOR_ANALYSIS")
+    evidence_status = None
+    if not isinstance(mechanism, dict) or set(mechanism) != mechanism_fields:
+        errors.append("INVALID_BEHAVIORAL_MECHANISM")
     else:
-        if any(not isinstance(analysis.get(key), str) for key in (
-            "evidence_pattern", "stable_behavior", "behavioral_mechanism",
-            "task_success_relation", "compliance_relation", "evidence_consistency",
-            "counterevidence",
-        )):
-            errors.append("INVALID_BEHAVIOR_ANALYSIS")
-        errors.extend(_validate_refs(analysis.get("support_evidence_refs"), evidence_by_source, "SUPPORT"))
-        errors.extend(_validate_refs(analysis.get("counterevidence_refs"), evidence_by_source, "COUNTER"))
-    coverage = diagnosis.get("parent_skill_coverage")
-    coverage_status = None
+        evidence_status = mechanism.get("evidence_status")
+        if evidence_status not in EVIDENCE_STATUSES:
+            errors.append("INVALID_EVIDENCE_STATUS")
+        if not isinstance(mechanism.get("description"), str) or not isinstance(
+            mechanism.get("counterevidence"), str,
+        ):
+            errors.append("INVALID_BEHAVIORAL_MECHANISM")
+        errors.extend(_validate_refs(
+            mechanism.get("support_evidence_refs"), evidence_by_source, "SUPPORT",
+        ))
+        errors.extend(_validate_refs(
+            mechanism.get("counterevidence_refs"), evidence_by_source, "COUNTER",
+        ))
+        if evidence_status in {"contrastive_support", "recurrent_support"}:
+            if not isinstance(mechanism.get("description"), str) or not mechanism["description"].strip():
+                errors.append("SUPPORTED_EVIDENCE_REQUIRES_MECHANISM")
+            if not mechanism.get("support_evidence_refs"):
+                errors.append("SUPPORTED_EVIDENCE_REQUIRES_SUPPORT_REFS")
+
+    feasibility = diagnosis.get("feasibility")
+    if not isinstance(feasibility, dict) or set(feasibility) != {"status", "explanation"}:
+        errors.append("INVALID_FEASIBILITY")
+    else:
+        if feasibility.get("status") not in FEASIBILITY_STATUSES:
+            errors.append("INVALID_FEASIBILITY_STATUS")
+        if not isinstance(feasibility.get("explanation"), str):
+            errors.append("INVALID_FEASIBILITY")
+
+    coverage = diagnosis.get("skill_coverage")
     if not isinstance(coverage, dict) or set(coverage) != {
         "status", "related_rule_ids", "explanation",
     }:
-        errors.append("INVALID_PARENT_SKILL_COVERAGE")
+        errors.append("INVALID_SKILL_COVERAGE")
     else:
-        coverage_status = coverage.get("status")
-        related_rule_ids = coverage.get("related_rule_ids")
-        if coverage_status not in PARENT_SKILL_COVERAGE:
-            errors.append("INVALID_PARENT_SKILL_COVERAGE_STATUS")
+        if coverage.get("status") not in SKILL_COVERAGE_STATUSES:
+            errors.append("INVALID_SKILL_COVERAGE_STATUS")
         if not isinstance(coverage.get("explanation"), str):
-            errors.append("INVALID_PARENT_SKILL_COVERAGE")
-        if not isinstance(related_rule_ids, list) or any(
-            not isinstance(rule_id, str) or not rule_id for rule_id in related_rule_ids
+            errors.append("INVALID_SKILL_COVERAGE")
+        rule_ids = coverage.get("related_rule_ids")
+        if not isinstance(rule_ids, list) or any(
+            not isinstance(rule_id, str) or not rule_id for rule_id in rule_ids
         ):
             errors.append("INVALID_RELATED_RULE_IDS")
         else:
@@ -192,205 +198,67 @@ def validate_diagnosis(
                 rule.get("rule_id") for rules in skill_sections.values() for rule in rules
                 if isinstance(rule, dict) and isinstance(rule.get("rule_id"), str)
             }
-            if not set(related_rule_ids) <= known_rule_ids:
+            if not set(rule_ids) <= known_rule_ids:
                 errors.append("RELATED_RULE_ID_NOT_FOUND")
-    root = diagnosis.get("root_cause")
-    category = None
-    if not isinstance(root, dict) or set(root) != {"category", "explanation"}:
-        errors.append("INVALID_ROOT_CAUSE")
+
+    outcome = diagnosis.get("outcome_relation")
+    if not isinstance(outcome, dict) or set(outcome) != {"task_success", "compliance"}:
+        errors.append("INVALID_OUTCOME_RELATION")
     else:
-        category = root.get("category")
-        if category is not None and category not in ROOT_CAUSES:
-            errors.append("INVALID_ROOT_CAUSE_CATEGORY")
-        if not isinstance(root.get("explanation"), str):
-            errors.append("INVALID_ROOT_CAUSE")
-    relevance = diagnosis.get("skill_update_relevance")
-    if relevance not in UPDATE_RELEVANCE:
-        errors.append("INVALID_SKILL_UPDATE_RELEVANCE")
-    expected_relevance = _ROOT_CAUSE_RELEVANCE.get(category)
-    if relevance in UPDATE_RELEVANCE and relevance != expected_relevance:
-        errors.append("ROOT_CAUSE_RELEVANCE_MISMATCH")
-    consistency = analysis.get("evidence_consistency") if isinstance(analysis, dict) else None
-    evidence_pattern = analysis.get("evidence_pattern") if isinstance(analysis, dict) else None
-    mechanism = analysis.get("behavioral_mechanism") if isinstance(analysis, dict) else None
-    task_relation = analysis.get("task_success_relation") if isinstance(analysis, dict) else None
-    compliance_relation = analysis.get("compliance_relation") if isinstance(analysis, dict) else None
-    if consistency not in EVIDENCE_CONSISTENCIES:
-        errors.append("INVALID_EVIDENCE_CONSISTENCY")
-    if evidence_pattern not in EVIDENCE_PATTERNS:
-        errors.append("INVALID_EVIDENCE_PATTERN")
-    if task_relation not in AXIS_RELATIONS:
-        errors.append("INVALID_TASK_SUCCESS_RELATION")
-    if compliance_relation not in AXIS_RELATIONS:
-        errors.append("INVALID_COMPLIANCE_RELATION")
-    if relevance == "update":
-        if consistency != "supportive":
-            errors.append("UPDATE_REQUIRES_SUPPORTIVE_EVIDENCE")
-        if not isinstance(mechanism, str) or not mechanism.strip():
-            errors.append("UPDATE_REQUIRES_BEHAVIORAL_MECHANISM")
-        if evidence_pattern not in {"contrastive", "recurrent"}:
-            errors.append("UPDATE_REQUIRES_CONTRASTIVE_OR_RECURRENT_EVIDENCE")
-        if category != "skill_issue":
-            errors.append("UPDATE_REQUIRES_SKILL_ISSUE")
-        if coverage_status not in {"missing", "incorrect", "underspecified"}:
-            errors.append("UPDATE_REQUIRES_SKILL_COVERAGE_GAP")
-        if not isinstance(analysis, dict) or not analysis.get("support_evidence_refs"):
-            errors.append("UPDATE_REQUIRES_SUPPORT_EVIDENCE_REFS")
-        if task_relation != "supportive" and compliance_relation != "supportive":
-            errors.append("UPDATE_REQUIRES_SUPPORTIVE_AXIS")
-    if evidence_pattern == "insufficient" and relevance == "update":
-        errors.append("INSUFFICIENT_EVIDENCE_PATTERN_FORBIDS_UPDATE")
-    if coverage_status == "already_covered" and category == "skill_issue" and relevance == "update":
-        errors.append("ALREADY_COVERED_FORBIDS_SKILL_UPDATE")
-    if coverage_status == "already_covered" and category != "execution_issue":
-        errors.append("ALREADY_COVERED_REQUIRES_EXECUTION_ISSUE")
-    if category == "execution_issue" and coverage_status != "already_covered":
-        errors.append("EXECUTION_ISSUE_REQUIRES_ALREADY_COVERED")
-    if consistency == "conflicting" and not (
-        category == "uncertain" and relevance == "uncertain"
-    ):
-        errors.append("CONFLICTING_EVIDENCE_REQUIRES_UNCERTAIN_NO_UPDATE")
-    update_axis = diagnosis.get("update_axis")
-    if update_axis not in UPDATE_AXES:
-        errors.append("INVALID_UPDATE_AXIS")
-    elif relevance == "update" and update_axis not in {"task_success", "compliance", "both"}:
-        errors.append("UPDATE_REQUIRES_ACTIVE_AXIS")
-    elif relevance in {"none", "uncertain"} and update_axis != "none":
-        errors.append("NON_UPDATE_AXIS_MUST_BE_NONE")
-    if relevance == "update":
-        expected_axis = (
-            "both" if task_relation == compliance_relation == "supportive"
-            else "task_success" if task_relation == "supportive"
-            else "compliance" if compliance_relation == "supportive"
-            else None
-        )
-        if update_axis != expected_axis:
-            errors.append("UPDATE_AXIS_RELATION_MISMATCH")
+        if outcome.get("task_success") not in OUTCOME_RELATIONS:
+            errors.append("INVALID_TASK_SUCCESS_RELATION")
+        if outcome.get("compliance") not in OUTCOME_RELATIONS:
+            errors.append("INVALID_COMPLIANCE_RELATION")
+
     policy_ids = diagnosis.get("repair_policy_ids")
-    if not isinstance(policy_ids, list) or any(not isinstance(value, str) or not value for value in policy_ids):
+    if not isinstance(policy_ids, list) or any(
+        not isinstance(value, str) or not value for value in policy_ids
+    ):
         errors.append("INVALID_REPAIR_POLICY_IDS")
     elif not set(policy_ids) <= _policy_ids(experiences):
         errors.append("POLICY_ID_NOT_IN_EVIDENCE")
+
     target = diagnosis.get("target_behavior")
-    target_fields = {
-        "problem", "trigger_condition", "decision_boundary", "repair_operator",
-        "stopping_boundary", "expected_behavior",
-    }
-    if not isinstance(target, dict) or set(target) != target_fields or any(
-        not isinstance(target.get(key), str) for key in target_fields
+    if not isinstance(target, dict) or set(target) != TARGET_BEHAVIOR_FIELDS or any(
+        not isinstance(target.get(key), str) for key in TARGET_BEHAVIOR_FIELDS
     ):
         errors.append("INVALID_TARGET_BEHAVIOR")
-    rec = diagnosis.get("update_recommendation")
-    expected_rec = {"action", "target_section", "target_rule_id", "objective", "description"}
-    if not isinstance(rec, dict) or set(rec) != expected_rec:
-        errors.append("INVALID_UPDATE_RECOMMENDATION")
-    else:
-        action, section, rule_id = rec.get("action"), rec.get("target_section"), rec.get("target_rule_id")
-        if action not in UPDATE_ACTIONS:
-            errors.append("INVALID_UPDATE_ACTION")
-        if not isinstance(rec.get("objective"), str) or not isinstance(rec.get("description"), str):
-            errors.append("INVALID_UPDATE_RECOMMENDATION")
-        if relevance == "update" and action not in {"add", "replace", "delete"}:
-            errors.append("UPDATE_RELEVANCE_ACTION_MISMATCH")
-        if relevance in {"none", "uncertain"} and action != "none":
-            errors.append("NON_UPDATE_RELEVANCE_ACTION_MISMATCH")
-        if action == "add":
-            if section is not None:
-                errors.append("ADD_MUST_NOT_PRESELECT_SECTION")
-            if rule_id is not None:
-                errors.append("ADD_MUST_NOT_TARGET_RULE")
-        elif action in {"replace", "delete"}:
-            if section not in skill_sections:
-                errors.append("TARGET_SECTION_NOT_FOUND")
-            matches = [name for name, rules in skill_sections.items() if any(rule.get("rule_id") == rule_id for rule in rules)]
-            if not matches:
-                errors.append("TARGET_RULE_ID_NOT_FOUND")
-            elif matches != [section]:
-                errors.append("TARGET_RULE_SECTION_MISMATCH")
-        elif action == "none" and (section is not None or rule_id is not None):
-            errors.append("NONE_MUST_NOT_HAVE_TARGET")
+    if diagnosis.get("edit_intent") not in EDIT_INTENTS:
+        errors.append("INVALID_EDIT_INTENT")
     return tuple(dict.fromkeys(errors))
 
 
-def repair_diagnosis_contract_fields(
-    diagnosis: Any, validation_errors: tuple[str, ...],
-) -> dict[str, Any] | None:
-    """Repair only contract fields uniquely determined by existing Diagnosis fields."""
-    errors = set(validation_errors)
-    if (
-        not isinstance(diagnosis, dict)
-        or not errors
-        or not errors <= REPAIRABLE_CONTRACT_ERRORS
-    ):
-        return None
-
-    repaired = copy.deepcopy(diagnosis)
-    analysis = repaired.get("behavior_analysis")
-    root = repaired.get("root_cause")
-    recommendation = repaired.get("update_recommendation")
-    if not all(isinstance(value, dict) for value in (analysis, root, recommendation)):
-        return None
-
-    if "ROOT_CAUSE_RELEVANCE_MISMATCH" in errors:
-        category = root.get("category")
-        if category not in _ROOT_CAUSE_RELEVANCE:
-            return None
-        repaired["skill_update_relevance"] = _ROOT_CAUSE_RELEVANCE[category]
-
-    relevance = repaired.get("skill_update_relevance")
-    if "NON_UPDATE_AXIS_MUST_BE_NONE" in errors:
-        if relevance not in {"none", "uncertain"}:
-            return None
-        repaired["update_axis"] = "none"
-
-    if errors & {"UPDATE_REQUIRES_ACTIVE_AXIS", "UPDATE_AXIS_RELATION_MISMATCH"}:
-        if relevance != "update":
-            return None
-        task_supportive = analysis.get("task_success_relation") == "supportive"
-        compliance_supportive = analysis.get("compliance_relation") == "supportive"
-        if not task_supportive and not compliance_supportive:
-            return None
-        repaired["update_axis"] = (
-            "both" if task_supportive and compliance_supportive
-            else "task_success" if task_supportive
-            else "compliance"
-        )
-
-    action = recommendation.get("action")
-    if errors & {"ADD_MUST_NOT_PRESELECT_SECTION", "ADD_MUST_NOT_TARGET_RULE"}:
-        if action != "add":
-            return None
-        recommendation["target_section"] = None
-        recommendation["target_rule_id"] = None
-
-    if "NON_UPDATE_RELEVANCE_ACTION_MISMATCH" in errors:
-        if relevance not in {"none", "uncertain"}:
-            return None
-        recommendation["action"] = "none"
-        recommendation["target_section"] = None
-        recommendation["target_rule_id"] = None
-    elif "NONE_MUST_NOT_HAVE_TARGET" in errors:
-        if action != "none":
-            return None
-        recommendation["target_section"] = None
-        recommendation["target_rule_id"] = None
-
-    return repaired
+def _parse_semantic_response(response: Any) -> tuple[dict[str, Any] | None, str | None]:
+    if not isinstance(response, str):
+        return None, "SEMANTIC_DIAGNOSIS_RESPONSE_NOT_STRING"
+    opening = "<SEMANTIC_DIAGNOSIS_JSON>"
+    closing = "</SEMANTIC_DIAGNOSIS_JSON>"
+    stripped = response.strip()
+    if not stripped.startswith(opening) or not stripped.endswith(closing):
+        return None, "SEMANTIC_DIAGNOSIS_JSON_NOT_FOUND"
+    payload = stripped[len(opening):-len(closing)].strip()
+    try:
+        parsed = json.loads(payload)
+    except json.JSONDecodeError:
+        return None, "INVALID_SEMANTIC_DIAGNOSIS_JSON"
+    if not isinstance(parsed, dict):
+        return None, "SEMANTIC_DIAGNOSIS_NOT_OBJECT"
+    return parsed, None
 
 
 def parse_and_validate_diagnosis(
     diagnosis_id: str, response: Any, *, experiences: tuple[dict[str, Any], ...],
     skill_sections: dict[str, list[dict[str, str]]],
 ) -> DiagnosisValidation:
-    parsed, parse_error = parse_diagnosis_response(response)
+    parsed, parse_error = _parse_semantic_response(response)
     errors = (parse_error,) if parse_error else validate_diagnosis(
-        parsed, experiences=experiences, skill_sections=skill_sections
+        parsed, experiences=experiences, skill_sections=skill_sections,
     )
-    source_ids = tuple(item.get("source_id", "") for item in experiences)
     return DiagnosisValidation(
-        diagnosis_id=diagnosis_id, source_ids=source_ids,
+        diagnosis_id=diagnosis_id,
+        source_ids=tuple(item.get("source_id", "") for item in experiences),
         raw_response=response if isinstance(response, str) else repr(response),
-        structured_output=copy.deepcopy(parsed), valid=not errors,
+        structured_output=copy.deepcopy(parsed),
+        valid=not errors,
         validation_errors=errors,
-        repair_trace=copy.deepcopy(getattr(response, "repair_trace", None)),
     )

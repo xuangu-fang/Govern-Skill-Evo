@@ -275,27 +275,21 @@ def test_diagnosis_contract_failure_persists_complete_validation_artifact(tmp_pa
     validations = [
         DiagnosisValidation(
             diagnosis_id="diagnosis_001", source_ids=("source_001",),
-            raw_response="<DIAGNOSIS_JSON>{}</DIAGNOSIS_JSON>",
+            raw_response="<SEMANTIC_DIAGNOSIS_JSON>{}</SEMANTIC_DIAGNOSIS_JSON>",
             structured_output={}, valid=True, validation_errors=(),
+            compiled_decision={"update_eligible": False},
+            compiler_trace={"decision_reason": "NO_UPDATE"},
         ),
         DiagnosisValidation(
             diagnosis_id="diagnosis_002", source_ids=("source_002",),
-            raw_response="invalid response two", structured_output={"update_axis": "invalid"},
-            valid=False, validation_errors=("INVALID_UPDATE_AXIS",),
-            repair_trace={
-                "attempted": True,
-                "raw_repair_response": "<DIAGNOSIS_JSON>{}</DIAGNOSIS_JSON>",
-                "parsed_patch": None,
-                "rejection_reason": "INVALID_ENVELOPE",
-                "final_validation": {
-                    "valid": False, "errors": ["INVALID_UPDATE_AXIS"],
-                },
-            },
+            raw_response="invalid response two",
+            structured_output={"outcome_relation": {"task_success": "invalid"}},
+            valid=False, validation_errors=("INVALID_TASK_SUCCESS_RELATION",),
         ),
         DiagnosisValidation(
             diagnosis_id="diagnosis_003", source_ids=("source_003",),
             raw_response="invalid response three", structured_output=None,
-            valid=False, validation_errors=("DIAGNOSIS_JSON_NOT_FOUND",),
+            valid=False, validation_errors=("SEMANTIC_DIAGNOSIS_JSON_NOT_FOUND",),
         ),
     ]
 
@@ -317,18 +311,17 @@ def test_diagnosis_contract_failure_persists_complete_validation_artifact(tmp_pa
     assert len(report["diagnoses"]) == 3
     assert report["diagnoses"][1] == {
         "diagnosis_id": "diagnosis_002", "source_ids": ["source_002"],
-        "raw_response": "invalid response two",
-        "structured_output": {"update_axis": "invalid"},
-        "validation": {"valid": False, "errors": ["INVALID_UPDATE_AXIS"]},
-        "repair_trace": {
-            "attempted": True,
-            "raw_repair_response": "<DIAGNOSIS_JSON>{}</DIAGNOSIS_JSON>",
-            "parsed_patch": None,
-            "rejection_reason": "INVALID_ENVELOPE",
-            "final_validation": {
-                "valid": False, "errors": ["INVALID_UPDATE_AXIS"],
+        "semantic": {
+            "raw_response": "invalid response two",
+            "structured_output": {
+                "outcome_relation": {"task_success": "invalid"},
+            },
+            "validation": {
+                "valid": False, "errors": ["INVALID_TASK_SUCCESS_RELATION"],
             },
         },
+        "compiled_decision": None,
+        "compiler_trace": None,
     }
     execution = json.loads((step_root / "execution_error.json").read_text())
     assert execution["error_type"] == "DiagnosisContractError"

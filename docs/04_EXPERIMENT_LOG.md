@@ -4298,7 +4298,7 @@ Candidate 同时存在 2 条 `NOT_FIXED` 和 1 条 `CHANGE_CAUSED` 回归，因�
 `incorrect`：已有规则给出了错误指导；
 `underspecified`：已有规则提到了该行为，但缺少关键触发条件、判断条件、顺序或停止边界；
 `already_covered`：Skill 已经明确给出正确规则，但 Agent 没有执行；
-`not_applicable`：问题本身与 Skill coverage 无直接关系。
+`not_applicable`：问题本身与 Skill 无直接关系。
 
 只有 missing / incorrect / underspecified 才可能进一步归因为 skill_issue。如果 Skill 已经正确覆盖，则归为 execution_issue，不再添加重复规则。
 

@@ -12,7 +12,6 @@ from src.adapters.tau2 import tau3_compliance_judge_v13 as compliance_v13
 from src.learners.stwebagentbench import generate_governed_skill_v14 as editor_v14
 from src.skill_evolution import autonomous_gse_v13_proposal as proposal_v13
 from src.skill_evolution import autonomous_gse_v14_proposal as proposal_v14
-from src.skill_evolution import diagnosis_contract_v13
 from src.skill_evolution import diagnosis_contract_v14
 from src.skill_evolution import diagnosis_v14
 from src.skill_evolution import autonomous_gse_v14_benchmark_runtime as v14
@@ -52,19 +51,22 @@ def _evidence(task_ids: list[str]) -> tuple[dict, ...]:
     return tuple(result)
 
 
-class TestV14LearnerParity:
+class TestV14LearnerArchitecture:
     def test_compliance_judge_is_the_v13_implementation(self):
         assert v14.judge_compliance is compliance_v13.judge_compliance
         assert v14.compliance_v13.JUDGE_SYSTEM_PROMPT is compliance_v13.JUDGE_SYSTEM_PROMPT
 
-    def test_diagnosis_and_contract_are_v14_owned_snapshots(self):
+    def test_diagnosis_and_minimal_contract_are_v14_owned(self):
         assert v14.call_diagnosis is diagnosis_v14.call_diagnosis
         assert v14.MultiRolloutDiagnosisRequest is diagnosis_v14.MultiRolloutDiagnosisRequest
-        assert v14.diagnosis_contract_v14.DIAGNOSIS_FIELDS is diagnosis_contract_v14.DIAGNOSIS_FIELDS
-        assert v14.diagnosis_contract_v14.DIAGNOSIS_FIELDS == diagnosis_contract_v13.DIAGNOSIS_FIELDS
-        assert v14.diagnosis_contract_v14.EVIDENCE_PATTERNS == {
-            "contrastive", "recurrent", "insufficient",
+        assert v14.diagnosis_contract_v14.SEMANTIC_DIAGNOSIS_FIELDS is (
+            diagnosis_contract_v14.SEMANTIC_DIAGNOSIS_FIELDS
+        )
+        assert diagnosis_contract_v14.EVIDENCE_STATUSES == {
+            "contrastive_support", "recurrent_support", "conflicting", "insufficient",
         }
+        assert "root_cause" not in diagnosis_contract_v14.SEMANTIC_DIAGNOSIS_FIELDS
+        assert (ROOT / "src/skill_evolution/diagnosis_compiler_v14.py").is_file()
 
     def test_proposal_operator_and_editor_are_v14_owned_snapshots(self):
         assert v14.MultiRolloutDiagnosisProposalOperator is proposal_v14.MultiRolloutDiagnosisProposalOperator

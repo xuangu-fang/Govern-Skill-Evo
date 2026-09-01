@@ -1,4 +1,4 @@
-"""v0.14 proposal operator; semantic snapshot of the final v0.13 operator."""
+"""v0.14 proposal operator over compiled Minimal Semantic Diagnoses."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import json
 import re
 from collections import defaultdict
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from src.skill_evolution.autonomous_gse_v03_proposal import (
@@ -20,6 +20,7 @@ from src.skill_evolution.autonomous_gse_v05_proposal import (
 from src.skill_evolution.diagnosis_contract_v14 import (
     DiagnosisValidation, parse_and_validate_diagnosis, validate_task_evidence_group,
 )
+from src.skill_evolution.diagnosis_compiler_v14 import compile_semantic_diagnosis
 from src.skill_evolution.diagnosis_v14 import Diagnoser, MultiRolloutDiagnosisRequest
 
 _TASK_SPECIFIC_RULE_PATTERNS = (
@@ -95,25 +96,28 @@ def group_task_evidence(evidence: tuple[dict[str, Any], ...]) -> list[tuple[tupl
 
 def _signal(item: DiagnosisValidation, task: tuple[str, str]) -> dict[str, Any]:
     assert item.structured_output is not None
-    diagnosis = item.structured_output
-    rec = diagnosis["update_recommendation"]
+    assert item.compiled_decision is not None
+    semantic = item.structured_output
+    compiled = item.compiled_decision
+    target = semantic["target_behavior"]
     return {
         "patch_id": item.diagnosis_id,
         "diagnosis_id": item.diagnosis_id,
         "derived_from_diagnosis_ids": [item.diagnosis_id],
         "task_identity": {"domain": task[0], "task_id": task[1]},
-        "operation": rec["action"],
-        "section": rec["target_section"],
-        "target_rule_id": rec["target_rule_id"] or "",
-        "objective": rec["objective"],
-        "description": rec["description"],
-        "update_axis": diagnosis["update_axis"],
-        "target_behavior": copy.deepcopy(diagnosis["target_behavior"]),
-        "behavior_analysis": copy.deepcopy(diagnosis["behavior_analysis"]),
-        "parent_skill_coverage": copy.deepcopy(diagnosis["parent_skill_coverage"]),
+        "operation": compiled["operation"],
+        "section": compiled["target_section"],
+        "target_rule_id": compiled["target_rule_id"] or "",
+        "objective": target["expected_behavior"],
+        "description": target["repair_operator"],
+        "update_axis": compiled["update_axis"],
+        "target_behavior": copy.deepcopy(target),
+        "behavioral_mechanism": copy.deepcopy(semantic["behavioral_mechanism"]),
+        "skill_coverage": copy.deepcopy(semantic["skill_coverage"]),
+        "outcome_relation": copy.deepcopy(semantic["outcome_relation"]),
         "source_ids": list(item.source_ids),
-        "repair_policy_ids": list(diagnosis["repair_policy_ids"]),
-        "root_cause": copy.deepcopy(diagnosis["root_cause"]),
+        "repair_policy_ids": list(semantic["repair_policy_ids"]),
+        "root_cause": compiled["root_cause"],
     }
 
 
@@ -226,14 +230,22 @@ class MultiRolloutDiagnosisProposalOperator:
             validation = parse_and_validate_diagnosis(
                 diagnosis_id, response, experiences=rollouts, skill_sections=sections
             )
+            if validation.valid:
+                assert validation.structured_output is not None
+                compiled, trace = compile_semantic_diagnosis(
+                    validation.structured_output, sections,
+                )
+                validation = replace(
+                    validation, compiled_decision=compiled, compiler_trace=trace,
+                )
             validations.append(validation)
             tasks_by_diagnosis[diagnosis_id] = task
         if any(not item.valid for item in validations):
             raise DiagnosisContractError(validations)
         eligible = [
             item for item in validations
-            if item.structured_output is not None
-            and item.structured_output["skill_update_relevance"] == "update"
+            if item.compiled_decision is not None
+            and item.compiled_decision["update_eligible"]
         ]
         eligible_ids = [item.diagnosis_id for item in eligible]
         if not eligible:

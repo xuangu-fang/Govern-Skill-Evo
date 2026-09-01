@@ -1,7 +1,7 @@
 """Phase 1-5 infrastructure for Autonomous GSE v0.14.
 
-The learning side is a v0.14-owned semantic snapshot of the final v0.13
-implementation.  This module also provides the frozen task partitions, leakage guards,
+The learning side uses v0.14-owned Minimal Semantic Diagnosis plus a deterministic
+Decision Compiler. This module also provides the frozen task partitions, leakage guards,
 matched Monitor measurement, a pure distributional gate, serial orchestration,
 logging-only current-batch analysis, and a dry plan.
 """
@@ -48,7 +48,7 @@ FORMAL_MODE = "formal_tau3_airline_retail_v14_k3_evolution_fixed_monitor"
 ROLLOUTS_PER_TASK = 3
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-# These aliases expose the v0.14-owned learner semantic snapshot.
+# These aliases expose the v0.14-owned learner architecture.
 judge_compliance = compliance_v13.judge_compliance
 call_diagnosis = diagnosis_v14.call_diagnosis
 call_governed_editor = editor_v14.call_governed_editor
@@ -190,7 +190,7 @@ def validate_campaign_contract(campaign: dict[str, Any]) -> None:
         "editor": "src.learners.stwebagentbench.generate_governed_skill_v14.call_governed_editor",
         "semantics_snapshot_from": "autonomous_gse_v13",
     }:
-        raise RuntimeContractError("v0.14 learner stack is not its final-v0.13 semantic snapshot.")
+        raise RuntimeContractError("v0.14 learner stack provenance drifted.")
     if campaign.get("distributional_gate") != DEFAULT_GATE_CONFIG:
         raise RuntimeContractError("v0.14 Distributional Gate config drifted.")
     if campaign.get("orchestration") != {
@@ -362,7 +362,7 @@ def propose_candidate(
     diagnoser: Callable[[Any], str] = call_diagnosis,
     editor: Callable[[Any], str] = call_governed_editor,
 ) -> proposal_v14.DiagnosisProposalDecision:
-    """Run the v0.14-owned learner semantic snapshot on one Evolution batch."""
+    """Run the v0.14-owned semantic-diagnosis/compiler path on one Evolution batch."""
 
     validate_batch_map(batch_map, campaign)
     if not isinstance(step, int) or not 1 <= step <= 3:

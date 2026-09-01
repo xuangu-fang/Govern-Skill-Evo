@@ -3,38 +3,32 @@ from __future__ import annotations
 import ast
 import copy
 import json
-import re
+from dataclasses import replace
 from pathlib import Path
 
+import pytest
+
 from src.adapters.tau2 import tau3_compliance_judge_v13 as compliance_v13
-from src.learners.stwebagentbench import generate_governed_skill_v13 as editor_v13
 from src.learners.stwebagentbench import generate_governed_skill_v14 as editor_v14
-from src.skill_evolution import autonomous_gse_v13_proposal as proposal_v13
 from src.skill_evolution import autonomous_gse_v14_benchmark_runtime as runtime_v14
 from src.skill_evolution import autonomous_gse_v14_proposal as proposal_v14
-from src.skill_evolution import diagnosis_contract_v13 as contract_v13
 from src.skill_evolution import diagnosis_contract_v14 as contract_v14
-from src.skill_evolution import diagnosis_v13
 from src.skill_evolution import diagnosis_v14
 from src.skill_evolution.autonomous_gse_v03_proposal import ProposalContext
+from src.skill_evolution.diagnosis_compiler_v14 import compile_semantic_diagnosis
 from tests.skill_evolution.test_autonomous_gse_v13 import (
-    _diagnosis, _domain_contexts, _edit, _experience, _group, _tag,
+    _domain_contexts, _edit, _experience, _group,
 )
-
 
 ROOT = Path(__file__).resolve().parents[2]
 CAMPAIGN = ROOT / "experiments/campaigns/autonomous_gse_v14/campaign_manifest.json"
 S0 = ROOT / "experiments/campaigns/autonomous_gse_v14/skills/S0_empty_skill.md"
-
-
-def _normalize_version_identity(value: str) -> str:
-    return re.sub(r"v0\.(?:13|14)", "v0.X", value).replace(
-        "v13_dual_axis_mechanism_preserving_bounded_edit",
-        "vX_dual_axis_mechanism_preserving_bounded_edit",
-    ).replace(
-        "v14_dual_axis_mechanism_preserving_bounded_edit",
-        "vX_dual_axis_mechanism_preserving_bounded_edit",
-    )
+SECTIONS = {
+    "Planning and navigation": [],
+    "Execution patterns": [{"rule_id": "R1", "text": "Existing rule."}],
+    "Form entry and verification": [{"rule_id": "R2", "text": "Another rule."}],
+    "Error recovery and stopping": [],
+}
 
 
 def _parent_skill() -> str:
@@ -43,46 +37,274 @@ def _parent_skill() -> str:
     )
 
 
-def _diagnosis_request_v14() -> diagnosis_v14.MultiRolloutDiagnosisRequest:
-    context = _domain_contexts()["airline"]
+def _semantic(
+    *, evidence_status: str = "contrastive_support",
+    feasibility: str = "feasible", coverage: str = "missing",
+    task_success: str = "supports", compliance: str = "insufficient",
+    related_rule_ids: list[str] | None = None,
+    edit_intent: str = "not_applicable", source_id: str | None = None,
+) -> dict:
+    supported = evidence_status in {"contrastive_support", "recurrent_support"}
+    return {
+        "behavioral_mechanism": {
+            "description": "the Agent applies the wrong decision predicate" if supported else "",
+            "evidence_status": evidence_status,
+            "support_evidence_refs": ([{
+                "source_id": source_id or "step_001_airline_1_rollout_01",
+                "step_ids": [2],
+            }] if supported else []),
+            "counterevidence_refs": [],
+            "counterevidence": "",
+        },
+        "feasibility": {"status": feasibility, "explanation": "grounded assessment"},
+        "skill_coverage": {
+            "status": coverage,
+            "related_rule_ids": list(related_rule_ids or []),
+            "explanation": "coverage assessment",
+        },
+        "outcome_relation": {
+            "task_success": task_success, "compliance": compliance,
+        },
+        "repair_policy_ids": [],
+        "target_behavior": {
+            "problem": "the decision uses the wrong predicate",
+            "trigger_condition": "when the relevant decision opportunity occurs",
+            "decision_boundary": "distinguish the permitted and unsupported cases",
+            "repair_operator": "apply the grounded predicate before acting",
+            "stopping_boundary": "",
+            "expected_behavior": "choose the behavior supported by the grounded predicate",
+        },
+        "edit_intent": edit_intent,
+    }
+
+
+def _tag(value: dict) -> str:
+    return (
+        "<SEMANTIC_DIAGNOSIS_JSON>" + json.dumps(value)
+        + "</SEMANTIC_DIAGNOSIS_JSON>"
+    )
+
+
+def _request() -> diagnosis_v14.MultiRolloutDiagnosisRequest:
+    domain = _domain_contexts()["airline"]
     return diagnosis_v14.MultiRolloutDiagnosisRequest(
         candidate_id="candidate_001", diagnosis_id="diagnosis_001",
         current_parent_skill=_parent_skill(),
         task_context={"domain": "airline", "task_id": "1"},
-        original_domain_policy=context["original_domain_policy"],
-        available_tool_contracts=context["available_tool_contracts"],
+        original_domain_policy=domain["original_domain_policy"],
+        available_tool_contracts=domain["available_tool_contracts"],
         rollouts=_group(),
     )
 
 
-def _repair_tag(value: dict) -> str:
-    return (
-        "<DIAGNOSIS_REPAIR_JSON>"
-        + json.dumps(value)
-        + "</DIAGNOSIS_REPAIR_JSON>"
-    )
-
-
-def _validate_v14_diagnosis(response: str):
+def _validate(value: dict, *, experiences=None, sections=None):
     return contract_v14.parse_and_validate_diagnosis(
-        "diagnosis_001", response, experiences=_group(),
-        skill_sections={"Planning and navigation": [], "Execution patterns": [],
-                        "Form entry and verification": [],
-                        "Error recovery and stopping": []},
+        "diagnosis_001", _tag(value), experiences=experiences or _group(),
+        skill_sections=sections or SECTIONS,
     )
 
 
-def _request_pair(diagnoses: tuple[dict, ...]):
-    common = {
-        "candidate_id": "candidate_001",
-        "current_parent_skill": _parent_skill(),
-        "eligible_diagnoses": diagnoses,
-        "domain_contexts": ({
-            "domain": "airline",
-            "original_domain_policy": "# Airline policy\nFollow applicable requirements.",
-        },),
+@pytest.mark.parametrize("evidence_status", ["contrastive_support", "recurrent_support"])
+def test_supported_semantic_diagnosis_is_valid(evidence_status):
+    assert _validate(_semantic(evidence_status=evidence_status)).valid
+
+
+@pytest.mark.parametrize("evidence_status", ["conflicting", "insufficient"])
+def test_non_supporting_semantic_diagnosis_is_valid(evidence_status):
+    validation = _validate(_semantic(
+        evidence_status=evidence_status, task_success="insufficient",
+    ))
+    assert validation.valid
+    decision, _ = compile_semantic_diagnosis(validation.structured_output, SECTIONS)
+    assert not decision["update_eligible"]
+
+
+@pytest.mark.parametrize(
+    ("mutation", "error"),
+    [
+        (lambda value: value["behavioral_mechanism"]["support_evidence_refs"][0].update(
+            source_id="invented",
+        ), "SUPPORT_EVIDENCE_SOURCE_NOT_FOUND"),
+        (lambda value: value["behavioral_mechanism"]["support_evidence_refs"][0].update(
+            step_ids=[999],
+        ), "SUPPORT_EVIDENCE_STEP_NOT_FOUND"),
+        (lambda value: value["skill_coverage"].update(related_rule_ids=["invented"]),
+         "RELATED_RULE_ID_NOT_FOUND"),
+        (lambda value: value.update(repair_policy_ids=["invented"]),
+         "POLICY_ID_NOT_IN_EVIDENCE"),
+        (lambda value: value["behavioral_mechanism"].update(evidence_status="supportive"),
+         "INVALID_EVIDENCE_STATUS"),
+        (lambda value: value["outcome_relation"].update(task_success="supportive"),
+         "INVALID_TASK_SUCCESS_RELATION"),
+    ],
+)
+def test_semantic_contract_fails_closed_for_false_refs_and_invalid_enums(mutation, error):
+    value = _semantic()
+    mutation(value)
+    assert error in _validate(value).validation_errors
+
+
+def test_policy_id_from_real_violation_is_valid():
+    experiences = tuple(
+        _experience("airline", "1", index, policy_id="policy_1")
+        for index in (1, 2, 3)
+    )
+    value = _semantic()
+    value["repair_policy_ids"] = ["policy_1"]
+    assert _validate(value, experiences=experiences).valid
+
+
+def test_minimal_schema_structurally_excludes_old_invalid_state_space():
+    value = _semantic()
+    forbidden = {
+        "root_cause", "skill_update_relevance", "update_axis", "update_recommendation",
+        "action", "target_section", "target_rule_id", "evidence_pattern",
+        "evidence_consistency",
     }
-    return proposal_v13.DiagnosisEditorRequest(**common), proposal_v14.DiagnosisEditorRequest(**common)
+    assert not forbidden & set(value)
+    assert not {"evidence_pattern", "evidence_consistency"} & set(
+        value["behavioral_mechanism"],
+    )
+    assert contract_v14.SEMANTIC_DIAGNOSIS_FIELDS == set(value)
+    for old_field in forbidden:
+        invalid = copy.deepcopy(value)
+        invalid[old_field] = "impossible"
+        assert "INVALID_SEMANTIC_DIAGNOSIS_FIELDS" in _validate(invalid).validation_errors
+
+
+def test_prompt_preserves_v14_reasoning_and_exposes_only_minimal_schema():
+    prompt = diagnosis_v14.DIAGNOSIS_SYSTEM_PROMPT
+    for principle in (
+        "exactly three independent Parent rollouts", "Agent-controlled behavior before outcomes",
+        "task requirements, the original Policy, and available tool contracts",
+        "contrastive_support", "recurrent_support", "Falsify before supporting",
+        "annotated Parent Skill", "Task Success and Compliance independently",
+    ):
+        assert principle in prompt
+    assert "SEMANTIC_DIAGNOSIS_JSON" in prompt
+    assert set(diagnosis_v14.SEMANTIC_DIAGNOSIS_TEMPLATE) == (
+        contract_v14.SEMANTIC_DIAGNOSIS_FIELDS
+    )
+    assert diagnosis_v14.LEARNER_MODEL == "openai/deepseek-v4-pro"
+    assert diagnosis_v14.EMPTY_RESPONSE_RETRIES == 2
+
+
+def test_bare_json_is_tagged_and_null_stopping_boundary_is_narrowly_normalized_once():
+    value = _semantic()
+    value["target_behavior"]["stopping_boundary"] = None
+    calls = []
+
+    def learner(model, system, user):
+        calls.append((model, system, user))
+        return json.dumps(value), model, None
+
+    response = diagnosis_v14.call_diagnosis(_request(), learner_call=learner)
+    validation = contract_v14.parse_and_validate_diagnosis(
+        "diagnosis_001", response, experiences=_group(), skill_sections=SECTIONS,
+    )
+    assert len(calls) == 1
+    assert response.startswith("<SEMANTIC_DIAGNOSIS_JSON>")
+    assert validation.valid
+    assert validation.structured_output["target_behavior"]["stopping_boundary"] == ""
+
+
+def test_invalid_semantic_output_gets_no_second_repair_call():
+    value = _semantic()
+    value["outcome_relation"]["compliance"] = "conflicting"
+    calls = []
+
+    def learner(model, system, user):
+        calls.append((model, system, user))
+        return _tag(value), model, None
+
+    response = diagnosis_v14.call_diagnosis(_request(), learner_call=learner)
+    validation = contract_v14.parse_and_validate_diagnosis(
+        "diagnosis_001", response, experiences=_group(), skill_sections=SECTIONS,
+    )
+    assert len(calls) == 1
+    assert not validation.valid
+    assert validation.validation_errors == ("INVALID_COMPLIANCE_RELATION",)
+    assert not hasattr(diagnosis_v14, "_call_contract_repair")
+    assert not hasattr(diagnosis_v14, "_apply_semantic_contract_patch")
+
+
+@pytest.mark.parametrize(
+    ("overrides", "root", "eligible", "axis", "operation", "reason"),
+    [
+        ({"feasibility": "infeasible"}, "external_issue", False, "none", "none",
+         "INFEASIBLE_TASK_POLICY_TOOL_COMBINATION"),
+        ({"feasibility": "uncertain"}, "uncertain", False, "none", "none",
+         "FEASIBILITY_UNCERTAIN"),
+        ({"evidence_status": "insufficient"}, None, False, "none", "none",
+         "INSUFFICIENT_MECHANISM_EVIDENCE"),
+        ({"evidence_status": "conflicting"}, "uncertain", False, "none", "none",
+         "CONFLICTING_MECHANISM_EVIDENCE"),
+        ({"coverage": "already_covered"}, "execution_issue", False, "none", "none",
+         "MECHANISM_ALREADY_COVERED"),
+        ({"task_success": "insufficient"}, "uncertain", False, "none", "none",
+         "NO_SUPPORTED_OPTIMIZATION_AXIS"),
+        ({}, "skill_issue", True, "task_success", "add",
+         "UPDATE_ELIGIBLE_MISSING_COVERAGE"),
+        ({"task_success": "insufficient", "compliance": "supports"},
+         "skill_issue", True, "compliance", "add", "UPDATE_ELIGIBLE_MISSING_COVERAGE"),
+        ({"compliance": "supports"}, "skill_issue", True, "both", "add",
+         "UPDATE_ELIGIBLE_MISSING_COVERAGE"),
+    ],
+)
+def test_compiler_decision_table(overrides, root, eligible, axis, operation, reason):
+    value = _semantic(**overrides)
+    decision, trace = compile_semantic_diagnosis(value, SECTIONS)
+    assert decision == {
+        "root_cause": root, "update_eligible": eligible, "update_axis": axis,
+        "operation": operation, "target_section": None, "target_rule_id": None,
+        "reason": reason,
+    }
+    assert trace["decision_reason"] == reason
+
+
+@pytest.mark.parametrize(
+    ("coverage", "intent", "rule_id", "operation"),
+    [("incorrect", "replace", "R1", "replace"),
+     ("underspecified", "delete", "R2", "delete")],
+)
+def test_compiler_derives_revision_operation_and_section_from_unique_rule(
+    coverage, intent, rule_id, operation,
+):
+    value = _semantic(
+        coverage=coverage, related_rule_ids=[rule_id], edit_intent=intent,
+    )
+    decision, _ = compile_semantic_diagnosis(value, SECTIONS)
+    expected_section = "Execution patterns" if rule_id == "R1" else "Form entry and verification"
+    assert decision["update_eligible"]
+    assert decision["operation"] == operation
+    assert decision["target_rule_id"] == rule_id
+    assert decision["target_section"] == expected_section
+
+
+@pytest.mark.parametrize(
+    ("related_rule_ids", "intent", "reason"),
+    [([], "replace", "AMBIGUOUS_RULE_TARGET"),
+     (["R1", "R2"], "replace", "AMBIGUOUS_RULE_TARGET"),
+     (["R1"], "not_applicable", "MISSING_REVISION_INTENT")],
+)
+def test_compiler_does_not_guess_revision_target_or_intent(related_rule_ids, intent, reason):
+    value = _semantic(
+        coverage="incorrect", related_rule_ids=related_rule_ids, edit_intent=intent,
+    )
+    decision, _ = compile_semantic_diagnosis(value, SECTIONS)
+    assert decision["root_cause"] == "uncertain"
+    assert not decision["update_eligible"]
+    assert decision["reason"] == reason
+
+
+def test_compiler_precedence_prevents_lower_fields_from_upgrading_infeasible_case():
+    value = _semantic(
+        feasibility="infeasible", coverage="incorrect", related_rule_ids=["R1"],
+        edit_intent="replace", compliance="supports",
+    )
+    decision, _ = compile_semantic_diagnosis(value, SECTIONS)
+    assert decision["reason"] == "INFEASIBLE_TASK_POLICY_TOOL_COMBINATION"
+    assert not decision["update_eligible"]
 
 
 def _twenty_task_evidence() -> tuple[dict, ...]:
@@ -95,22 +317,17 @@ def _twenty_task_evidence() -> tuple[dict, ...]:
 
 
 def _update_diagnoser(request) -> str:
-    value = _diagnosis(
-        relevance="update", action="add", category="skill_issue",
-        update_axis="both", evidence_pattern="recurrent",
-        problem="a stable decision mechanism is missing",
-        repair_operator="apply the bounded mechanism at the decision opportunity",
-    )
-    value["behavior_analysis"]["support_evidence_refs"] = [{
-        "source_id": request.rollouts[0]["source_id"], "step_ids": [2],
-    }]
-    return _tag(value)
+    return _tag(_semantic(
+        evidence_status="recurrent_support",
+        source_id=request.rollouts[0]["source_id"],
+    ))
 
 
 def _no_update_diagnoser(request) -> str:
-    value = _diagnosis()
-    value["behavior_analysis"]["support_evidence_refs"] = []
-    return _tag(value)
+    return _tag(_semantic(
+        evidence_status="insufficient", task_success="insufficient",
+        source_id=request.rollouts[0]["source_id"],
+    ))
 
 
 def _merged_editor(request) -> str:
@@ -119,723 +336,69 @@ def _merged_editor(request) -> str:
     ]) + "</CANONICAL_EDITS_JSON>"
 
 
-def test_diagnosis_contract_snapshot_equivalence_for_valid_invalid_and_repair():
-    experiences = _group()
-    sections = {"Planning and navigation": []}
-    valid = _diagnosis(
-        relevance="update", action="add", category="skill_issue",
-        update_axis="both", evidence_pattern="recurrent",
-        problem="missing decision mechanism", repair_operator="apply bounded repair",
+def test_proposal_consumes_compiled_decisions_and_preserves_editor_method():
+    context = ProposalContext("candidate_001", _parent_skill(), _twenty_task_evidence())
+    decision = proposal_v14.MultiRolloutDiagnosisProposalOperator().propose(
+        context, _update_diagnoser, _merged_editor, domain_contexts=_domain_contexts(),
     )
-    assert contract_v13.validate_diagnosis(
-        copy.deepcopy(valid), experiences=experiences, skill_sections=sections,
-    ) == contract_v14.validate_diagnosis(
-        copy.deepcopy(valid), experiences=experiences, skill_sections=sections,
-    ) == ()
-
-    invalid = copy.deepcopy(valid)
-    invalid["update_axis"] = "none"
-    errors13 = contract_v13.validate_diagnosis(
-        copy.deepcopy(invalid), experiences=experiences, skill_sections=sections,
+    assert decision.proposal_status == "CANDIDATE"
+    assert decision.diagnosis_calls == 20
+    assert decision.editor_calls == 1
+    assert len(decision.eligible_diagnosis_ids) == 20
+    assert all(item["compiled_decision"]["update_eligible"] for item in decision.diagnoses)
+    assert decision.raw_patches[0]["operation"] == "add"
+    assert decision.raw_patches[0]["objective"] == (
+        "choose the behavior supported by the grounded predicate"
     )
-    errors14 = contract_v14.validate_diagnosis(
-        copy.deepcopy(invalid), experiences=experiences, skill_sections=sections,
+    assert "behavioral_mechanism" in decision.raw_patches[0]
+    assert "behavior_analysis" not in decision.raw_patches[0]
+
+
+def test_proposal_skips_editor_when_compiler_finds_no_update():
+    context = ProposalContext("candidate_001", _parent_skill(), _twenty_task_evidence())
+    decision = proposal_v14.MultiRolloutDiagnosisProposalOperator().propose(
+        context, _no_update_diagnoser, _merged_editor, domain_contexts=_domain_contexts(),
     )
-    assert errors13 == errors14
-    assert contract_v13.repair_diagnosis_contract_fields(invalid, errors13) == (
-        contract_v14.repair_diagnosis_contract_fields(invalid, errors14)
-    )
-    response = _tag(valid)
-    assert contract_v13.parse_and_validate_diagnosis(
-        "diagnosis_001", response, experiences=experiences, skill_sections=sections,
-    ).as_dict() == contract_v14.parse_and_validate_diagnosis(
-        "diagnosis_001", response, experiences=experiences, skill_sections=sections,
-    ).as_dict()
-
-
-def test_diagnosis_prompt_keeps_v13_lineage_with_v14_outcome_support_extension():
-    assert diagnosis_v14.LEARNER_MODEL == diagnosis_v13.LEARNER_MODEL
-    assert diagnosis_v14.EMPTY_RESPONSE_RETRIES == diagnosis_v13.EMPTY_RESPONSE_RETRIES
-    v14_base = diagnosis_v14.DIAGNOSIS_SYSTEM_PROMPT.replace(
-        diagnosis_v14.OUTCOME_SUPPORT_CHECKPOINT + "\n\n", "",
-    ).replace(
-        diagnosis_v14.V14_OUTPUT_CONTRACT_CLARIFICATION + "\n\n", "",
-    )
-    assert _normalize_version_identity(v14_base) == (
-        _normalize_version_identity(diagnosis_v13.DIAGNOSIS_SYSTEM_PROMPT)
-    )
-
-
-def test_diagnosis_prompt_contains_general_outcome_support_checkpoint():
-    checkpoint = diagnosis_v14.OUTCOME_SUPPORT_CHECKPOINT
-    assert "coverage gap does not by itself justify" in checkpoint
-    assert "at least one observed optimization-axis relation" in checkpoint
-    assert "neither task_success_relation nor compliance_relation is supportive" in checkpoint
-    assert "do not force an update" in checkpoint
-    assert 'root_cause.category = "uncertain"' in checkpoint
-    assert 'skill_update_relevance = "uncertain"' in checkpoint
-    assert 'update_axis = "none"' in checkpoint
-    assert 'update_recommendation.action = "none"' in checkpoint
-    assert 'do not change an outcome-axis relation to "supportive"' in checkpoint
-    assert "later self-corrects" in checkpoint
-    assert "retail" not in checkpoint.lower()
-    assert "second preference" not in checkpoint.lower()
-
-
-def test_diagnosis_prompt_contains_v14_output_contract_clarification():
-    clarification = diagnosis_v14.V14_OUTPUT_CONTRACT_CLARIFICATION
-    assert "All six target_behavior fields must always be JSON strings" in clarification
-    assert "Never use null for any target_behavior field" in clarification
-    assert '"stopping_boundary": ""' in clarification
-    assert 'action = "add"' in clarification
-    assert "target_section and target_rule_id must both be null" in clarification
-    assert "Editor decides placement" in clarification
-
-
-def test_outcome_support_checkpoint_mappings_pass_the_existing_contract():
-    experiences = _group()
-    sections = {"Planning and navigation": [], "Execution patterns": [],
-                "Form entry and verification": [],
-                "Error recovery and stopping": []}
-    supported_updates = (
-        _diagnosis(
-            relevance="update", action="add", category="skill_issue",
-            update_axis="task_success", evidence_pattern="contrastive",
-            task_success_relation="supportive", compliance_relation="insufficient",
-            coverage_status="missing", problem="missing mechanism",
-            repair_operator="apply bounded mechanism",
-        ),
-        _diagnosis(
-            relevance="update", action="add", category="skill_issue",
-            update_axis="compliance", evidence_pattern="contrastive",
-            task_success_relation="insufficient", compliance_relation="supportive",
-            coverage_status="missing", problem="missing mechanism",
-            repair_operator="apply bounded mechanism",
-        ),
-        _diagnosis(
-            relevance="update", action="add", category="skill_issue",
-            update_axis="both", evidence_pattern="contrastive",
-            task_success_relation="supportive", compliance_relation="supportive",
-            coverage_status="missing", problem="missing mechanism",
-            repair_operator="apply bounded mechanism",
-        ),
-    )
-    for diagnosis in supported_updates:
-        assert contract_v14.validate_diagnosis(
-            diagnosis, experiences=experiences, skill_sections=sections,
-        ) == ()
-
-    no_outcome_support = _diagnosis(
-        relevance="uncertain", action="none", category="uncertain",
-        update_axis="none", evidence_pattern="contrastive",
-        task_success_relation="insufficient", compliance_relation="not_applicable",
-        coverage_status="missing",
-    )
-    no_outcome_support["behavior_analysis"]["evidence_consistency"] = "supportive"
-    no_outcome_support["behavior_analysis"]["behavioral_mechanism"] = (
-        "the Agent makes a concrete intermediate choice and later self-corrects"
-    )
-    assert contract_v14.validate_diagnosis(
-        no_outcome_support, experiences=experiences, skill_sections=sections,
-    ) == ()
-    assert no_outcome_support["parent_skill_coverage"]["status"] == "missing"
-    assert no_outcome_support["root_cause"]["category"] == "uncertain"
-    assert no_outcome_support["skill_update_relevance"] == "uncertain"
-    assert no_outcome_support["update_axis"] == "none"
-    assert no_outcome_support["update_recommendation"]["action"] == "none"
-
-
-def test_semantic_repair_whitelist_and_authoritative_paths_are_exact():
-    assert diagnosis_v14.SEMANTIC_REPAIRABLE_ERRORS == frozenset({
-        "INVALID_COMPLIANCE_RELATION",
-        "INVALID_TASK_SUCCESS_RELATION",
-        "INVALID_EVIDENCE_CONSISTENCY",
-        "INVALID_EVIDENCE_PATTERN",
-    })
-    assert diagnosis_v14.SEMANTIC_REPAIR_FIELD_BY_ERROR == {
-        "INVALID_COMPLIANCE_RELATION": ("behavior_analysis", "compliance_relation"),
-        "INVALID_TASK_SUCCESS_RELATION": ("behavior_analysis", "task_success_relation"),
-        "INVALID_EVIDENCE_CONSISTENCY": ("behavior_analysis", "evidence_consistency"),
-        "INVALID_EVIDENCE_PATTERN": ("behavior_analysis", "evidence_pattern"),
-    }
-
-
-def test_bare_json_diagnosis_is_tagged_locally_without_extra_call():
-    value = _diagnosis()
-    calls = []
-
-    def learner_call(model, system, user):
-        calls.append((model, system, user))
-        return json.dumps(value), model, None
-
-    response = diagnosis_v14.call_diagnosis(
-        _diagnosis_request_v14(), learner_call=learner_call,
-    )
-    validation = contract_v14.parse_and_validate_diagnosis(
-        "diagnosis_001", response, experiences=_group(),
-        skill_sections={"Planning and navigation": [], "Execution patterns": [],
-                        "Form entry and verification": [],
-                        "Error recovery and stopping": []},
-    )
-    assert len(calls) == 1
-    assert response.startswith("<DIAGNOSIS_JSON>")
-    assert response.endswith("</DIAGNOSIS_JSON>")
-    assert validation.valid
-    assert validation.repair_trace == {"attempted": False}
-
-
-def _compliance_update_with_null_stopping_boundary() -> dict:
-    diagnosis = _diagnosis(
-        relevance="update", action="add", category="skill_issue",
-        update_axis="compliance", evidence_pattern="contrastive",
-        task_success_relation="not_applicable", compliance_relation="supportive",
-        coverage_status="missing", problem="unsupported explanatory claim",
-        repair_operator="use only grounded explanatory details",
-    )
-    diagnosis["target_behavior"]["stopping_boundary"] = None
-    return diagnosis
-
-
-def test_narrow_target_normalization_changes_only_null_stopping_boundary():
-    original = _compliance_update_with_null_stopping_boundary()
-    frozen = copy.deepcopy(original)
-    normalized = diagnosis_v14._normalize_target_behavior_serialization(original)
-    expected = copy.deepcopy(original)
-    expected["target_behavior"]["stopping_boundary"] = ""
-    assert original == frozen
-    assert normalized == expected
-
-
-def test_target_normalization_rejects_other_null_missing_extra_and_non_object_shapes():
-    cases = []
-    for field in (
-        "problem", "trigger_condition", "decision_boundary", "repair_operator",
-        "expected_behavior",
-    ):
-        diagnosis = _compliance_update_with_null_stopping_boundary()
-        diagnosis["target_behavior"][field] = None
-        cases.append(diagnosis)
-    missing = _compliance_update_with_null_stopping_boundary()
-    del missing["target_behavior"]["stopping_boundary"]
-    cases.append(missing)
-    extra = _compliance_update_with_null_stopping_boundary()
-    extra["target_behavior"]["extra_field"] = "not allowed"
-    cases.append(extra)
-    non_object = _compliance_update_with_null_stopping_boundary()
-    non_object["target_behavior"] = None
-    cases.append(non_object)
+    assert decision.proposal_status == "NO_CANDIDATE"
+    assert decision.editor_calls == 0
+    assert decision.eligible_diagnosis_ids == []
     assert all(
-        diagnosis_v14._normalize_target_behavior_serialization(case) is None
-        for case in cases
+        item["compiled_decision"]["reason"] == "INSUFFICIENT_MECHANISM_EVIDENCE"
+        for item in decision.diagnoses
     )
-    for case in cases:
-        calls = []
-
-        def learner_call(model, system, user):
-            calls.append((model, system, user))
-            return _tag(case), model, None
-
-        validation = _validate_v14_diagnosis(diagnosis_v14.call_diagnosis(
-            _diagnosis_request_v14(), learner_call=learner_call,
-        ))
-        assert len(calls) == 1
-        assert not validation.valid
-        assert "INVALID_TARGET_BEHAVIOR" in validation.validation_errors
-        assert validation.repair_trace == {"attempted": False}
 
 
-def test_null_stopping_boundary_normalizes_without_semantic_repair_api_call():
-    initial = _compliance_update_with_null_stopping_boundary()
-    calls = []
-
-    def learner_call(model, system, user):
-        calls.append((model, system, user))
-        return _tag(initial), model, None
-
-    response = diagnosis_v14.call_diagnosis(
-        _diagnosis_request_v14(), learner_call=learner_call,
-    )
-    validation = _validate_v14_diagnosis(response)
-    assert len(calls) == 1
-    assert validation.valid
-    assert validation.structured_output["target_behavior"]["stopping_boundary"] == ""
-    assert validation.repair_trace == {"attempted": False}
-
-
-def test_null_stopping_then_existing_add_target_repair_reaches_valid_output():
-    initial = _compliance_update_with_null_stopping_boundary()
-    initial["update_recommendation"]["target_section"] = "Execution patterns"
-    initial_response = _tag(initial)
-    initial_validation = _validate_v14_diagnosis(initial_response)
-    assert set(initial_validation.validation_errors) == {
-        "INVALID_TARGET_BEHAVIOR", "ADD_MUST_NOT_PRESELECT_SECTION",
+def test_validation_artifact_separates_semantic_and_compiler_authority():
+    validation = _validate(_semantic())
+    compiled, trace = compile_semantic_diagnosis(validation.structured_output, SECTIONS)
+    artifact = replace(
+        validation, compiled_decision=compiled, compiler_trace=trace,
+    ).as_dict()
+    assert set(artifact) == {
+        "diagnosis_id", "source_ids", "semantic", "compiled_decision", "compiler_trace",
     }
-    calls = []
-
-    def learner_call(model, system, user):
-        calls.append((model, system, user))
-        return initial_response, model, None
-
-    response = diagnosis_v14.call_diagnosis(
-        _diagnosis_request_v14(), learner_call=learner_call,
-    )
-    validation = _validate_v14_diagnosis(response)
-    assert len(calls) == 1
-    assert validation.valid
-    assert validation.structured_output["target_behavior"]["stopping_boundary"] == ""
-    assert validation.structured_output["update_recommendation"]["target_section"] is None
-    assert validation.structured_output["update_recommendation"]["target_rule_id"] is None
-    assert validation.repair_trace == {"attempted": False}
-
-
-def test_null_stopping_then_existing_add_repair_clears_both_targets():
-    initial = _compliance_update_with_null_stopping_boundary()
-    initial["update_recommendation"]["target_section"] = "Execution patterns"
-    initial["update_recommendation"]["target_rule_id"] = "R3"
-    responses = []
-
-    def learner_call(model, system, user):
-        responses.append((model, system, user))
-        return _tag(initial), model, None
-
-    validation = _validate_v14_diagnosis(diagnosis_v14.call_diagnosis(
-        _diagnosis_request_v14(), learner_call=learner_call,
-    ))
-    assert len(responses) == 1
-    assert validation.valid
-    assert validation.structured_output["update_recommendation"]["target_section"] is None
-    assert validation.structured_output["update_recommendation"]["target_rule_id"] is None
-
-
-def test_target_normalization_does_not_change_replace_or_delete_targets():
-    for action in ("replace", "delete"):
-        initial = _compliance_update_with_null_stopping_boundary()
-        initial["update_recommendation"].update({
-            "action": action, "target_section": "Existing section", "target_rule_id": "R7",
-        })
-        normalized = diagnosis_v14._normalize_target_behavior_serialization(initial)
-        assert normalized["target_behavior"]["stopping_boundary"] == ""
-        assert normalized["update_recommendation"] == initial["update_recommendation"]
-
-
-def test_invalid_target_behavior_is_not_added_to_any_repair_whitelist():
-    assert "INVALID_TARGET_BEHAVIOR" not in contract_v14.REPAIRABLE_CONTRACT_ERRORS
-    assert "INVALID_TARGET_BEHAVIOR" not in diagnosis_v14.SEMANTIC_REPAIRABLE_ERRORS
-
-
-def test_whitelisted_enum_error_gets_one_field_patch_repair_call():
-    invalid = _diagnosis()
-    invalid["behavior_analysis"]["compliance_relation"] = "conflicting"
-    responses = iter((
-        _tag(invalid),
-        _repair_tag({"behavior_analysis.compliance_relation": "insufficient"}),
-    ))
-    calls = []
-
-    def learner_call(model, system, user):
-        calls.append((model, system, user))
-        return next(responses), model, None
-
-    response = diagnosis_v14.call_diagnosis(
-        _diagnosis_request_v14(), learner_call=learner_call,
-    )
-    validation = _validate_v14_diagnosis(response)
-    expected = copy.deepcopy(invalid)
-    expected["behavior_analysis"]["compliance_relation"] = "insufficient"
-    assert len(calls) == 2
-    assert "bounded Diagnosis contract repair" in calls[1][1]
-    assert "Return only the DIAGNOSIS_JSON block." not in calls[1][2]
-    assert "DIAGNOSIS_REPAIR_JSON" in calls[1][1]
-    assert "DIAGNOSIS_REPAIR_JSON" in calls[1][2]
-    for field in (
-        "task_context", "original_domain_policy", "available_tool_contracts", "rollouts",
-        "FROZEN_ORIGINAL_DIAGNOSIS", "PYTHON_CONTRACT_VALIDATION_ERRORS",
-        "PYTHON_ALLOWED_REPAIR_FIELDS_AND_VALUES",
-    ):
-        assert field in calls[1][2]
-    assert "INVALID_COMPLIANCE_RELATION" in calls[1][2]
-    assert "behavior_analysis.compliance_relation" in calls[1][2]
-    assert validation.valid
-    assert validation.structured_output == expected
-    assert validation.repair_trace == {
-        "attempted": True,
-        "initial_raw_response": _tag(invalid),
-        "validation_errors_before": ["INVALID_COMPLIANCE_RELATION"],
-        "allowed_fields": {
-            "behavior_analysis.compliance_relation": [
-                "contradictory", "insufficient", "not_applicable", "supportive",
-            ],
-        },
-        "raw_repair_response": _repair_tag({
-            "behavior_analysis.compliance_relation": "insufficient",
-        }),
-        "parse_status": "tagged_json_object",
-        "parsed_patch": {"behavior_analysis.compliance_relation": "insufficient"},
-        "rejection_reason": None,
-        "final_validation": {"valid": True, "errors": []},
-    }
-
-
-def test_non_whitelisted_policy_error_does_not_call_semantic_repair():
-    invalid = _diagnosis()
-    invalid["repair_policy_ids"] = ["POLICY-NOT-IN-EVIDENCE"]
-    calls = []
-
-    def learner_call(model, system, user):
-        calls.append((model, system, user))
-        return _tag(invalid), model, None
-
-    response = diagnosis_v14.call_diagnosis(
-        _diagnosis_request_v14(), learner_call=learner_call,
-    )
-    validation = _validate_v14_diagnosis(response)
-    assert len(calls) == 1
-    assert not validation.valid
-    assert "POLICY_ID_NOT_IN_EVIDENCE" in validation.validation_errors
-    assert validation.repair_trace == {"attempted": False}
-
-
-def test_non_whitelisted_evidence_ref_error_does_not_call_semantic_repair():
-    invalid = _diagnosis()
-    invalid["behavior_analysis"]["support_evidence_refs"] = [{
-        "source_id": "unknown-source", "step_ids": [2],
-    }]
-    calls = []
-
-    def learner_call(model, system, user):
-        calls.append((model, system, user))
-        return _tag(invalid), model, None
-
-    response = diagnosis_v14.call_diagnosis(
-        _diagnosis_request_v14(), learner_call=learner_call,
-    )
-    validation = _validate_v14_diagnosis(response)
-    assert len(calls) == 1
-    assert not validation.valid
-    assert "SUPPORT_EVIDENCE_SOURCE_NOT_FOUND" in validation.validation_errors
-    assert validation.repair_trace == {"attempted": False}
-
-
-def test_semantic_repair_rejects_extra_wrong_missing_keys_and_invalid_enum():
-    invalid = _diagnosis()
-    invalid["behavior_analysis"]["compliance_relation"] = "conflicting"
-    bad_patches = (
-        ({
-            "behavior_analysis.compliance_relation": "insufficient",
-            "root_cause.category": "execution_issue",
-        }, "PATCH_KEYS_MISMATCH"),
-        ({
-            "behavior_analysis.compliance_relation": "insufficient",
-            "behavior_analysis.behavioral_mechanism": "changed mechanism",
-        }, "PATCH_KEYS_MISMATCH"),
-        ({"behavior_analysis.task_success_relation": "insufficient"}, "PATCH_KEYS_MISMATCH"),
-        ({}, "PATCH_KEYS_MISMATCH"),
-        ({"behavior_analysis.compliance_relation": "conflicting"}, "INVALID_PATCH_VALUE"),
-    )
-    for patch, reason in bad_patches:
-        responses = iter((_tag(invalid), _repair_tag(patch)))
-        calls = []
-
-        def learner_call(model, system, user):
-            calls.append((model, system, user))
-            return next(responses), model, None
-
-        response = diagnosis_v14.call_diagnosis(
-            _diagnosis_request_v14(), learner_call=learner_call,
-        )
-        validation = _validate_v14_diagnosis(response)
-        assert len(calls) == 2
-        assert not validation.valid
-        assert validation.structured_output == invalid
-        assert validation.repair_trace["rejection_reason"] == reason
-        assert validation.repair_trace["raw_repair_response"] == _repair_tag(patch)
-        assert validation.repair_trace["parsed_patch"] == patch
-        assert validation.repair_trace["final_validation"] == {
-            "valid": False, "errors": ["INVALID_COMPLIANCE_RELATION"],
-        }
-
-
-def test_semantic_patch_application_deep_copies_and_freezes_other_fields():
-    original = _diagnosis()
-    original["behavior_analysis"]["compliance_relation"] = "conflicting"
-    frozen = copy.deepcopy(original)
-    result = diagnosis_v14._apply_semantic_contract_patch(
-        original, ("INVALID_COMPLIANCE_RELATION",),
-        {"behavior_analysis.compliance_relation": "insufficient"},
-    )
-    expected = copy.deepcopy(frozen)
-    expected["behavior_analysis"]["compliance_relation"] = "insufficient"
-    assert original == frozen
-    assert result.repaired_diagnosis == expected
-    assert result.rejection_reason is None
-
-
-def test_semantic_repair_accepts_whole_response_bare_patch_object():
-    invalid = _diagnosis()
-    invalid["behavior_analysis"]["compliance_relation"] = "conflicting"
-    bare_patch = json.dumps({"behavior_analysis.compliance_relation": "insufficient"})
-    responses = iter((_tag(invalid), bare_patch))
-
-    def learner_call(model, system, user):
-        return next(responses), model, None
-
-    response = diagnosis_v14.call_diagnosis(
-        _diagnosis_request_v14(), learner_call=learner_call,
-    )
-    validation = _validate_v14_diagnosis(response)
-    assert validation.valid
-    assert validation.repair_trace["parse_status"] == "bare_json_object"
-    assert validation.repair_trace["raw_repair_response"] == bare_patch
-    assert validation.repair_trace["rejection_reason"] is None
-
-
-def test_semantic_repair_rejects_prose_full_diagnosis_and_invalid_json_with_trace():
-    invalid = _diagnosis()
-    invalid["behavior_analysis"]["compliance_relation"] = "conflicting"
-    rewritten = copy.deepcopy(invalid)
-    rewritten["behavior_analysis"]["compliance_relation"] = "insufficient"
-    rewritten["behavior_analysis"]["behavioral_mechanism"] = "changed mechanism"
-    repair_cases = (
-        (
-            'Here is the repair: {"behavior_analysis.compliance_relation":"insufficient"}',
-            "INVALID_ENVELOPE",
-        ),
-        (_tag(rewritten), "INVALID_ENVELOPE"),
-        ("<DIAGNOSIS_REPAIR_JSON>not-json</DIAGNOSIS_REPAIR_JSON>", "INVALID_JSON"),
-    )
-    for repair_response, reason in repair_cases:
-        responses = iter((_tag(invalid), repair_response))
-
-        def learner_call(model, system, user):
-            return next(responses), model, None
-
-        response = diagnosis_v14.call_diagnosis(
-            _diagnosis_request_v14(), learner_call=learner_call,
-        )
-        validation = _validate_v14_diagnosis(response)
-        assert not validation.valid
-        assert validation.structured_output == invalid
-        assert validation.repair_trace["attempted"] is True
-        assert validation.repair_trace["raw_repair_response"] == repair_response
-        assert validation.repair_trace["parsed_patch"] is None
-        assert validation.repair_trace["rejection_reason"] == reason
-
-
-def test_bare_complete_diagnosis_is_rejected_by_exact_field_whitelist():
-    invalid = _diagnosis()
-    invalid["behavior_analysis"]["compliance_relation"] = "conflicting"
-    complete = copy.deepcopy(invalid)
-    complete["behavior_analysis"]["compliance_relation"] = "insufficient"
-    responses = iter((_tag(invalid), json.dumps(complete)))
-
-    def learner_call(model, system, user):
-        return next(responses), model, None
-
-    response = diagnosis_v14.call_diagnosis(
-        _diagnosis_request_v14(), learner_call=learner_call,
-    )
-    validation = _validate_v14_diagnosis(response)
-    assert not validation.valid
-    assert validation.repair_trace["parse_status"] == "bare_json_object"
-    assert validation.repair_trace["rejection_reason"] == "PATCH_KEYS_MISMATCH"
-
-
-def test_all_compliance_relation_enum_values_pass_patch_validation_then_strict_validation():
-    original = _diagnosis(
-        relevance="uncertain", action="none", category="uncertain",
-        update_axis="none", evidence_pattern="recurrent",
-        task_success_relation="insufficient", compliance_relation="conflicting",
-        coverage_status="missing",
-    )
-    original["behavior_analysis"]["evidence_consistency"] = "conflicting"
-    original["behavior_analysis"]["behavioral_mechanism"] = "recurrent omission"
-    for value in ("supportive", "contradictory", "insufficient", "not_applicable"):
-        result = diagnosis_v14._apply_semantic_contract_patch(
-            original, ("INVALID_COMPLIANCE_RELATION",),
-            {"behavior_analysis.compliance_relation": value},
-        )
-        assert result.rejection_reason is None
-        response = _tag(result.repaired_diagnosis)
-        assert _validate_v14_diagnosis(response).valid
-        expected = copy.deepcopy(original)
-        expected["behavior_analysis"]["compliance_relation"] = value
-        assert result.repaired_diagnosis == expected
-
-
-def test_contract_repair_parser_distinguishes_non_object_patch():
-    tagged = diagnosis_v14._parse_contract_repair_patch(
-        "<DIAGNOSIS_REPAIR_JSON>[]</DIAGNOSIS_REPAIR_JSON>",
-    )
-    bare = diagnosis_v14._parse_contract_repair_patch("[]")
-    assert tagged.parse_status == "tagged_json_non_object"
-    assert tagged.rejection_reason == "PATCH_NOT_OBJECT"
-    assert bare.parse_status == "bare_json_non_object"
-    assert bare.rejection_reason == "PATCH_NOT_OBJECT"
-
-
-def test_multi_field_semantic_repair_requires_and_changes_exactly_both_fields():
-    invalid = _diagnosis()
-    invalid["behavior_analysis"]["task_success_relation"] = "bad-task-relation"
-    invalid["behavior_analysis"]["compliance_relation"] = "bad-compliance-relation"
-    patch = {
-        "behavior_analysis.task_success_relation": "supportive",
-        "behavior_analysis.compliance_relation": "insufficient",
-    }
-    responses = iter((_tag(invalid), _repair_tag(patch)))
-
-    def learner_call(model, system, user):
-        return next(responses), model, None
-
-    response = diagnosis_v14.call_diagnosis(
-        _diagnosis_request_v14(), learner_call=learner_call,
-    )
-    validation = _validate_v14_diagnosis(response)
-    expected = copy.deepcopy(invalid)
-    expected["behavior_analysis"]["task_success_relation"] = "supportive"
-    expected["behavior_analysis"]["compliance_relation"] = "insufficient"
-    assert validation.valid
-    assert validation.structured_output == expected
-
-
-def test_multi_field_semantic_repair_rejects_a_missing_required_key():
-    invalid = _diagnosis()
-    invalid["behavior_analysis"]["task_success_relation"] = "bad-task-relation"
-    invalid["behavior_analysis"]["compliance_relation"] = "bad-compliance-relation"
-    responses = iter((
-        _tag(invalid),
-        _repair_tag({"behavior_analysis.compliance_relation": "insufficient"}),
-    ))
-
-    def learner_call(model, system, user):
-        return next(responses), model, None
-
-    response = diagnosis_v14.call_diagnosis(
-        _diagnosis_request_v14(), learner_call=learner_call,
-    )
-    validation = _validate_v14_diagnosis(response)
-    assert not validation.valid
-    assert validation.structured_output == invalid
-
-
-def test_existing_deterministic_repair_does_not_call_semantic_repair():
-    invalid = _diagnosis(
-        relevance="uncertain", category="execution_issue",
-        coverage_status="already_covered",
-    )
-    calls = []
-
-    def learner_call(model, system, user):
-        calls.append((model, system, user))
-        return _tag(invalid), model, None
-
-    response = diagnosis_v14.call_diagnosis(
-        _diagnosis_request_v14(), learner_call=learner_call,
-    )
-    validation = _validate_v14_diagnosis(response)
-    assert len(calls) == 1
-    assert validation.valid
-    assert validation.structured_output["skill_update_relevance"] == "none"
-    assert validation.repair_trace == {"attempted": False}
-
-
-def test_contract_repair_is_bounded_to_one_additional_call_and_still_fails_closed():
-    invalid = _diagnosis()
-    invalid["behavior_analysis"]["evidence_consistency"] = "bad-consistency"
-    responses = iter((
-        _tag(invalid),
-        _repair_tag({"behavior_analysis.evidence_consistency": "conflicting"}),
-    ))
-    calls = []
-
-    def learner_call(model, system, user):
-        calls.append((model, system, user))
-        return next(responses), model, None
-
-    response = diagnosis_v14.call_diagnosis(
-        _diagnosis_request_v14(), learner_call=learner_call,
-    )
-    validation = _validate_v14_diagnosis(response)
-    assert len(calls) == 2
-    assert not validation.valid
-    assert validation.validation_errors == ("INVALID_EVIDENCE_CONSISTENCY",)
-    assert validation.repair_trace["rejection_reason"] == "FINAL_VALIDATION_FAILED"
-    assert validation.repair_trace["final_validation"]["valid"] is False
-
-
-def test_editor_prompt_configuration_and_synthetic_call_are_equivalent():
-    diagnoses = ({"patch_id": "diagnosis_001", "objective": "bounded repair"},)
-    request13, request14 = _request_pair(diagnoses)
-    system13, user13 = editor_v13.build_editor_prompts(request13)
-    system14, user14 = editor_v14.build_editor_prompts(request14)
-    assert editor_v14.LEARNER_MODEL == editor_v13.LEARNER_MODEL
-    assert _normalize_version_identity(system14) == _normalize_version_identity(system13)
-    assert user14 == user13
-
-    response = "<CANONICAL_EDITS_JSON>[]</CANONICAL_EDITS_JSON>"
-    learner = lambda model, system, user: (response, "", None)
-    assert editor_v13.call_governed_editor(request13, learner_call=learner) == (
-        editor_v14.call_governed_editor(request14, learner_call=learner)
-    )
-
-
-def test_proposal_signal_snapshot_equivalence():
-    experiences = _group()
-    diagnosis = _diagnosis(
-        relevance="update", action="add", category="skill_issue",
-        update_axis="both", evidence_pattern="recurrent",
-        problem="missing mechanism", repair_operator="apply bounded repair",
-    )
-    validation13 = contract_v13.parse_and_validate_diagnosis(
-        "diagnosis_001", _tag(diagnosis), experiences=experiences,
-        skill_sections={"Planning and navigation": []},
-    )
-    validation14 = contract_v14.parse_and_validate_diagnosis(
-        "diagnosis_001", _tag(diagnosis), experiences=experiences,
-        skill_sections={"Planning and navigation": []},
-    )
-    assert proposal_v13._signal(validation13, ("airline", "1")) == (
-        proposal_v14._signal(validation14, ("airline", "1"))
-    )
-
-
-def test_proposal_end_to_end_twenty_task_snapshot_equivalence():
-    context = ProposalContext(
-        "candidate_001", _parent_skill(), _twenty_task_evidence(),
-    )
-    decision13 = proposal_v13.MultiRolloutDiagnosisProposalOperator().propose(
-        context, _update_diagnoser, _merged_editor, domain_contexts=_domain_contexts(),
-    )
-    decision14 = proposal_v14.MultiRolloutDiagnosisProposalOperator().propose(
-        context, _update_diagnoser, _merged_editor, domain_contexts=_domain_contexts(),
-    )
-    assert decision14.__dict__ == decision13.__dict__
-    assert decision14.proposal_status == "CANDIDATE"
-    assert len(decision14.eligible_diagnosis_ids) == 20
-    assert decision14.editor_calls == 1
-
-
-def test_no_candidate_snapshot_equivalence():
-    context = ProposalContext(
-        "candidate_001", _parent_skill(), _twenty_task_evidence(),
-    )
-    decision13 = proposal_v13.MultiRolloutDiagnosisProposalOperator().propose(
-        context, _no_update_diagnoser, _merged_editor, domain_contexts=_domain_contexts(),
-    )
-    decision14 = proposal_v14.MultiRolloutDiagnosisProposalOperator().propose(
-        context, _no_update_diagnoser, _merged_editor, domain_contexts=_domain_contexts(),
-    )
-    assert decision14.__dict__ == decision13.__dict__
-    assert decision14.proposal_status == "NO_CANDIDATE"
-    assert decision14.editor_calls == 0
+    assert artifact["semantic"]["structured_output"] == validation.structured_output
+    assert artifact["semantic"]["validation"] == {"valid": True, "errors": []}
+    assert artifact["compiled_decision"]["root_cause"] == "skill_issue"
+    assert artifact["compiler_trace"]["supported_axes"] == ["task_success"]
+    assert "repair_trace" not in artifact
+
+
+def test_editor_prompt_uses_semantic_diagnosis_and_compiler_ownership():
+    prompt = editor_v14.EDITOR_SYSTEM_PROMPT
+    assert "Semantic Diagnosis plus deterministic Decision Compiler" in prompt
+    assert "section placement" in prompt
+    assert "cross-task deduplication" in prompt
+    assert "final Skill wording" in prompt
 
 
 def test_v14_semantic_modules_do_not_import_v13_learner_modules():
     paths = (
         ROOT / "src/skill_evolution/diagnosis_contract_v14.py",
+        ROOT / "src/skill_evolution/diagnosis_compiler_v14.py",
         ROOT / "src/skill_evolution/diagnosis_v14.py",
         ROOT / "src/skill_evolution/autonomous_gse_v14_proposal.py",
         ROOT / "src/learners/stwebagentbench/generate_governed_skill_v14.py",
-        ROOT / "src/skill_evolution/autonomous_gse_v14_benchmark_runtime.py",
     )
     forbidden = {
         "src.skill_evolution.diagnosis_v13",
@@ -855,29 +418,13 @@ def test_v14_semantic_modules_do_not_import_v13_learner_modules():
         assert not imported & forbidden, (path, imported & forbidden)
 
 
-def test_manifest_and_runtime_own_v14_learner_but_share_frozen_judge():
+def test_campaign_provenance_and_frozen_judge_remain_valid():
     campaign = json.loads(CAMPAIGN.read_text(encoding="utf-8"))
-    assert campaign["learner_stack"] == {
-        "diagnosis": "src.skill_evolution.diagnosis_v14",
-        "diagnosis_contract": "src.skill_evolution.diagnosis_contract_v14",
-        "proposal_operator": (
-            "src.skill_evolution.autonomous_gse_v14_proposal."
-            "MultiRolloutDiagnosisProposalOperator"
-        ),
-        "editor": (
-            "src.learners.stwebagentbench.generate_governed_skill_v14."
-            "call_governed_editor"
-        ),
-        "semantics_snapshot_from": "autonomous_gse_v13",
-    }
-    assert campaign["compliance_judge"] == {
-        "implementation": "src.adapters.tau2.tau3_compliance_judge_v13",
-        "model": compliance_v13.JUDGE_MODEL,
-        "temperature": compliance_v13.JUDGE_TEMPERATURE,
-        "prompt_version": compliance_v13.JUDGE_PROMPT_VERSION,
-        "frozen_from": "autonomous_gse_v13",
-        "fallback": "forbidden",
-    }
+    assert campaign["learner_stack"]["diagnosis"] == "src.skill_evolution.diagnosis_v14"
+    assert campaign["learner_stack"]["semantics_snapshot_from"] == "autonomous_gse_v13"
+    assert campaign["compliance_judge"]["implementation"] == (
+        "src.adapters.tau2.tau3_compliance_judge_v13"
+    )
     runtime_v14.validate_campaign_contract(campaign)
     assert runtime_v14.call_diagnosis is diagnosis_v14.call_diagnosis
     assert runtime_v14.call_governed_editor is editor_v14.call_governed_editor
