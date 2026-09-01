@@ -7,6 +7,8 @@ import json
 from dataclasses import dataclass
 from typing import Any
 
+from src.skill_evolution.diagnosis_provenance_v14 import build_provenance_alias_context
+
 EVIDENCE_STATUSES = {
     "contrastive_support", "recurrent_support", "conflicting", "insufficient",
 }
@@ -18,9 +20,8 @@ OUTCOME_RELATIONS = {"supports", "contradicts", "insufficient", "not_applicable"
 EDIT_INTENTS = {"replace", "delete", "not_applicable"}
 SEMANTIC_DIAGNOSIS_FIELDS = {
     "behavioral_mechanism", "feasibility", "skill_coverage", "outcome_relation",
-    "repair_policy_ids", "target_behavior", "edit_intent",
+    "repair_policy_refs", "target_behavior", "edit_intent",
 }
-EVIDENCE_REF_FIELDS = {"source_id", "step_ids"}
 TARGET_BEHAVIOR_FIELDS = {
     "problem", "trigger_condition", "decision_boundary", "repair_operator",
     "stopping_boundary", "expected_behavior",
@@ -35,8 +36,11 @@ class DiagnosisValidation:
     structured_output: dict[str, Any] | None
     valid: bool
     validation_errors: tuple[str, ...]
+    resolved_provenance: dict[str, Any] | None = None
     compiled_decision: dict[str, Any] | None = None
     compiler_trace: dict[str, Any] | None = None
+    structured_output_mode: str | None = None
+    structured_output_fallback_reason: str | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -50,60 +54,27 @@ class DiagnosisValidation:
                     "errors": list(self.validation_errors),
                 },
             },
+            "resolved_provenance": copy.deepcopy(self.resolved_provenance),
             "compiled_decision": copy.deepcopy(self.compiled_decision),
             "compiler_trace": copy.deepcopy(self.compiler_trace),
+            "structured_output_mode": self.structured_output_mode,
+            "structured_output_fallback_reason": self.structured_output_fallback_reason,
         }
 
 
-def _step_ids(evidence: dict[str, Any]) -> set[int]:
-    actions = evidence.get("actions")
-    if not isinstance(actions, list):
-        trajectory = evidence.get("trajectory")
-        actions = trajectory.get("actions") if isinstance(trajectory, dict) else trajectory
-    if not isinstance(actions, list):
-        return set()
-    return {
-        item["step"] for item in actions
-        if isinstance(item, dict) and isinstance(item.get("step"), int)
-        and not isinstance(item["step"], bool) and item["step"] > 0
-    }
-
-
 def _validate_refs(
-    value: Any, evidence_by_source: dict[str, dict[str, Any]], prefix: str,
+    value: Any, allowed_aliases: set[str], prefix: str,
 ) -> list[str]:
     if not isinstance(value, list):
         return [f"INVALID_{prefix}_EVIDENCE_REFS"]
     errors: list[str] = []
     for ref in value:
-        if not isinstance(ref, dict) or set(ref) != EVIDENCE_REF_FIELDS:
+        if not isinstance(ref, str):
             errors.append(f"INVALID_{prefix}_EVIDENCE_REF")
             continue
-        source_id, steps = ref.get("source_id"), ref.get("step_ids")
-        if source_id not in evidence_by_source:
-            errors.append(f"{prefix}_EVIDENCE_SOURCE_NOT_FOUND")
-            continue
-        if not isinstance(steps, list) or not steps or any(
-            not isinstance(step, int) or isinstance(step, bool) or step <= 0 for step in steps
-        ):
-            errors.append(f"INVALID_{prefix}_EVIDENCE_STEPS")
-        elif not set(steps) <= _step_ids(evidence_by_source[source_id]):
-            errors.append(f"{prefix}_EVIDENCE_STEP_NOT_FOUND")
+        if ref not in allowed_aliases:
+            errors.append(f"{prefix}_EVIDENCE_ALIAS_NOT_FOUND")
     return errors
-
-
-def _policy_ids(experiences: tuple[dict[str, Any], ...]) -> set[str]:
-    result: set[str] = set()
-    for evidence in experiences:
-        feedback = evidence.get("process_feedback", {})
-        violations = feedback.get("violated_policies", []) if isinstance(feedback, dict) else []
-        for item in violations:
-            if isinstance(item, dict):
-                for key in ("policy_template_id", "policy_id"):
-                    value = item.get(key)
-                    if isinstance(value, str) and value:
-                        result.add(value)
-    return result
 
 
 def validate_task_evidence_group(experiences: tuple[dict[str, Any], ...]) -> tuple[str, ...]:
@@ -137,10 +108,9 @@ def validate_diagnosis(
     if set(diagnosis) != SEMANTIC_DIAGNOSIS_FIELDS:
         errors.append("INVALID_SEMANTIC_DIAGNOSIS_FIELDS")
 
-    evidence_by_source = {
-        item["source_id"]: item for item in experiences
-        if isinstance(item, dict) and isinstance(item.get("source_id"), str)
-    }
+    alias_context = build_provenance_alias_context(experiences)
+    evidence_aliases = set(alias_context["evidence_aliases"])
+    policy_aliases = set(alias_context["policy_aliases"])
     mechanism = diagnosis.get("behavioral_mechanism")
     mechanism_fields = {
         "description", "evidence_status", "support_evidence_refs",
@@ -158,10 +128,10 @@ def validate_diagnosis(
         ):
             errors.append("INVALID_BEHAVIORAL_MECHANISM")
         errors.extend(_validate_refs(
-            mechanism.get("support_evidence_refs"), evidence_by_source, "SUPPORT",
+            mechanism.get("support_evidence_refs"), evidence_aliases, "SUPPORT",
         ))
         errors.extend(_validate_refs(
-            mechanism.get("counterevidence_refs"), evidence_by_source, "COUNTER",
+            mechanism.get("counterevidence_refs"), evidence_aliases, "COUNTER",
         ))
         if evidence_status in {"contrastive_support", "recurrent_support"}:
             if not isinstance(mechanism.get("description"), str) or not mechanism["description"].strip():
@@ -210,13 +180,13 @@ def validate_diagnosis(
         if outcome.get("compliance") not in OUTCOME_RELATIONS:
             errors.append("INVALID_COMPLIANCE_RELATION")
 
-    policy_ids = diagnosis.get("repair_policy_ids")
-    if not isinstance(policy_ids, list) or any(
-        not isinstance(value, str) or not value for value in policy_ids
+    policy_refs = diagnosis.get("repair_policy_refs")
+    if not isinstance(policy_refs, list) or any(
+        not isinstance(value, str) for value in policy_refs
     ):
-        errors.append("INVALID_REPAIR_POLICY_IDS")
-    elif not set(policy_ids) <= _policy_ids(experiences):
-        errors.append("POLICY_ID_NOT_IN_EVIDENCE")
+        errors.append("INVALID_REPAIR_POLICY_REFS")
+    elif not set(policy_refs) <= policy_aliases:
+        errors.append("POLICY_ALIAS_NOT_FOUND")
 
     target = diagnosis.get("target_behavior")
     if not isinstance(target, dict) or set(target) != TARGET_BEHAVIOR_FIELDS or any(
@@ -234,9 +204,11 @@ def _parse_semantic_response(response: Any) -> tuple[dict[str, Any] | None, str 
     opening = "<SEMANTIC_DIAGNOSIS_JSON>"
     closing = "</SEMANTIC_DIAGNOSIS_JSON>"
     stripped = response.strip()
-    if not stripped.startswith(opening) or not stripped.endswith(closing):
-        return None, "SEMANTIC_DIAGNOSIS_JSON_NOT_FOUND"
-    payload = stripped[len(opening):-len(closing)].strip()
+    payload = (
+        stripped[len(opening):-len(closing)].strip()
+        if stripped.startswith(opening) and stripped.endswith(closing)
+        else stripped
+    )
     try:
         parsed = json.loads(payload)
     except json.JSONDecodeError:
@@ -261,4 +233,8 @@ def parse_and_validate_diagnosis(
         structured_output=copy.deepcopy(parsed),
         valid=not errors,
         validation_errors=errors,
+        structured_output_mode=getattr(response, "structured_output_mode", None),
+        structured_output_fallback_reason=getattr(
+            response, "structured_output_fallback_reason", None,
+        ),
     )

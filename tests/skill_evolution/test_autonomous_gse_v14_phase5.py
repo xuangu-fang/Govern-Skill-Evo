@@ -320,8 +320,11 @@ def test_diagnosis_contract_failure_persists_complete_validation_artifact(tmp_pa
                 "valid": False, "errors": ["INVALID_TASK_SUCCESS_RELATION"],
             },
         },
+        "resolved_provenance": None,
         "compiled_decision": None,
         "compiler_trace": None,
+        "structured_output_mode": None,
+        "structured_output_fallback_reason": None,
     }
     execution = json.loads((step_root / "execution_error.json").read_text())
     assert execution["error_type"] == "DiagnosisContractError"

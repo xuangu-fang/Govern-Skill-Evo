@@ -21,6 +21,9 @@ from src.skill_evolution.diagnosis_contract_v14 import (
     DiagnosisValidation, parse_and_validate_diagnosis, validate_task_evidence_group,
 )
 from src.skill_evolution.diagnosis_compiler_v14 import compile_semantic_diagnosis
+from src.skill_evolution.diagnosis_provenance_v14 import (
+    build_provenance_alias_context, resolve_semantic_provenance,
+)
 from src.skill_evolution.diagnosis_v14 import Diagnoser, MultiRolloutDiagnosisRequest
 
 _TASK_SPECIFIC_RULE_PATTERNS = (
@@ -97,9 +100,14 @@ def group_task_evidence(evidence: tuple[dict[str, Any], ...]) -> list[tuple[tupl
 def _signal(item: DiagnosisValidation, task: tuple[str, str]) -> dict[str, Any]:
     assert item.structured_output is not None
     assert item.compiled_decision is not None
+    assert item.resolved_provenance is not None
     semantic = item.structured_output
     compiled = item.compiled_decision
+    provenance = item.resolved_provenance
     target = semantic["target_behavior"]
+    source_ids = list(dict.fromkeys(
+        ref["source_id"] for ref in provenance["support_evidence_refs"]
+    ))
     return {
         "patch_id": item.diagnosis_id,
         "diagnosis_id": item.diagnosis_id,
@@ -115,8 +123,12 @@ def _signal(item: DiagnosisValidation, task: tuple[str, str]) -> dict[str, Any]:
         "behavioral_mechanism": copy.deepcopy(semantic["behavioral_mechanism"]),
         "skill_coverage": copy.deepcopy(semantic["skill_coverage"]),
         "outcome_relation": copy.deepcopy(semantic["outcome_relation"]),
-        "source_ids": list(item.source_ids),
-        "repair_policy_ids": list(semantic["repair_policy_ids"]),
+        "support_evidence_refs": copy.deepcopy(provenance["support_evidence_refs"]),
+        "counterevidence_refs": copy.deepcopy(provenance["counterevidence_refs"]),
+        "source_ids": source_ids,
+        "repair_policy_ids": [
+            ref["policy_id"] for ref in provenance["repair_policy_refs"]
+        ],
         "root_cause": compiled["root_cause"],
     }
 
@@ -232,11 +244,16 @@ class MultiRolloutDiagnosisProposalOperator:
             )
             if validation.valid:
                 assert validation.structured_output is not None
+                provenance = resolve_semantic_provenance(
+                    validation.structured_output,
+                    build_provenance_alias_context(rollouts),
+                )
                 compiled, trace = compile_semantic_diagnosis(
                     validation.structured_output, sections,
                 )
                 validation = replace(
-                    validation, compiled_decision=compiled, compiler_trace=trace,
+                    validation, resolved_provenance=provenance,
+                    compiled_decision=compiled, compiler_trace=trace,
                 )
             validations.append(validation)
             tasks_by_diagnosis[diagnosis_id] = task
