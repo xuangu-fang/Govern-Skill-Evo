@@ -1,9 +1,8 @@
-"""Phase 1-3 infrastructure for Autonomous GSE v0.14.
+"""Phase 1-4 infrastructure for Autonomous GSE v0.14.
 
 The learning side is intentionally the v0.13 implementation.  This module only
 adds the v0.14 campaign identity, frozen task partitions, leakage guards,
-matched Monitor measurement, and a dry plan.  Candidate gating is not
-implemented here.
+matched Monitor measurement, a pure distributional gate, and a dry plan.
 """
 
 from __future__ import annotations
@@ -36,6 +35,9 @@ from src.skill_evolution.joint_distribution_v14 import (
     JointDistributionContractError, build_joint_distribution_report,
     distribution, state_code, validate_monitor_result,
 )
+from src.skill_evolution.distributional_gate_v14 import (
+    DEFAULT_GATE_CONFIG, build_distributional_gate_decision,
+)
 from src.skill_evolution.two_dimensional_gate import classify_state
 
 PROTOCOL_VERSION = "autonomous_gse_v14"
@@ -55,7 +57,7 @@ V13_PROPOSAL_OPERATOR = MultiRolloutDiagnosisProposalOperator()
 
 
 class RuntimeContractError(ValueError):
-    """Raised when a v0.14 Phase 1-3 invariant is violated."""
+    """Raised when a v0.14 Phase 1-4 invariant is violated."""
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -147,7 +149,7 @@ def validate_campaign_contract(campaign: dict[str, Any]) -> None:
         "rollouts_per_task": 3, "fixed_across_steps": True,
         "purpose": "distribution_monitor", "learning_access": "forbidden",
         "feedback_to_learner": "forbidden", "execution_enabled": True,
-        "measurement_enabled": True, "gate_enabled": False,
+        "measurement_enabled": True, "gate_enabled": True,
     }
     if monitor != expected_monitor:
         raise RuntimeContractError("v0.14 fixed Monitor contract drifted.")
@@ -187,16 +189,19 @@ def validate_campaign_contract(campaign: dict[str, Any]) -> None:
         "frozen_from": "autonomous_gse_v13",
     }:
         raise RuntimeContractError("v0.14 learner stack is not the frozen v0.13 implementation.")
-    if campaign.get("future_features") != {"phase_4_and_later": "not_implemented"}:
-        raise RuntimeContractError("v0.14 Phase 3 boundary is invalid.")
+    if campaign.get("distributional_gate") != DEFAULT_GATE_CONFIG:
+        raise RuntimeContractError("v0.14 Distributional Gate config drifted.")
+    if campaign.get("future_features") != {"phase_5_and_later": "not_implemented"}:
+        raise RuntimeContractError("v0.14 Phase 4 boundary is invalid.")
     if campaign.get("budget") != {
         "defined_evolution_trajectories": 180,
         "monitor_trajectories_per_skill_evaluation": 60,
         "monitor_execution_enabled": True,
         "joint_distribution_additional_trajectories": 0,
+        "distributional_gate_additional_trajectories": 0,
         "final_test_trajectories_if_authorized": 120,
     }:
-        raise RuntimeContractError("v0.14 Phase 3 workload budget drifted.")
+        raise RuntimeContractError("v0.14 Phase 4 workload budget drifted.")
     if campaign.get("execution") != {
         "parallelism_unit": "task_x_rollout", "max_concurrency": 6,
     }:
@@ -255,7 +260,7 @@ def validate_batch_map(
         "source_split": "official_test", "fixed_across_steps": True,
         "purpose": "distribution_monitor", "learning_access": "forbidden",
         "feedback_to_learner": "forbidden", "execution_enabled": True,
-        "measurement_enabled": True, "gate_enabled": False,
+        "measurement_enabled": True, "gate_enabled": True,
     }:
         raise RuntimeContractError("Frozen Monitor artifact is invalid.")
 
@@ -654,6 +659,16 @@ def write_joint_distribution_report(
     return report
 
 
+def write_distributional_gate_decision(
+    joint_report_path: Path, output_path: Path,
+) -> dict[str, Any]:
+    """Build a Gate artifact from an existing report without API or rollout work."""
+
+    decision = build_distributional_gate_decision(_load_json(joint_report_path))
+    _write_json(output_path, decision)
+    return decision
+
+
 def build_campaign_dry_plan(campaign: dict[str, Any], batch_map: dict[str, Any]) -> dict[str, Any]:
     validate_batch_map(batch_map, campaign)
     steps = []
@@ -687,8 +702,16 @@ def build_campaign_dry_plan(campaign: dict[str, Any], batch_map: dict[str, Any])
                 "defined_task_ids": monitor_ids,
                 "defined_tasks": len(monitor_ids), "defined_trajectories": len(monitor_ids) * 3,
                 "fixed_across_steps": True, "execution_enabled": True,
-                "measurement_enabled": True, "gate_enabled": False,
+                "measurement_enabled": True, "gate_enabled": True,
                 "joint_distribution_additional_trajectories": 0,
+            },
+            "distributional_gate": {
+                "bootstrap_unit": "task", "stratified_by_domain": True,
+                "bootstrap_replicates": 10000, "bootstrap_seed": 200,
+                "epsilon_pair_count": 1, "epsilon_rate": 1 / 60,
+                "positive_probability_threshold": 0.80,
+                "additional_trajectories": 0,
+                "automatic_candidate_execution": False,
             },
             "test": {
                 "formula": "20 tasks x 2 skills x 3 rollouts", "task_ids": test_ids,
@@ -696,7 +719,7 @@ def build_campaign_dry_plan(campaign: dict[str, Any], batch_map: dict[str, Any])
                 "compare": ["S0", "S_final"], "currently_executable": False,
             },
         },
-        "phase_4_and_later": "not_implemented",
+        "phase_5_and_later": "not_implemented",
     }
 
 
@@ -720,12 +743,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     report_parser.add_argument("--parent-result", type=Path, required=True)
     report_parser.add_argument("--candidate-result", type=Path, required=True)
     report_parser.add_argument("--output", type=Path, required=True)
+    gate_parser = subparsers.add_parser("gate")
+    gate_parser.add_argument("--joint-report", type=Path, required=True)
+    gate_parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
     if args.command == "joint-report":
         report = write_joint_distribution_report(
             args.parent_result.resolve(), args.candidate_result.resolve(), args.output.resolve(),
         )
         print(json.dumps(report, indent=2))
+        return 0
+    if args.command == "gate":
+        decision = write_distributional_gate_decision(
+            args.joint_report.resolve(), args.output.resolve(),
+        )
+        print(json.dumps(decision, indent=2))
         return 0
     campaign, batch_map = _campaign_files(args.campaign.resolve())
     if args.command == "plan":

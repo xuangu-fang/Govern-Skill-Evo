@@ -124,7 +124,7 @@ class TestV14FrozenSplit:
         assert monitor["feedback_to_learner"] == "forbidden"
         assert monitor["execution_enabled"] is True
         assert monitor["measurement_enabled"] is True
-        assert monitor["gate_enabled"] is False
+        assert monitor["gate_enabled"] is True
         assert len(monitor["task_ids"]) == 20
         assert sum(item.startswith("airline:") for item in monitor["task_ids"]) == 10
         assert sum(item.startswith("retail:") for item in monitor["task_ids"]) == 10
@@ -243,7 +243,13 @@ class TestV14LearnerIsolationAndPlan:
         assert workload["monitor"]["joint_distribution_additional_trajectories"] == 0
         assert workload["test"]["tasks"] == 20
         assert workload["test"]["trajectories_if_explicitly_authorized"] == 120
-        assert plan["phase_4_and_later"] == "not_implemented"
+        gate = workload["distributional_gate"]
+        assert gate["bootstrap_unit"] == "task"
+        assert gate["stratified_by_domain"] is True
+        assert gate["bootstrap_replicates"] == 10000
+        assert gate["additional_trajectories"] == 0
+        assert gate["automatic_candidate_execution"] is False
+        assert plan["phase_5_and_later"] == "not_implemented"
 
     def test_contract_rejects_sampling_drift(self, campaign, batch_map):
         drifted = copy.deepcopy(campaign)

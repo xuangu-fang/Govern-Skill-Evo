@@ -260,8 +260,8 @@ def test_monitor_runtime_never_invokes_learner(tmp_path, campaign, batch_map, mo
     assert len(result["rows"]) == 60
 
 
-def test_phase3_contains_measurement_but_no_decision_semantics():
-    source = inspect.getsource(v14) + inspect.getsource(joint)
+def test_phase3_measurement_module_contains_no_decision_semantics():
+    source = inspect.getsource(joint)
     for forbidden in (
         "bootstrap", "confidence_interval", "confidence threshold",
         "evolution_gate_v14", '"ACCEPT"', '"RETAIN"',
