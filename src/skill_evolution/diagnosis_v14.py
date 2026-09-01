@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -10,12 +11,26 @@ from typing import Any
 from src.adapters.tau2.tau3_evaluation_scope_v13 import benchmark_exclusion_prompt
 from src.skill_evolution.autonomous_gse_v05_proposal import _parse_skill, annotate_parent_skill
 from src.skill_evolution.diagnosis_contract_v14 import (
+    AXIS_RELATIONS, EVIDENCE_CONSISTENCIES, EVIDENCE_PATTERNS,
     parse_and_validate_diagnosis, repair_diagnosis_contract_fields,
     validate_task_evidence_group,
 )
 
 LEARNER_MODEL = "openai/deepseek-v4-pro"
 EMPTY_RESPONSE_RETRIES = 2
+SEMANTIC_REPAIR_FIELD_BY_ERROR = {
+    "INVALID_COMPLIANCE_RELATION": ("behavior_analysis", "compliance_relation"),
+    "INVALID_TASK_SUCCESS_RELATION": ("behavior_analysis", "task_success_relation"),
+    "INVALID_EVIDENCE_CONSISTENCY": ("behavior_analysis", "evidence_consistency"),
+    "INVALID_EVIDENCE_PATTERN": ("behavior_analysis", "evidence_pattern"),
+}
+SEMANTIC_REPAIRABLE_ERRORS = frozenset(SEMANTIC_REPAIR_FIELD_BY_ERROR)
+SEMANTIC_REPAIR_ALLOWED_VALUES_BY_PATH = {
+    "behavior_analysis.compliance_relation": AXIS_RELATIONS,
+    "behavior_analysis.task_success_relation": AXIS_RELATIONS,
+    "behavior_analysis.evidence_consistency": EVIDENCE_CONSISTENCIES,
+    "behavior_analysis.evidence_pattern": EVIDENCE_PATTERNS,
+}
 
 
 @dataclass(frozen=True)
@@ -180,27 +195,85 @@ def _tag_bare_json_response(response: str) -> str:
 
 
 def _call_contract_repair(
-    learner_call: LearnerCall, *, system: str, user: str,
-    invalid_response: str, validation_errors: tuple[str, ...],
+    learner_call: LearnerCall, *, user: str,
+    original_diagnosis: dict[str, Any], validation_errors: tuple[str, ...],
 ) -> str:
-    """Make one bounded repair call for contract-invalid Diagnosis output."""
+    """Make one bounded field-patch call for whitelisted vocabulary errors."""
 
-    repair_system = system + """
-
-CONTRACT REPAIR MODE: Repair only the listed Python contract violations in your previous response. Preserve the task behavior summary, behavioral mechanism, evidence pattern, evidence consistency, root-cause attribution, update relevance, target behavior, and every evidence reference unless a listed error directly requires changing that field. Do not introduce a new mechanism, update, policy claim, source ID, or evidence step. Use only the allowed enum values already defined above. Return exactly one DIAGNOSIS_JSON block and no prose."""
-    repair_user = user + (
-        "\n\n<PREVIOUS_CONTRACT_INVALID_RESPONSE>\n"
-        + invalid_response
-        + "\n</PREVIOUS_CONTRACT_INVALID_RESPONSE>\n\n"
+    allowed_fields = {
+        ".".join(SEMANTIC_REPAIR_FIELD_BY_ERROR[error]): sorted(
+            SEMANTIC_REPAIR_ALLOWED_VALUES_BY_PATH[
+                ".".join(SEMANTIC_REPAIR_FIELD_BY_ERROR[error])
+            ]
+        )
+        for error in validation_errors
+    }
+    repair_system = """You are the v0.14 bounded Diagnosis contract repair component.
+You are not re-performing Diagnosis. The original Diagnosis is frozen except for the explicitly listed contract-invalid fields. Return only one DIAGNOSIS_REPAIR_JSON object containing exactly the allowed field paths. Do not modify or restate any other Diagnosis field. Do not introduce new mechanisms, evidence, source IDs, Policy claims, root causes, target behaviors, or update recommendations. Return no prose."""
+    repair_user = (
+        "<ORIGINAL_DIAGNOSIS_CONTEXT>\n"
+        + user
+        + "\n</ORIGINAL_DIAGNOSIS_CONTEXT>\n\n"
+        + "<FROZEN_ORIGINAL_DIAGNOSIS>\n"
+        + json.dumps(original_diagnosis, ensure_ascii=False, sort_keys=True)
+        + "\n</FROZEN_ORIGINAL_DIAGNOSIS>\n\n"
         + "<PYTHON_CONTRACT_VALIDATION_ERRORS>\n"
         + json.dumps(list(validation_errors), ensure_ascii=False)
         + "\n</PYTHON_CONTRACT_VALIDATION_ERRORS>\n\n"
-        + "Correct only these contract violations and return the complete DIAGNOSIS_JSON block."
+        + "<PYTHON_ALLOWED_REPAIR_FIELDS_AND_VALUES>\n"
+        + json.dumps(allowed_fields, ensure_ascii=False, sort_keys=True)
+        + "\n</PYTHON_ALLOWED_REPAIR_FIELDS_AND_VALUES>\n\n"
+        + "Return exactly this envelope with a JSON object whose keys exactly match the allowed fields:\n"
+        + "<DIAGNOSIS_REPAIR_JSON>{...}</DIAGNOSIS_REPAIR_JSON>"
     )
     response, _, _ = learner_call(LEARNER_MODEL, repair_system, repair_user)
     if not isinstance(response, str) or not response.strip():
         raise RuntimeError("v0.14 Diagnosis contract repair returned an empty response.")
-    return _tag_bare_json_response(response)
+    return response.strip()
+
+
+def _parse_contract_repair_patch(response: str) -> dict[str, Any] | None:
+    opening = "<DIAGNOSIS_REPAIR_JSON>"
+    closing = "</DIAGNOSIS_REPAIR_JSON>"
+    stripped = response.strip()
+    if not stripped.startswith(opening) or not stripped.endswith(closing):
+        return None
+    try:
+        patch = json.loads(stripped[len(opening):-len(closing)].strip())
+    except json.JSONDecodeError:
+        return None
+    return patch if isinstance(patch, dict) else None
+
+
+def _apply_semantic_contract_patch(
+    original: dict[str, Any], validation_errors: tuple[str, ...], patch: Any,
+) -> dict[str, Any] | None:
+    """Apply exactly the Python-authorized vocabulary fields to a deep copy."""
+
+    errors = set(validation_errors)
+    if not errors or not errors <= SEMANTIC_REPAIRABLE_ERRORS or not isinstance(patch, dict):
+        return None
+    allowed_paths = {
+        ".".join(SEMANTIC_REPAIR_FIELD_BY_ERROR[error]) for error in errors
+    }
+    if set(patch) != allowed_paths:
+        return None
+    if any(
+        value not in SEMANTIC_REPAIR_ALLOWED_VALUES_BY_PATH[path]
+        for path, value in patch.items()
+    ):
+        return None
+
+    repaired = copy.deepcopy(original)
+    for error in validation_errors:
+        path = SEMANTIC_REPAIR_FIELD_BY_ERROR[error]
+        target: Any = repaired
+        for key in path[:-1]:
+            if not isinstance(target, dict) or not isinstance(target.get(key), dict):
+                return None
+            target = target[key]
+        target[path[-1]] = patch[".".join(path)]
+    return repaired
 
 
 def call_diagnosis(request: MultiRolloutDiagnosisRequest, *, learner_call: LearnerCall = _default_learner_call) -> str:
@@ -231,7 +304,30 @@ def call_diagnosis(request: MultiRolloutDiagnosisRequest, *, learner_call: Learn
         if repaired_validation.valid:
             return repaired_response
         response, validation = repaired_response, repaired_validation
-    return _call_contract_repair(
-        learner_call, system=system, user=user, invalid_response=response,
+    errors = set(validation.validation_errors)
+    if (
+        not errors
+        or not errors <= SEMANTIC_REPAIRABLE_ERRORS
+        or not isinstance(validation.structured_output, dict)
+    ):
+        return response
+    repair_response = _call_contract_repair(
+        learner_call, user=user, original_diagnosis=validation.structured_output,
         validation_errors=validation.validation_errors,
     )
+    patch = _parse_contract_repair_patch(repair_response)
+    semantic_repair = _apply_semantic_contract_patch(
+        validation.structured_output, validation.validation_errors, patch,
+    )
+    if semantic_repair is None:
+        return response
+    semantic_repair_response = (
+        "<DIAGNOSIS_JSON>"
+        + json.dumps(semantic_repair, ensure_ascii=False, separators=(",", ":"))
+        + "</DIAGNOSIS_JSON>"
+    )
+    final_validation = parse_and_validate_diagnosis(
+        request.diagnosis_id, semantic_repair_response, experiences=request.rollouts,
+        skill_sections=skill_sections,
+    )
+    return semantic_repair_response if final_validation.valid else response

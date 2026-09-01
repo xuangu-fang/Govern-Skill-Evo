@@ -55,6 +55,23 @@ def _diagnosis_request_v14() -> diagnosis_v14.MultiRolloutDiagnosisRequest:
     )
 
 
+def _repair_tag(value: dict) -> str:
+    return (
+        "<DIAGNOSIS_REPAIR_JSON>"
+        + json.dumps(value)
+        + "</DIAGNOSIS_REPAIR_JSON>"
+    )
+
+
+def _validate_v14_diagnosis(response: str):
+    return contract_v14.parse_and_validate_diagnosis(
+        "diagnosis_001", response, experiences=_group(),
+        skill_sections={"Planning and navigation": [], "Execution patterns": [],
+                        "Form entry and verification": [],
+                        "Error recovery and stopping": []},
+    )
+
+
 def _request_pair(diagnoses: tuple[dict, ...]):
     common = {
         "candidate_id": "candidate_001",
@@ -144,6 +161,21 @@ def test_diagnosis_prompt_and_configuration_are_semantically_identical():
     )
 
 
+def test_semantic_repair_whitelist_and_authoritative_paths_are_exact():
+    assert diagnosis_v14.SEMANTIC_REPAIRABLE_ERRORS == frozenset({
+        "INVALID_COMPLIANCE_RELATION",
+        "INVALID_TASK_SUCCESS_RELATION",
+        "INVALID_EVIDENCE_CONSISTENCY",
+        "INVALID_EVIDENCE_PATTERN",
+    })
+    assert diagnosis_v14.SEMANTIC_REPAIR_FIELD_BY_ERROR == {
+        "INVALID_COMPLIANCE_RELATION": ("behavior_analysis", "compliance_relation"),
+        "INVALID_TASK_SUCCESS_RELATION": ("behavior_analysis", "task_success_relation"),
+        "INVALID_EVIDENCE_CONSISTENCY": ("behavior_analysis", "evidence_consistency"),
+        "INVALID_EVIDENCE_PATTERN": ("behavior_analysis", "evidence_pattern"),
+    }
+
+
 def test_bare_json_diagnosis_is_tagged_locally_without_extra_call():
     value = _diagnosis()
     calls = []
@@ -167,12 +199,13 @@ def test_bare_json_diagnosis_is_tagged_locally_without_extra_call():
     assert validation.valid
 
 
-def test_nonrepairable_enum_error_gets_one_bounded_contract_repair_call():
+def test_whitelisted_enum_error_gets_one_field_patch_repair_call():
     invalid = _diagnosis()
     invalid["behavior_analysis"]["compliance_relation"] = "conflicting"
-    corrected = copy.deepcopy(invalid)
-    corrected["behavior_analysis"]["compliance_relation"] = "insufficient"
-    responses = iter((_tag(invalid), _tag(corrected)))
+    responses = iter((
+        _tag(invalid),
+        _repair_tag({"behavior_analysis.compliance_relation": "insufficient"}),
+    ))
     calls = []
 
     def learner_call(model, system, user):
@@ -182,42 +215,211 @@ def test_nonrepairable_enum_error_gets_one_bounded_contract_repair_call():
     response = diagnosis_v14.call_diagnosis(
         _diagnosis_request_v14(), learner_call=learner_call,
     )
-    validation = contract_v14.parse_and_validate_diagnosis(
-        "diagnosis_001", response, experiences=_group(),
-        skill_sections={"Planning and navigation": [], "Execution patterns": [],
-                        "Form entry and verification": [],
-                        "Error recovery and stopping": []},
-    )
+    validation = _validate_v14_diagnosis(response)
+    expected = copy.deepcopy(invalid)
+    expected["behavior_analysis"]["compliance_relation"] = "insufficient"
     assert len(calls) == 2
-    assert "CONTRACT REPAIR MODE" in calls[1][1]
+    assert "bounded Diagnosis contract repair" in calls[1][1]
     assert "INVALID_COMPLIANCE_RELATION" in calls[1][2]
-    assert "Preserve the task behavior summary" in calls[1][1]
+    assert "behavior_analysis.compliance_relation" in calls[1][2]
     assert validation.valid
-    assert validation.structured_output["behavior_analysis"]["compliance_relation"] == "insufficient"
+    assert validation.structured_output == expected
 
 
-def test_contract_repair_is_bounded_to_one_additional_call_and_still_fails_closed():
+def test_non_whitelisted_policy_error_does_not_call_semantic_repair():
     invalid = _diagnosis()
-    invalid["behavior_analysis"]["compliance_relation"] = "conflicting"
-    raw = _tag(invalid)
+    invalid["repair_policy_ids"] = ["POLICY-NOT-IN-EVIDENCE"]
     calls = []
 
     def learner_call(model, system, user):
         calls.append((model, system, user))
-        return raw, model, None
+        return _tag(invalid), model, None
 
     response = diagnosis_v14.call_diagnosis(
         _diagnosis_request_v14(), learner_call=learner_call,
     )
-    validation = contract_v14.parse_and_validate_diagnosis(
-        "diagnosis_001", response, experiences=_group(),
-        skill_sections={"Planning and navigation": [], "Execution patterns": [],
-                        "Form entry and verification": [],
-                        "Error recovery and stopping": []},
+    validation = _validate_v14_diagnosis(response)
+    assert len(calls) == 1
+    assert not validation.valid
+    assert "POLICY_ID_NOT_IN_EVIDENCE" in validation.validation_errors
+
+
+def test_non_whitelisted_evidence_ref_error_does_not_call_semantic_repair():
+    invalid = _diagnosis()
+    invalid["behavior_analysis"]["support_evidence_refs"] = [{
+        "source_id": "unknown-source", "step_ids": [2],
+    }]
+    calls = []
+
+    def learner_call(model, system, user):
+        calls.append((model, system, user))
+        return _tag(invalid), model, None
+
+    response = diagnosis_v14.call_diagnosis(
+        _diagnosis_request_v14(), learner_call=learner_call,
     )
+    validation = _validate_v14_diagnosis(response)
+    assert len(calls) == 1
+    assert not validation.valid
+    assert "SUPPORT_EVIDENCE_SOURCE_NOT_FOUND" in validation.validation_errors
+
+
+def test_semantic_repair_rejects_extra_wrong_missing_keys_and_invalid_enum():
+    invalid = _diagnosis()
+    invalid["behavior_analysis"]["compliance_relation"] = "conflicting"
+    bad_patches = (
+        {
+            "behavior_analysis.compliance_relation": "insufficient",
+            "root_cause.category": "execution_issue",
+        },
+        {
+            "behavior_analysis.compliance_relation": "insufficient",
+            "behavior_analysis.behavioral_mechanism": "changed mechanism",
+        },
+        {"behavior_analysis.task_success_relation": "insufficient"},
+        {},
+        {"behavior_analysis.compliance_relation": "conflicting"},
+    )
+    for patch in bad_patches:
+        responses = iter((_tag(invalid), _repair_tag(patch)))
+        calls = []
+
+        def learner_call(model, system, user):
+            calls.append((model, system, user))
+            return next(responses), model, None
+
+        response = diagnosis_v14.call_diagnosis(
+            _diagnosis_request_v14(), learner_call=learner_call,
+        )
+        validation = _validate_v14_diagnosis(response)
+        assert len(calls) == 2
+        assert not validation.valid
+        assert validation.structured_output == invalid
+
+
+def test_semantic_patch_application_deep_copies_and_freezes_other_fields():
+    original = _diagnosis()
+    original["behavior_analysis"]["compliance_relation"] = "conflicting"
+    frozen = copy.deepcopy(original)
+    repaired = diagnosis_v14._apply_semantic_contract_patch(
+        original, ("INVALID_COMPLIANCE_RELATION",),
+        {"behavior_analysis.compliance_relation": "insufficient"},
+    )
+    expected = copy.deepcopy(frozen)
+    expected["behavior_analysis"]["compliance_relation"] = "insufficient"
+    assert original == frozen
+    assert repaired == expected
+
+
+def test_semantic_repair_requires_tagged_patch_only_response():
+    invalid = _diagnosis()
+    invalid["behavior_analysis"]["compliance_relation"] = "conflicting"
+    rewritten = copy.deepcopy(invalid)
+    rewritten["behavior_analysis"]["compliance_relation"] = "insufficient"
+    rewritten["behavior_analysis"]["behavioral_mechanism"] = "changed mechanism"
+    repair_responses = (
+        json.dumps({"behavior_analysis.compliance_relation": "insufficient"}),
+        _tag(rewritten),
+        "<DIAGNOSIS_REPAIR_JSON>not-json</DIAGNOSIS_REPAIR_JSON>",
+    )
+    for repair_response in repair_responses:
+        responses = iter((_tag(invalid), repair_response))
+
+        def learner_call(model, system, user):
+            return next(responses), model, None
+
+        response = diagnosis_v14.call_diagnosis(
+            _diagnosis_request_v14(), learner_call=learner_call,
+        )
+        validation = _validate_v14_diagnosis(response)
+        assert not validation.valid
+        assert validation.structured_output == invalid
+
+
+def test_multi_field_semantic_repair_requires_and_changes_exactly_both_fields():
+    invalid = _diagnosis()
+    invalid["behavior_analysis"]["task_success_relation"] = "bad-task-relation"
+    invalid["behavior_analysis"]["compliance_relation"] = "bad-compliance-relation"
+    patch = {
+        "behavior_analysis.task_success_relation": "supportive",
+        "behavior_analysis.compliance_relation": "insufficient",
+    }
+    responses = iter((_tag(invalid), _repair_tag(patch)))
+
+    def learner_call(model, system, user):
+        return next(responses), model, None
+
+    response = diagnosis_v14.call_diagnosis(
+        _diagnosis_request_v14(), learner_call=learner_call,
+    )
+    validation = _validate_v14_diagnosis(response)
+    expected = copy.deepcopy(invalid)
+    expected["behavior_analysis"]["task_success_relation"] = "supportive"
+    expected["behavior_analysis"]["compliance_relation"] = "insufficient"
+    assert validation.valid
+    assert validation.structured_output == expected
+
+
+def test_multi_field_semantic_repair_rejects_a_missing_required_key():
+    invalid = _diagnosis()
+    invalid["behavior_analysis"]["task_success_relation"] = "bad-task-relation"
+    invalid["behavior_analysis"]["compliance_relation"] = "bad-compliance-relation"
+    responses = iter((
+        _tag(invalid),
+        _repair_tag({"behavior_analysis.compliance_relation": "insufficient"}),
+    ))
+
+    def learner_call(model, system, user):
+        return next(responses), model, None
+
+    response = diagnosis_v14.call_diagnosis(
+        _diagnosis_request_v14(), learner_call=learner_call,
+    )
+    validation = _validate_v14_diagnosis(response)
+    assert not validation.valid
+    assert validation.structured_output == invalid
+
+
+def test_existing_deterministic_repair_does_not_call_semantic_repair():
+    invalid = _diagnosis(
+        relevance="uncertain", category="execution_issue",
+        coverage_status="already_covered",
+    )
+    calls = []
+
+    def learner_call(model, system, user):
+        calls.append((model, system, user))
+        return _tag(invalid), model, None
+
+    response = diagnosis_v14.call_diagnosis(
+        _diagnosis_request_v14(), learner_call=learner_call,
+    )
+    validation = _validate_v14_diagnosis(response)
+    assert len(calls) == 1
+    assert validation.valid
+    assert validation.structured_output["skill_update_relevance"] == "none"
+
+
+def test_contract_repair_is_bounded_to_one_additional_call_and_still_fails_closed():
+    invalid = _diagnosis()
+    invalid["behavior_analysis"]["evidence_consistency"] = "bad-consistency"
+    responses = iter((
+        _tag(invalid),
+        _repair_tag({"behavior_analysis.evidence_consistency": "conflicting"}),
+    ))
+    calls = []
+
+    def learner_call(model, system, user):
+        calls.append((model, system, user))
+        return next(responses), model, None
+
+    response = diagnosis_v14.call_diagnosis(
+        _diagnosis_request_v14(), learner_call=learner_call,
+    )
+    validation = _validate_v14_diagnosis(response)
     assert len(calls) == 2
     assert not validation.valid
-    assert validation.validation_errors == ("INVALID_COMPLIANCE_RELATION",)
+    assert validation.validation_errors == ("INVALID_EVIDENCE_CONSISTENCY",)
 
 
 def test_editor_prompt_configuration_and_synthetic_call_are_equivalent():
