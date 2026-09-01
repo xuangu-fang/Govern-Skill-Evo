@@ -666,11 +666,14 @@ class EvolutionRolloutBackendV14:
             governed = value.get("governed_evidence")
             if not isinstance(governed, dict):
                 raise RuntimeContractError("Evolution rollout governed evidence is missing.")
-            evidence.append(copy.deepcopy(governed))
-            rows.append({
+            enriched = {
                 **copy.deepcopy(governed), "domain": value["domain"],
                 "task_id": str(value["task_id"]), "rollout_index": value["rollout_index"],
                 "rollout_seed": value["rollout_seed"], "state": value["state"],
+            }
+            evidence.append(copy.deepcopy(enriched))
+            rows.append({
+                **copy.deepcopy(enriched),
                 "trajectory_artifact_path": path.resolve().as_posix(),
             })
         return {"rows": rows, "evidence": evidence, "artifact_paths": [p.as_posix() for p in paths]}

@@ -86,6 +86,16 @@ def _validate_rollout_bundle(
         raise OrchestrationContractError("Current-batch rollout lineage is incomplete.")
     if require_evidence and (not isinstance(evidence, list) or len(evidence) != 60):
         raise OrchestrationContractError("Learning Path must contain 60 governed evidence rows.")
+    if require_evidence:
+        lineage_fields = (
+            "source_id", "domain", "task_id", "rollout_index", "rollout_seed", "state",
+        )
+        if any(
+            not isinstance(item, dict)
+            or any(item.get(field) != row.get(field) for field in lineage_fields)
+            for row, item in zip(rows, evidence, strict=True)
+        ):
+            raise OrchestrationContractError("Learning Path rows/evidence lineage drifted.")
 
 
 def _validate_matched_replay(
@@ -246,6 +256,7 @@ def run_evolution_step(
             },
         }
         _write_json(step_root / "step_summary.json", summary)
+        (step_root / "execution_error.json").unlink(missing_ok=True)
         return summary, copy.deepcopy(parent), parent_monitor
 
     candidate = _immutable_candidate(
@@ -357,6 +368,7 @@ def run_evolution_step(
         },
     }
     _write_json(step_root / "step_summary.json", summary)
+    (step_root / "execution_error.json").unlink(missing_ok=True)
     return summary, copy.deepcopy(next_parent), next_monitor
 
 

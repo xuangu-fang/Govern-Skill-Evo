@@ -189,6 +189,44 @@ def test_legal_noop_retains_without_candidate_cost(tmp_path):
     assert calls["monitor"] == [] and calls["replay"] == []
 
 
+def test_successful_step_removes_stale_execution_error(tmp_path):
+    skill = tmp_path / "S0.md"
+    skill.write_text("# S0\n", encoding="utf-8")
+    parent = {"skill_id": "S0", "skill_version": "S0", "skill_path": str(skill)}
+    error_path = tmp_path / "artifacts/steps/step_01/execution_error.json"
+    error_path.parent.mkdir(parents=True, exist_ok=True)
+    error_path.write_text('{"error_type":"stale"}\n', encoding="utf-8")
+
+    run_evolution_step(
+        step=1, batch=_batches()[0], parent=parent, parent_monitor={"S0": True},
+        campaign={}, services=_services([], _calls(), proposal=lambda context, step: _noop()),
+        artifact_root=tmp_path / "artifacts",
+    )
+
+    assert (tmp_path / "artifacts/steps/step_01/step_summary.json").is_file()
+    assert not error_path.exists()
+
+
+def test_failed_step_keeps_current_execution_error(tmp_path):
+    skill = tmp_path / "S0.md"
+    skill.write_text("# S0\n", encoding="utf-8")
+    parent = {"skill_id": "S0", "skill_version": "S0", "skill_path": str(skill)}
+    services = _services([], _calls())
+    services = EvolutionServices(**{
+        **services.__dict__,
+        "parent_rollouts": lambda *args: (_ for _ in ()).throw(RuntimeError("current failure")),
+    })
+
+    with pytest.raises(RuntimeError, match="current failure"):
+        run_evolution_step(
+            step=1, batch=_batches()[0], parent=parent, parent_monitor={}, campaign={},
+            services=services, artifact_root=tmp_path / "artifacts",
+        )
+
+    error_path = tmp_path / "artifacts/steps/step_01/execution_error.json"
+    assert json.loads(error_path.read_text())["error_message"] == "current failure"
+
+
 def test_candidate_monitor_failure_is_execution_error_not_retain(tmp_path):
     skill = tmp_path / "S0.md"
     skill.write_text("# S0\n", encoding="utf-8")
