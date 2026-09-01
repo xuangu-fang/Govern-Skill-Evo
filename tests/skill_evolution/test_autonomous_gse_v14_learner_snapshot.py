@@ -158,6 +158,8 @@ def test_diagnosis_prompt_keeps_v13_lineage_with_v14_outcome_support_extension()
     assert diagnosis_v14.EMPTY_RESPONSE_RETRIES == diagnosis_v13.EMPTY_RESPONSE_RETRIES
     v14_base = diagnosis_v14.DIAGNOSIS_SYSTEM_PROMPT.replace(
         diagnosis_v14.OUTCOME_SUPPORT_CHECKPOINT + "\n\n", "",
+    ).replace(
+        diagnosis_v14.V14_OUTPUT_CONTRACT_CLARIFICATION + "\n\n", "",
     )
     assert _normalize_version_identity(v14_base) == (
         _normalize_version_identity(diagnosis_v13.DIAGNOSIS_SYSTEM_PROMPT)
@@ -178,6 +180,16 @@ def test_diagnosis_prompt_contains_general_outcome_support_checkpoint():
     assert "later self-corrects" in checkpoint
     assert "retail" not in checkpoint.lower()
     assert "second preference" not in checkpoint.lower()
+
+
+def test_diagnosis_prompt_contains_v14_output_contract_clarification():
+    clarification = diagnosis_v14.V14_OUTPUT_CONTRACT_CLARIFICATION
+    assert "All six target_behavior fields must always be JSON strings" in clarification
+    assert "Never use null for any target_behavior field" in clarification
+    assert '"stopping_boundary": ""' in clarification
+    assert 'action = "add"' in clarification
+    assert "target_section and target_rule_id must both be null" in clarification
+    assert "Editor decides placement" in clarification
 
 
 def test_outcome_support_checkpoint_mappings_pass_the_existing_contract():
@@ -270,6 +282,145 @@ def test_bare_json_diagnosis_is_tagged_locally_without_extra_call():
     assert response.endswith("</DIAGNOSIS_JSON>")
     assert validation.valid
     assert validation.repair_trace == {"attempted": False}
+
+
+def _compliance_update_with_null_stopping_boundary() -> dict:
+    diagnosis = _diagnosis(
+        relevance="update", action="add", category="skill_issue",
+        update_axis="compliance", evidence_pattern="contrastive",
+        task_success_relation="not_applicable", compliance_relation="supportive",
+        coverage_status="missing", problem="unsupported explanatory claim",
+        repair_operator="use only grounded explanatory details",
+    )
+    diagnosis["target_behavior"]["stopping_boundary"] = None
+    return diagnosis
+
+
+def test_narrow_target_normalization_changes_only_null_stopping_boundary():
+    original = _compliance_update_with_null_stopping_boundary()
+    frozen = copy.deepcopy(original)
+    normalized = diagnosis_v14._normalize_target_behavior_serialization(original)
+    expected = copy.deepcopy(original)
+    expected["target_behavior"]["stopping_boundary"] = ""
+    assert original == frozen
+    assert normalized == expected
+
+
+def test_target_normalization_rejects_other_null_missing_extra_and_non_object_shapes():
+    cases = []
+    for field in (
+        "problem", "trigger_condition", "decision_boundary", "repair_operator",
+        "expected_behavior",
+    ):
+        diagnosis = _compliance_update_with_null_stopping_boundary()
+        diagnosis["target_behavior"][field] = None
+        cases.append(diagnosis)
+    missing = _compliance_update_with_null_stopping_boundary()
+    del missing["target_behavior"]["stopping_boundary"]
+    cases.append(missing)
+    extra = _compliance_update_with_null_stopping_boundary()
+    extra["target_behavior"]["extra_field"] = "not allowed"
+    cases.append(extra)
+    non_object = _compliance_update_with_null_stopping_boundary()
+    non_object["target_behavior"] = None
+    cases.append(non_object)
+    assert all(
+        diagnosis_v14._normalize_target_behavior_serialization(case) is None
+        for case in cases
+    )
+    for case in cases:
+        calls = []
+
+        def learner_call(model, system, user):
+            calls.append((model, system, user))
+            return _tag(case), model, None
+
+        validation = _validate_v14_diagnosis(diagnosis_v14.call_diagnosis(
+            _diagnosis_request_v14(), learner_call=learner_call,
+        ))
+        assert len(calls) == 1
+        assert not validation.valid
+        assert "INVALID_TARGET_BEHAVIOR" in validation.validation_errors
+        assert validation.repair_trace == {"attempted": False}
+
+
+def test_null_stopping_boundary_normalizes_without_semantic_repair_api_call():
+    initial = _compliance_update_with_null_stopping_boundary()
+    calls = []
+
+    def learner_call(model, system, user):
+        calls.append((model, system, user))
+        return _tag(initial), model, None
+
+    response = diagnosis_v14.call_diagnosis(
+        _diagnosis_request_v14(), learner_call=learner_call,
+    )
+    validation = _validate_v14_diagnosis(response)
+    assert len(calls) == 1
+    assert validation.valid
+    assert validation.structured_output["target_behavior"]["stopping_boundary"] == ""
+    assert validation.repair_trace == {"attempted": False}
+
+
+def test_null_stopping_then_existing_add_target_repair_reaches_valid_output():
+    initial = _compliance_update_with_null_stopping_boundary()
+    initial["update_recommendation"]["target_section"] = "Execution patterns"
+    initial_response = _tag(initial)
+    initial_validation = _validate_v14_diagnosis(initial_response)
+    assert set(initial_validation.validation_errors) == {
+        "INVALID_TARGET_BEHAVIOR", "ADD_MUST_NOT_PRESELECT_SECTION",
+    }
+    calls = []
+
+    def learner_call(model, system, user):
+        calls.append((model, system, user))
+        return initial_response, model, None
+
+    response = diagnosis_v14.call_diagnosis(
+        _diagnosis_request_v14(), learner_call=learner_call,
+    )
+    validation = _validate_v14_diagnosis(response)
+    assert len(calls) == 1
+    assert validation.valid
+    assert validation.structured_output["target_behavior"]["stopping_boundary"] == ""
+    assert validation.structured_output["update_recommendation"]["target_section"] is None
+    assert validation.structured_output["update_recommendation"]["target_rule_id"] is None
+    assert validation.repair_trace == {"attempted": False}
+
+
+def test_null_stopping_then_existing_add_repair_clears_both_targets():
+    initial = _compliance_update_with_null_stopping_boundary()
+    initial["update_recommendation"]["target_section"] = "Execution patterns"
+    initial["update_recommendation"]["target_rule_id"] = "R3"
+    responses = []
+
+    def learner_call(model, system, user):
+        responses.append((model, system, user))
+        return _tag(initial), model, None
+
+    validation = _validate_v14_diagnosis(diagnosis_v14.call_diagnosis(
+        _diagnosis_request_v14(), learner_call=learner_call,
+    ))
+    assert len(responses) == 1
+    assert validation.valid
+    assert validation.structured_output["update_recommendation"]["target_section"] is None
+    assert validation.structured_output["update_recommendation"]["target_rule_id"] is None
+
+
+def test_target_normalization_does_not_change_replace_or_delete_targets():
+    for action in ("replace", "delete"):
+        initial = _compliance_update_with_null_stopping_boundary()
+        initial["update_recommendation"].update({
+            "action": action, "target_section": "Existing section", "target_rule_id": "R7",
+        })
+        normalized = diagnosis_v14._normalize_target_behavior_serialization(initial)
+        assert normalized["target_behavior"]["stopping_boundary"] == ""
+        assert normalized["update_recommendation"] == initial["update_recommendation"]
+
+
+def test_invalid_target_behavior_is_not_added_to_any_repair_whitelist():
+    assert "INVALID_TARGET_BEHAVIOR" not in contract_v14.REPAIRABLE_CONTRACT_ERRORS
+    assert "INVALID_TARGET_BEHAVIOR" not in diagnosis_v14.SEMANTIC_REPAIRABLE_ERRORS
 
 
 def test_whitelisted_enum_error_gets_one_field_patch_repair_call():

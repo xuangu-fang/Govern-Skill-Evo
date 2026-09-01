@@ -4267,7 +4267,11 @@ Candidate 同时存在 2 条 `NOT_FIXED` 和 1 条 `CHANGE_CAUSED` 回归，因�
 ---
 
 ### 目标
-解决上一版的规则过度抽象、过度合并的问题，实现：同一 task 使用多次 rollout 提供对照证据，只有当真实行为差异和Policy和最终结果能够共同支持一个具体机制时，才允许该机制进入 Skill 更新。Target Fix 则不再要求 Candidate 的 3 次 rollout的 replay 中都无目标问题才作为FIXED，3次只要有1次无目标问题即为FIXED。
+解决上一版中 Diagnosis 过度依赖结果标签、规则过度抽象和过度合并的问题。核心改动是：同一 task 使用 3 次独立 rollout 提供多次行为证据，不再仅根据 Task Success × Compliance 的结果差异生成 Skill 更新，而是先识别真实的 Agent 行为机制，再结合 Policy、Tool、Parent Skill 和最终结果判断该机制是否值得进入 Skill 更新。
+
+要求一个 Skill 更新至少具备：明确的 Agent 可控行为机制、足够的 trajectory 证据、合法可行的替代行为、Parent Skill 中真实存在的指导缺失，以及 Task Success 或 Compliance 至少一个维度的支持。对于证据不足、存在明显反例、Parent Skill 已经覆盖或问题本身无法通过合法工具行为解决的情况，不进行 Skill 更新。
+
+收紧 Editor 的泛化和合并边界，避免为了“更通用”而删除真正决定行为是否正确的条件；Target Fix 改为直接比较 matched Parent/Candidate rollout 中目标行为是否发生变化，不再要求 Candidate 的 3 次 rollout 全部修复目标问题。
 
 ### 实验设置
 
@@ -4275,57 +4279,131 @@ Candidate 同时存在 2 条 `NOT_FIXED` 和 1 条 `CHANGE_CAUSED` 回归，因�
 
 #### 1. Diagnosis：先比较实际行为，再根据结果判断问题
 
-上一版 Diagnosis 主要根据 3 次 rollout 的 `Task Success × Compliance` 状态差异判断需要修复什么。改为：
+上一版 Diagnosis 虽然同时使用 3 次 rollout，较容易从 Task Success × Compliance 的状态差异出发反推需要修改什么，可能把结果差异、环境差异或重复出现的动作错误解释成 Skill 问题：
 
-- 仍然同时利用 3 次 rollout 的 Task Success 和 Compliance；
-- 结合Policy判断，只有存在能够解释成功/失败或合规/违规差异的行为变化，才进一步考虑修改 Skill；
-- 如果只是结果标签不同，但实际行为基本相同，则不据此生成 Skill 更新。
+改为按照固定顺序进行判断：
+- 首先只分析 Agent 实际执行了什么，包括条件判断、工具选择、参数选择、执行顺序、继续或停止决策以及 显式表达，不直接从 Success / Failure 或 Compliance / Violation 标签反推原因；
+- 在判断 Skill 问题之前，先检查当前 task 要求、Policy 约束和 Tool 能力是否能够同时满足。如果不存在一个 Policy 允许、Tool 支持且在当时状态下可执行的正确行为，则将问题归为外部或任务约束问题，而不是通过增加 Skill 规则强行修复；
+- 将多次 rollout 的行为证据分为 contrastive、recurrent 和 insufficient 三类。
 
-Diagnosis 会读取原始 Policy 和 Tool 信息，判断当前问题到底来自：
+`contrastive`: 不同 rollout 中存在不同的 Agent 行为，并且这种行为差异能够帮助解释结果差异；
+`recurrent`: 表示多个 rollout 在相同的决策机会和关键条件下重复出现同一种错误决策机制。仅仅重复调用同一个工具、执行同一种操作或重复失败，不足以构成 recurrent evidence；
+`insufficient`: 表示当前轨迹无法稳定支持一个具体的 Agent 行为机制。
 
-- Skill 指导不足；
-- Agent 执行错误；
-- Policy 本身不允许目标操作；
-- 外部环境或 benchmark；
-- 或当前证据不足，暂时不应该修改 Skill。
+对于得到的行为机制，还会使用其余 rollout 主动寻找反例。如果同一条件下，被认为有问题的行为也出现在成功或合规 rollout 中，但没有产生预期的问题，则不能直接将该机制作为 Skill 更新依据；无法解释的正反证据冲突则保留为 uncertainty，而不是强行生成规则。
 
-#### 2. Editor：不再为了更通用而过度合并
+再检查当前 Parent Skill 是否已经对这一问题提供了正确、充分的指导，并区分为：
 
-上一版为了防止规则过拟合具体任务，Editor 会尽量删除场景细节，并合并相似 Diagnosis。
+`missing`：缺少必要指导；
+`incorrect`：已有规则给出了错误指导；
+`underspecified`：已有规则提到了该行为，但缺少关键触发条件、判断条件、顺序或停止边界；
+`already_covered`：Skill 已经明确给出正确规则，但 Agent 没有执行；
+`not_applicable`：问题本身与 Skill coverage 无直接关系。
 
-实际发现这种做法有时会过度抽象：
+只有 missing / incorrect / underspecified 才可能进一步归因为 skill_issue。如果 Skill 已经正确覆盖，则归为 execution_issue，不再添加重复规则。
 
-- 删除了真正重要的判断条件；
-- 把主题相同但解决方法不同的问题合并在一起；
-- 最终生成的规则虽然更短、更通用，但无法真正指导 Agent 修复原问题。
+最后再分别判断这个行为问题与 Task Success 和 Compliance 两个结果维度之间是否存在足够证据。只有当行为问题本身有充分轨迹证据、当前 Skill 确实缺少或存在错误指导，并且 Task Success 或 Compliance 至少一个维度支持修改时，才允许产生 Skill update。
 
-改为只有多个 Diagnosis 同时满足以下条件时才允许合并：
+流程图：
+```
+实际 Agent 行为
+        ↓
+Task × Policy × Tool 可行性
+        ↓
+Contrastive / Recurrent / Insufficient Evidence
+        ↓
+反例检查
+        ↓
+当前 Skill 是否已有正确指导
+        ↓
+Task Success / Compliance 结果支持
+        ↓
+Skill 问题 / Agent 执行问题 / 外部问题 / 证据不足
+        ↓
+Update / No Update
+```
 
-- 出现问题的条件相同；
-- 需要判断的关键条件相同；
-- 解决方式相同。
+#### 2. Editor：保留决定行为正确性的条件，只合并真正等价的机制
 
-如果只是属于同一主题，但实际原因和解决方式不同，则分别保留。
+上一版为了让生成的规则更加通用，Editor 会尽量删除具体场景信息，并尝试合并内容相近的 Diagnosis。
 
-#### 3. Compliance Judge：增加 Policy 和 Tool 依据，降低错误判断对 Skill 的影响
+出现两个问题：
 
-Compliance Judge 的语义判断可能出现错误，导致Skill update错误。
+- 把真正决定当前行为是否正确的条件也一起删除，导致规则虽然更简短，但失去了原本需要表达的限制条件；
+- 把主题相似、但触发条件或处理方式不同的问题合并成同一条规则，导致最终规则范围过大，不能准确指导 Agent。
 
-除了完整 trajectory，同时读取原始Policy和Tool 的完整说明，每一个违规判断必须明确给出：
+因此重新限制 Editor 的泛化和合并范围。
 
-- 对应的原始 Policy 条款；
-- 对应的 trajectory 步骤；
-- 具体违反原因。
+对于具体任务中的用户信息、订单号、reservation ID、日期、金额等只与当前样本有关的信息，可以删除或抽象，使规则能够在其他任务中复用。
 
-Policy 条款所在的章节由程序从原始 Policy 中确定，而不是由 LLM 自己生成，从而让错误判断更容易被后续 Diagnosis 检查。
+但如果某个条件会直接影响 Agent 应该采取什么操作，则必须保留。例如：
 
-#### 4. Target Fix：不再要求三次都修好
+- 什么情况下这条规则才适用；
+- 在执行前需要检查哪些条件；
+- 是否需要用户确认或额外证据；
+- 某些操作是否必须按照特定顺序执行；
+- 什么情况下应该继续执行或停止；
+- 不同条件下应该采取什么不同的处理方式。
 
-上一版 Target Fix 过于严格。
+Editor 不再追求：规则越短、越通用越好，而是：
+> 删除只属于当前任务的具体信息，同时保留真正决定 Agent 行为的关键条件。
 
-如果 Parent 中存在目标问题，Candidate 的 3 次 replay 只要有 1 次重新出现该问题，就被判为 `NOT_FIXED`。但 Agent 本身存在随机性，因此即使 Skill 修改有效，也不能保证三次 rollout 都稳定执行正确。
+只有当多个 Diagnosis 实际描述的是同一种问题，并且满足以下条件时才允许合并：
 
-v直接比较 Parent 和 Candidate 的目标行为：
+- 出现问题的条件基本一致；
+- 需要检查的关键条件一致；
+- 应采取的处理方式一致；
+- 合并后仍然能够用一条明确规则准确表达所有来源 Diagnosis 的要求。
+
+如果只是主题相近，但实际问题原因、适用条件或处理方式不同，则分别生成规则，不强行合并。
+
+同时，每一条最终修改都需要保留一个明确的验证目标，说明：
+
+- 原来存在什么问题；
+- 在什么情况下需要处理；
+- Agent 正确情况下应该怎么做。
+
+后续 Target Fix 直接根据这个验证目标比较 Parent 和 Candidate 的真实行为变化，判断这次 Skill 修改是否确实改变了预期行为。
+
+#### 3. Compliance Judge：基于原始 Policy 和 Tool 语义生成违规证据
+
+Compliance Judge 的错误判断会直接污染后续 Diagnosis，因此进一步限制 Judge 的职责范围：只判断当前 trajectory 是否违反 Policy，不负责解释 Skill 是否应该修改，也不进行多 rollout 因果分析。
+
+Judge 读取：
+
+- 完整原始 Policy；
+- 完整 Tool contracts；
+- task context；
+- 完整 trajectory。
+
+每一个违规判断必须明确给出：
+
+- 原始 Policy 中能够定位到的具体条款；
+- 对应的 trajectory step；
+- Agent 实际执行的行为或表达；
+- 为什么该行为违反该条款。
+
+Policy 条款必须直接来自原始 Policy，而不是由模型概括或重新生成。程序随后根据该条款在原始 Policy 中的唯一位置确定其所属章节。
+
+Compliance Judge 的输出从单纯的合规标签变为能够被后续 Diagnosis 再次检查的：
+```
+Policy clause
++
+Trajectory evidence
++
+Violation reason
+```
+从而降低错误 Compliance 判断直接转化为错误 Skill update 的风险。
+
+#### 4. Target Fix：从结果判断改为 matched Parent–Candidate 行为比较
+
+上一版 Target Fix 主要判断 Candidate 的多次 replay 中目标问题是否仍然出现，并且要求修复结果较稳定，因此容易受到 Agent rollout 随机性的影响。
+
+这一版改为直接比较同一 task、同一 rollout index 下 matched Parent 和 Candidate trajectory 中的目标行为。
+
+对于每一对 Parent/Candidate rollout，判断：
+
+直接比较 Parent 和 Candidate 的目标行为：
 ```text
 Parent 有问题 → Candidate 没问题：IMPROVED
 Parent 有问题 → Candidate 仍有问题：UNCHANGED_BAD
@@ -4333,7 +4411,9 @@ Parent 原本正确 → Candidate 仍正确：PRESERVED
 Parent 原本正确 → Candidate 变差：WORSENED
 没有进入相关场景：NOT_EXERCISED
 ```
-一个 Skill 修改被认为有效，改为满足Parent/Candidate轨迹对：
+这里的 BAD / GOOD 指的是目标行为本身是否正确，而不是 Task Success、Compliance 或 CS / VS / CF / VF 状态。例如即使 Candidate 的最终 Task Success 没有提升，只要 Parent 中明确存在目标错误行为，而 Candidate 在 matched replay 中已经按预期行为执行，该 pair 仍然可以判为 IMPROVED。
+
+最终 Target Fix 状态由多个 matched pair 的行为变化确定：
 ```text
 至少出现一次 IMPROVED
 并且没有出现 WORSENED

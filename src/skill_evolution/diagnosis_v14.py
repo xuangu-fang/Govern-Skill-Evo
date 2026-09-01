@@ -43,6 +43,13 @@ Use this final decision order:
 If the mechanism is supported and coverage is missing, incorrect, or underspecified, but neither task_success_relation nor compliance_relation is supportive, do not force an update. Preserve the observed coverage status, and use root_cause.category = "uncertain", skill_update_relevance = "uncertain", update_axis = "none", update_recommendation.action = "none", target_section = null, and target_rule_id = null. This represents a plausible Skill weakness whose effect on the optimization objectives is not sufficiently established by the supplied rollouts. Do not relabel it execution_issue merely to produce no update; execution_issue remains for an already_covered correct rule that the Agent failed to follow.
 
 Example: The Agent makes a questionable intermediate decision that is absent from the Parent Skill, but later self-corrects and all supplied rollouts still finish successfully and compliantly. The behavioral mechanism and coverage weakness may be real, but if the supplied outcomes do not support an effect on Task Success or Compliance, do not emit an update. Use uncertain, no active axis, and no action rather than inventing supportive outcome evidence."""
+V14_OUTPUT_CONTRACT_CLARIFICATION = """Output-contract clarification:
+All six target_behavior fields must always be JSON strings. Never use null for any target_behavior field. If no special stopping boundary is needed, use "stopping_boundary": "".
+For update_recommendation.action = "add", target_section and target_rule_id must both be null. Diagnosis must not choose the destination section for an add; the Editor decides placement."""
+TARGET_BEHAVIOR_FIELDS = {
+    "problem", "trigger_condition", "decision_boundary", "repair_operator",
+    "stopping_boundary", "expected_behavior",
+}
 
 
 @dataclass(frozen=True)
@@ -132,6 +139,8 @@ A useful mechanism identifies a concrete trigger or decision boundary and the Ag
 
 repair_policy_ids only records Policy IDs from actual violation evidence that directly support a compliance repair. It is not a complete record of Policy grounding. For a task_success-only update it may be empty even when Policy analysis establishes permission. Never invent a Policy ID merely to express that Policy permits a repair.
 
+<<V14_OUTPUT_CONTRACT_CLARIFICATION>>
+
 <<TAU3_BENCHMARK_EXCLUSION>>
 
 Return exactly the requested schema. Evidence refs must contain source_id and non-empty step_ids copied from supplied rollout steps. Deterministic field mappings and target legality are enforced by the Python contract.
@@ -163,6 +172,8 @@ Return exactly one tagged JSON object and no prose:
 </DIAGNOSIS_JSON>
 """.replace(
     "<<V14_OUTCOME_SUPPORT_CHECKPOINT>>", OUTCOME_SUPPORT_CHECKPOINT,
+).replace(
+    "<<V14_OUTPUT_CONTRACT_CLARIFICATION>>", V14_OUTPUT_CONTRACT_CLARIFICATION,
 ).replace("<<TAU3_BENCHMARK_EXCLUSION>>", benchmark_exclusion_prompt("diagnosis"))
 
 
@@ -233,6 +244,27 @@ def _tag_bare_json_response(response: str) -> str:
     if not isinstance(parsed, dict):
         return stripped
     return f"<DIAGNOSIS_JSON>{stripped}</DIAGNOSIS_JSON>"
+
+
+def _normalize_target_behavior_serialization(
+    diagnosis: Any,
+) -> dict[str, Any] | None:
+    """Normalize only an explicit absent stopping boundary to its string form."""
+
+    if not isinstance(diagnosis, dict):
+        return None
+    target = diagnosis.get("target_behavior")
+    other_fields = TARGET_BEHAVIOR_FIELDS - {"stopping_boundary"}
+    if (
+        not isinstance(target, dict)
+        or set(target) != TARGET_BEHAVIOR_FIELDS
+        or target.get("stopping_boundary") is not None
+        or any(not isinstance(target.get(field), str) for field in other_fields)
+    ):
+        return None
+    normalized = copy.deepcopy(diagnosis)
+    normalized["target_behavior"]["stopping_boundary"] = ""
+    return normalized
 
 
 def _call_contract_repair(
@@ -352,6 +384,19 @@ def call_diagnosis(request: MultiRolloutDiagnosisRequest, *, learner_call: Learn
         request.diagnosis_id, response, experiences=request.rollouts,
         skill_sections=skill_sections,
     )
+    normalized = _normalize_target_behavior_serialization(
+        validation.structured_output,
+    )
+    if normalized is not None:
+        response = (
+            "<DIAGNOSIS_JSON>"
+            + json.dumps(normalized, ensure_ascii=False, separators=(",", ":"))
+            + "</DIAGNOSIS_JSON>"
+        )
+        validation = parse_and_validate_diagnosis(
+            request.diagnosis_id, response, experiences=request.rollouts,
+            skill_sections=skill_sections,
+        )
     if validation.valid:
         return DiagnosisResponse(response, {"attempted": False})
     repaired = repair_diagnosis_contract_fields(
