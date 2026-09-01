@@ -9,10 +9,12 @@ from unittest.mock import patch
 import pytest
 
 from src.adapters.tau2 import tau3_compliance_judge_v13 as compliance_v13
-from src.learners.stwebagentbench import generate_governed_skill_v13 as editor_v13
+from src.learners.stwebagentbench import generate_governed_skill_v14 as editor_v14
 from src.skill_evolution import autonomous_gse_v13_proposal as proposal_v13
+from src.skill_evolution import autonomous_gse_v14_proposal as proposal_v14
 from src.skill_evolution import diagnosis_contract_v13
-from src.skill_evolution import diagnosis_v13
+from src.skill_evolution import diagnosis_contract_v14
+from src.skill_evolution import diagnosis_v14
 from src.skill_evolution import autonomous_gse_v14_benchmark_runtime as v14
 from src.skill_evolution.autonomous_gse_v03_proposal import ProposalContext
 
@@ -55,43 +57,45 @@ class TestV14LearnerParity:
         assert v14.judge_compliance is compliance_v13.judge_compliance
         assert v14.compliance_v13.JUDGE_SYSTEM_PROMPT is compliance_v13.JUDGE_SYSTEM_PROMPT
 
-    def test_diagnosis_and_contract_are_the_v13_implementations(self):
-        assert v14.call_diagnosis is diagnosis_v13.call_diagnosis
-        assert v14.MultiRolloutDiagnosisRequest is diagnosis_v13.MultiRolloutDiagnosisRequest
-        assert v14.diagnosis_contract_v13.DIAGNOSIS_FIELDS is diagnosis_contract_v13.DIAGNOSIS_FIELDS
-        assert v14.diagnosis_contract_v13.EVIDENCE_PATTERNS == {
+    def test_diagnosis_and_contract_are_v14_owned_snapshots(self):
+        assert v14.call_diagnosis is diagnosis_v14.call_diagnosis
+        assert v14.MultiRolloutDiagnosisRequest is diagnosis_v14.MultiRolloutDiagnosisRequest
+        assert v14.diagnosis_contract_v14.DIAGNOSIS_FIELDS is diagnosis_contract_v14.DIAGNOSIS_FIELDS
+        assert v14.diagnosis_contract_v14.DIAGNOSIS_FIELDS == diagnosis_contract_v13.DIAGNOSIS_FIELDS
+        assert v14.diagnosis_contract_v14.EVIDENCE_PATTERNS == {
             "contrastive", "recurrent", "insufficient",
         }
 
-    def test_proposal_operator_and_editor_are_the_v13_implementations(self):
-        assert v14.MultiRolloutDiagnosisProposalOperator is proposal_v13.MultiRolloutDiagnosisProposalOperator
-        assert isinstance(v14.V13_PROPOSAL_OPERATOR, proposal_v13.MultiRolloutDiagnosisProposalOperator)
-        assert v14.DiagnosisEditorRequest is proposal_v13.DiagnosisEditorRequest
-        assert v14.call_governed_editor is editor_v13.call_governed_editor
+    def test_proposal_operator_and_editor_are_v14_owned_snapshots(self):
+        assert v14.MultiRolloutDiagnosisProposalOperator is proposal_v14.MultiRolloutDiagnosisProposalOperator
+        assert isinstance(v14.V14_PROPOSAL_OPERATOR, proposal_v14.MultiRolloutDiagnosisProposalOperator)
+        assert v14.DiagnosisEditorRequest is proposal_v14.DiagnosisEditorRequest
+        assert v14.call_governed_editor is editor_v14.call_governed_editor
 
     def test_editor_canonical_contract_and_verification_target_do_not_drift(self):
         source = inspect.getsource(proposal_v13._guard_editor_response)
         assert '"verification_target"' in source
-        assert v14.proposal_v13._valid_verification_target is proposal_v13._valid_verification_target
+        assert v14.proposal_v14._valid_verification_target is proposal_v14._valid_verification_target
+        assert inspect.getsource(proposal_v14._valid_verification_target) == inspect.getsource(proposal_v13._valid_verification_target)
         assert proposal_v13._valid_verification_target({
             "problem": "p", "trigger_condition": "t", "expected_behavior": "e",
         })
 
-    def test_v14_adds_no_diagnosis_or_editor_prompt(self):
+    def test_v14_owns_diagnosis_and_editor_prompts_but_not_compliance_judge(self):
         runtime_source = inspect.getsource(v14)
         assert "DIAGNOSIS_SYSTEM_PROMPT =" not in runtime_source
         assert "EDITOR_SYSTEM_PROMPT =" not in runtime_source
-        assert not (ROOT / "src/skill_evolution/diagnosis_v14.py").exists()
-        assert not (ROOT / "src/learners/stwebagentbench/generate_governed_skill_v14.py").exists()
+        assert (ROOT / "src/skill_evolution/diagnosis_v14.py").is_file()
+        assert (ROOT / "src/learners/stwebagentbench/generate_governed_skill_v14.py").is_file()
         assert not (ROOT / "src/adapters/tau2/tau3_compliance_judge_v14.py").exists()
 
-    def test_v14_candidate_path_invokes_v13_operator(self, campaign, batch_map):
+    def test_v14_candidate_path_invokes_v14_operator(self, campaign, batch_map):
         context = ProposalContext(
             candidate_id="candidate_001", parent_skill="# Operational Skill",
             current_batch_governed_evidence=_evidence(batch_map["batches"][0]["task_ids"]),
         )
         sentinel = object()
-        with patch.object(v14.V13_PROPOSAL_OPERATOR, "propose", return_value=sentinel) as propose:
+        with patch.object(v14.V14_PROPOSAL_OPERATOR, "propose", return_value=sentinel) as propose:
             result = v14.propose_candidate(
                 context, campaign=campaign, batch_map=batch_map, step=1,
                 domain_contexts={"airline": {}, "retail": {}},
@@ -99,8 +103,8 @@ class TestV14LearnerParity:
         assert result is sentinel
         assert propose.call_count == 1
         assert propose.call_args.args[0] is context
-        assert propose.call_args.args[1] is diagnosis_v13.call_diagnosis
-        assert propose.call_args.args[2] is editor_v13.call_governed_editor
+        assert propose.call_args.args[1] is diagnosis_v14.call_diagnosis
+        assert propose.call_args.args[2] is editor_v14.call_governed_editor
 
 
 class TestV14FrozenSplit:

@@ -1,7 +1,7 @@
 """Phase 1-5 infrastructure for Autonomous GSE v0.14.
 
-The learning side is intentionally the v0.13 implementation.  This module only
-adds the v0.14 campaign identity, frozen task partitions, leakage guards,
+The learning side is a v0.14-owned semantic snapshot of the final v0.13
+implementation.  This module also provides the frozen task partitions, leakage guards,
 matched Monitor measurement, a pure distributional gate, serial orchestration,
 logging-only current-batch analysis, and a dry plan.
 """
@@ -19,18 +19,20 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
+from dotenv import load_dotenv
+
 from src.adapters.tau2 import tau3_compliance_judge_v13 as compliance_v13
 from src.adapters.tau2.tau3_gse_runtime import (
     official_task_evaluation, run_official_rollout, stable_trajectory,
     task_context, write_rollout_artifact,
 )
-from src.learners.stwebagentbench import generate_governed_skill_v13 as editor_v13
-from src.skill_evolution import autonomous_gse_v13_proposal as proposal_v13
+from src.learners.stwebagentbench import generate_governed_skill_v14 as editor_v14
+from src.skill_evolution import autonomous_gse_v14_proposal as proposal_v14
 from src.skill_evolution.autonomous_gse_v13_benchmark_runtime import (
     _build_governed_evidence, load_authoritative_domain_contexts,
 )
-from src.skill_evolution import diagnosis_contract_v13
-from src.skill_evolution import diagnosis_v13
+from src.skill_evolution import diagnosis_contract_v14
+from src.skill_evolution import diagnosis_v14
 from src.skill_evolution.autonomous_gse_v03_proposal import ProposalContext
 from src.skill_evolution.joint_distribution_v14 import (
     JointDistributionContractError, build_joint_distribution_report,
@@ -46,15 +48,14 @@ FORMAL_MODE = "formal_tau3_airline_retail_v14_k3_evolution_fixed_monitor"
 ROLLOUTS_PER_TASK = 3
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-# These aliases are the v0.14 learner stack.  Keeping object identity makes
-# semantic drift visible and prevents prompt or schema forks.
+# These aliases expose the v0.14-owned learner semantic snapshot.
 judge_compliance = compliance_v13.judge_compliance
-call_diagnosis = diagnosis_v13.call_diagnosis
-call_governed_editor = editor_v13.call_governed_editor
-MultiRolloutDiagnosisRequest = diagnosis_v13.MultiRolloutDiagnosisRequest
-DiagnosisEditorRequest = proposal_v13.DiagnosisEditorRequest
-MultiRolloutDiagnosisProposalOperator = proposal_v13.MultiRolloutDiagnosisProposalOperator
-V13_PROPOSAL_OPERATOR = MultiRolloutDiagnosisProposalOperator()
+call_diagnosis = diagnosis_v14.call_diagnosis
+call_governed_editor = editor_v14.call_governed_editor
+MultiRolloutDiagnosisRequest = diagnosis_v14.MultiRolloutDiagnosisRequest
+DiagnosisEditorRequest = proposal_v14.DiagnosisEditorRequest
+MultiRolloutDiagnosisProposalOperator = proposal_v14.MultiRolloutDiagnosisProposalOperator
+V14_PROPOSAL_OPERATOR = MultiRolloutDiagnosisProposalOperator()
 
 
 class RuntimeContractError(ValueError):
@@ -183,13 +184,13 @@ def validate_campaign_contract(campaign: dict[str, Any]) -> None:
     }:
         raise RuntimeContractError("v0.14 Compliance Judge is not the frozen v0.13 implementation.")
     if campaign.get("learner_stack") != {
-        "diagnosis": "src.skill_evolution.diagnosis_v13",
-        "diagnosis_contract": "src.skill_evolution.diagnosis_contract_v13",
-        "proposal_operator": "src.skill_evolution.autonomous_gse_v13_proposal.MultiRolloutDiagnosisProposalOperator",
-        "editor": "src.learners.stwebagentbench.generate_governed_skill_v13.call_governed_editor",
-        "frozen_from": "autonomous_gse_v13",
+        "diagnosis": "src.skill_evolution.diagnosis_v14",
+        "diagnosis_contract": "src.skill_evolution.diagnosis_contract_v14",
+        "proposal_operator": "src.skill_evolution.autonomous_gse_v14_proposal.MultiRolloutDiagnosisProposalOperator",
+        "editor": "src.learners.stwebagentbench.generate_governed_skill_v14.call_governed_editor",
+        "semantics_snapshot_from": "autonomous_gse_v13",
     }:
-        raise RuntimeContractError("v0.14 learner stack is not the frozen v0.13 implementation.")
+        raise RuntimeContractError("v0.14 learner stack is not its final-v0.13 semantic snapshot.")
     if campaign.get("distributional_gate") != DEFAULT_GATE_CONFIG:
         raise RuntimeContractError("v0.14 Distributional Gate config drifted.")
     if campaign.get("orchestration") != {
@@ -360,8 +361,8 @@ def propose_candidate(
     step: int, domain_contexts: dict[str, dict[str, Any]],
     diagnoser: Callable[[Any], str] = call_diagnosis,
     editor: Callable[[Any], str] = call_governed_editor,
-) -> proposal_v13.DiagnosisProposalDecision:
-    """Run only the frozen v0.13 learner stack on one v0.14 Evolution batch."""
+) -> proposal_v14.DiagnosisProposalDecision:
+    """Run the v0.14-owned learner semantic snapshot on one Evolution batch."""
 
     validate_batch_map(batch_map, campaign)
     if not isinstance(step, int) or not 1 <= step <= 3:
@@ -371,7 +372,7 @@ def propose_candidate(
         context.current_batch_governed_evidence, batch_task_ids=batch_task_ids,
         protected_task_ids=_protected_task_ids(batch_map),
     )
-    return V13_PROPOSAL_OPERATOR.propose(
+    return V14_PROPOSAL_OPERATOR.propose(
         context, diagnoser, editor, domain_contexts=domain_contexts,
     )
 
@@ -939,6 +940,7 @@ def _campaign_files(campaign_path: Path) -> tuple[dict[str, Any], dict[str, Any]
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    load_dotenv(REPO_ROOT / ".env", override=True)
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
     plan_parser = subparsers.add_parser("plan")

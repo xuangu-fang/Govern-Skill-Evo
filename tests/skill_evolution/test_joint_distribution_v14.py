@@ -246,7 +246,7 @@ def test_any_skill_identity_change_invalidates_monitor_cache(tmp_path, campaign,
 def test_monitor_runtime_never_invokes_learner(tmp_path, campaign, batch_map, monkeypatch):
     backend = FakeMonitorBackend(tmp_path / "rollouts")
     monkeypatch.setattr(
-        v14.V13_PROPOSAL_OPERATOR, "propose",
+        v14.V14_PROPOSAL_OPERATOR, "propose",
         lambda *args, **kwargs: pytest.fail("Monitor must not enter Proposal Operator"),
     )
     result = v14.run_fixed_monitor(
