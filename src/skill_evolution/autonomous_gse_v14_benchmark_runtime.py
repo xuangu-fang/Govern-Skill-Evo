@@ -912,6 +912,7 @@ def build_evolution_services(
 def run_v14_campaign(
     campaign: dict[str, Any], batch_map: dict[str, Any], *, artifact_root: Path,
     resume: bool = False, services: Any | None = None,
+    stop_after_step: int | None = None,
 ) -> dict[str, Any]:
     from src.skill_evolution.autonomous_gse_v14_orchestrator import (
         resume_campaign, run_campaign,
@@ -924,8 +925,12 @@ def run_v14_campaign(
     if resume:
         return resume_campaign(
             campaign, batch_map, bound, artifact_root=artifact_root,
+            stop_after_step=stop_after_step,
         )
-    return run_campaign(campaign, batch_map, bound, artifact_root=artifact_root)
+    return run_campaign(
+        campaign, batch_map, bound, artifact_root=artifact_root,
+        stop_after_step=stop_after_step,
+    )
 
 
 def _campaign_files(campaign_path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -955,6 +960,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         campaign_parser = subparsers.add_parser(command)
         campaign_parser.add_argument("--campaign", type=Path, required=True)
         campaign_parser.add_argument("--artifact-root", type=Path)
+        campaign_parser.add_argument("--stop-after-step", type=int, choices=(1, 2, 3))
     args = parser.parse_args(argv)
     if args.command == "joint-report":
         report = write_joint_distribution_report(
@@ -976,6 +982,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         result = run_v14_campaign(
             campaign, batch_map, artifact_root=root, resume=args.command == "resume",
+            stop_after_step=args.stop_after_step,
         )
         print(json.dumps(result, indent=2))
         return 0

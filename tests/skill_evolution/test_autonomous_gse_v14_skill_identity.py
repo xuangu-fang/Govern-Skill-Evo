@@ -159,7 +159,6 @@ def test_campaign_state_and_resume_preserve_relative_identity_across_cwd(tmp_pat
     assert resumed["current_parent"]["skill_path"] == S0_IDENTITY
     assert requested == [
         {"skill_id": "S0", "skill_version": "S0", "skill_path": S0_IDENTITY},
-        {"skill_id": "S0", "skill_version": "S0", "skill_path": S0_IDENTITY},
     ]
 
 
@@ -184,7 +183,7 @@ def test_resume_monitor_cache_reuse_uses_exact_saved_parent_identity(tmp_path, k
         "current_parent_monitor_result_path": (
             artifact_root / "monitor_results" / f"{skill['skill_id']}.json"
         ).as_posix(),
-        "completed_steps": [{}, {}, {}], "final_skill": skill,
+        "completed_steps": [{"step": 1}, {"step": 2}, {"step": 3}], "final_skill": skill,
     }), encoding="utf-8")
     backend = NoRolloutBackend()
     services = _noop_services(

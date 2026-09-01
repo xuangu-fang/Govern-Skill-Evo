@@ -9,7 +9,8 @@ from types import SimpleNamespace
 import pytest
 
 from src.skill_evolution.autonomous_gse_v14_orchestrator import (
-    EvolutionServices, _analysis_edits, run_campaign, run_evolution_step,
+    EvolutionServices, _analysis_edits, resume_campaign, run_campaign,
+    run_evolution_step,
 )
 from src.skill_evolution import autonomous_gse_v14_benchmark_runtime as runtime
 from src.skill_evolution import autonomous_gse_v14_orchestrator as orchestrator
@@ -396,12 +397,29 @@ def test_cli_exposes_run_and_resume_without_final_test(monkeypatch, tmp_path, ca
     calls = []
     monkeypatch.setattr(
         runtime, "run_v14_campaign",
-        lambda campaign, batch_map, artifact_root, resume, services=None: calls.append(resume) or {"ok": True},
+        lambda campaign, batch_map, artifact_root, resume, services=None, stop_after_step=None: (
+            calls.append((resume, stop_after_step)) or {"ok": True}
+        ),
     )
-    assert runtime.main(["run", "--campaign", str(campaign_path), "--artifact-root", str(tmp_path / "run")]) == 0
-    assert runtime.main(["resume", "--campaign", str(campaign_path), "--artifact-root", str(tmp_path / "run")]) == 0
-    assert calls == [False, True]
+    assert runtime.main([
+        "run", "--campaign", str(campaign_path), "--artifact-root", str(tmp_path / "run"),
+        "--stop-after-step", "1",
+    ]) == 0
+    assert runtime.main([
+        "resume", "--campaign", str(campaign_path), "--artifact-root", str(tmp_path / "run"),
+        "--stop-after-step", "2",
+    ]) == 0
+    assert calls == [(False, 1), (True, 2)]
     assert capsys.readouterr().out.count('"ok": true') == 2
+
+
+@pytest.mark.parametrize("value", ("0", "4", "-1"))
+def test_cli_rejects_invalid_stop_after_step(value):
+    with pytest.raises(SystemExit) as error:
+        runtime.main([
+            "run", "--campaign", "unused.json", "--stop-after-step", value,
+        ])
+    assert error.value.code == 2
 
 
 def test_orchestration_has_only_distributional_promotion_authority():
@@ -446,3 +464,208 @@ def test_saved_proposal_is_reused_without_diagnosis_or_editor_call(tmp_path):
     run_evolution_step(**kwargs)
     run_evolution_step(**kwargs)
     assert proposal_calls == [1]
+
+
+def test_run_stop_after_step_one_persists_complete_state(tmp_path):
+    skill = tmp_path / "S0.md"
+    skill.write_text("# S0\n", encoding="utf-8")
+    calls = _calls()
+    state = run_campaign(
+        _campaign(skill), {"batches": _batches()},
+        _services(["ACCEPT"], calls), artifact_root=tmp_path / "artifacts",
+        stop_after_step=1,
+    )
+    assert calls["parent"] == [(1, "S0")]
+    assert calls["replay"] == [(1, "candidate_step_01")]
+    assert state["current_step"] == 1
+    assert len(state["completed_steps"]) == 1
+    assert state["current_parent"]["skill_id"] == "candidate_step_01"
+    assert state["final_skill"] is None
+    assert state["completed_steps"][0]["explanation"] == {
+        "current_batch_replay_status": "complete",
+        "target_behavior_status": "complete",
+        "regression_analysis_status": "complete",
+    }
+    assert Path(
+        state["completed_steps"][0]["artifact_paths"]["selection_decision"]
+    ).is_file()
+    assert json.loads((tmp_path / "artifacts/campaign_state.json").read_text()) == state
+
+
+def test_run_stop_after_step_two_does_not_touch_step_three(tmp_path):
+    skill = tmp_path / "S0.md"
+    skill.write_text("# S0\n", encoding="utf-8")
+    calls = _calls()
+    state = run_campaign(
+        _campaign(skill), {"batches": _batches()},
+        _services(["ACCEPT", "RETAIN"], calls), artifact_root=tmp_path / "artifacts",
+        stop_after_step=2,
+    )
+    assert [item[0] for item in calls["parent"]] == [1, 2]
+    assert state["current_step"] == 2
+    assert len(state["completed_steps"]) == 2
+    assert state["final_skill"] is None
+
+
+def test_staged_accept_retain_accept_matches_serial_state_machine(tmp_path):
+    skill = tmp_path / "S0.md"
+    skill.write_text("# S0\n", encoding="utf-8")
+    calls = _calls()
+    root = tmp_path / "artifacts"
+    services = _services(["ACCEPT", "RETAIN", "ACCEPT"], calls)
+    first = run_campaign(
+        _campaign(skill), {"batches": _batches()}, services,
+        artifact_root=root, stop_after_step=1,
+    )
+    assert first["current_step"] == 1 and first["final_skill"] is None
+    second = resume_campaign(
+        _campaign(skill), {"batches": _batches()}, services,
+        artifact_root=root, stop_after_step=2,
+    )
+    assert second["current_step"] == 2 and second["final_skill"] is None
+    final = resume_campaign(
+        _campaign(skill), {"batches": _batches()}, services,
+        artifact_root=root, stop_after_step=3,
+    )
+    assert [step["parent_skill"]["skill_id"] for step in final["completed_steps"]] == [
+        "S0", "candidate_step_01", "candidate_step_01",
+    ]
+    assert [step["next_parent"]["skill_id"] for step in final["completed_steps"]] == [
+        "candidate_step_01", "candidate_step_01", "candidate_step_03",
+    ]
+    assert final["current_step"] == 3
+    assert final["final_skill"]["skill_id"] == "candidate_step_03"
+    assert [item[0] for item in calls["parent"]] == [1, 2, 3]
+
+
+def test_resume_target_already_completed_returns_state_with_zero_service_calls(tmp_path):
+    skill = tmp_path / "S0.md"
+    skill.write_text("# S0\n", encoding="utf-8")
+    calls = _calls()
+    root = tmp_path / "artifacts"
+    services = _services(["RETAIN", "RETAIN"], calls)
+    state = run_campaign(
+        _campaign(skill), {"batches": _batches()}, services,
+        artifact_root=root, stop_after_step=2,
+    )
+    before = copy.deepcopy(calls)
+    assert resume_campaign(
+        _campaign(skill), {"batches": _batches()}, services,
+        artifact_root=root, stop_after_step=1,
+    ) == state
+    assert resume_campaign(
+        _campaign(skill), {"batches": _batches()}, services,
+        artifact_root=root, stop_after_step=2,
+    ) == state
+    assert calls == before
+
+
+def test_noop_stop_after_step_one_has_zero_candidate_cost(tmp_path):
+    skill = tmp_path / "S0.md"
+    skill.write_text("# S0\n", encoding="utf-8")
+    calls = _calls()
+    state = run_campaign(
+        _campaign(skill), {"batches": _batches()},
+        _services([], calls, proposal=lambda context, step: _noop()),
+        artifact_root=tmp_path / "artifacts", stop_after_step=1,
+    )
+    assert state["current_step"] == 1
+    assert state["current_parent"]["skill_id"] == "S0"
+    assert state["final_skill"] is None
+    assert calls["replay"] == []
+    assert calls["monitor"] == ["S0"]
+
+
+@pytest.mark.parametrize(
+    ("step_one_decision", "resumed_parent"),
+    (("ACCEPT", "candidate_step_01"), ("RETAIN", "S0")),
+)
+def test_staged_resume_reuses_promoted_or_retained_parent_monitor_cache(
+    tmp_path, step_one_decision, resumed_parent,
+):
+    skill = tmp_path / "S0.md"
+    skill.write_text("# S0\n", encoding="utf-8")
+    calls = _calls()
+    cache = {"S0": {"skill_id": "S0"}}
+    api_calls = []
+    cache_hits = []
+
+    def monitor(identity):
+        skill_id = identity["skill_id"]
+        if skill_id in cache:
+            cache_hits.append(skill_id)
+            return cache[skill_id]
+        api_calls.append(skill_id)
+        cache[skill_id] = {"skill_id": skill_id}
+        return cache[skill_id]
+
+    services = _services([step_one_decision, "RETAIN"], calls)
+    services = EvolutionServices(**{**services.__dict__, "candidate_monitor": monitor})
+    root = tmp_path / "artifacts"
+    run_campaign(
+        _campaign(skill), {"batches": _batches()}, services,
+        artifact_root=root, stop_after_step=1,
+    )
+    resume_campaign(
+        _campaign(skill), {"batches": _batches()}, services,
+        artifact_root=root, stop_after_step=2,
+    )
+    assert resumed_parent in cache_hits
+    assert api_calls.count(resumed_parent) <= (1 if resumed_parent != "S0" else 0)
+    assert len(api_calls) == len(set(api_calls))
+
+
+def test_stop_after_step_does_not_turn_failure_into_success(tmp_path):
+    skill = tmp_path / "S0.md"
+    skill.write_text("# S0\n", encoding="utf-8")
+    calls = _calls()
+    services = _services(["ACCEPT"], calls)
+    monitor_calls = 0
+
+    def monitor(identity):
+        nonlocal monitor_calls
+        monitor_calls += 1
+        if monitor_calls == 1:
+            return {"skill": copy.deepcopy(identity)}
+        raise RuntimeError("candidate monitor failed")
+
+    services = EvolutionServices(**{**services.__dict__, "candidate_monitor": monitor})
+    root = tmp_path / "artifacts"
+    with pytest.raises(RuntimeError, match="candidate monitor failed"):
+        run_campaign(
+            _campaign(skill), {"batches": _batches()}, services,
+            artifact_root=root, stop_after_step=1,
+        )
+    state = json.loads((root / "campaign_state.json").read_text())
+    assert state["current_step"] == 0
+    assert state["completed_steps"] == []
+
+
+@pytest.mark.parametrize("value", (0, 4, -1, True))
+def test_api_rejects_invalid_stop_after_step(tmp_path, value):
+    skill = tmp_path / "S0.md"
+    skill.write_text("# S0\n", encoding="utf-8")
+    with pytest.raises(orchestrator.OrchestrationContractError, match="stop_after_step"):
+        run_campaign(
+            _campaign(skill), {"batches": _batches()},
+            _services([], _calls()), artifact_root=tmp_path / "artifacts",
+            stop_after_step=value,
+        )
+
+
+def test_resume_rejects_completed_step_gap(tmp_path):
+    skill = tmp_path / "S0.md"
+    skill.write_text("# S0\n", encoding="utf-8")
+    root = tmp_path / "artifacts"
+    root.mkdir()
+    parent = {"skill_id": "S0", "skill_version": "S0", "skill_path": str(skill)}
+    (root / "campaign_state.json").write_text(json.dumps({
+        "campaign_id": "autonomous_gse_v14", "current_step": 2,
+        "current_parent": parent, "completed_steps": [{"step": 1}, {"step": 3}],
+        "final_skill": None,
+    }), encoding="utf-8")
+    with pytest.raises(orchestrator.OrchestrationContractError, match="resume state"):
+        resume_campaign(
+            _campaign(skill), {"batches": _batches()}, _services([], _calls()),
+            artifact_root=root, stop_after_step=3,
+        )

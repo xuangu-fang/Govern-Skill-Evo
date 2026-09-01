@@ -362,10 +362,16 @@ def run_evolution_step(
 
 def run_campaign(
     campaign: dict[str, Any], batch_map: dict[str, Any], services: EvolutionServices, *,
-    artifact_root: Path, resume: bool = False,
+    artifact_root: Path, resume: bool = False, stop_after_step: int | None = None,
 ) -> dict[str, Any]:
     """Run or resume the three frozen batches with serial Parent propagation."""
 
+    if stop_after_step is not None and (
+        not isinstance(stop_after_step, int) or isinstance(stop_after_step, bool)
+        or stop_after_step not in {1, 2, 3}
+    ):
+        raise OrchestrationContractError("stop_after_step must be 1, 2, 3, or None.")
+    target_step = 3 if stop_after_step is None else stop_after_step
     state_path = artifact_root / "campaign_state.json"
     if resume:
         if not state_path.is_file():
@@ -375,7 +381,12 @@ def run_campaign(
             raise OrchestrationContractError("Campaign resume identity drifted.")
         completed = state.get("completed_steps")
         parent = _skill_identity(state.get("current_parent"))
-        if not isinstance(completed, list) or len(completed) not in {0, 1, 2, 3}:
+        if (
+            not isinstance(completed, list) or len(completed) not in {0, 1, 2, 3}
+            or state.get("current_step") != len(completed)
+            or [item.get("step") for item in completed if isinstance(item, dict)]
+            != list(range(1, len(completed) + 1))
+        ):
             raise OrchestrationContractError("Campaign resume state is invalid.")
     else:
         if state_path.exists():
@@ -383,6 +394,8 @@ def run_campaign(
         completed = []
         parent = _skill_identity(campaign["initial_parent"])
 
+    if resume and len(completed) >= target_step:
+        return state
     parent_monitor = services.candidate_monitor(copy.deepcopy(parent))
     if not resume:
         state = {
@@ -396,6 +409,8 @@ def run_campaign(
     for step, batch in enumerate(batch_map["batches"], start=1):
         if step <= len(completed):
             continue
+        if step > target_step:
+            break
         summary, parent, parent_monitor = run_evolution_step(
             step=step, batch=batch, parent=parent, parent_monitor=parent_monitor,
             campaign=campaign, services=services, artifact_root=artifact_root,
@@ -410,13 +425,16 @@ def run_campaign(
             "final_skill": copy.deepcopy(parent) if step == 3 else None,
         }
         _write_json(state_path, state)
+        if step == target_step:
+            break
     return state
 
 
 def resume_campaign(
     campaign: dict[str, Any], batch_map: dict[str, Any], services: EvolutionServices, *,
-    artifact_root: Path,
+    artifact_root: Path, stop_after_step: int | None = None,
 ) -> dict[str, Any]:
     return run_campaign(
         campaign, batch_map, services, artifact_root=artifact_root, resume=True,
+        stop_after_step=stop_after_step,
     )
