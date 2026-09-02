@@ -689,9 +689,50 @@ def test_call_learner_adds_optional_response_format_without_affecting_default_ca
             build_provenance_alias_context(_group()),
         ),
     )
+    generate_skill.call_learner(
+        "openai/model", "system", "user", max_completion_tokens=16000,
+    )
     assert "response_format" not in captured[0]
+    assert captured[0]["max_completion_tokens"] == generate_skill.MAX_COMPLETION_TOKENS
     assert captured[1]["response_format"]["type"] == "json_schema"
     assert captured[1]["response_format"]["json_schema"]["strict"] is True
+    assert captured[2]["max_completion_tokens"] == 16000
+
+
+def test_call_learner_reports_completion_transport_observability(monkeypatch):
+    class Usage:
+        def model_dump(self):
+            return {
+                "prompt_tokens": 123,
+                "completion_tokens": 8000,
+                "completion_tokens_details": {"reasoning_tokens": 3557},
+            }
+
+    class Completions:
+        def create(self, **request):
+            return SimpleNamespace(
+                choices=[SimpleNamespace(
+                    message=SimpleNamespace(content="{}"), finish_reason="length",
+                )],
+                usage=Usage(),
+            )
+
+    client = SimpleNamespace(chat=SimpleNamespace(completions=Completions()))
+    monkeypatch.setitem(sys.modules, "openai", SimpleNamespace(
+        OpenAI=lambda **kwargs: client,
+    ))
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://example.test")
+
+    _, _, usage = generate_skill.call_learner(
+        "openai/model", "system", "user", max_completion_tokens=16000,
+    )
+
+    assert usage["finish_reason"] == "length"
+    assert usage["prompt_tokens"] == 123
+    assert usage["completion_tokens"] == 8000
+    assert usage["reasoning_tokens"] == 3557
+    assert usage["max_completion_tokens"] == 16000
 
 
 def test_structured_capability_fallback_is_narrow_and_cached():
@@ -1145,7 +1186,11 @@ def _strict_editor_result(edit):
 
     def learner(model, system, user, **kwargs):
         calls.append((model, system, user, kwargs))
-        return json.dumps({"canonical_edits": [] if edit is None else [edit]}), model, None
+        return json.dumps({"canonical_edits": [] if edit is None else [edit]}), model, {
+            "finish_reason": "stop", "prompt_tokens": 100,
+            "completion_tokens": 200, "reasoning_tokens": 50,
+            "max_completion_tokens": editor_v14.EDITOR_MAX_COMPLETION_TOKENS,
+        }
 
     def editor(request):
         return editor_v14.call_governed_editor(request, learner_call=learner)
@@ -1179,6 +1224,12 @@ def test_structured_editor_success_runs_existing_guard_and_builds_candidate(monk
     assert len(calls) == 1
     assert len(guard_calls) == 1
     assert calls[0][3]["response_format"] == editor_v14.EDITOR_RESPONSE_FORMAT
+    assert calls[0][3]["max_completion_tokens"] == 16000
+    assert decision.editor_transport == {
+        "finish_reason": "stop", "prompt_tokens": 100,
+        "completion_tokens": 200, "reasoning_tokens": 50,
+        "max_completion_tokens": 16000,
+    }
 
 
 def test_structured_editor_legal_empty_list_is_semantic_noop():
@@ -1210,7 +1261,11 @@ def test_structured_editor_contract_failure_raises_without_retry(response, code)
 
     def learner(*args, **kwargs):
         calls.append(kwargs)
-        return response, "deepseek-v4-pro", None
+        return response, "deepseek-v4-pro", {
+            "finish_reason": "length", "prompt_tokens": 300,
+            "completion_tokens": 8000, "reasoning_tokens": 5000,
+            "max_completion_tokens": editor_v14.EDITOR_MAX_COMPLETION_TOKENS,
+        }
 
     request = proposal_v14.DiagnosisEditorRequest(
         "candidate_001", _parent_skill(), ({"patch_id": "diagnosis_001"},),
@@ -1222,6 +1277,11 @@ def test_structured_editor_contract_failure_raises_without_retry(response, code)
     assert caught.value.code == code
     assert caught.value.raw_response == response
     assert caught.value.structured_output_mode == "json_schema"
+    assert caught.value.finish_reason == "length"
+    assert caught.value.prompt_tokens == 300
+    assert caught.value.completion_tokens == 8000
+    assert caught.value.reasoning_tokens == 5000
+    assert caught.value.max_completion_tokens == 16000
     assert len(calls) == 1
 
 
@@ -1581,6 +1641,9 @@ def test_editor_preserves_user_controlled_choice_boundaries():
     assert "preserve an existing explicit user choice or authorization" in prompt
     assert "authoritative deterministic selector" in prompt
     assert "obtains the user's choice before execution" in prompt
+    assert "one value must be selected from a permitted set is not itself a deterministic selector" in prompt
+    assert "deterministic selector must actually determine the value" in prompt
+    assert "If the value remains unresolved and is user-controlled" in prompt
     assert "Authorization for one parameter does not authorize" in prompt
 
 

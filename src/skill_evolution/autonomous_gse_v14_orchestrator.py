@@ -283,6 +283,7 @@ def run_evolution_step(
         "diagnoses": copy.deepcopy(getattr(proposal, "diagnoses", [])),
         "canonical_edits": copy.deepcopy(canonical_edits),
         "candidate_skill": proposal.candidate_skill,
+        "editor_transport": copy.deepcopy(getattr(proposal, "editor_transport", None)),
     })
     if proposal.proposal_status == "NO_CANDIDATE":
         summary = {

@@ -381,6 +381,11 @@ def test_editor_contract_failure_fails_closed_and_persists_transport_details(tmp
     assert contract["raw_response"] == "{bad response"
     assert contract["structured_output_mode"] == "json_schema"
     assert contract["error_reason"] == "invalid JSON"
+    assert contract["finish_reason"] is None
+    assert contract["prompt_tokens"] is None
+    assert contract["completion_tokens"] is None
+    assert contract["reasoning_tokens"] is None
+    assert contract["max_completion_tokens"] is None
     assert execution["error_type"] == "EditorContractError"
     assert execution["editor_contract_error_path"].endswith(
         "steps/step_01/editor_contract_error.json"

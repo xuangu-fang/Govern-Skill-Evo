@@ -12,6 +12,7 @@ from src.skill_evolution.autonomous_gse_v14_proposal import (
 )
 
 LEARNER_MODEL = "openai/deepseek-v4-pro"
+EDITOR_MAX_COMPLETION_TOKENS = 16000
 LearnerCall = Callable[[str, str, str], tuple[str, str, dict[str, Any] | None]]
 
 VERIFICATION_TARGET_JSON_SCHEMA = {
@@ -69,21 +70,26 @@ EDITOR_RESPONSE_FORMAT = {
 class EditorResponse(str):
     """Internal tagged adapter carrying the original structured response."""
 
-    def __new__(cls, value: str, raw_response: str):
+    def __new__(
+        cls, value: str, raw_response: str, editor_transport: dict[str, Any],
+    ):
         instance = super().__new__(cls, value)
         instance.raw_response = raw_response
         instance.structured_output_mode = "json_schema"
         instance.error_reason = None
+        instance.editor_transport = editor_transport
         return instance
 
 
 def _default_learner_call(
     model: str, system: str, user: str, *, response_format: dict | None = None,
+    max_completion_tokens: int = EDITOR_MAX_COMPLETION_TOKENS,
 ) -> tuple[str, str, dict[str, Any] | None]:
     from src.learners.stwebagentbench.generate_skill import call_learner
 
     return call_learner(
         model, system, user, temperature=0.0, response_format=response_format,
+        max_completion_tokens=max_completion_tokens,
     )
 
 
@@ -111,6 +117,7 @@ Preserve user control over every parameter whose value is not determined by the 
 - preserve an existing explicit user choice or authorization;
 - otherwise use an authoritative deterministic selector if one is supplied;
 - otherwise preserve a step that obtains the user's choice before execution.
+A requirement that one value must be selected from a permitted set is not itself a deterministic selector for which value to choose. A deterministic selector must actually determine the value from authoritative Diagnosis or Policy information. If the value remains unresolved and is user-controlled, preserve a step that obtains the user's choice before execution.
 Do not hide an unresolved user-controlled parameter inside generic fallback wording. Authorization for one parameter does not authorize the Agent to choose other independent parameters.
 
 E. Merge semantics
@@ -201,23 +208,37 @@ def _valid_structured_editor_result(value: Any) -> bool:
     return isinstance(edits, list)
 
 
+def _editor_transport(usage: Any) -> dict[str, Any]:
+    value = usage if isinstance(usage, dict) else {}
+    return {
+        "finish_reason": value.get("finish_reason"),
+        "prompt_tokens": value.get("prompt_tokens"),
+        "completion_tokens": value.get("completion_tokens"),
+        "reasoning_tokens": value.get("reasoning_tokens"),
+        "max_completion_tokens": value.get("max_completion_tokens"),
+    }
+
+
 def call_governed_editor(request: DiagnosisEditorRequest, *, learner_call: LearnerCall = _default_learner_call) -> str:
     system, user = build_editor_prompts(request)
     try:
-        response, _, _ = learner_call(
+        response, _, usage = learner_call(
             LEARNER_MODEL, system, user, response_format=EDITOR_RESPONSE_FORMAT,
+            max_completion_tokens=EDITOR_MAX_COMPLETION_TOKENS,
         )
     except Exception as error:
         raise EditorContractError(
             "EDITOR_STRUCTURED_OUTPUT_ERROR", raw_response=None,
             structured_output_mode="json_schema", error_reason=str(error),
         ) from error
+    transport = _editor_transport(usage)
     if not isinstance(response, str) or not response.strip():
         raise EditorContractError(
             "EDITOR_EMPTY_RESPONSE",
             raw_response=response if isinstance(response, str) else None,
             structured_output_mode="json_schema",
             error_reason="v0.14 Editor returned an empty response.",
+            **transport,
         )
     raw_response = response.strip()
     try:
@@ -226,16 +247,18 @@ def call_governed_editor(request: DiagnosisEditorRequest, *, learner_call: Learn
         raise EditorContractError(
             "EDITOR_SCHEMA_CONTRACT_ERROR", raw_response=raw_response,
             structured_output_mode="json_schema", error_reason=str(error),
+            **transport,
         ) from error
     if not _valid_structured_editor_result(structured):
         raise EditorContractError(
             "EDITOR_SCHEMA_CONTRACT_ERROR", raw_response=raw_response,
             structured_output_mode="json_schema",
             error_reason="Editor result does not match the strict response schema.",
+            **transport,
         )
     internal = (
         "<CANONICAL_EDITS_JSON>"
         + json.dumps(structured["canonical_edits"], ensure_ascii=False)
         + "</CANONICAL_EDITS_JSON>"
     )
-    return EditorResponse(internal, raw_response)
+    return EditorResponse(internal, raw_response, transport)

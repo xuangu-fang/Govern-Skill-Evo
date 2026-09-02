@@ -275,6 +275,7 @@ def call_learner(
     seed: int | None = None,
     temperature: float | None = None,
     response_format: dict | None = None,
+    max_completion_tokens: int = MAX_COMPLETION_TOKENS,
 ) -> tuple[str, str, dict | None]:
     from openai import OpenAI
 
@@ -290,7 +291,7 @@ def call_learner(
     request = {
         "model": resolved_model,
         "reasoning_effort": REASONING_EFFORT,
-        "max_completion_tokens": MAX_COMPLETION_TOKENS,
+        "max_completion_tokens": max_completion_tokens,
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
@@ -313,6 +314,16 @@ def call_learner(
     usage = None
     if getattr(response, "usage", None) is not None:
         usage = response.usage.model_dump()
+        details = usage.get("completion_tokens_details")
+        usage.update({
+            "finish_reason": getattr(response.choices[0], "finish_reason", None),
+            "prompt_tokens": usage.get("prompt_tokens"),
+            "completion_tokens": usage.get("completion_tokens"),
+            "reasoning_tokens": (
+                details.get("reasoning_tokens") if isinstance(details, dict) else None
+            ),
+            "max_completion_tokens": max_completion_tokens,
+        })
 
     return content.strip(), resolved_model, usage
 

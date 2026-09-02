@@ -591,6 +591,7 @@ def rerun_editor_only(
         "applied_edits": copy.deepcopy(decision.applied_edits),
         "excluded_edits": copy.deepcopy(decision.excluded_edits),
         "candidate_skill": decision.candidate_skill,
+        "editor_transport": copy.deepcopy(decision.editor_transport),
     }
     _write_json(proposal_path, replay_proposal)
     if decision.candidate_skill is not None:
@@ -615,6 +616,7 @@ def rerun_editor_only(
         "diagnosis_count": len(source_diagnosis_ids),
         "contract_valid_diagnosis_count": len(source_diagnosis_ids),
         "compiled_decisions_replayed_without_drift": True,
+        "editor_transport": copy.deepcopy(decision.editor_transport),
     }
     _write_json(manifest_path, manifest)
     return manifest

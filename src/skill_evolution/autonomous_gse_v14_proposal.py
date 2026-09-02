@@ -61,11 +61,19 @@ class EditorContractError(RuntimeError):
     def __init__(
         self, code: str, *, raw_response: str | None,
         structured_output_mode: str, error_reason: str,
+        finish_reason: str | None = None, prompt_tokens: int | None = None,
+        completion_tokens: int | None = None, reasoning_tokens: int | None = None,
+        max_completion_tokens: int | None = None,
     ) -> None:
         self.code = code
         self.raw_response = raw_response
         self.structured_output_mode = structured_output_mode
         self.error_reason = error_reason
+        self.finish_reason = finish_reason
+        self.prompt_tokens = prompt_tokens
+        self.completion_tokens = completion_tokens
+        self.reasoning_tokens = reasoning_tokens
+        self.max_completion_tokens = max_completion_tokens
         super().__init__(f"{code}: {error_reason}")
 
     def as_dict(self) -> dict[str, Any]:
@@ -74,6 +82,11 @@ class EditorContractError(RuntimeError):
             "raw_response": self.raw_response,
             "structured_output_mode": self.structured_output_mode,
             "error_reason": self.error_reason,
+            "finish_reason": self.finish_reason,
+            "prompt_tokens": self.prompt_tokens,
+            "completion_tokens": self.completion_tokens,
+            "reasoning_tokens": self.reasoning_tokens,
+            "max_completion_tokens": self.max_completion_tokens,
         }
 
 
@@ -104,6 +117,7 @@ class DiagnosisProposalDecision:
     diagnosis_calls: int
     diagnoses: list[dict[str, Any]]
     eligible_diagnosis_ids: list[str]
+    editor_transport: dict[str, Any] | None
 
 
 def group_task_evidence(evidence: tuple[dict[str, Any], ...]) -> list[tuple[tuple[str, str], tuple[dict[str, Any], ...]]]:
@@ -229,7 +243,10 @@ def _guard_editor_response(response: str, request: EditorRequest, sections: set[
     return "<CANONICAL_EDITS_JSON>" + json.dumps(guarded, ensure_ascii=False) + "</CANONICAL_EDITS_JSON>"
 
 
-def _enrich_decision(decision: ProposalDecision, validations: list[DiagnosisValidation], eligible_ids: list[str]) -> DiagnosisProposalDecision:
+def _enrich_decision(
+    decision: ProposalDecision, validations: list[DiagnosisValidation],
+    eligible_ids: list[str], editor_transport: dict[str, Any] | None = None,
+) -> DiagnosisProposalDecision:
     fields = copy.deepcopy(decision.__dict__)
     canonical_by_id = {
         item.get("edit_id"): item for item in fields["canonical_edits"] if isinstance(item, dict)
@@ -247,6 +264,7 @@ def _enrich_decision(decision: ProposalDecision, validations: list[DiagnosisVali
         **fields, diagnosis_calls=len(validations),
         diagnoses=[item.as_dict() for item in validations],
         eligible_diagnosis_ids=eligible_ids,
+        editor_transport=copy.deepcopy(editor_transport),
     )
 
 
@@ -314,8 +332,10 @@ class MultiRolloutDiagnosisProposalOperator:
             ), validations, eligible_ids)
         signals = [_signal(item, tasks_by_diagnosis[item.diagnosis_id]) for item in eligible]
         eligible_domains = sorted({tasks_by_diagnosis[item.diagnosis_id][0] for item in eligible})
+        editor_transport = None
 
         def bounded_editor(request: EditorRequest) -> str:
+            nonlocal editor_transport
             response = editor(DiagnosisEditorRequest(
                 candidate_id=request.candidate_id,
                 current_parent_skill=request.current_parent_skill,
@@ -325,6 +345,7 @@ class MultiRolloutDiagnosisProposalOperator:
                     "original_domain_policy": domain_contexts[domain]["original_domain_policy"],
                 } for domain in eligible_domains),
             ))
+            editor_transport = copy.deepcopy(getattr(response, "editor_transport", None))
             guarded = _guard_editor_response(response, request, set(sections))
             _, error = _parse_tagged_list(guarded, "CANONICAL_EDITS_JSON")
             if error is not None:
@@ -339,7 +360,9 @@ class MultiRolloutDiagnosisProposalOperator:
             return guarded
 
         decision = propose_from_update_signals(context, signals, bounded_editor, upstream_calls=len(validations))
-        return _enrich_decision(decision, validations, eligible_ids)
+        return _enrich_decision(
+            decision, validations, eligible_ids, editor_transport,
+        )
 
 
 def structured_skill(skill: str) -> dict[str, list[dict[str, str]]]:
