@@ -17,7 +17,7 @@ from src.skill_evolution import autonomous_gse_v14_benchmark_runtime as runtime_
 from src.skill_evolution import autonomous_gse_v14_proposal as proposal_v14
 from src.skill_evolution import diagnosis_contract_v14 as contract_v14
 from src.skill_evolution import diagnosis_v14
-from src.skill_evolution.autonomous_gse_v03_proposal import ProposalContext
+from src.skill_evolution.autonomous_gse_v03_proposal import EditorRequest, ProposalContext
 from src.skill_evolution.diagnosis_compiler_v14 import compile_semantic_diagnosis
 from src.skill_evolution.diagnosis_provenance_v14 import (
     build_provenance_alias_context, resolve_semantic_provenance,
@@ -881,6 +881,80 @@ def _merged_editor(request) -> str:
     ]) + "</CANONICAL_EDITS_JSON>"
 
 
+def _guarded_domain_edit(
+    source_domains: list[str], *, text: str, trigger_condition: str,
+) -> dict:
+    patch_ids = [f"patch_{index}" for index in range(len(source_domains))]
+    raw_patches = tuple({
+        "patch_id": patch_id,
+        "task_identity": {"domain": domain, "task_id": str(index)},
+        "operation": "add", "section": "Form entry and verification",
+        "target_rule_id": "", "repair_policy_ids": [],
+    } for index, (patch_id, domain) in enumerate(
+        zip(patch_ids, source_domains, strict=True), start=1,
+    ))
+    edit = _edit(patch_ids)
+    edit["text"] = text
+    edit["verification_target"]["trigger_condition"] = trigger_condition
+    response = "<CANONICAL_EDITS_JSON>" + json.dumps([edit]) + "</CANONICAL_EDITS_JSON>"
+    guarded = proposal_v14._guard_editor_response(
+        response,
+        EditorRequest("candidate_001", _parent_skill(), raw_patches),
+        set(SECTIONS),
+    )
+    return json.loads(
+        guarded.removeprefix("<CANONICAL_EDITS_JSON>").removesuffix(
+            "</CANONICAL_EDITS_JSON>",
+        )
+    )[0]
+
+
+@pytest.mark.parametrize("domain", ["airline", "retail"])
+def test_single_domain_generic_editor_rule_fails_closed(domain):
+    edit = _guarded_domain_edit(
+        [domain],
+        text="When the user's request cannot be handled, transfer to a human agent.",
+        trigger_condition="When the request cannot be handled.",
+    )
+    assert edit["v13_validation_error"] == "DOMAIN_SCOPE_LEAKAGE"
+    assert edit["derived_from_patch_ids"] == []
+
+
+def test_single_domain_scoped_text_with_generic_verification_target_fails_closed():
+    edit = _guarded_domain_edit(
+        ["airline"],
+        text="For airline requests, transfer when the request cannot be handled.",
+        trigger_condition="When the request cannot be handled.",
+    )
+    assert edit["v13_validation_error"] == "DOMAIN_SCOPE_LEAKAGE"
+    assert edit["derived_from_patch_ids"] == []
+
+
+@pytest.mark.parametrize(
+    ("domain", "text", "trigger"),
+    [
+        ("airline", "For airline requests, preserve the supported boundary.",
+         "For an airline request, when the decision opportunity occurs."),
+        ("retail", "For retail order requests, preserve the supported boundary.",
+         "For a retail request, when the decision opportunity occurs."),
+    ],
+)
+def test_single_domain_explicitly_scoped_text_and_target_pass(domain, text, trigger):
+    edit = _guarded_domain_edit([domain], text=text, trigger_condition=trigger)
+    assert "v13_validation_error" not in edit
+    assert edit["derived_from_patch_ids"] == ["patch_0"]
+
+
+def test_multi_domain_edit_does_not_require_explicit_domain_names():
+    edit = _guarded_domain_edit(
+        ["airline", "retail"],
+        text="When the supported decision opportunity occurs, preserve its boundary.",
+        trigger_condition="When the supported decision opportunity occurs.",
+    )
+    assert "v13_validation_error" not in edit
+    assert edit["derived_from_patch_ids"] == ["patch_0", "patch_1"]
+
+
 def test_proposal_consumes_compiled_decisions_and_preserves_editor_method():
     context = ProposalContext("candidate_001", _parent_skill(), _twenty_task_evidence())
     decision = proposal_v14.MultiRolloutDiagnosisProposalOperator().propose(
@@ -926,6 +1000,10 @@ def test_proposal_signal_uses_only_resolved_canonical_evidence_and_policy_ids():
 
     def editor(request):
         edit = _edit([request.eligible_diagnoses[0]["patch_id"]])
+        edit["text"] = "For airline requests, preserve the grounded decision predicate."
+        edit["verification_target"]["trigger_condition"] = (
+            "For an airline request, when the relevant decision opportunity occurs"
+        )
         edit["source_ids"] = ["step_001_airline_1_rollout_01"]
         edit["repair_policy_ids"] = [policy_id]
         return "<CANONICAL_EDITS_JSON>" + json.dumps([edit]) + "</CANONICAL_EDITS_JSON>"
@@ -1015,24 +1093,51 @@ def test_editor_preserves_single_domain_boundary():
     prompt = editor_v14.EDITOR_SYSTEM_PROMPT
     assert "Domain is a scope condition" in prompt
     assert (
-        "An edit supported only by one domain must not be generalized into a "
-        "cross-domain rule"
+        "For every canonical edit supported by exactly one domain, the final Skill text "
+        "must explicitly name that domain in its scope"
     ) in prompt
     assert (
-        "For an edit supported by exactly one domain, the final canonical wording must "
-        "preserve that domain explicitly in its trigger or scope"
+        "Do not rely on domain-specific objects, tools, entities, or workflow names as an "
+        "implicit substitute for the explicit domain scope"
     ) in prompt
     assert (
-        'A generic cross-domain trigger such as "when a user\'s request cannot be fulfilled" '
-        "is not acceptable for a single-domain source"
+        "The verification_target.trigger_condition must preserve the same explicit "
+        "single-domain boundary"
     ) in prompt
+    assert "unless the rule is inherently domain-specific through its object or tool semantics" not in prompt
 
 
 def test_editor_allows_compatible_multi_domain_mechanism_merge():
     prompt = editor_v14.EDITOR_SYSTEM_PROMPT
     assert (
-        "unless eligible Diagnoses from multiple domains support the same mechanism "
-        "and compatible decision boundary"
+        "For edits supported by multiple domains, cross-domain generalization remains "
+        "allowed only when all existing mechanism-equivalence requirements are met"
+    ) in prompt
+
+
+def test_editor_preserves_user_controlled_choice_boundaries():
+    prompt = editor_v14.EDITOR_SYSTEM_PROMPT
+    assert "Preserve user-controlled choice boundaries" in prompt
+    assert (
+        "When multiple permitted alternatives remain valid and the authoritative Diagnosis, "
+        "Policy, or tool semantics do not specify a deterministic selector, do not invent a "
+        "preference or let the Agent choose among them autonomously"
+    ) in prompt
+    assert "If the user has explicitly selected or authorized one alternative, preserve that choice" in prompt
+    assert (
+        "the canonical rule must preserve the need to obtain that choice or authorization "
+        "before committing to one alternative"
+    ) in prompt
+
+
+def test_editor_does_not_expand_abstract_boundary_into_unsupported_categories():
+    prompt = editor_v14.EDITOR_SYSTEM_PROMPT
+    assert (
+        "Do not expand an abstract supported category into new named subcategories that "
+        "are absent from the eligible Diagnoses, authoritative Policy, and supplied domain context"
+    ) in prompt
+    assert (
+        "prefer the abstract grounded wording over a speculative list"
     ) in prompt
 
 

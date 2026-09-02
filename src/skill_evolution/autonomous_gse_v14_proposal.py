@@ -139,6 +139,15 @@ def _valid_verification_target(value: Any) -> bool:
     } and all(isinstance(value.get(key), str) and value[key].strip() for key in value)
 
 
+def _explicitly_names_domain(text: Any, domain: Any) -> bool:
+    return (
+        isinstance(text, str) and isinstance(domain, str) and bool(domain.strip())
+        and re.search(
+            rf"(?<!\w){re.escape(domain.strip())}(?!\w)", text, re.IGNORECASE,
+        ) is not None
+    )
+
+
 def _guard_editor_response(response: str, request: EditorRequest, sections: set[str]) -> str:
     edits, error = _parse_tagged_list(response, "CANONICAL_EDITS_JSON")
     if error or edits is None:
@@ -172,6 +181,20 @@ def _guard_editor_response(response: str, request: EditorRequest, sections: set[
                 exclusion = "DIAGNOSIS_TARGET_DRIFT"
         if exclusion is None and not _valid_verification_target(edit.get("verification_target")):
             exclusion = "INVALID_VERIFICATION_TARGET"
+        source_domains = {
+            source.get("task_identity", {}).get("domain") for source in sources
+        }
+        if (
+            exclusion is None and operation in {"add", "replace"}
+            and len(source_domains) == 1
+        ):
+            domain = next(iter(source_domains))
+            trigger = edit["verification_target"]["trigger_condition"]
+            if not (
+                _explicitly_names_domain(edit.get("text"), domain)
+                and _explicitly_names_domain(trigger, domain)
+            ):
+                exclusion = "DOMAIN_SCOPE_LEAKAGE"
         if exclusion is None and isinstance(edit.get("text"), str) and any(
             policy_id.casefold() in edit["text"].casefold()
             for source in sources for policy_id in source["repair_policy_ids"]
