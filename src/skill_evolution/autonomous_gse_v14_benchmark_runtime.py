@@ -28,6 +28,7 @@ from src.adapters.tau2.tau3_gse_runtime import (
 )
 from src.learners.stwebagentbench import generate_governed_skill_v14 as editor_v14
 from src.skill_evolution import autonomous_gse_v14_proposal as proposal_v14
+from src.skill_evolution import diagnosis_compiler_v14, diagnosis_provenance_v14
 from src.skill_evolution.autonomous_gse_v13_benchmark_runtime import (
     _build_governed_evidence, load_authoritative_domain_contexts,
 )
@@ -375,6 +376,233 @@ def propose_candidate(
     return V14_PROPOSAL_OPERATOR.propose(
         context, diagnoser, editor, domain_contexts=domain_contexts,
     )
+
+
+def _cached_parent_evidence_for_editor_replay(
+    *, campaign: dict[str, Any], batch_map: dict[str, Any],
+    batch: dict[str, Any], step: int,
+    parent: dict[str, str], artifact_root: Path,
+) -> tuple[dict[str, Any], ...]:
+    backend = EvolutionRolloutBackendV14(campaign, artifact_root=artifact_root)
+    seeds = derive_monitor_rollout_seeds(campaign["campaign_seed"])
+    evidence: list[dict[str, Any]] = []
+    for tagged in batch["task_ids"]:
+        domain, task_id = tagged.split(":", 1)
+        for rollout_index, rollout_seed in enumerate(seeds, start=1):
+            unit = {
+                "domain": domain, "task_id": task_id,
+                "rollout_index": rollout_index, "rollout_seed": rollout_seed,
+            }
+            path = artifact_root / "rollouts" / "train" / f"step_{step:02d}_parent" / (
+                f"{domain}_{task_id}_rollout_{rollout_index:02d}.json"
+            )
+            if not path.is_file() or not backend._reusable(path, unit=unit, skill=parent):
+                raise RuntimeContractError("CACHED_DIAGNOSIS_REPLAY_LINEAGE_DRIFT")
+            value = _load_json(path)
+            governed = value.get("governed_evidence")
+            if not isinstance(governed, dict):
+                raise RuntimeContractError("CACHED_DIAGNOSIS_REPLAY_LINEAGE_DRIFT")
+            evidence.append({
+                **copy.deepcopy(governed), "domain": domain, "task_id": task_id,
+                "rollout_index": rollout_index, "rollout_seed": rollout_seed,
+                "state": value.get("state"),
+            })
+    result = tuple(evidence)
+    validate_learner_evidence(
+        result, batch_task_ids=batch["task_ids"],
+        protected_task_ids=_protected_task_ids(batch_map),
+    )
+    return result
+
+
+def rerun_editor_only(
+    campaign: dict[str, Any], batch_map: dict[str, Any], *, step: int,
+    artifact_root: Path, editor: Callable[[Any], str] | None = None,
+) -> dict[str, Any]:
+    """Replay one Editor call over persisted, identity-checked Diagnoses only."""
+
+    validate_batch_map(batch_map, campaign)
+    if not isinstance(step, int) or isinstance(step, bool) or step not in {1, 2, 3}:
+        raise RuntimeContractError("Editor replay step must be 1, 2, or 3.")
+    batch = batch_map["batches"][step - 1]
+    step_root = artifact_root / "steps" / f"step_{step:02d}"
+    source_path = step_root / "proposal.json"
+    replay_root = step_root / "editor_replay"
+    if not source_path.is_file():
+        raise RuntimeContractError("Editor replay requires a persisted source proposal.")
+    if replay_root.exists():
+        raise RuntimeContractError("Editor replay output already exists.")
+    source = _load_json(source_path)
+    parent = source.get("parent_skill")
+    if (
+        source.get("batch_id") != batch["batch_id"]
+        or source.get("proposal_status") != "CANDIDATE"
+        or not isinstance(parent, dict)
+        or set(parent) != {"skill_id", "skill_version", "skill_path"}
+        or any(not isinstance(parent.get(key), str) or not parent[key] for key in parent)
+    ):
+        raise RuntimeContractError("CACHED_DIAGNOSIS_REPLAY_LINEAGE_DRIFT")
+    diagnoses = source.get("diagnoses")
+    if not isinstance(diagnoses, list) or len(diagnoses) != 20:
+        raise RuntimeContractError("CACHED_DIAGNOSIS_REPLAY_DRIFT")
+
+    evidence = _cached_parent_evidence_for_editor_replay(
+        campaign=campaign, batch_map=batch_map, batch=batch, step=step, parent=parent,
+        artifact_root=artifact_root,
+    )
+    groups = proposal_v14.group_task_evidence(evidence)
+    if len(groups) != 20:
+        raise RuntimeContractError("CACHED_DIAGNOSIS_REPLAY_LINEAGE_DRIFT")
+    from src.skill_evolution.autonomous_gse_v14_orchestrator import learner_skill_text
+
+    parent_text = learner_skill_text(
+        _resolved_path(parent["skill_path"]).read_text(encoding="utf-8"),
+    )
+    skill_sections = proposal_v14._parse_skill(parent_text)
+    cached_responses: dict[str, str] = {}
+    task_by_id: dict[str, tuple[str, str]] = {}
+    source_diagnosis_ids: list[str] = []
+    source_eligible_ids: list[str] = []
+    for index, ((task, rollouts), artifact) in enumerate(
+        zip(groups, diagnoses, strict=True), start=1,
+    ):
+        diagnosis_id = f"diagnosis_{index:03d}"
+        if not isinstance(artifact, dict) or artifact.get("diagnosis_id") != diagnosis_id:
+            raise RuntimeContractError("CACHED_DIAGNOSIS_REPLAY_LINEAGE_DRIFT")
+        expected_source_ids = [item.get("source_id") for item in rollouts]
+        semantic = artifact.get("semantic")
+        structured = semantic.get("structured_output") if isinstance(semantic, dict) else None
+        raw_response = semantic.get("raw_response") if isinstance(semantic, dict) else None
+        structured_output_mode = artifact.get("structured_output_mode")
+        fallback_reason = artifact.get("structured_output_fallback_reason")
+        if (
+            artifact.get("source_ids") != expected_source_ids
+            or not isinstance(semantic, dict)
+            or semantic.get("validation") != {"valid": True, "errors": []}
+            or not isinstance(structured, dict)
+            or not isinstance(raw_response, str)
+            or not raw_response.strip()
+            or (
+                structured_output_mode is not None
+                and not isinstance(structured_output_mode, str)
+            )
+            or (fallback_reason is not None and not isinstance(fallback_reason, str))
+            or (structured_output_mode is None and fallback_reason is not None)
+        ):
+            raise RuntimeContractError("CACHED_DIAGNOSIS_REPLAY_LINEAGE_DRIFT")
+        cached_response = (
+            raw_response if structured_output_mode is None
+            else diagnosis_v14.DiagnosisResponse(
+                raw_response, structured_output_mode, fallback_reason,
+            )
+        )
+        validation = diagnosis_contract_v14.parse_and_validate_diagnosis(
+            diagnosis_id, cached_response,
+            experiences=rollouts, skill_sections=skill_sections,
+        )
+        if not validation.valid or validation.structured_output != structured:
+            raise RuntimeContractError("CACHED_DIAGNOSIS_REPLAY_DRIFT")
+        aliases = diagnosis_provenance_v14.build_provenance_alias_context(rollouts)
+        resolved = diagnosis_provenance_v14.resolve_semantic_provenance(structured, aliases)
+        compiled, compiler_trace = diagnosis_compiler_v14.compile_semantic_diagnosis(
+            structured, skill_sections,
+        )
+        if (
+            resolved != artifact.get("resolved_provenance")
+            or compiled != artifact.get("compiled_decision")
+            or compiler_trace != artifact.get("compiler_trace")
+            or validation.structured_output_mode != structured_output_mode
+            or validation.structured_output_fallback_reason != fallback_reason
+        ):
+            raise RuntimeContractError("CACHED_DIAGNOSIS_REPLAY_DRIFT")
+        source_diagnosis_ids.append(diagnosis_id)
+        if compiled["update_eligible"]:
+            source_eligible_ids.append(diagnosis_id)
+        cached_responses[diagnosis_id] = cached_response
+        task_by_id[diagnosis_id] = task
+    if not source_eligible_ids:
+        raise RuntimeContractError("CACHED_DIAGNOSIS_REPLAY_DRIFT")
+
+    def cached_diagnoser(request: Any) -> str:
+        expected_task = task_by_id.get(request.diagnosis_id)
+        if expected_task is None or request.task_context != {
+            "domain": expected_task[0], "task_id": expected_task[1],
+        }:
+            raise RuntimeContractError("CACHED_DIAGNOSIS_REPLAY_LINEAGE_DRIFT")
+        return cached_responses[request.diagnosis_id]
+
+    domain_contexts = load_authoritative_domain_contexts(
+        _resolved_path(campaign["benchmark"]["path"]),
+    )
+    decision = propose_candidate(
+        ProposalContext(
+            candidate_id=f"candidate_step_{step:02d}", parent_skill=parent_text,
+            current_batch_governed_evidence=evidence,
+        ),
+        campaign=campaign, batch_map=batch_map, step=step,
+        domain_contexts=domain_contexts, diagnoser=cached_diagnoser,
+        editor=call_governed_editor if editor is None else editor,
+    )
+    replay_eligible_ids = [
+        item["diagnosis_id"] for item in decision.diagnoses
+        if item["compiled_decision"]["update_eligible"]
+    ]
+    if replay_eligible_ids != source_eligible_ids or decision.diagnoses != diagnoses:
+        raise RuntimeContractError("CACHED_DIAGNOSIS_REPLAY_DRIFT")
+    if decision.editor_calls != 1:
+        raise RuntimeContractError("Editor replay must execute exactly one Editor call.")
+
+    proposal_path = replay_root / "proposal.json"
+    candidate_path = replay_root / "candidate_skill.md"
+    manifest_path = replay_root / "replay_manifest.json"
+    replay_proposal = {
+        "schema_version": "autonomous_gse_editor_replay_proposal_0.14.0",
+        "mode": "editor_only_replay", "step": step,
+        "batch_id": batch["batch_id"],
+        "candidate_id": f"candidate_step_{step:02d}",
+        "parent_skill": copy.deepcopy(parent),
+        "source_proposal_path": source_path.resolve().as_posix(),
+        "source_diagnosis_ids": source_diagnosis_ids,
+        "eligible_diagnosis_ids": source_eligible_ids,
+        "diagnosis_count": len(source_diagnosis_ids),
+        "contract_valid_diagnosis_count": len(source_diagnosis_ids),
+        "diagnosis_reused": True, "diagnosis_calls": 0,
+        "editor_calls": decision.editor_calls,
+        "proposal_status": decision.proposal_status,
+        "proposal_reason": copy.deepcopy(decision.proposal_reason),
+        "diagnoses": copy.deepcopy(decision.diagnoses),
+        "raw_patches": copy.deepcopy(decision.raw_patches),
+        "canonical_edits": copy.deepcopy(decision.canonical_edits),
+        "applied_edits": copy.deepcopy(decision.applied_edits),
+        "excluded_edits": copy.deepcopy(decision.excluded_edits),
+        "candidate_skill": decision.candidate_skill,
+    }
+    _write_json(proposal_path, replay_proposal)
+    if decision.candidate_skill is not None:
+        from src.skill_evolution.autonomous_gse_v14_orchestrator import canonical_skill_text
+
+        candidate_path.write_text(
+            canonical_skill_text(decision.candidate_skill), encoding="utf-8",
+        )
+    manifest = {
+        "schema_version": "autonomous_gse_editor_replay_manifest_0.14.0",
+        "mode": "editor_only_replay",
+        "source_proposal": source_path.resolve().as_posix(),
+        "proposal_path": proposal_path.resolve().as_posix(),
+        "candidate_skill_path": (
+            candidate_path.resolve().as_posix() if decision.candidate_skill is not None else None
+        ),
+        "diagnosis_reexecuted": False, "diagnosis_llm_calls": 0,
+        "editor_calls": decision.editor_calls, "step": step,
+        "proposal_status": decision.proposal_status,
+        "source_diagnosis_ids": source_diagnosis_ids,
+        "eligible_diagnosis_ids": source_eligible_ids,
+        "diagnosis_count": len(source_diagnosis_ids),
+        "contract_valid_diagnosis_count": len(source_diagnosis_ids),
+        "compiled_decisions_replayed_without_drift": True,
+    }
+    _write_json(manifest_path, manifest)
+    return manifest
 
 
 def derive_monitor_rollout_seeds(campaign_seed: int) -> tuple[int, int, int]:
@@ -961,6 +1189,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     gate_parser = subparsers.add_parser("gate")
     gate_parser.add_argument("--joint-report", type=Path, required=True)
     gate_parser.add_argument("--output", type=Path, required=True)
+    replay_parser = subparsers.add_parser(
+        "rerun-editor",
+        help="reuse persisted Diagnoses and rerun only the v0.14 Editor",
+    )
+    replay_parser.add_argument("--campaign", type=Path, required=True)
+    replay_parser.add_argument("--step", type=int, choices=(1, 2, 3), required=True)
+    replay_parser.add_argument("--artifact-root", type=Path)
     for command in ("run", "resume"):
         campaign_parser = subparsers.add_parser(command)
         campaign_parser.add_argument("--campaign", type=Path, required=True)
@@ -980,6 +1215,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(json.dumps(decision, indent=2))
         return 0
     campaign, batch_map = _campaign_files(args.campaign.resolve())
+    if args.command == "rerun-editor":
+        root = (
+            REPO_ROOT / "artifacts" / campaign["campaign_id"] / "formal"
+            if args.artifact_root is None else args.artifact_root.resolve()
+        )
+        result = rerun_editor_only(
+            campaign, batch_map, step=args.step, artifact_root=root,
+        )
+        print(json.dumps(result, indent=2))
+        return 0
     if args.command in {"run", "resume"}:
         root = (
             REPO_ROOT / "artifacts" / campaign["campaign_id"] / "formal"

@@ -22,6 +22,7 @@ from src.skill_evolution.diagnosis_compiler_v14 import compile_semantic_diagnosi
 from src.skill_evolution.diagnosis_provenance_v14 import (
     build_provenance_alias_context, resolve_semantic_provenance,
 )
+from src.skill_evolution.autonomous_gse_v14_orchestrator import canonical_skill_text
 from tests.skill_evolution.test_autonomous_gse_v13 import (
     _domain_contexts, _edit, _experience, _group,
 )
@@ -881,6 +882,102 @@ def _merged_editor(request) -> str:
     ]) + "</CANONICAL_EDITS_JSON>"
 
 
+def _replay_editor(*, scoped: bool):
+    calls = []
+
+    def editor(request):
+        calls.append(request)
+        patch_ids = [item["patch_id"] for item in request.eligible_diagnoses]
+        edit = _edit(patch_ids)
+        domains = {item["task_identity"]["domain"] for item in request.eligible_diagnoses}
+        if scoped and len(domains) == 1:
+            domain = next(iter(domains))
+            edit["text"] = f"For {domain} requests, preserve the supported decision boundary."
+            edit["verification_target"]["trigger_condition"] = (
+                f"For a {domain} request, when the supported decision opportunity occurs"
+            )
+        return "<CANONICAL_EDITS_JSON>" + json.dumps([edit]) + "</CANONICAL_EDITS_JSON>"
+
+    return editor, calls
+
+
+def _editor_replay_source(tmp_path: Path, *, eligible_ids: set[str]):
+    campaign = json.loads(CAMPAIGN.read_text(encoding="utf-8"))
+    batch_map = json.loads(
+        (ROOT / campaign["evolution"]["batch_map"]).read_text(encoding="utf-8")
+    )
+    artifact_root = tmp_path / "formal"
+    batch = batch_map["batches"][0]
+    parent = {
+        "skill_id": "S0", "skill_version": "S0",
+        "skill_path": campaign["initial_parent"]["path"],
+    }
+    evidence = []
+    seeds = runtime_v14.derive_monitor_rollout_seeds(campaign["campaign_seed"])
+    rollout_root = artifact_root / "rollouts/train/step_01_parent"
+    rollout_root.mkdir(parents=True)
+    for tagged in batch["task_ids"]:
+        domain, task_id = tagged.split(":", 1)
+        for rollout_index, rollout_seed in enumerate(seeds, start=1):
+            governed = _experience(domain, task_id, rollout_index)
+            governed["source_id"] = (
+                f"step_01_parent_{domain}_{task_id}_rollout_{rollout_index:02d}"
+            )
+            governed["rollout_seed"] = rollout_seed
+            evidence.append(copy.deepcopy(governed))
+            artifact = {
+                "domain": domain, "task_id": task_id, "phase": "train",
+                "skill_version": "S0", "rollout_index": rollout_index,
+                "rollout_seed": rollout_seed, "state": governed["state"],
+                "governed_evidence": governed,
+                "provenance": {
+                    "skill_id": "S0", "skill_path": parent["skill_path"],
+                },
+            }
+            path = rollout_root / f"{domain}_{task_id}_rollout_{rollout_index:02d}.json"
+            path.write_text(json.dumps(artifact), encoding="utf-8")
+
+    def diagnoser(request):
+        semantic = _semantic(
+            evidence_status=(
+                "recurrent_support"
+                if request.diagnosis_id in eligible_ids else "insufficient"
+            ),
+            task_success=(
+                "supports" if request.diagnosis_id in eligible_ids else "insufficient"
+            ),
+        )
+        return diagnosis_v14.DiagnosisResponse(_tag(semantic), "json_schema")
+
+    source_editor, _ = _replay_editor(scoped=True)
+    decision = runtime_v14.propose_candidate(
+        ProposalContext("candidate_step_01", _parent_skill(), tuple(evidence)),
+        campaign=campaign, batch_map=batch_map, step=1,
+        domain_contexts=runtime_v14.load_authoritative_domain_contexts(
+            ROOT / campaign["benchmark"]["path"],
+        ),
+        diagnoser=diagnoser, editor=source_editor,
+    )
+    assert decision.proposal_status == "CANDIDATE"
+    step_root = artifact_root / "steps/step_01"
+    step_root.mkdir(parents=True)
+    source_proposal = {
+        "batch_id": batch["batch_id"], "parent_skill": parent,
+        "proposal_status": decision.proposal_status,
+        "proposal_reason": decision.proposal_reason,
+        "diagnoses": decision.diagnoses,
+        "canonical_edits": decision.canonical_edits,
+        "candidate_skill": decision.candidate_skill,
+    }
+    proposal_path = step_root / "proposal.json"
+    candidate_path = step_root / "candidate_skill.md"
+    proposal_path.write_text(json.dumps(source_proposal), encoding="utf-8")
+    candidate_path.write_text(
+        canonical_skill_text(decision.candidate_skill), encoding="utf-8",
+    )
+    return campaign, batch_map, artifact_root, proposal_path, candidate_path
+
+
 def _guarded_domain_edit(
     source_domains: list[str], *, text: str, trigger_condition: str,
 ) -> dict:
@@ -985,6 +1082,144 @@ def test_proposal_skips_editor_when_compiler_finds_no_update():
         item["compiled_decision"]["reason"] == "INSUFFICIENT_MECHANISM_EVIDENCE"
         for item in decision.diagnoses
     )
+
+
+def test_editor_only_replay_exactly_reuses_diagnoses_and_preserves_source_artifacts(
+    tmp_path, monkeypatch,
+):
+    eligible_ids = {f"diagnosis_{index:03d}" for index in range(1, 21)}
+    campaign, batch_map, artifact_root, source_proposal_path, source_candidate_path = (
+        _editor_replay_source(tmp_path, eligible_ids=eligible_ids)
+    )
+    source_proposal_bytes = source_proposal_path.read_bytes()
+    source_candidate_bytes = source_candidate_path.read_bytes()
+    source = json.loads(source_proposal_bytes)
+
+    def forbidden_diagnosis_call(_request):
+        pytest.fail("Editor-only replay called the Diagnosis LLM")
+
+    monkeypatch.setattr(runtime_v14, "call_diagnosis", forbidden_diagnosis_call)
+    editor, editor_requests = _replay_editor(scoped=False)
+    manifest = runtime_v14.rerun_editor_only(
+        campaign, batch_map, step=1, artifact_root=artifact_root, editor=editor,
+    )
+
+    assert len(editor_requests) == 1
+    assert manifest["diagnosis_reexecuted"] is False
+    assert manifest["diagnosis_llm_calls"] == 0
+    assert manifest["editor_calls"] == 1
+    assert manifest["diagnosis_count"] == 20
+    assert manifest["contract_valid_diagnosis_count"] == 20
+    assert manifest["compiled_decisions_replayed_without_drift"] is True
+    assert manifest["source_diagnosis_ids"] == [
+        item["diagnosis_id"] for item in source["diagnoses"]
+    ]
+    assert manifest["eligible_diagnosis_ids"] == sorted(eligible_ids)
+
+    replay = json.loads(
+        (artifact_root / "steps/step_01/editor_replay/proposal.json").read_text(
+            encoding="utf-8",
+        )
+    )
+    assert [item["diagnosis_id"] for item in replay["diagnoses"]] == [
+        item["diagnosis_id"] for item in source["diagnoses"]
+    ]
+    assert [item["semantic"]["structured_output"] for item in replay["diagnoses"]] == [
+        item["semantic"]["structured_output"] for item in source["diagnoses"]
+    ]
+    assert [item["compiled_decision"] for item in replay["diagnoses"]] == [
+        item["compiled_decision"] for item in source["diagnoses"]
+    ]
+    assert replay["diagnosis_reused"] is True
+    assert replay["diagnosis_calls"] == 0
+    assert replay["editor_calls"] == 1
+    assert source_proposal_path.read_bytes() == source_proposal_bytes
+    assert source_candidate_path.read_bytes() == source_candidate_bytes
+    assert (artifact_root / "steps/step_01/editor_replay/candidate_skill.md").is_file()
+
+
+def test_editor_only_replay_applies_latest_domain_guard(tmp_path):
+    campaign, batch_map, artifact_root, _, _ = _editor_replay_source(
+        tmp_path, eligible_ids={"diagnosis_001"},
+    )
+    generic_editor, calls = _replay_editor(scoped=False)
+
+    manifest = runtime_v14.rerun_editor_only(
+        campaign, batch_map, step=1, artifact_root=artifact_root,
+        editor=generic_editor,
+    )
+
+    replay = json.loads(
+        (artifact_root / "steps/step_01/editor_replay/proposal.json").read_text(
+            encoding="utf-8",
+        )
+    )
+    assert len(calls) == 1
+    assert manifest["proposal_status"] == "NO_CANDIDATE"
+    assert replay["canonical_edits"][0]["v13_validation_error"] == "DOMAIN_SCOPE_LEAKAGE"
+    assert replay["canonical_edits"][0]["derived_from_patch_ids"] == []
+    assert not (artifact_root / "steps/step_01/editor_replay/candidate_skill.md").exists()
+
+
+def test_editor_only_replay_accepts_explicit_single_domain_scope(tmp_path):
+    campaign, batch_map, artifact_root, _, _ = _editor_replay_source(
+        tmp_path, eligible_ids={"diagnosis_001"},
+    )
+    scoped_editor, calls = _replay_editor(scoped=True)
+
+    manifest = runtime_v14.rerun_editor_only(
+        campaign, batch_map, step=1, artifact_root=artifact_root,
+        editor=scoped_editor,
+    )
+
+    assert len(calls) == 1
+    assert manifest["proposal_status"] == "CANDIDATE"
+    assert (artifact_root / "steps/step_01/editor_replay/candidate_skill.md").is_file()
+
+
+def test_editor_only_replay_fails_before_editor_on_compiler_drift(tmp_path):
+    campaign, batch_map, artifact_root, source_proposal_path, _ = _editor_replay_source(
+        tmp_path, eligible_ids={"diagnosis_001"},
+    )
+    source = json.loads(source_proposal_path.read_text(encoding="utf-8"))
+    source["diagnoses"][0]["compiled_decision"]["reason"] = "DRIFTED"
+    source_proposal_path.write_text(json.dumps(source), encoding="utf-8")
+
+    def forbidden_editor(_request):
+        pytest.fail("Editor was called before compiler drift was rejected")
+
+    with pytest.raises(runtime_v14.RuntimeContractError, match="CACHED_DIAGNOSIS_REPLAY_DRIFT"):
+        runtime_v14.rerun_editor_only(
+            campaign, batch_map, step=1, artifact_root=artifact_root,
+            editor=forbidden_editor,
+        )
+
+
+def test_rerun_editor_cli_dispatches_to_editor_only_replay(tmp_path, monkeypatch, capsys):
+    campaign = {"campaign_id": "autonomous_gse_v14"}
+    batch_map = {"batches": []}
+    captured = {}
+    monkeypatch.setattr(runtime_v14, "_campaign_files", lambda _path: (campaign, batch_map))
+
+    def replay(received_campaign, received_batch_map, *, step, artifact_root):
+        captured.update(
+            campaign=received_campaign, batch_map=received_batch_map,
+            step=step, artifact_root=artifact_root,
+        )
+        return {"mode": "editor_only_replay", "editor_calls": 1}
+
+    monkeypatch.setattr(runtime_v14, "rerun_editor_only", replay)
+    assert runtime_v14.main([
+        "rerun-editor", "--campaign", str(CAMPAIGN), "--step", "1",
+        "--artifact-root", str(tmp_path),
+    ]) == 0
+    assert captured == {
+        "campaign": campaign, "batch_map": batch_map,
+        "step": 1, "artifact_root": tmp_path.resolve(),
+    }
+    assert json.loads(capsys.readouterr().out) == {
+        "mode": "editor_only_replay", "editor_calls": 1,
+    }
 
 
 def test_proposal_signal_uses_only_resolved_canonical_evidence_and_policy_ids():
