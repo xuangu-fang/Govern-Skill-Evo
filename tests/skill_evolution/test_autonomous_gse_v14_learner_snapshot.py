@@ -1119,10 +1119,11 @@ def test_editor_preserves_user_controlled_choice_boundaries():
     prompt = editor_v14.EDITOR_SYSTEM_PROMPT
     assert "Preserve user-controlled choice boundaries" in prompt
     assert (
-        "When multiple permitted alternatives remain valid and the authoritative Diagnosis, "
-        "Policy, or tool semantics do not specify a deterministic selector, do not invent a "
-        "preference or let the Agent choose among them autonomously"
+        "When multiple permitted alternatives remain valid and neither the eligible "
+        "Diagnoses nor the authoritative Policy provides a supported deterministic selector, "
+        "do not invent a preference or let the Agent choose among them autonomously"
     ) in prompt
+    assert "tool semantics do not specify a deterministic selector" not in prompt
     assert "If the user has explicitly selected or authorized one alternative, preserve that choice" in prompt
     assert (
         "the canonical rule must preserve the need to obtain that choice or authorization "
