@@ -49,7 +49,6 @@ class DiagnosisEditorRequest:
     candidate_id: str
     current_parent_skill: str
     eligible_diagnoses: tuple[dict[str, Any], ...]
-    domain_contexts: tuple[dict[str, Any], ...]
 
 
 DiagnosisEditor = Callable[[DiagnosisEditorRequest], str]
@@ -223,11 +222,7 @@ def _guard_editor_response(response: str, request: EditorRequest, sections: set[
             and len(source_domains) == 1
         ):
             domain = next(iter(source_domains))
-            trigger = edit["verification_target"]["trigger_condition"]
-            if not (
-                _has_canonical_domain_scope(edit.get("text"), domain)
-                and _has_canonical_domain_scope(trigger, domain)
-            ):
+            if not _has_canonical_domain_scope(edit.get("text"), domain):
                 exclusion = "DOMAIN_SCOPE_LEAKAGE"
         if exclusion is None and isinstance(edit.get("text"), str) and any(
             policy_id.casefold() in edit["text"].casefold()
@@ -331,7 +326,6 @@ class MultiRolloutDiagnosisProposalOperator:
                 "NO_UPDATE_ELIGIBLE_DIAGNOSIS", reflector_calls=len(validations), editor_calls=0
             ), validations, eligible_ids)
         signals = [_signal(item, tasks_by_diagnosis[item.diagnosis_id]) for item in eligible]
-        eligible_domains = sorted({tasks_by_diagnosis[item.diagnosis_id][0] for item in eligible})
         editor_transport = None
 
         def bounded_editor(request: EditorRequest) -> str:
@@ -340,10 +334,6 @@ class MultiRolloutDiagnosisProposalOperator:
                 candidate_id=request.candidate_id,
                 current_parent_skill=request.current_parent_skill,
                 eligible_diagnoses=tuple(copy.deepcopy(request.raw_patches)),
-                domain_contexts=tuple({
-                    "domain": domain,
-                    "original_domain_policy": domain_contexts[domain]["original_domain_policy"],
-                } for domain in eligible_domains),
             ))
             editor_transport = copy.deepcopy(getattr(response, "editor_transport", None))
             guarded = _guard_editor_response(response, request, set(sections))

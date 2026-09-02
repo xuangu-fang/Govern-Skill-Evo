@@ -1060,23 +1060,23 @@ def test_single_domain_generic_editor_rule_fails_closed(domain):
     assert edit["derived_from_patch_ids"] == []
 
 
-def test_single_domain_scoped_text_with_generic_verification_target_fails_closed():
+def test_single_domain_scoped_text_with_generic_verification_target_passes():
     edit = _guarded_domain_edit(
         ["airline"],
         text="For airline requests, transfer when the request cannot be handled.",
         trigger_condition="When the request cannot be handled.",
     )
-    assert edit["v13_validation_error"] == "DOMAIN_SCOPE_LEAKAGE"
-    assert edit["derived_from_patch_ids"] == []
+    assert "v13_validation_error" not in edit
+    assert edit["derived_from_patch_ids"] == ["patch_0"]
 
 
 @pytest.mark.parametrize(
     ("domain", "text", "trigger"),
     [
         ("airline", "For airline requests, preserve the supported boundary.",
-         "For airline requests, when the decision opportunity occurs."),
+         "When the decision opportunity occurs."),
         ("retail", "For retail requests, preserve the supported boundary.",
-         "For retail requests, when the decision opportunity occurs."),
+         "When the decision opportunity occurs."),
     ],
 )
 def test_single_domain_canonical_prefix_in_text_and_target_pass(domain, text, trigger):
@@ -1088,8 +1088,8 @@ def test_single_domain_canonical_prefix_in_text_and_target_pass(domain, text, tr
 def test_domain_word_in_entity_role_is_not_a_scope_prefix():
     edit = _guarded_domain_edit(
         ["airline"],
-        text="For airline requests, verify the cancellation status.",
-        trigger_condition="Determine whether the flight was cancelled by the airline.",
+        text="Verify whether the flight was cancelled by the airline.",
+        trigger_condition="When evaluating cancellation status.",
     )
     assert edit["v13_validation_error"] == "DOMAIN_SCOPE_LEAKAGE"
     assert edit["derived_from_patch_ids"] == []
@@ -1153,6 +1153,7 @@ def test_proposal_consumes_compiled_decisions_and_preserves_editor_method():
     assert all(item["compiled_decision"]["update_eligible"] for item in decision.diagnoses)
     assert decision.raw_patches[0]["operation"] == "add"
     assert len(editor_requests) == 1
+    assert not hasattr(editor_requests[0], "domain_contexts")
     assert set(editor_requests[0].eligible_diagnoses[0]) == {
         "patch_id", "diagnosis_id", "task_identity", "operation", "section",
         "target_rule_id", "target_behavior", "behavioral_mechanism",
@@ -1269,7 +1270,6 @@ def test_structured_editor_contract_failure_raises_without_retry(response, code)
 
     request = proposal_v14.DiagnosisEditorRequest(
         "candidate_001", _parent_skill(), ({"patch_id": "diagnosis_001"},),
-        ({"domain": "airline", "original_domain_policy": "Policy."},),
     )
     with pytest.raises(proposal_v14.EditorContractError) as caught:
         editor_v14.call_governed_editor(request, learner_call=learner)
@@ -1294,7 +1294,6 @@ def test_structured_editor_transport_failure_raises_without_retry():
 
     request = proposal_v14.DiagnosisEditorRequest(
         "candidate_001", _parent_skill(), ({"patch_id": "diagnosis_001"},),
-        ({"domain": "airline", "original_domain_policy": "Policy."},),
     )
     with pytest.raises(proposal_v14.EditorContractError) as caught:
         editor_v14.call_governed_editor(request, learner_call=learner)
@@ -1586,10 +1585,10 @@ def test_validation_artifact_converts_diagnosis_response_to_deepcopy_safe_plain_
 
 def test_editor_prompt_uses_semantic_diagnosis_and_compiler_ownership():
     prompt = editor_v14.EDITOR_SYSTEM_PROMPT
-    assert "Diagnosis determines what behavioral mechanism should change" in prompt
+    assert "eligible Diagnosis is the semantic authority" in prompt
     assert "Decision Compiler determines whether and how the Skill may be edited" in prompt
-    assert "Policy may veto a forbidden canonicalization" in prompt
-    assert "cannot create an update by itself" in prompt
+    assert "Do not infer additional Policy obligations" in prompt
+    assert "beyond what is represented in the eligible Diagnosis and its provenance" in prompt
     assert "section placement" in prompt
     assert "cross-task deduplication" in prompt
     assert "final Skill wording" in prompt
@@ -1614,11 +1613,36 @@ def test_editor_prompt_preserves_mechanism_and_semantic_form():
 def test_editor_preserves_single_domain_boundary():
     prompt = editor_v14.EDITOR_SYSTEM_PROMPT
     assert "Domain is a scope condition" in prompt
-    assert "BOTH the Skill text and verification_target.trigger_condition" in prompt
+    assert "the Skill text must begin with the canonical domain prefix" in prompt
     assert 'airline -> "For airline requests,"' in prompt
     assert 'retail -> "For retail requests,"' in prompt
     assert "Do not paraphrase, relocate, or imply the prefix" in prompt
-    assert "deterministic Editor Guard validates this exact form" in prompt
+    assert "verification target does not need to repeat this textual prefix" in prompt
+    assert "scope are determined by source Diagnosis lineage" in prompt
+    assert "deterministic Editor Guard validates the Skill-text prefix" in prompt
+
+
+def test_editor_request_contains_no_full_policy_context():
+    request = proposal_v14.DiagnosisEditorRequest(
+        "candidate_001", _parent_skill(), ({
+            "patch_id": "diagnosis_001",
+            "task_identity": {"domain": "airline", "task_id": "1"},
+            "repair_policy_ids": ["opaque-policy-id"],
+        },),
+    )
+    _, user = editor_v14.build_editor_prompts(request)
+
+    assert not hasattr(request, "domain_contexts")
+    assert "<AUTHORITATIVE_DOMAIN_CONTEXT>" not in user
+    assert "original_domain_policy" not in user
+    assert "full-policy-secret" not in user
+
+
+def test_diagnosis_request_retains_policy_tool_and_rollout_authority():
+    request = _request()
+    assert request.original_domain_policy.strip()
+    assert request.available_tool_contracts
+    assert request.rollouts
 
 
 def test_editor_allows_compatible_multi_domain_mechanism_merge():
