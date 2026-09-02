@@ -424,6 +424,25 @@ def test_prompt_preserves_v14_reasoning_and_exposes_only_minimal_schema():
     assert diagnosis_v14.EMPTY_RESPONSE_RETRIES == 2
 
 
+def test_semantic_template_values_are_not_prompt_defaults():
+    prompt = diagnosis_v14.DIAGNOSIS_SYSTEM_PROMPT
+    assert (
+        "The values shown in SEMANTIC_DIAGNOSIS_TEMPLATE are structural placeholders, "
+        "not semantic defaults"
+    ) in prompt
+    assert "Do not copy a template value merely because no stronger signal was found" in prompt
+    assert (
+        'feasibility.status = "uncertain" in the template must not be copied unless the '
+        "definition of uncertain is actually satisfied"
+    ) in prompt
+    assert (
+        "If no problematic mechanism is established but the observed rollouts demonstrate "
+        "a correct task-satisfying, Policy-permitted, tool-supported handling path, "
+        'feasibility should normally be "feasible", not "uncertain"'
+    ) in prompt
+    assert diagnosis_v14.SEMANTIC_DIAGNOSIS_TEMPLATE["feasibility"]["status"] == "uncertain"
+
+
 def test_diagnosis_012_direction_treats_violation_as_support_for_compliance_repair():
     prompt = diagnosis_v14.DIAGNOSIS_SYSTEM_PROMPT
     assert (
@@ -555,12 +574,14 @@ def test_falsification_separates_insufficient_from_conflicting_evidence():
     prompt = diagnosis_v14.DIAGNOSIS_SYSTEM_PROMPT
     assert (
         "If falsification fully defeats the candidate mechanism and no substantive support "
-        "remains, classify evidence_status = insufficient"
+        "remains, treat this as evidence for an insufficient classification at Step 6"
     ) in prompt
     assert (
         "If substantive support remains, but unreconciled counterevidence directly "
-        "undermines the proposed causal mechanism, classify evidence_status = conflicting"
+        "undermines the proposed causal mechanism, treat this as evidence for a "
+        "conflicting classification at Step 6"
     ) in prompt
+    assert "Do not assign the final evidence_status until Step 6" in prompt
     assert (
         "A rollout without the relevant decision opportunity is neither support nor "
         "counterevidence for that mechanism"
