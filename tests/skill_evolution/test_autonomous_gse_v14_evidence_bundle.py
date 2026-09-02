@@ -77,8 +77,14 @@ def test_cached_run_batch_enriches_evidence_and_preserves_rows_lineage(tmp_path,
         skill={"skill_id": "S0", "skill_version": "S0", "skill_path": S0_PATH},
         role="parent",
     )
+    second_bundle = backend.run_batch(
+        step=1, task_ids=batch["task_ids"],
+        skill={"skill_id": "S0", "skill_version": "S0", "skill_path": S0_PATH},
+        role="parent",
+    )
 
     assert calls == 0
+    assert second_bundle == bundle
     assert len(bundle["rows"]) == len(bundle["evidence"]) == 60
     for row, evidence in zip(bundle["rows"], bundle["evidence"], strict=True):
         assert {field: evidence[field] for field in LINEAGE_FIELDS} == {

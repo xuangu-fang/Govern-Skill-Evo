@@ -19,6 +19,7 @@ from src.skill_evolution.regression_analysis_v14 import analyze_regressions
 from src.skill_evolution.target_behavior_analysis_v14 import analyze_target_behaviors
 
 PROMOTION_SOURCE = "distributional_gate_only"
+EXPLANATION_REPLAY_RETRIES = 2
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -336,18 +337,25 @@ def run_evolution_step(
         "target_behavior_status": "not_run", "regression_analysis_status": "not_run",
     }
     explanation_root = step_root / "explanation"
-    try:
-        candidate_bundle = services.candidate_replay(step, copy.deepcopy(batch), copy.deepcopy(candidate))
-        _validate_rollout_bundle(candidate_bundle, batch=batch, require_evidence=False)
-        _validate_matched_replay(parent_bundle["rows"], candidate_bundle["rows"])
-        explanation["current_batch_replay_status"] = "complete"
-    except Exception as error:
-        explanation["current_batch_replay_status"] = "error"
-        _write_json(explanation_root / "current_batch_replay_error.json", {
-            "error_type": type(error).__name__, "error_message": str(error),
-            "traceback": traceback.format_exc(),
-        })
-        candidate_bundle = None
+    candidate_bundle = None
+    for attempt in range(1, EXPLANATION_REPLAY_RETRIES + 2):
+        try:
+            candidate_bundle = services.candidate_replay(
+                step, copy.deepcopy(batch), copy.deepcopy(candidate),
+            )
+            _validate_rollout_bundle(candidate_bundle, batch=batch, require_evidence=False)
+            _validate_matched_replay(parent_bundle["rows"], candidate_bundle["rows"])
+            explanation["current_batch_replay_status"] = "complete"
+            break
+        except Exception as error:
+            candidate_bundle = None
+            if attempt <= EXPLANATION_REPLAY_RETRIES:
+                continue
+            explanation["current_batch_replay_status"] = "error"
+            _write_json(explanation_root / "current_batch_replay_error.json", {
+                "attempts": attempt, "error_type": type(error).__name__,
+                "error_message": str(error), "traceback": traceback.format_exc(),
+            })
 
     if candidate_bundle is not None:
         analysis_inputs = (

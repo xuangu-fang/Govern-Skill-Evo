@@ -4277,65 +4277,108 @@ Candidate 同时存在 2 条 `NOT_FIXED` 和 1 条 `CHANGE_CAUSED` 回归，因�
 
 不改变整体 Skill Evolution 流程，优化：Diagnosis、Editor、Compliance Judge 和 Target Fix四个部分。
 
-#### 1. Diagnosis：先分析真实行为，再判断是否需要修改 Skill
+#### 1. Diagnosis
 
-上一版 Diagnosis 虽然同时使用 3 次 rollout，较容易从 Task Success × Compliance 的状态差异出发反推需要修改什么，可能把结果差异、环境差异或重复出现的动作错误解释成 Skill 问题：
+Diagnosis 对同一 task 的 3 次 Parent rollout 进行整体分析。输入包括当前 Parent Skill、task 信息、原始 Policy、可用 Tool，以及 3 次完整 rollout。
 
-这一版改为先分析 Agent 的真实行为，再结合 Policy、Tool、当前 Skill 和最终结果判断是否需要修改 Skill。
+这一版不再直接根据 Success / Failure 或 Compliance / Violation 的结果状态反推 Skill 应如何修改，而是先分析 Agent 的实际行为，再逐步判断该行为是否真正构成需要修改 Skill 的问题。结果标签和环境返回仅作为后续证据，不能直接构成行为问题本身。
 
-具体按照以下顺序进行：
-- 首先分析 Agent 在 3 次 rollout 中实际执行了什么，包括条件检查、工具和参数选择、执行顺序、继续或停止操作以及明确表达的内容，不直接从 Success / Failure 或 Compliance / Violation 标签反推原因；
-- 根据 task、Policy 和 Tool 判断当时是否存在一个合法且实际可执行的正确做法。如果任务要求、Policy 约束和工具能力本身无法同时满足，则认为该问题不能通过修改 Skill 解决；
-- 综合 3 次 rollout，寻找能够解释 Agent 行为问题的支持证据。对于初步发现的问题，继续检查其他 rollout 是否存在反例。如果同样的行为在相同条件下也能够正常完成任务或保持合规，并且没有其他关键条件能够解释这种差异，则不能直接把该行为作为 Skill 修改依据。
+具体流程如下。
 
-综合支持证据和反例后，将行为证据分为：
-`contrastive_support`: 不同 rollout 中出现了不同的 Agent 行为，并且这种行为差异能够支持一个具体问题；
-`recurrent_support`: 多个 rollout 在相同条件下重复出现同一种错误决策，并且当时存在合法可行的正确做法；
-`conflicting`: 虽然存在一定支持证据，但其他 rollout 中也出现了无法解释的反例；
-`insufficient`: 现有轨迹无法稳定支持一个具体的 Agent 行为问题。
+1. 首先分析 Agent 在 3 次 rollout 中实际执行了什么，包括条件检查、工具选择、参数选择、执行顺序、重试、继续或停止操作，以及明确表达的内容。
+2. 结合当前 task、Policy 和 Tool，判断问题发生的决策点是否存在合法且实际可执行的正确做法：
 
-对于初步发现的问题，继续检查其他 rollout 是否存在反例。如果同样的行为在相同条件下也能够正常完成任务或保持合规，则不能直接把它作为 Skill 修改依据。
+   - `feasible`：存在能够满足 task、符合 Policy、由 Tool 支持且当时可以实际执行的正确行为；
+   - `infeasible`：不存在同时满足上述条件的正确行为，说明问题无法通过增加 Skill 规则解决；
+   - `uncertain`：现有信息不足以确定当时是否存在正确可行的行为。
 
-之后再检查当前 Parent Skill 是否已经对这一问题提供了正确、充分的指导：
+3. 在 3 次 rollout 中提出一个具体候选行为问题，并收集支持该判断的轨迹证据；此时不立即下最终结论。
+4. 使用全部 rollout 主动寻找反例：检查相同条件下是否出现不同结果；被认为有问题的行为是否在其他 rollout 中仍能完成任务或保持合规；不同 rollout 是否实际上处于不同条件；以及相应的正确行为机会是否真实存在。若初步判断被其他轨迹直接推翻，则不能保留该问题。
 
-`missing`：缺少必要指导；
-`incorrect`：已有规则给出了错误指导；
-`underspecified`：已有规则提到了该行为，但缺少关键触发条件、判断条件、顺序或停止边界；
-`already_covered`：Skill 已经明确给出正确规则，但 Agent 没有执行；
-`not_applicable`：问题本身与 Skill 无直接关系。
+综合支持证据和反例后，Diagnosis 为候选行为问题给出以下最终行为证据状态：
 
-最后分别判断当前行为问题是否有证据影响 Task Success 和 Compliance。
+- `contrastive_support`：不同 rollout 中出现不同 Agent 行为，且这种行为差异支持一个具体问题，并未被其他 rollout 的反例推翻；
+- `recurrent_support`：多个 rollout 在相同关键条件下重复出现同一种错误决策，并且当时存在 Policy 允许、Tool 支持的正确替代行为；
+- `conflicting`：某个具体问题存在真实支持证据，但同时存在无法解释的反例，暂时无法确认其成立；
+- `insufficient`：经多次 rollout 对照和反例检查后，仍无法稳定支持一个具体行为问题。
 
-Diagnosis 中由 LLM 负责这些需要语义理解的判断，而最终的问题归因、是否修改 Skill、修改哪个结果维度以及新增或修改哪条规则，则根据上述判断由程序统一确定。
+随后检查当前 Parent Skill 是否已经对该行为问题提供正确、充分的指导：
 
-只有同时满足以下条件时，才允许产生 Skill 更新：
+- `missing`：当前 Skill 没有相关指导；
+- `incorrect`：已有规则本身提供了错误指导；
+- `underspecified`：已有规则方向基本正确，但缺少会实际影响 Agent 决策的关键条件、执行顺序或停止条件；
+- `already_covered`：当前 Skill 已明确给出正确且可执行的指导，但 Agent 没有遵守；
+- `not_applicable`：该行为问题与 Skill 本身没有直接关系。
 
-- 当前存在明确且有多次 rollout 证据支持的行为问题；
-- 当时存在 Policy 允许且 Tool 支持的正确做法；
-- 当前 Skill 确实缺少、写错或遗漏了相关指导；
-- Task Success 或 Compliance 至少一个维度能够支持这次修改。
+若当前 Skill 已有正确指导，不再通过添加重复规则解决，而由后续程序归为 Agent 执行问题。
 
-Diagnosis 流程为：
+Diagnosis 还会分别判断已发现行为问题与 Task Success**、Compliance 两个结果维度的关系。两个维度独立判断，各自取值为：
 
+- `supports`：现有 rollout 支持该行为问题与该结果维度存在关系；
+- `contradicts`：现有结果证据与提出的行为问题相矛盾；
+- `insufficient`：现有 rollout 不足以判断该行为是否影响该结果维度；
+- `not_applicable`：该行为问题与该结果维度没有直接关系。
+
+例如，若 3 次 rollout 都成功完成任务，但只有未确认即直接执行的 rollout 发生 Policy violation，则可得到：
+
+```text
+Task Success = insufficient
+Compliance = supports
 ```
-3 次 rollout
-↓ 
-分析实际 Agent 行为 
-↓
-Task × Policy × Tool 是否存在合法可行的正确做法 
-↓ 
-多次 rollout 是否支持稳定的行为问题 
-↓ 
-反例检查 
-↓ 
-当前 Skill 是否已经提供正确指导 
-↓ 
-Task Success / Compliance 是否支持该问题 
-↓ 
-程序统一生成问题归因和 Skill 更新决策 
-↓ 
+
+这说明现有证据支持该问题影响 Compliance，但不足以说明其影响 Task Success。因此不要求两个维度同时支持；至少一个目标维度有充分证据支持即可。
+
+完成判断后，Diagnosis 会描述若需要修复，Agent 正确情况下应表现出的行为，供后续 Editor 和 Candidate 行为验证使用。该描述包括：当前问题、触发条件、真正影响行为选择的关键判断条件、应采取的处理方式、必须停止或不得继续执行的情况，以及最终正确行为。
+
+当当前 Skill 中已有规则错误或缺失关键条件时，Diagnosis 还会说明已有规则应修改还是删除；若当前 Skill 完全缺少相关指导，无需再由 LLM 判断是否新增，后续程序自动确定为新增规则。也就是说，LLM 只负责理解 trajectory、Policy、Tool 和 Skill 语义所必需的判断，不再直接输出最终的问题归因、是否修改 Skill、更新哪个结果维度或具体修改哪条规则。
+
+LLM 输出后由程序统一校验和决策。程序先检查引用的轨迹证据、Policy 证据和 Skill Rule ID 是否真实存在，避免模型引用不存在的步骤、Policy 或规则。随后基于 LLM 的语义判断生成最终决策：
+
+- 若不存在合法可行的正确行为，归为外部问题，不修改 Skill；
+- 若行为证据为 `insufficient`，认为没有足够证据支持修改；
+- 若行为证据为 `conflicting`，保留为不确定，不修改 Skill；
+- 若当前 Skill 已明确给出正确指导，归为 Agent 执行问题，不增加重复规则；
+- 若问题与 Skill 无直接关系，不进行修改；
+- 只有行为证据为 `contrastive_support` 或 `recurrent_support`、正确行为确实可行、当前 Skill 为 `missing`、`incorrect` 或 `underspecified`，且 Task Success 或 Compliance 至少一个维度为 `supports` 时，才允许产生 Skill 更新。
+
+满足更新条件后，程序继续自动确定更新方式：
+
+- 仅 Task Success 为 `supports`：更新目标为 Task Success；
+- 仅 Compliance 为 `supports`：更新目标为 Compliance；
+- 两个维度均为 `supports`：同时针对两个维度更新；
+- `missing`：自动生成新增规则操作；
+- `incorrect` / `underspecified`：根据对应已有 Rule 和 Diagnosis 给出的修改意图，确定修改或删除原规则。
+
+完整流程为：
+
+```text
+同一 task 的 3 次 rollout
+        ↓
+分析实际 Agent 行为
+        ↓
+Task × Policy × Tool：是否存在合法可行的正确行为
+        ↓
+提出候选行为问题
+        ↓
+收集跨 rollout 的支持证据，并使用全部 rollout 主动寻找反例
+        ↓
+最终行为证据判断：contrastive_support / recurrent_support /
+conflicting / insufficient
+        ↓
+检查当前 Parent Skill 是否已有正确指导
+        ↓
+分别判断与 Task Success / Compliance 的关系
+        ↓
+描述期望的正确行为
+        ↓
+LLM Diagnosis 结束
+        ↓
+程序校验证据与规则引用，并统一生成问题归因、更新维度和修改方式
+        ↓
 Update / No Update
 ```
+
+因此，Diagnosis 只有在以下四个条件同时成立时才进入后续 Editor：行为问题有多次 rollout 支持；存在合法可行的正确行为；当前 Skill 确实存在指导缺失或错误；以及 Task Success、Compliance 至少一个维度得到支持。
 
 #### 2. Editor：保留决定行为正确性的条件，只合并真正等价的机制
 

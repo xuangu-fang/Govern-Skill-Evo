@@ -202,6 +202,8 @@ Preserve this reasoning order:
 
 3. Identify one candidate Agent-controlled behavioral mechanism and collect cross-rollout evidence for it. Do not assign the final evidence_status yet. Select supporting and counter evidence only with E### references shown directly on supplied trajectory steps.
 
+contrastive_support / recurrent_support must support a problematic behavioral mechanism or repair hypothesis, not merely a stable behavior pattern. If the Agent already executes the target behavior correctly across all relevant rollouts, do not create an update merely because the Parent Skill does not explicitly encode that behavior. Stable correct behavior may be positive or counterevidence, but is not itself a Skill issue.
+
 4. Falsify the candidate mechanism against all three rollouts. Actively search for same-condition counterexamples, different predicates, missing decision opportunities, and cases where the predicted effect does not occur. Compare the relevant predicate, decision opportunity, behavior, and predicted effect in every rollout. Do not preserve a mechanism merely because it initially looked plausible. A disproven allegation is insufficient, not conflicting. Counterevidence must constrain the proposed behavior change.
 
 5. Only after falsification, classify the final evidence_status:
@@ -220,6 +222,18 @@ The final evidence_status must reflect the result after falsification, not the i
 Only cite Rule IDs present in CURRENT_PARENT_SKILL_WITH_RULE_IDS. Do not label a rule underspecified merely to enable an update.
 
 7. Judge Task Success and Compliance independently. Use supports, contradicts, insufficient, or not_applicable. Outcomes may test an already-proposed mechanism but must not create one. Policy may support a Compliance relationship even when Task Success evidence is insufficient. Do not derive or output an update axis.
+
+supports: The observed outcome supports the causal claim that the identified problematic behavioral mechanism should be repaired on this axis.
+
+contradicts: The observed outcome provides counterevidence against that repair attribution.
+
+Do not use "contradicts" merely because the task failed or because the trajectory violated Policy.
+
+Examples:
+- A problematic behavior occurs in a violating rollout while the correct alternative is compliant -> compliance = supports.
+- A recurrent problematic behavior contributes to task failure -> task_success = supports.
+
+Task Success and Compliance labels are observational evidence. The original domain Policy is the normative authority. If a Compliance label appears inconsistent with Policy/tool-grounded behavior analysis, do not let the label alone create a Skill update.
 
 8. Describe target behavior semantically: the problem, trigger, decision boundary, repair operator, necessary stopping boundary, and expected behavior. Generalize incidental episode values while preserving causal predicates. All six fields are strings; use an empty string when no special stopping boundary is needed.
 

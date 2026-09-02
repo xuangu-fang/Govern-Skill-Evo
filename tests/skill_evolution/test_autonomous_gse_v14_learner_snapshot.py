@@ -423,6 +423,58 @@ def test_prompt_preserves_v14_reasoning_and_exposes_only_minimal_schema():
     assert diagnosis_v14.EMPTY_RESPONSE_RETRIES == 2
 
 
+def test_diagnosis_012_direction_treats_violation_as_support_for_compliance_repair():
+    prompt = diagnosis_v14.DIAGNOSIS_SYSTEM_PROMPT
+    assert (
+        "problematic behavior occurs in a violating rollout while the correct "
+        "alternative is compliant -> compliance = supports"
+    ) in prompt
+    assert (
+        'Do not use "contradicts" merely because the task failed or because '
+        "the trajectory violated Policy"
+    ) in prompt
+
+
+def test_outcome_relation_defines_contradicts_as_counterevidence_to_attribution():
+    prompt = diagnosis_v14.DIAGNOSIS_SYSTEM_PROMPT
+    assert (
+        "supports: The observed outcome supports the causal claim that the identified "
+        "problematic behavioral mechanism should be repaired on this axis"
+    ) in prompt
+    assert (
+        "contradicts: The observed outcome provides counterevidence against that "
+        "repair attribution"
+    ) in prompt
+    assert (
+        "A recurrent problematic behavior contributes to task failure -> "
+        "task_success = supports"
+    ) in prompt
+
+
+def test_diagnosis_008_stable_correct_behavior_cannot_become_missing_skill_update():
+    prompt = diagnosis_v14.DIAGNOSIS_SYSTEM_PROMPT
+    assert (
+        "contrastive_support / recurrent_support must support a problematic "
+        "behavioral mechanism or repair hypothesis, not merely a stable behavior pattern"
+    ) in prompt
+    assert (
+        "If the Agent already executes the target behavior correctly across all relevant "
+        "rollouts, do not create an update merely because the Parent Skill does not "
+        "explicitly encode that behavior"
+    ) in prompt
+    assert "Stable correct behavior may be positive or counterevidence, but is not itself a Skill issue" in prompt
+
+
+def test_compliance_label_alone_cannot_override_policy_grounded_analysis():
+    prompt = diagnosis_v14.DIAGNOSIS_SYSTEM_PROMPT
+    assert "Task Success and Compliance labels are observational evidence" in prompt
+    assert "The original domain Policy is the normative authority" in prompt
+    assert (
+        "If a Compliance label appears inconsistent with Policy/tool-grounded behavior "
+        "analysis, do not let the label alone create a Skill update"
+    ) in prompt
+
+
 def test_bare_json_and_null_stopping_boundary_are_narrowly_normalized_once():
     value = _semantic()
     value["target_behavior"]["stopping_boundary"] = None
@@ -779,6 +831,32 @@ def test_editor_prompt_uses_semantic_diagnosis_and_compiler_ownership():
     assert "section placement" in prompt
     assert "cross-task deduplication" in prompt
     assert "final Skill wording" in prompt
+
+
+def test_editor_does_not_promote_illustrative_alternative_to_mandatory_preference():
+    prompt = editor_v14.EDITOR_SYSTEM_PROMPT
+    assert (
+        "Examples, illustrative alternatives, or candidate choices in target_behavior "
+        "must not be promoted into mandatory preferences"
+    ) in prompt
+    assert "without inventing a preferred member of that class" in prompt
+
+
+def test_editor_preserves_single_domain_boundary():
+    prompt = editor_v14.EDITOR_SYSTEM_PROMPT
+    assert "Domain is a scope condition" in prompt
+    assert (
+        "An edit supported only by one domain must not be generalized into a "
+        "cross-domain rule"
+    ) in prompt
+
+
+def test_editor_allows_compatible_multi_domain_mechanism_merge():
+    prompt = editor_v14.EDITOR_SYSTEM_PROMPT
+    assert (
+        "unless eligible Diagnoses from multiple domains support the same mechanism "
+        "and compatible decision boundary"
+    ) in prompt
 
 
 def test_v14_semantic_modules_do_not_import_v13_learner_modules():

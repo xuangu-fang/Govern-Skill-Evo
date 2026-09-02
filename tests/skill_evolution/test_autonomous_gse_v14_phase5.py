@@ -448,6 +448,89 @@ def test_candidate_replay_lineage_error_is_logging_only(tmp_path):
     assert next_parent["skill_id"] == "candidate_step_01"
 
 
+def test_candidate_replay_transient_error_retries_whole_batch_then_completes(tmp_path):
+    skill = tmp_path / "S0.md"
+    skill.write_text("# S0\n", encoding="utf-8")
+    parent = {"skill_id": "S0", "skill_version": "S0", "skill_path": str(skill)}
+    calls = _calls()
+    services = _services(["ACCEPT"], calls)
+    original = services.candidate_replay
+    attempts = 0
+
+    def transient_replay(step, batch, candidate):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise RuntimeError("transient replay failure")
+        return original(step, batch, candidate)
+
+    services = EvolutionServices(**{**services.__dict__, "candidate_replay": transient_replay})
+    summary, next_parent, _ = run_evolution_step(
+        step=1, batch=_batches()[0], parent=parent, parent_monitor={}, campaign={},
+        services=services, artifact_root=tmp_path / "artifacts",
+    )
+
+    assert attempts == 2
+    assert summary["explanation"] == {
+        "current_batch_replay_status": "complete",
+        "target_behavior_status": "complete",
+        "regression_analysis_status": "complete",
+    }
+    assert summary["selection"]["decision"] == "ACCEPT"
+    assert next_parent["skill_id"] == "candidate_step_01"
+
+
+def test_candidate_replay_retry_exhaustion_is_logging_only_and_preserves_selection(tmp_path):
+    skill = tmp_path / "S0.md"
+    skill.write_text("# S0\n", encoding="utf-8")
+    parent = {"skill_id": "S0", "skill_version": "S0", "skill_path": str(skill)}
+    calls = _calls()
+    gate_calls = 0
+    target_calls = 0
+    regression_calls = 0
+    services = _services(["ACCEPT"], calls, replay_error=RuntimeError("still unavailable"))
+    original_gate = services.gate
+
+    def gate(report):
+        nonlocal gate_calls
+        gate_calls += 1
+        return original_gate(report)
+
+    def target(*_args):
+        nonlocal target_calls
+        target_calls += 1
+
+    def regression(*_args):
+        nonlocal regression_calls
+        regression_calls += 1
+
+    services = EvolutionServices(**{
+        **services.__dict__, "gate": gate, "target_behavior": target,
+        "regression": regression,
+    })
+    summary, next_parent, _ = run_evolution_step(
+        step=1, batch=_batches()[0], parent=parent, parent_monitor={}, campaign={},
+        services=services, artifact_root=tmp_path / "artifacts",
+    )
+    selection_path = tmp_path / "artifacts/steps/step_01/selection/selection_decision.json"
+    selection = json.loads(selection_path.read_text(encoding="utf-8"))
+    error = json.loads((
+        tmp_path / "artifacts/steps/step_01/explanation/current_batch_replay_error.json"
+    ).read_text(encoding="utf-8"))
+
+    assert calls["replay"] == [(1, "candidate_step_01")] * 3
+    assert error["attempts"] == orchestrator.EXPLANATION_REPLAY_RETRIES + 1 == 3
+    assert summary["explanation"] == {
+        "current_batch_replay_status": "error",
+        "target_behavior_status": "not_run",
+        "regression_analysis_status": "not_run",
+    }
+    assert gate_calls == 1
+    assert target_calls == regression_calls == 0
+    assert selection["gate_decision"] == summary["selection"]["decision"] == "ACCEPT"
+    assert next_parent["skill_id"] == "candidate_step_01"
+
+
 @pytest.mark.parametrize(
     ("before", "after", "selected"),
     (
