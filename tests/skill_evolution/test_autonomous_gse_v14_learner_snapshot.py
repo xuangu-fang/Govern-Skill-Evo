@@ -200,6 +200,26 @@ def test_evidence_alias_resolution_returns_exact_canonical_source_and_integer_st
     ]
 
 
+def test_duplicate_aliases_resolve_once_in_first_seen_order():
+    context = build_provenance_alias_context(tuple(
+        _experience("airline", "1", index, policy_id="policy_1")
+        for index in (1, 2, 3)
+    ))
+    semantic = _semantic(policy_refs=["P001", "P001"])
+    semantic["behavioral_mechanism"]["support_evidence_refs"] = [
+        "E002", "E001", "E002",
+    ]
+    semantic["behavioral_mechanism"]["counterevidence_refs"] = ["E003", "E003"]
+
+    resolved = resolve_semantic_provenance(semantic, context)
+
+    assert [ref["alias"] for ref in resolved["support_evidence_refs"]] == [
+        "E002", "E001",
+    ]
+    assert [ref["alias"] for ref in resolved["counterevidence_refs"]] == ["E003"]
+    assert [ref["alias"] for ref in resolved["repair_policy_refs"]] == ["P001"]
+
+
 @pytest.mark.parametrize("alias", ["E999", "E01", "e002", "rollout 1 step 2"])
 def test_invalid_evidence_aliases_fail_closed(alias):
     value = _semantic(evidence_ref=alias)
@@ -300,7 +320,7 @@ def test_json_schema_is_strict_at_every_object_layer_and_rejects_known_typos():
     assert schema["properties"]["repair_policy_refs"]["maxItems"] == 0
 
 
-def test_dynamic_schema_enumerates_only_current_task_aliases_and_requires_uniqueness():
+def test_dynamic_schema_enumerates_only_current_task_aliases_without_unique_items():
     response_format = diagnosis_v14.build_semantic_diagnosis_response_format({
         "evidence_aliases": {"E001": {}, "E002": {}},
         "policy_aliases": {"P001": {}},
@@ -310,15 +330,14 @@ def test_dynamic_schema_enumerates_only_current_task_aliases_and_requires_unique
     for field in ("support_evidence_refs", "counterevidence_refs"):
         assert mechanism[field] == {
             "type": "array",
-            "uniqueItems": True,
             "items": {"type": "string", "enum": ["E001", "E002"]},
         }
         assert "E999" not in mechanism[field]["items"]["enum"]
     assert schema["properties"]["repair_policy_refs"] == {
         "type": "array",
-        "uniqueItems": True,
         "items": {"type": "string", "enum": ["P001"]},
     }
+    assert "uniqueItems" not in json.dumps(schema)
 
 
 def test_dynamic_schema_without_policy_aliases_only_allows_an_empty_array():
@@ -329,7 +348,7 @@ def test_dynamic_schema_without_policy_aliases_only_allows_an_empty_array():
     policy_schema = response_format["json_schema"]["schema"]["properties"][
         "repair_policy_refs"
     ]
-    assert policy_schema == {"type": "array", "uniqueItems": True, "maxItems": 0}
+    assert policy_schema == {"type": "array", "maxItems": 0}
 
 
 def test_semantic_template_does_not_suggest_task_specific_aliases():
@@ -376,10 +395,26 @@ def test_prompt_preserves_v14_reasoning_and_exposes_only_minimal_schema():
     for principle in (
         "exactly three independent Parent rollouts", "Agent-controlled behavior before outcomes",
         "task requirements, the original Policy, and available tool contracts",
-        "contrastive_support", "recurrent_support", "Falsify before supporting",
+        "one candidate Agent-controlled behavioral mechanism",
+        "Falsify the candidate mechanism against all three rollouts",
+        "Only after falsification, classify the final evidence_status",
+        "contrastive_support", "recurrent_support",
         "annotated Parent Skill", "Task Success and Compliance independently",
     ):
         assert principle in prompt
+    reasoning_markers = (
+        "1. Analyze Agent-controlled behavior before outcomes",
+        "2. Evaluate feasibility",
+        "3. Identify one candidate Agent-controlled behavioral mechanism",
+        "4. Falsify the candidate mechanism",
+        "5. Only after falsification, classify the final evidence_status",
+        "6. Compare the mechanism with the annotated Parent Skill",
+        "7. Judge Task Success and Compliance independently",
+        "8. Describe target behavior semantically",
+    )
+    assert list(map(prompt.index, reasoning_markers)) == sorted(
+        map(prompt.index, reasoning_markers),
+    )
     assert "Return only one JSON object" in prompt
     assert set(diagnosis_v14.SEMANTIC_DIAGNOSIS_TEMPLATE) == (
         contract_v14.SEMANTIC_DIAGNOSIS_FIELDS
@@ -480,6 +515,26 @@ def test_structured_capability_fallback_is_narrow_and_cached():
     assert second.structured_output_mode == "prompt_fallback"
     assert first.structured_output_fallback_reason == "unsupported json_schema response_format"
     assert diagnosis_v14._STRUCTURED_OUTPUT_CAPABILITY == "json_schema_unsupported"
+
+
+def test_invalidparameter_structured_output_error_triggers_capability_fallback():
+    value = json.dumps(_semantic())
+    calls = []
+
+    def learner(model, system, user, **kwargs):
+        calls.append(kwargs.get("response_format"))
+        if kwargs.get("response_format") is not None:
+            raise RuntimeError(
+                "InvalidParameter: Format error: response_format.json_schema.schema",
+            )
+        return value, model, None
+
+    response = diagnosis_v14.call_diagnosis(_request(), learner_call=learner)
+
+    assert len(calls) == 2
+    assert calls[0]["type"] == "json_schema"
+    assert calls[1] is None
+    assert response.structured_output_mode == "prompt_fallback"
 
 
 @pytest.mark.parametrize("message", ["524 timeout", "request timeout", "rate limit", "generic 500"])
@@ -697,6 +752,25 @@ def test_validation_artifact_separates_semantic_and_compiler_authority():
         "step_ids": [2],
     }]
     assert "repair_trace" not in artifact
+
+
+def test_validation_artifact_converts_diagnosis_response_to_deepcopy_safe_plain_str():
+    response = diagnosis_v14.DiagnosisResponse(
+        json.dumps(_semantic()), "prompt_fallback", "unsupported json_schema",
+    )
+    validation = replace(
+        _validate(_semantic()), raw_response=response,
+        structured_output_mode=response.structured_output_mode,
+        structured_output_fallback_reason=response.structured_output_fallback_reason,
+    )
+
+    artifact = validation.as_dict()
+    copied = copy.deepcopy(artifact)
+
+    assert type(copied["semantic"]["raw_response"]) is str
+    assert copied["semantic"]["raw_response"] == str(response)
+    assert copied["structured_output_mode"] == "prompt_fallback"
+    assert copied["structured_output_fallback_reason"] == "unsupported json_schema"
 
 
 def test_editor_prompt_uses_semantic_diagnosis_and_compiler_ownership():

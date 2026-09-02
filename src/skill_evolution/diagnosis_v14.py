@@ -44,7 +44,7 @@ SEMANTIC_DIAGNOSIS_TEMPLATE = {
     "edit_intent": "not_applicable",
 }
 
-_EMPTY_ALIAS_ARRAY_SCHEMA = {"type": "array", "maxItems": 0, "uniqueItems": True}
+_EMPTY_ALIAS_ARRAY_SCHEMA = {"type": "array", "maxItems": 0}
 SEMANTIC_DIAGNOSIS_JSON_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
@@ -124,7 +124,7 @@ SEMANTIC_DIAGNOSIS_JSON_SCHEMA = {
 
 
 def _alias_array_schema(aliases: list[str]) -> dict[str, Any]:
-    schema: dict[str, Any] = {"type": "array", "uniqueItems": True}
+    schema: dict[str, Any] = {"type": "array"}
     if aliases:
         schema["items"] = {"type": "string", "enum": aliases}
     else:
@@ -200,15 +200,18 @@ Preserve this reasoning order:
 
 2. Evaluate feasibility at the relevant decision point using task requirements, the original Policy, and available tool contracts. feasible means a correct behavior existed that was simultaneously task-satisfying, Policy-permitted, technically supported, and available then. infeasible means no such behavior existed. uncertain means the supplied evidence cannot establish feasibility. Policy is normative; tool capability cannot create Policy permission.
 
-3. Classify mechanism evidence across the three rollouts:
+3. Identify one candidate Agent-controlled behavioral mechanism and collect cross-rollout evidence for it. Do not assign the final evidence_status yet. Select supporting and counter evidence only with E### references shown directly on supplied trajectory steps.
+
+4. Falsify the candidate mechanism against all three rollouts. Actively search for same-condition counterexamples, different predicates, missing decision opportunities, and cases where the predicted effect does not occur. Compare the relevant predicate, decision opportunity, behavior, and predicted effect in every rollout. Do not preserve a mechanism merely because it initially looked plausible. A disproven allegation is insufficient, not conflicting. Counterevidence must constrain the proposed behavior change.
+
+5. Only after falsification, classify the final evidence_status:
 - contrastive_support: different Agent-controlled behaviors support one concrete mechanism under Policy/tool grounding.
 - recurrent_support: multiple rollouts repeat the same problematic decision mechanism under the same relevant condition or decision opportunity, with a legal feasible alternative.
 - conflicting: a concrete plausible mechanism has substantive support and unreconciled counterevidence.
 - insufficient: no reliable Agent-controlled mechanism survives; evidence is mainly labels, environment differences, incidental behavior, or unreliable attribution.
+The final evidence_status must reflect the result after falsification, not the initial hypothesis.
 
-4. Falsify before supporting. Compare the relevant predicate, decision opportunity, behavior, and predicted effect in every rollout. Select supporting and counter evidence only with E### references shown directly on supplied trajectory steps. A disproven allegation is insufficient, not conflicting. Counterevidence must constrain the proposed behavior change.
-
-5. Compare the mechanism with the annotated Parent Skill:
+6. Compare the mechanism with the annotated Parent Skill:
 - missing: the necessary mechanism is absent.
 - incorrect: an existing rule gives wrong guidance.
 - underspecified: a related rule omits an execution-critical trigger, predicate, boundary, ordering, feasibility condition, or stopping condition.
@@ -216,11 +219,11 @@ Preserve this reasoning order:
 - not_applicable: the mechanism has no direct Parent Skill coverage relationship.
 Only cite Rule IDs present in CURRENT_PARENT_SKILL_WITH_RULE_IDS. Do not label a rule underspecified merely to enable an update.
 
-6. Judge Task Success and Compliance independently. Use supports, contradicts, insufficient, or not_applicable. Outcomes may test an already-proposed mechanism but must not create one. Policy may support a Compliance relationship even when Task Success evidence is insufficient. Do not derive or output an update axis.
+7. Judge Task Success and Compliance independently. Use supports, contradicts, insufficient, or not_applicable. Outcomes may test an already-proposed mechanism but must not create one. Policy may support a Compliance relationship even when Task Success evidence is insufficient. Do not derive or output an update axis.
 
-7. Describe target behavior semantically: the problem, trigger, decision boundary, repair operator, necessary stopping boundary, and expected behavior. Generalize incidental episode values while preserving causal predicates. All six fields are strings; use an empty string when no special stopping boundary is needed.
+8. Describe target behavior semantically: the problem, trigger, decision boundary, repair operator, necessary stopping boundary, and expected behavior. Generalize incidental episode values while preserving causal predicates. All six fields are strings; use an empty string when no special stopping boundary is needed.
 
-8. edit_intent is limited to replace, delete, or not_applicable. For missing coverage use not_applicable because Python derives add. For incorrect or underspecified coverage, use replace or delete only when that is the intended treatment of the cited existing rule. For already_covered or not_applicable coverage use not_applicable. This field is consulted only if the deterministic compiler finds the Diagnosis update-eligible.
+9. edit_intent is limited to replace, delete, or not_applicable. For missing coverage use not_applicable because Python derives add. For incorrect or underspecified coverage, use replace or delete only when that is the intended treatment of the cited existing rule. For already_covered or not_applicable coverage use not_applicable. This field is consulted only if the deterministic compiler finds the Diagnosis update-eligible.
 
 repair_policy_refs may contain only P### references shown in supplied violation evidence that directly ground the compliance repair.
 
@@ -312,7 +315,8 @@ def _is_structured_output_capability_error(error: Exception) -> bool:
     ))
     rejects_feature = any(value in message for value in (
         "unsupported", "not supported", "does not support", "invalid parameter",
-        "invalid value", "unknown parameter", "unrecognized parameter",
+        "invalidparameter", "invalid value", "unknown parameter", "unknownparameter",
+        "unrecognized parameter",
         "unexpected keyword", "unavailable",
     ))
     return mentions_feature and rejects_feature

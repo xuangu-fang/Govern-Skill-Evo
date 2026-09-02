@@ -4286,8 +4286,9 @@ Candidate 同时存在 2 条 `NOT_FIXED` 和 1 条 `CHANGE_CAUSED` 回归，因�
 具体按照以下顺序进行：
 - 首先分析 Agent 在 3 次 rollout 中实际执行了什么，包括条件检查、工具和参数选择、执行顺序、继续或停止操作以及明确表达的内容，不直接从 Success / Failure 或 Compliance / Violation 标签反推原因；
 - 根据 task、Policy 和 Tool 判断当时是否存在一个合法且实际可执行的正确做法。如果任务要求、Policy 约束和工具能力本身无法同时满足，则认为该问题不能通过修改 Skill 解决；
-- 综合 3 次 rollout 判断是否存在一个稳定、可复用的行为问题，并将证据分为：
+- 综合 3 次 rollout，寻找能够解释 Agent 行为问题的支持证据。对于初步发现的问题，继续检查其他 rollout 是否存在反例。如果同样的行为在相同条件下也能够正常完成任务或保持合规，并且没有其他关键条件能够解释这种差异，则不能直接把该行为作为 Skill 修改依据。
 
+综合支持证据和反例后，将行为证据分为：
 `contrastive_support`: 不同 rollout 中出现了不同的 Agent 行为，并且这种行为差异能够支持一个具体问题；
 `recurrent_support`: 多个 rollout 在相同条件下重复出现同一种错误决策，并且当时存在合法可行的正确做法；
 `conflicting`: 虽然存在一定支持证据，但其他 rollout 中也出现了无法解释的反例；
@@ -4314,7 +4315,7 @@ Diagnosis 中由 LLM 负责这些需要语义理解的判断，而最终的问�
 - 当前 Skill 确实缺少、写错或遗漏了相关指导；
 - Task Success 或 Compliance 至少一个维度能够支持这次修改。
 
-因此 Diagnosis 流程为：
+Diagnosis 流程为：
 
 ```
 3 次 rollout

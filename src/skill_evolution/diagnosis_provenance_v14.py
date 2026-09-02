@@ -120,7 +120,7 @@ def resolve_semantic_provenance(
                 "source_id": evidence_aliases[alias]["source_id"],
                 "step_ids": [evidence_aliases[alias]["step_id"]],
             }
-            for alias in mechanism[field]
+            for alias in dict.fromkeys(mechanism[field])
         ]
 
     return {
@@ -128,6 +128,6 @@ def resolve_semantic_provenance(
         "counterevidence_refs": evidence_refs("counterevidence_refs"),
         "repair_policy_refs": [
             {"alias": alias, "policy_id": policy_aliases[alias]["policy_id"]}
-            for alias in semantic["repair_policy_refs"]
+            for alias in dict.fromkeys(semantic["repair_policy_refs"])
         ],
     }

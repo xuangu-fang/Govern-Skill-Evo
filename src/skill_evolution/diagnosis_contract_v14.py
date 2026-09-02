@@ -47,7 +47,7 @@ class DiagnosisValidation:
             "diagnosis_id": self.diagnosis_id,
             "source_ids": list(self.source_ids),
             "semantic": {
-                "raw_response": self.raw_response,
+                "raw_response": str(self.raw_response),
                 "structured_output": copy.deepcopy(self.structured_output),
                 "validation": {
                     "valid": self.valid,
