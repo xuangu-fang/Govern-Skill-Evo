@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import copy
 import json
+import re
 import sys
 from types import SimpleNamespace
 from dataclasses import replace
@@ -1095,8 +1096,14 @@ def test_multi_domain_edit_does_not_require_explicit_domain_names():
 
 def test_proposal_consumes_compiled_decisions_and_preserves_editor_method():
     context = ProposalContext("candidate_001", _parent_skill(), _twenty_task_evidence())
+    editor_requests = []
+
+    def editor(request):
+        editor_requests.append(request)
+        return _merged_editor(request)
+
     decision = proposal_v14.MultiRolloutDiagnosisProposalOperator().propose(
-        context, _update_diagnoser, _merged_editor, domain_contexts=_domain_contexts(),
+        context, _update_diagnoser, editor, domain_contexts=_domain_contexts(),
     )
     assert decision.proposal_status == "CANDIDATE"
     assert decision.diagnosis_calls == 20
@@ -1104,9 +1111,17 @@ def test_proposal_consumes_compiled_decisions_and_preserves_editor_method():
     assert len(decision.eligible_diagnosis_ids) == 20
     assert all(item["compiled_decision"]["update_eligible"] for item in decision.diagnoses)
     assert decision.raw_patches[0]["operation"] == "add"
-    assert decision.raw_patches[0]["objective"] == (
-        "choose the behavior supported by the grounded predicate"
-    )
+    assert len(editor_requests) == 1
+    assert set(editor_requests[0].eligible_diagnoses[0]) == {
+        "patch_id", "diagnosis_id", "task_identity", "operation", "section",
+        "target_rule_id", "target_behavior", "behavioral_mechanism",
+        "skill_coverage", "outcome_relation", "support_evidence_refs",
+        "counterevidence_refs", "source_ids", "repair_policy_ids",
+    }
+    assert not {
+        "objective", "description", "root_cause", "update_axis",
+        "derived_from_diagnosis_ids",
+    } & set(editor_requests[0].eligible_diagnoses[0])
     assert "behavioral_mechanism" in decision.raw_patches[0]
     assert "behavior_analysis" not in decision.raw_patches[0]
 
@@ -1289,7 +1304,11 @@ def test_proposal_signal_uses_only_resolved_canonical_evidence_and_policy_ids():
     )
     patch = decision.raw_patches[0]
     assert patch["operation"] == "add"
-    assert patch["update_axis"] == "task_success"
+    assert not {
+        "objective", "description", "root_cause", "update_axis",
+        "derived_from_diagnosis_ids",
+    } & set(patch)
+    assert patch["outcome_relation"]["task_success"] == "supports"
     assert patch["source_ids"] == ["step_001_airline_1_rollout_01"]
     assert patch["repair_policy_ids"] == [policy_id]
     assert patch["support_evidence_refs"] == [{
@@ -1350,168 +1369,95 @@ def test_validation_artifact_converts_diagnosis_response_to_deepcopy_safe_plain_
 
 def test_editor_prompt_uses_semantic_diagnosis_and_compiler_ownership():
     prompt = editor_v14.EDITOR_SYSTEM_PROMPT
-    assert "Semantic Diagnosis plus deterministic Decision Compiler" in prompt
+    assert "Diagnosis determines what behavioral mechanism should change" in prompt
+    assert "Decision Compiler determines whether and how the Skill may be edited" in prompt
+    assert "Policy may veto a forbidden canonicalization" in prompt
+    assert "cannot create an update by itself" in prompt
     assert "section placement" in prompt
     assert "cross-task deduplication" in prompt
     assert "final Skill wording" in prompt
 
 
-def test_editor_does_not_promote_illustrative_alternative_to_mandatory_preference():
+def test_editor_prompt_preserves_mechanism_and_semantic_form():
     prompt = editor_v14.EDITOR_SYSTEM_PROMPT
-    assert (
-        "Examples, illustrative alternatives, or candidate choices in target_behavior "
-        "must not be promoted into mandatory preferences"
-    ) in prompt
-    assert "without inventing a preferred member of that class" in prompt
+    assert "preserving every mechanism-defining condition" in prompt
+    assert "when the rule applies" in prompt
+    assert "which action is correct" in prompt
+    assert "what authorization or evidence is required" in prompt
+    assert "what ordering is required" in prompt
+    assert "when execution must stop" in prompt
+    assert "Do not broaden scope, strengthen obligations, or impose stricter ordering" in prompt
+    assert "Preserve semantic meaning rather than surface form" in prompt
+    assert "examples into obligations" in prompt
+    assert "illustrative alternatives into preferences" in prompt
+    assert "semantic authorization, confirmation, consent, or intent into lexical matching" in prompt
+    assert "supported abstract categories into unsupported concrete enumerations" in prompt
 
 
 def test_editor_preserves_single_domain_boundary():
     prompt = editor_v14.EDITOR_SYSTEM_PROMPT
     assert "Domain is a scope condition" in prompt
-    assert (
-        "mandatory scope prefix at the beginning of BOTH the Skill text and "
-        "verification_target.trigger_condition"
-    ) in prompt
+    assert "BOTH the Skill text and verification_target.trigger_condition" in prompt
     assert 'airline -> "For airline requests,"' in prompt
     assert 'retail -> "For retail requests,"' in prompt
-    assert "Do not paraphrase, relocate, or implicitly express this prefix" in prompt
-    assert "The deterministic Editor Guard validates this exact single-domain scope form" in prompt
-    assert "unless the rule is inherently domain-specific through its object or tool semantics" not in prompt
+    assert "Do not paraphrase, relocate, or imply the prefix" in prompt
+    assert "deterministic Editor Guard validates this exact form" in prompt
 
 
 def test_editor_allows_compatible_multi_domain_mechanism_merge():
     prompt = editor_v14.EDITOR_SYSTEM_PROMPT
-    assert (
-        "For edits supported by multiple domains, cross-domain generalization remains "
-        "allowed only when all existing mechanism-equivalence requirements are met"
-    ) in prompt
+    assert "Multi-domain generalization is allowed only when the merge contract" in prompt
 
 
 def test_editor_preserves_source_specific_predicates_when_merging():
     prompt = editor_v14.EDITOR_SYSTEM_PROMPT
-    assert "Preserve source-specific predicates when merging" in prompt
-    assert (
-        "do not propagate a condition, factual constraint, obligation, authorization "
-        "requirement, ordering relation, stopping boundary, or exception supported by only "
-        "one source into behavior governed by another source"
-    ) in prompt
-    assert "A shared repair goal does not make all source predicates shared" in prompt
-    assert "Only predicates supported by every source may enter the shared portion" in prompt
-    assert (
-        "Source-specific predicates must remain explicitly scoped to their corresponding "
-        "branch inside the merged rule, or the Diagnoses must remain separate canonical edits"
-    ) in prompt
-    assert "Do not form a merged rule by taking the union of all constraints" in prompt
-
-
-def test_editor_merge_example_keeps_one_source_predicate_branch_scoped():
-    prompt = editor_v14.EDITOR_SYSTEM_PROMPT
-    assert (
-        "if two operations share a completeness reminder but only one source says its action "
-        "can happen once, do not state that both actions can happen only once"
-    ) in prompt
-    assert "Keep that condition in the supported source branch, or emit separate edits" in prompt
-    assert (
-        "verify source by source which trigger predicates, factual constraints, obligations, "
-        "authorization or confirmation requirements, stopping boundaries, and ordering "
-        "relations are shared"
-    ) in prompt
-    assert (
-        "If a condition is not supported by every source, do not place it in the shared portion"
-    ) in prompt
+    assert "without changing any source-specific predicate" in prompt
+    assert "Shared repair operators do not imply shared predicates" in prompt
+    assert "Only conditions supported by every source may appear in the shared portion" in prompt
+    assert "Source-specific conditions must remain branch-scoped" in prompt
+    assert "emit separate edits" in prompt
 
 
 def test_editor_preserves_user_controlled_choice_boundaries():
     prompt = editor_v14.EDITOR_SYSTEM_PROMPT
-    assert "Preserve user-controlled choice boundaries" in prompt
-    assert (
-        "When multiple permitted alternatives remain valid and neither the eligible "
-        "Diagnoses nor the authoritative Policy provides a supported deterministic selector, "
-        "do not invent a preference or let the Agent choose among them autonomously"
-    ) in prompt
-    assert "The absence of an expressed preference is NOT a deterministic selector" in prompt
-    assert (
-        "one alternative must eventually be selected does not authorize the Agent to select "
-        "autonomously"
-    ) in prompt
-    assert "asks the user which alternative to use before committing" in prompt
-    assert "tool semantics do not specify a deterministic selector" not in prompt
-    assert "If the user has explicitly selected or authorized one alternative, preserve that choice" in prompt
-    assert (
-        "the canonical rule must preserve the need to obtain that choice or authorization "
-        "before committing to one alternative"
-    ) in prompt
+    assert "Preserve user control over every parameter" in prompt
+    assert "preserve an existing explicit user choice or authorization" in prompt
+    assert "authoritative deterministic selector" in prompt
+    assert "obtains the user's choice before execution" in prompt
+    assert "Authorization for one parameter does not authorize" in prompt
 
 
-def test_editor_preserves_choice_for_every_action_component():
+def test_editor_verification_target_matches_skill_and_sources():
     prompt = editor_v14.EDITOR_SYSTEM_PROMPT
-    assert (
-        "Preserve user choice for every user-controlled component introduced or required by "
-        "the canonical rule"
-    ) in prompt
-    assert (
-        "Obtaining the user's choice or authorization for one component of an action does not "
-        "authorize the Agent to autonomously select another component"
-    ) in prompt
-    assert (
-        "For each required alternative, payment method, destination, option, item, or other "
-        "user-controlled parameter"
-    ) in prompt
-    assert "the user already explicitly selected or authorized it" in prompt
-    assert (
-        "the eligible Diagnosis or authoritative Policy provides a supported deterministic "
-        "selector"
-    ) in prompt
-    assert (
-        "If neither is true and the parameter must be chosen before execution, preserve a step "
-        "that obtains the user's choice or authorization before committing"
-    ) in prompt
-    assert '"cover the remainder with an allowed method"' in prompt
-    assert "Such wording must preserve the need to obtain the user's choice before execution" in prompt
-    assert "tool semantics do not specify a deterministic selector" not in prompt
+    assert "exactly one verification_target containing problem, trigger_condition, and expected_behavior" in prompt
+    assert "precise, operational, behaviorally testable" in prompt
+    assert "consistent with the canonical Skill text" in prompt
+    assert "must not be narrower, broader, or stronger" in prompt
+    assert "jointly preserve the source mechanism, scope, user-control boundaries" in prompt
 
 
-def test_editor_does_not_expand_abstract_boundary_into_unsupported_categories():
+def test_editor_prompt_has_only_requested_logical_sections():
     prompt = editor_v14.EDITOR_SYSTEM_PROMPT
-    assert (
-        "Do not expand an abstract supported category into new named subcategories that "
-        "are absent from the eligible Diagnoses, authoritative Policy, and supplied domain context"
-    ) in prompt
-    assert (
-        "prefer the abstract grounded wording over a speculative list"
-    ) in prompt
+    assert [line for line in prompt.splitlines() if re.fullmatch(r"[A-H]\. .+", line)] == [
+        "A. Authority boundary",
+        "B. Mechanism-preserving canonicalization",
+        "C. Scope and provenance preservation",
+        "D. User-controlled decisions",
+        "E. Merge semantics",
+        "F. Semantic-form preservation",
+        "G. Verification target",
+        "H. Output contract",
+    ]
 
 
-def test_editor_requires_semantic_confirmation_not_lexical_matching():
-    prompt = editor_v14.EDITOR_SYSTEM_PROMPT
-    assert (
-        "Do not convert a semantic authorization, confirmation, consent, or intent "
-        "condition into lexical substring matching"
-    ) in prompt
-    assert (
-        "Confirmation must semantically and unambiguously authorize the complete listed "
-        "action details and intended scope"
-    ) in prompt
-    assert "Do not turn an illustrative confirmation example into a lexical requirement" in prompt
-    assert (
-        'explicit positive confirmation (e.g., "yes"), preserve the semantic requirement '
-        "of unambiguous affirmative confirmation"
-    ) in prompt
-
-
-def test_editor_performs_final_single_call_boundary_check():
-    prompt = editor_v14.EDITOR_SYSTEM_PROMPT
-    assert "perform this final check within this same Editor call" in prompt
-    assert (
-        "both text and verification_target.trigger_condition begin with the required "
-        "canonical domain prefix"
-    ) in prompt
-    assert "preserve user choice or authorization rather than inventing a fallback choice" in prompt
-    assert 'an example such as "yes" must not become a literal-token requirement' in prompt
-    assert (
-        "do not add named categories, examples, fee types, objects, or exceptions not "
-        "supported by the eligible Diagnoses or authoritative Policy"
-    ) in prompt
+def test_editor_prompt_contains_no_known_case_shaped_production_tokens():
+    prompt = editor_v14.EDITOR_SYSTEM_PROMPT.casefold()
+    forbidden_patterns = {
+        r"\bcertificate\b", r"\bbaggage\b", r"\binsurance\b", r"\btax\b",
+        r"\bmodify_pending_order_items\b", r"\bexchange_delivered_order_items\b",
+        r"cover the remainder", r"explicit ['\"]yes['\"]",
+    }
+    assert not {pattern for pattern in forbidden_patterns if re.search(pattern, prompt)}
 
 
 def test_v14_semantic_modules_do_not_import_v13_learner_modules():

@@ -109,22 +109,17 @@ def _signal(item: DiagnosisValidation, task: tuple[str, str]) -> dict[str, Any]:
     semantic = item.structured_output
     compiled = item.compiled_decision
     provenance = item.resolved_provenance
-    target = semantic["target_behavior"]
     source_ids = list(dict.fromkeys(
         ref["source_id"] for ref in provenance["support_evidence_refs"]
     ))
     return {
         "patch_id": item.diagnosis_id,
         "diagnosis_id": item.diagnosis_id,
-        "derived_from_diagnosis_ids": [item.diagnosis_id],
         "task_identity": {"domain": task[0], "task_id": task[1]},
         "operation": compiled["operation"],
         "section": compiled["target_section"],
         "target_rule_id": compiled["target_rule_id"] or "",
-        "objective": target["expected_behavior"],
-        "description": target["repair_operator"],
-        "update_axis": compiled["update_axis"],
-        "target_behavior": copy.deepcopy(target),
+        "target_behavior": copy.deepcopy(semantic["target_behavior"]),
         "behavioral_mechanism": copy.deepcopy(semantic["behavioral_mechanism"]),
         "skill_coverage": copy.deepcopy(semantic["skill_coverage"]),
         "outcome_relation": copy.deepcopy(semantic["outcome_relation"]),
@@ -134,7 +129,6 @@ def _signal(item: DiagnosisValidation, task: tuple[str, str]) -> dict[str, Any]:
         "repair_policy_ids": [
             ref["policy_id"] for ref in provenance["repair_policy_refs"]
         ],
-        "root_cause": compiled["root_cause"],
     }
 
 
