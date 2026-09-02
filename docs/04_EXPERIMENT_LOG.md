@@ -4310,9 +4310,7 @@ Diagnosis 对同一 task 的 3 次 Parent rollout 进行整体分析。输入包
 - `already_covered`：当前 Skill 已明确给出正确且可执行的指导，但 Agent 没有遵守；
 - `not_applicable`：该行为问题与 Skill 本身没有直接关系。
 
-若当前 Skill 已有正确指导，不再通过添加重复规则解决，而由后续程序归为 Agent 执行问题。
-
-Diagnosis 还会分别判断已发现行为问题与 Task Success**、Compliance 两个结果维度的关系。两个维度独立判断，各自取值为：
+Diagnosis 还会分别判断已发现行为问题与 Task Success、Compliance 两个结果维度的关系。两个维度独立判断，各自取值为：
 
 - `supports`：现有 rollout 支持该行为问题与该结果维度存在关系；
 - `contradicts`：现有结果证据与提出的行为问题相矛盾；

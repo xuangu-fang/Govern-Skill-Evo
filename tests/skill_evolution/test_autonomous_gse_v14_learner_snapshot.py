@@ -394,23 +394,24 @@ def test_prompt_preserves_v14_reasoning_and_exposes_only_minimal_schema():
     prompt = diagnosis_v14.DIAGNOSIS_SYSTEM_PROMPT
     for principle in (
         "exactly three independent Parent rollouts", "Agent-controlled behavior before outcomes",
-        "task requirements, the original Policy, and available tool contracts",
-        "one candidate Agent-controlled behavioral mechanism",
+        "task requirements, the original Policy, available tool contracts",
+        "one candidate problematic Agent-controlled behavioral mechanism",
         "Falsify the candidate mechanism against all three rollouts",
-        "Only after falsification, classify the final evidence_status",
+        "Only after falsification and the separate feasibility assessment",
         "contrastive_support", "recurrent_support",
-        "annotated Parent Skill", "Task Success and Compliance independently",
+        "annotated Parent Skill", "Task Success and Compliance outcome relation independently",
     ):
         assert principle in prompt
     reasoning_markers = (
         "1. Analyze Agent-controlled behavior before outcomes",
-        "2. Evaluate feasibility",
-        "3. Identify one candidate Agent-controlled behavioral mechanism",
+        "2. Identify one candidate problematic Agent-controlled behavioral mechanism",
+        "3. Compare all three rollouts at the relevant predicate and decision opportunity",
         "4. Falsify the candidate mechanism",
-        "5. Only after falsification, classify the final evidence_status",
-        "6. Compare the mechanism with the annotated Parent Skill",
-        "7. Judge Task Success and Compliance independently",
-        "8. Describe target behavior semantically",
+        "5. Evaluate feasibility of a correct Agent handling path",
+        "6. Only after falsification and the separate feasibility assessment",
+        "7. Compare the mechanism with the annotated Parent Skill",
+        "8. Judge Task Success and Compliance outcome relation independently",
+        "9. Produce target_behavior and edit_intent",
     )
     assert list(map(prompt.index, reasoning_markers)) == sorted(
         map(prompt.index, reasoning_markers),
@@ -472,6 +473,94 @@ def test_compliance_label_alone_cannot_override_policy_grounded_analysis():
     assert (
         "If a Compliance label appears inconsistent with Policy/tool-grounded behavior "
         "analysis, do not let the label alone create a Skill update"
+    ) in prompt
+
+
+def test_feasibility_prompt_defines_correct_handling_independently_from_mechanism():
+    prompt = diagnosis_v14.DIAGNOSIS_SYSTEM_PROMPT
+    for handling in (
+        "offering a permitted alternative",
+        "correctly refusing a prohibited request",
+        "escalating when Policy requires it",
+    ):
+        assert handling in prompt
+    assert (
+        "The user's preferred action being prohibited or unavailable does not by itself "
+        "make the situation infeasible"
+    ) in prompt
+    assert "Do not use uncertain merely because no problematic mechanism was found" in prompt
+    assert (
+        "Feasibility may constrain whether a repair is actionable, but must not create "
+        "mechanism evidence"
+    ) in prompt
+
+
+def test_d006_like_matched_correct_behavior_is_contrast_not_counterevidence():
+    prompt = diagnosis_v14.DIAGNOSIS_SYSTEM_PROMPT
+    assert (
+        "At least one rollout exhibits the problematic behavior and at least one matched "
+        "rollout exhibits the correct alternative under the same relevant predicate and "
+        "decision opportunity"
+    ) in prompt
+    assert "The matched correct behavior is supporting contrastive evidence, not counterevidence" in prompt
+
+
+def test_d013_like_comparable_wrong_and_correct_choices_prefer_contrastive_support():
+    prompt = diagnosis_v14.DIAGNOSIS_SYSTEM_PROMPT
+    assert (
+        "If matched problematic and correct behaviors are both observed under comparable "
+        "decision opportunities, prefer contrastive_support over recurrent_support"
+    ) in prompt
+    assert (
+        "A matched correct alternative behavior is not by itself counterevidence; it may "
+        "be exactly the contrast required for contrastive_support"
+    ) in prompt
+
+
+def test_d016_like_missing_decision_opportunity_cannot_count_as_recurrence():
+    prompt = diagnosis_v14.DIAGNOSIS_SYSTEM_PROMPT
+    assert "Different decision opportunities do not count toward recurrence" in prompt
+    assert (
+        "A rollout without the relevant decision opportunity is neither support nor "
+        "counterevidence for that mechanism"
+    ) in prompt
+
+
+def test_true_counterevidence_requires_direct_causal_undermining():
+    prompt = diagnosis_v14.DIAGNOSIS_SYSTEM_PROMPT
+    assert "Substantive evidence directly undermines the proposed causal mechanism" in prompt
+    assert "the same claimed problematic behavior without the predicted adverse effect" in prompt
+
+
+def test_evidence_refs_require_disjoint_factually_grounded_steps_and_prior_context():
+    prompt = diagnosis_v14.DIAGNOSIS_SYSTEM_PROMPT
+    assert "support_evidence_refs and counterevidence_refs must be disjoint" in prompt
+    assert "verify that the claimed fact is actually supported by that step" in prompt
+    assert (
+        "Do not infer that required information was absent merely because it was not "
+        "repeated immediately before the action"
+    ) in prompt
+
+
+def test_d019_like_recoverable_detour_does_not_support_task_success_update():
+    prompt = diagnosis_v14.DIAGNOSIS_SYSTEM_PROMPT
+    assert "A locally suboptimal behavior does not by itself imply task_success = supports" in prompt
+    assert (
+        "extra dialogue, user correction, inefficiency, a recoverable detour, or delayed "
+        "completion, use task_success = insufficient"
+    ) in prompt
+    assert "any optimization axis beyond Task Success and Compliance" in prompt
+
+
+def test_diagnosis_requires_semantic_confirmation_not_lexical_matching():
+    prompt = diagnosis_v14.DIAGNOSIS_SYSTEM_PROMPT
+    assert (
+        "Do not convert a semantic authorization, confirmation, consent, or intent "
+        "condition into lexical substring matching"
+    ) in prompt
+    assert (
+        "Confirmation must semantically and unambiguously authorize the complete listed "
+        "action details and intended scope"
     ) in prompt
 
 
@@ -685,6 +774,30 @@ def test_compiler_precedence_prevents_lower_fields_from_upgrading_infeasible_cas
     assert not decision["update_eligible"]
 
 
+@pytest.mark.parametrize(
+    ("evidence_status", "feasibility", "root_cause", "reason"),
+    [
+        ("insufficient", "uncertain", None, "INSUFFICIENT_MECHANISM_EVIDENCE"),
+        ("insufficient", "feasible", None, "INSUFFICIENT_MECHANISM_EVIDENCE"),
+        ("insufficient", "infeasible", "external_issue",
+         "INFEASIBLE_TASK_POLICY_TOOL_COMBINATION"),
+        ("contrastive_support", "infeasible", "external_issue",
+         "INFEASIBLE_TASK_POLICY_TOOL_COMBINATION"),
+        ("contrastive_support", "uncertain", "uncertain", "FEASIBILITY_UNCERTAIN"),
+        ("conflicting", "feasible", "uncertain", "CONFLICTING_MECHANISM_EVIDENCE"),
+        ("conflicting", "uncertain", "uncertain", "CONFLICTING_MECHANISM_EVIDENCE"),
+    ],
+)
+def test_compiler_evidence_feasibility_precedence_matrix(
+    evidence_status, feasibility, root_cause, reason,
+):
+    value = _semantic(evidence_status=evidence_status, feasibility=feasibility)
+    decision, _ = compile_semantic_diagnosis(value, SECTIONS)
+    assert decision["root_cause"] == root_cause
+    assert decision["reason"] == reason
+    assert not decision["update_eligible"]
+
+
 def _twenty_task_evidence() -> tuple[dict, ...]:
     return tuple(
         _experience(domain, str(task), rollout_index)
@@ -849,6 +962,14 @@ def test_editor_preserves_single_domain_boundary():
         "An edit supported only by one domain must not be generalized into a "
         "cross-domain rule"
     ) in prompt
+    assert (
+        "For an edit supported by exactly one domain, the final canonical wording must "
+        "preserve that domain explicitly in its trigger or scope"
+    ) in prompt
+    assert (
+        'A generic cross-domain trigger such as "when a user\'s request cannot be fulfilled" '
+        "is not acceptable for a single-domain source"
+    ) in prompt
 
 
 def test_editor_allows_compatible_multi_domain_mechanism_merge():
@@ -856,6 +977,18 @@ def test_editor_allows_compatible_multi_domain_mechanism_merge():
     assert (
         "unless eligible Diagnoses from multiple domains support the same mechanism "
         "and compatible decision boundary"
+    ) in prompt
+
+
+def test_editor_requires_semantic_confirmation_not_lexical_matching():
+    prompt = editor_v14.EDITOR_SYSTEM_PROMPT
+    assert (
+        "Do not convert a semantic authorization, confirmation, consent, or intent "
+        "condition into lexical substring matching"
+    ) in prompt
+    assert (
+        "Confirmation must semantically and unambiguously authorize the complete listed "
+        "action details and intended scope"
     ) in prompt
 
 

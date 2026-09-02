@@ -59,12 +59,12 @@ def compile_semantic_diagnosis(
 
     if feasibility == "infeasible":
         return no_update("external_issue", "INFEASIBLE_TASK_POLICY_TOOL_COMBINATION")
-    if feasibility == "uncertain":
-        return no_update("uncertain", "FEASIBILITY_UNCERTAIN")
     if evidence == "insufficient":
         return no_update(None, "INSUFFICIENT_MECHANISM_EVIDENCE")
     if evidence == "conflicting":
         return no_update("uncertain", "CONFLICTING_MECHANISM_EVIDENCE")
+    if feasibility == "uncertain":
+        return no_update("uncertain", "FEASIBILITY_UNCERTAIN")
     if coverage == "already_covered":
         return no_update("execution_issue", "MECHANISM_ALREADY_COVERED")
     if coverage == "not_applicable":

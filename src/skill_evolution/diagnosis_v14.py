@@ -198,22 +198,30 @@ Preserve this reasoning order:
 
 1. Analyze Agent-controlled behavior before outcomes. Identify a concrete decision, predicate, condition check, tool or action choice, argument choice, ordering, retry, continuation, stopping decision, or explicit claim. Outcome labels, evaluator results, environment differences, latency, and tool-result differences are not behavioral mechanisms.
 
-2. Evaluate feasibility at the relevant decision point using task requirements, the original Policy, and available tool contracts. feasible means a correct behavior existed that was simultaneously task-satisfying, Policy-permitted, technically supported, and available then. infeasible means no such behavior existed. uncertain means the supplied evidence cannot establish feasibility. Policy is normative; tool capability cannot create Policy permission.
+2. Identify one candidate problematic Agent-controlled behavioral mechanism. contrastive_support / recurrent_support must support a problematic behavioral mechanism or repair hypothesis, not merely a stable behavior pattern. If the Agent already executes the target behavior correctly across all relevant rollouts, do not create an update merely because the Parent Skill does not explicitly encode that behavior. Stable correct behavior may be positive or counterevidence, but is not itself a Skill issue.
 
-3. Identify one candidate Agent-controlled behavioral mechanism and collect cross-rollout evidence for it. Do not assign the final evidence_status yet. Select supporting and counter evidence only with E### references shown directly on supplied trajectory steps.
+3. Compare all three rollouts at the relevant predicate and decision opportunity, then collect cross-rollout evidence. Do not assign the final evidence_status yet. Select supporting and counter evidence only with E### references shown directly on supplied trajectory steps. support_evidence_refs and counterevidence_refs must be disjoint. Before citing evidence as support or counterevidence, verify that the claimed fact is actually supported by that step and the necessary prior context in the same rollout. Do not infer that required information was absent merely because it was not repeated immediately before the action; check whether it had already been supplied earlier in the trajectory.
 
-contrastive_support / recurrent_support must support a problematic behavioral mechanism or repair hypothesis, not merely a stable behavior pattern. If the Agent already executes the target behavior correctly across all relevant rollouts, do not create an update merely because the Parent Skill does not explicitly encode that behavior. Stable correct behavior may be positive or counterevidence, but is not itself a Skill issue.
+4. Falsify the candidate mechanism against all three rollouts. Actively search for same-condition counterexamples, different predicates, missing decision opportunities, and cases where the predicted effect does not occur. Compare the relevant predicate, decision opportunity, behavior, and predicted effect in every rollout. A rollout without the relevant decision opportunity is neither support nor counterevidence for that mechanism. Do not preserve a mechanism merely because it initially looked plausible. A disproven allegation is insufficient, not conflicting. Counterevidence must directly constrain the proposed causal mechanism or behavior change.
 
-4. Falsify the candidate mechanism against all three rollouts. Actively search for same-condition counterexamples, different predicates, missing decision opportunities, and cases where the predicted effect does not occur. Compare the relevant predicate, decision opportunity, behavior, and predicted effect in every rollout. Do not preserve a mechanism merely because it initially looked plausible. A disproven allegation is insufficient, not conflicting. Counterevidence must constrain the proposed behavior change.
+5. Evaluate feasibility of a correct Agent handling path at the relevant decision point using task requirements, the original Policy, available tool contracts, and relevant environment state. Feasibility may constrain whether a repair is actionable, but must not create mechanism evidence. feasible, infeasible, or uncertain must not turn insufficient evidence into recurrent_support, contrastive_support, or conflicting evidence. Policy is normative; tool capability cannot create Policy permission.
 
-5. Only after falsification, classify the final evidence_status:
-- contrastive_support: different Agent-controlled behaviors support one concrete mechanism under Policy/tool grounding.
-- recurrent_support: multiple rollouts repeat the same problematic decision mechanism under the same relevant condition or decision opportunity, with a legal feasible alternative.
-- conflicting: a concrete plausible mechanism has substantive support and unreconciled counterevidence.
-- insufficient: no reliable Agent-controlled mechanism survives; evidence is mainly labels, environment differences, incidental behavior, or unreliable attribution.
-The final evidence_status must reflect the result after falsification, not the initial hypothesis.
+feasible: At the relevant decision point, at least one correct Agent handling path was available that was simultaneously consistent with the task, permitted by the original Policy, and technically supported. A correct handling path may include performing the requested action, offering a permitted alternative, correctly refusing a prohibited request, requesting required information or authorization, or escalating when Policy requires it. If the actual rollouts already demonstrate a correct, compliant, tool-supported handling path, feasibility = feasible. Do not use uncertain merely because no problematic mechanism was found.
 
-6. Compare the mechanism with the annotated Parent Skill:
+infeasible: No correct Agent handling path existed under the task requirements, original Policy, available tools, and relevant environment state. The user's preferred action being prohibited or unavailable does not by itself make the situation infeasible if the Agent still had a correct permitted way to handle the request.
+
+uncertain: A relevant problematic decision point has been identified, but the supplied task, Policy, or tool evidence is insufficient to determine whether any correct handling path was actually available. Do not use uncertain merely because no problematic mechanism was found.
+
+Evidence status answers whether a reliable Agent-controlled problematic mechanism exists. Feasibility answers whether a correct, Policy-permitted, tool-supported Agent handling path existed. Outcome relation answers whether the problematic mechanism affected Task Success or Compliance. These three judgments are independent.
+
+6. Only after falsification and the separate feasibility assessment, assign the final evidence_status based on mechanism evidence:
+- contrastive_support: At least one rollout exhibits the problematic behavior and at least one matched rollout exhibits the correct alternative under the same relevant predicate and decision opportunity. The matched correct behavior is supporting contrastive evidence, not counterevidence.
+- recurrent_support: The same problematic Agent-controlled mechanism repeats in multiple rollouts under the same relevant predicate and decision opportunity. Different decision opportunities do not count toward recurrence. If matched problematic and correct behaviors are both observed under comparable decision opportunities, prefer contrastive_support over recurrent_support.
+- conflicting: Substantive evidence directly undermines the proposed causal mechanism. This includes the same claimed problematic behavior without the predicted adverse effect, a supposedly supporting rollout that lacks the causal predicate, an alleged correct alternative that was not actually available, or matched evidence supporting mutually incompatible causal explanations. A matched correct alternative behavior is not by itself counterevidence; it may be exactly the contrast required for contrastive_support.
+- insufficient: No reliable problematic mechanism can be established because evidence is too weak, not comparable, or the relevant decision opportunity is absent. A rollout without the relevant decision opportunity is neither support nor counterevidence for that mechanism.
+The final evidence_status must reflect the mechanism evidence after falsification, not feasibility or the initial hypothesis.
+
+7. Compare the mechanism with the annotated Parent Skill:
 - missing: the necessary mechanism is absent.
 - incorrect: an existing rule gives wrong guidance.
 - underspecified: a related rule omits an execution-critical trigger, predicate, boundary, ordering, feasibility condition, or stopping condition.
@@ -221,7 +229,7 @@ The final evidence_status must reflect the result after falsification, not the i
 - not_applicable: the mechanism has no direct Parent Skill coverage relationship.
 Only cite Rule IDs present in CURRENT_PARENT_SKILL_WITH_RULE_IDS. Do not label a rule underspecified merely to enable an update.
 
-7. Judge Task Success and Compliance independently. Use supports, contradicts, insufficient, or not_applicable. Outcomes may test an already-proposed mechanism but must not create one. Policy may support a Compliance relationship even when Task Success evidence is insufficient. Do not derive or output an update axis.
+8. Judge Task Success and Compliance outcome relation independently. Use supports, contradicts, insufficient, or not_applicable. Outcomes may test an already-proposed mechanism but must not create one. Policy may support a Compliance relationship even when Task Success evidence is insufficient. Do not derive or output an update axis.
 
 supports: The observed outcome supports the causal claim that the identified problematic behavioral mechanism should be repaired on this axis.
 
@@ -235,9 +243,11 @@ Examples:
 
 Task Success and Compliance labels are observational evidence. The original domain Policy is the normative authority. If a Compliance label appears inconsistent with Policy/tool-grounded behavior analysis, do not let the label alone create a Skill update.
 
-8. Describe target behavior semantically: the problem, trigger, decision boundary, repair operator, necessary stopping boundary, and expected behavior. Generalize incidental episode values while preserving causal predicates. All six fields are strings; use an empty string when no special stopping boundary is needed.
+A locally suboptimal behavior does not by itself imply task_success = supports. If the rollout ultimately achieves the official Task Success outcome and the evidence only shows extra dialogue, user correction, inefficiency, a recoverable detour, or delayed completion, use task_success = insufficient unless the supplied Task Success evidence explicitly demonstrates degradation on the official Task Success axis. Do not invent efficiency, user burden, interaction cost, or any optimization axis beyond Task Success and Compliance.
 
-9. edit_intent is limited to replace, delete, or not_applicable. For missing coverage use not_applicable because Python derives add. For incorrect or underspecified coverage, use replace or delete only when that is the intended treatment of the cited existing rule. For already_covered or not_applicable coverage use not_applicable. This field is consulted only if the deterministic compiler finds the Diagnosis update-eligible.
+9. Produce target_behavior and edit_intent. Describe target behavior semantically: the problem, trigger, decision boundary, repair operator, necessary stopping boundary, and expected behavior. Generalize incidental episode values while preserving causal predicates. Do not convert a semantic authorization, confirmation, consent, or intent condition into lexical substring matching unless the authoritative Policy explicitly requires an exact literal token. Confirmation must semantically and unambiguously authorize the complete listed action details and intended scope. A phrase that negates confirmation or confirms only part of an action bundle does not authorize the full action. All six target_behavior fields are strings; use an empty string when no special stopping boundary is needed.
+
+edit_intent is limited to replace, delete, or not_applicable. For missing coverage use not_applicable because Python derives add. For incorrect or underspecified coverage, use replace or delete only when that is the intended treatment of the cited existing rule. For already_covered or not_applicable coverage use not_applicable. This field is consulted only if the deterministic compiler finds the Diagnosis update-eligible.
 
 repair_policy_refs may contain only P### references shown in supplied violation evidence that directly ground the compliance repair.
 
