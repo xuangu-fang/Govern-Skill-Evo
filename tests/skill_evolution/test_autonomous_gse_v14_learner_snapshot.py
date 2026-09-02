@@ -463,7 +463,15 @@ def test_diagnosis_008_stable_correct_behavior_cannot_become_missing_skill_updat
         "rollouts, do not create an update merely because the Parent Skill does not "
         "explicitly encode that behavior"
     ) in prompt
-    assert "Stable correct behavior may be positive or counterevidence, but is not itself a Skill issue" in prompt
+    assert "Stable correct behavior is not itself a Skill issue" in prompt
+    assert (
+        "When correct behavior is observed under a matched relevant predicate and decision "
+        "opportunity, it may serve as the correct side of contrastive_support"
+    ) in prompt
+    assert (
+        "Correct behavior is counterevidence only when it directly undermines the proposed "
+        "causal mechanism"
+    ) in prompt
 
 
 def test_compliance_label_alone_cannot_override_policy_grounded_analysis():
@@ -487,6 +495,17 @@ def test_feasibility_prompt_defines_correct_handling_independently_from_mechanis
     assert (
         "The user's preferred action being prohibited or unavailable does not by itself "
         "make the situation infeasible"
+    ) in prompt
+    assert (
+        "A correct handling path must be both task-satisfying and Policy-permitted"
+    ) in prompt
+    assert (
+        "A refusal counts as a feasible handling path only when refusal is itself an "
+        "acceptable resolution of the task"
+    ) in prompt
+    assert (
+        "A merely Policy-compliant refusal does not make an otherwise task-infeasible "
+        "request feasible"
     ) in prompt
     assert "Do not use uncertain merely because no problematic mechanism was found" in prompt
     assert (
@@ -530,6 +549,22 @@ def test_true_counterevidence_requires_direct_causal_undermining():
     prompt = diagnosis_v14.DIAGNOSIS_SYSTEM_PROMPT
     assert "Substantive evidence directly undermines the proposed causal mechanism" in prompt
     assert "the same claimed problematic behavior without the predicted adverse effect" in prompt
+
+
+def test_falsification_separates_insufficient_from_conflicting_evidence():
+    prompt = diagnosis_v14.DIAGNOSIS_SYSTEM_PROMPT
+    assert (
+        "If falsification fully defeats the candidate mechanism and no substantive support "
+        "remains, classify evidence_status = insufficient"
+    ) in prompt
+    assert (
+        "If substantive support remains, but unreconciled counterevidence directly "
+        "undermines the proposed causal mechanism, classify evidence_status = conflicting"
+    ) in prompt
+    assert (
+        "A rollout without the relevant decision opportunity is neither support nor "
+        "counterevidence for that mechanism"
+    ) in prompt
 
 
 def test_evidence_refs_require_disjoint_factually_grounded_steps_and_prior_context():
