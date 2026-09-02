@@ -55,6 +55,28 @@ class DiagnosisEditorRequest:
 DiagnosisEditor = Callable[[DiagnosisEditorRequest], str]
 
 
+class EditorContractError(RuntimeError):
+    """Raised when the v0.14 Editor call or output contract fails."""
+
+    def __init__(
+        self, code: str, *, raw_response: str | None,
+        structured_output_mode: str, error_reason: str,
+    ) -> None:
+        self.code = code
+        self.raw_response = raw_response
+        self.structured_output_mode = structured_output_mode
+        self.error_reason = error_reason
+        super().__init__(f"{code}: {error_reason}")
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "error_code": self.code,
+            "raw_response": self.raw_response,
+            "structured_output_mode": self.structured_output_mode,
+            "error_reason": self.error_reason,
+        }
+
+
 class DiagnosisContractError(ValueError):
     code = "DIAGNOSIS_CONTRACT_ERROR"
 
@@ -303,7 +325,18 @@ class MultiRolloutDiagnosisProposalOperator:
                     "original_domain_policy": domain_contexts[domain]["original_domain_policy"],
                 } for domain in eligible_domains),
             ))
-            return _guard_editor_response(response, request, set(sections))
+            guarded = _guard_editor_response(response, request, set(sections))
+            _, error = _parse_tagged_list(guarded, "CANONICAL_EDITS_JSON")
+            if error is not None:
+                raise EditorContractError(
+                    "EDITOR_STRUCTURED_OUTPUT_ERROR",
+                    raw_response=getattr(response, "raw_response", str(response)),
+                    structured_output_mode=getattr(
+                        response, "structured_output_mode", "internal_compatibility",
+                    ),
+                    error_reason=getattr(response, "error_reason", error),
+                )
+            return guarded
 
         decision = propose_from_update_signals(context, signals, bounded_editor, upstream_calls=len(validations))
         return _enrich_decision(decision, validations, eligible_ids)

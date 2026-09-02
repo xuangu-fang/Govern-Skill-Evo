@@ -16,7 +16,9 @@ from src.skill_evolution.autonomous_gse_v14_orchestrator import (
 from src.skill_evolution import autonomous_gse_v14_benchmark_runtime as runtime
 from src.skill_evolution import autonomous_gse_v14_orchestrator as orchestrator
 from src.skill_evolution import autonomous_gse_v14_proposal as proposal_v14
-from src.skill_evolution.autonomous_gse_v14_proposal import DiagnosisContractError
+from src.skill_evolution.autonomous_gse_v14_proposal import (
+    DiagnosisContractError, EditorContractError,
+)
 from src.skill_evolution.diagnosis_contract_v14 import DiagnosisValidation
 from src.skill_evolution.regression_analysis_v14 import (
     RegressionAnalysisRequest, analyze_regressions, select_adverse_pairs,
@@ -351,6 +353,39 @@ def test_failed_step_keeps_current_execution_error(tmp_path):
 
     error_path = tmp_path / "artifacts/steps/step_01/execution_error.json"
     assert json.loads(error_path.read_text())["error_message"] == "current failure"
+
+
+def test_editor_contract_failure_fails_closed_and_persists_transport_details(tmp_path):
+    skill = tmp_path / "S0.md"
+    skill.write_text("# S0\n", encoding="utf-8")
+    parent = {"skill_id": "S0", "skill_version": "S0", "skill_path": str(skill)}
+    error = EditorContractError(
+        "EDITOR_SCHEMA_CONTRACT_ERROR", raw_response="{bad response",
+        structured_output_mode="json_schema", error_reason="invalid JSON",
+    )
+
+    with pytest.raises(EditorContractError):
+        run_evolution_step(
+            step=1, batch=_batches()[0], parent=parent, parent_monitor={}, campaign={},
+            services=_services(
+                [], _calls(),
+                proposal=lambda context, step: (_ for _ in ()).throw(error),
+            ),
+            artifact_root=tmp_path / "artifacts",
+        )
+
+    step_root = tmp_path / "artifacts/steps/step_01"
+    contract = json.loads((step_root / "editor_contract_error.json").read_text())
+    execution = json.loads((step_root / "execution_error.json").read_text())
+    assert contract["error_code"] == "EDITOR_SCHEMA_CONTRACT_ERROR"
+    assert contract["raw_response"] == "{bad response"
+    assert contract["structured_output_mode"] == "json_schema"
+    assert contract["error_reason"] == "invalid JSON"
+    assert execution["error_type"] == "EditorContractError"
+    assert execution["editor_contract_error_path"].endswith(
+        "steps/step_01/editor_contract_error.json"
+    )
+    assert not (step_root / "step_summary.json").exists()
 
 
 def test_candidate_monitor_failure_is_execution_error_not_retain(tmp_path):

@@ -1140,6 +1140,134 @@ def test_proposal_skips_editor_when_compiler_finds_no_update():
     )
 
 
+def _strict_editor_result(edit):
+    calls = []
+
+    def learner(model, system, user, **kwargs):
+        calls.append((model, system, user, kwargs))
+        return json.dumps({"canonical_edits": [] if edit is None else [edit]}), model, None
+
+    def editor(request):
+        return editor_v14.call_governed_editor(request, learner_call=learner)
+
+    return editor, calls
+
+
+def test_structured_editor_success_runs_existing_guard_and_builds_candidate(monkeypatch):
+    evidence = tuple(_experience("airline", "1", index) for index in (1, 2, 3))
+    edit = _edit(["diagnosis_001"])
+    edit["text"] = "For airline requests, preserve the grounded decision predicate."
+    edit["verification_target"]["trigger_condition"] = (
+        "For airline requests, when the relevant decision opportunity occurs"
+    )
+    editor, calls = _strict_editor_result(edit)
+    guard_calls = []
+    original_guard = proposal_v14._guard_editor_response
+
+    def guard(*args, **kwargs):
+        guard_calls.append(1)
+        return original_guard(*args, **kwargs)
+
+    monkeypatch.setattr(proposal_v14, "_guard_editor_response", guard)
+    decision = proposal_v14.MultiRolloutDiagnosisProposalOperator().propose(
+        ProposalContext("candidate_001", _parent_skill(), evidence),
+        _update_diagnoser, editor, domain_contexts=_domain_contexts(),
+    )
+
+    assert decision.proposal_status == "CANDIDATE"
+    assert decision.editor_calls == 1
+    assert len(calls) == 1
+    assert len(guard_calls) == 1
+    assert calls[0][3]["response_format"] == editor_v14.EDITOR_RESPONSE_FORMAT
+
+
+def test_structured_editor_legal_empty_list_is_semantic_noop():
+    evidence = tuple(_experience("airline", "1", index) for index in (1, 2, 3))
+    editor, calls = _strict_editor_result(None)
+
+    decision = proposal_v14.MultiRolloutDiagnosisProposalOperator().propose(
+        ProposalContext("candidate_001", _parent_skill(), evidence),
+        _update_diagnoser, editor, domain_contexts=_domain_contexts(),
+    )
+
+    assert decision.proposal_status == "NO_CANDIDATE"
+    assert decision.proposal_reason["code"] == "EMPTY_EDITS"
+    assert decision.editor_calls == 1
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize(
+    ("response", "code"),
+    [
+        ("not json", "EDITOR_SCHEMA_CONTRACT_ERROR"),
+        (json.dumps({"canonical_edits": [{"operation": "add"}]}),
+         "EDITOR_SCHEMA_CONTRACT_ERROR"),
+        ("", "EDITOR_EMPTY_RESPONSE"),
+    ],
+)
+def test_structured_editor_contract_failure_raises_without_retry(response, code):
+    calls = []
+
+    def learner(*args, **kwargs):
+        calls.append(kwargs)
+        return response, "deepseek-v4-pro", None
+
+    request = proposal_v14.DiagnosisEditorRequest(
+        "candidate_001", _parent_skill(), ({"patch_id": "diagnosis_001"},),
+        ({"domain": "airline", "original_domain_policy": "Policy."},),
+    )
+    with pytest.raises(proposal_v14.EditorContractError) as caught:
+        editor_v14.call_governed_editor(request, learner_call=learner)
+
+    assert caught.value.code == code
+    assert caught.value.raw_response == response
+    assert caught.value.structured_output_mode == "json_schema"
+    assert len(calls) == 1
+
+
+def test_structured_editor_transport_failure_raises_without_retry():
+    calls = []
+
+    def learner(*args, **kwargs):
+        calls.append(kwargs)
+        raise RuntimeError("structured transport unavailable")
+
+    request = proposal_v14.DiagnosisEditorRequest(
+        "candidate_001", _parent_skill(), ({"patch_id": "diagnosis_001"},),
+        ({"domain": "airline", "original_domain_policy": "Policy."},),
+    )
+    with pytest.raises(proposal_v14.EditorContractError) as caught:
+        editor_v14.call_governed_editor(request, learner_call=learner)
+
+    assert caught.value.code == "EDITOR_STRUCTURED_OUTPUT_ERROR"
+    assert caught.value.raw_response is None
+    assert caught.value.structured_output_mode == "json_schema"
+    assert caught.value.error_reason == "structured transport unavailable"
+    assert len(calls) == 1
+
+
+def test_editor_response_schema_is_strict_structure_only():
+    response_format = editor_v14.EDITOR_RESPONSE_FORMAT
+    schema = response_format["json_schema"]["schema"]
+    edit = schema["properties"]["canonical_edits"]["items"]
+    verification = edit["properties"]["verification_target"]
+
+    assert response_format["type"] == "json_schema"
+    assert response_format["json_schema"]["strict"] is True
+    assert schema["additionalProperties"] is False
+    assert edit["additionalProperties"] is False
+    assert verification["additionalProperties"] is False
+    assert set(schema["required"]) == {"canonical_edits"}
+    assert set(edit["required"]) == {
+        "derived_from_patch_ids", "operation", "section", "target_rule_id",
+        "text", "reason", "source_ids", "repair_policy_ids",
+        "verification_target",
+    }
+    assert set(verification["required"]) == {
+        "problem", "trigger_condition", "expected_behavior",
+    }
+
+
 def test_editor_only_replay_exactly_reuses_diagnoses_and_preserves_source_artifacts(
     tmp_path, monkeypatch,
 ):
@@ -1249,6 +1377,35 @@ def test_editor_only_replay_fails_before_editor_on_compiler_drift(tmp_path):
             campaign, batch_map, step=1, artifact_root=artifact_root,
             editor=forbidden_editor,
         )
+
+
+def test_editor_only_replay_persists_editor_contract_failure(tmp_path):
+    campaign, batch_map, artifact_root, _, _ = _editor_replay_source(
+        tmp_path, eligible_ids={"diagnosis_001"},
+    )
+    calls = []
+
+    def malformed_editor(_request):
+        calls.append(1)
+        return "malformed editor transport"
+
+    with pytest.raises(
+        proposal_v14.EditorContractError, match="EDITOR_STRUCTURED_OUTPUT_ERROR",
+    ):
+        runtime_v14.rerun_editor_only(
+            campaign, batch_map, step=1, artifact_root=artifact_root,
+            editor=malformed_editor,
+        )
+
+    artifact = json.loads((
+        artifact_root / "steps/step_01/editor_replay/editor_contract_error.json"
+    ).read_text())
+    assert artifact["raw_response"] == "malformed editor transport"
+    assert artifact["structured_output_mode"] == "internal_compatibility"
+    assert artifact["diagnosis_llm_calls"] == 0
+    assert artifact["editor_calls"] == 1
+    assert artifact["compiled_decisions_replayed_without_drift"] is True
+    assert len(calls) == 1
 
 
 def test_rerun_editor_cli_dispatches_to_editor_only_replay(tmp_path, monkeypatch, capsys):
@@ -1448,6 +1605,9 @@ def test_editor_prompt_has_only_requested_logical_sections():
         "G. Verification target",
         "H. Output contract",
     ]
+    assert "Return only the structured canonical-edit result" in prompt
+    assert "<CANONICAL_EDITS_JSON>" not in prompt
+    assert "</CANONICAL_EDITS_JSON>" not in prompt
 
 
 def test_editor_prompt_contains_no_known_case_shaped_production_tokens():

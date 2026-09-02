@@ -7,16 +7,84 @@ from collections.abc import Callable
 from typing import Any
 
 from src.skill_evolution.autonomous_gse_v05_proposal import annotate_parent_skill
-from src.skill_evolution.autonomous_gse_v14_proposal import DiagnosisEditorRequest
+from src.skill_evolution.autonomous_gse_v14_proposal import (
+    DiagnosisEditorRequest, EditorContractError,
+)
 
 LEARNER_MODEL = "openai/deepseek-v4-pro"
 LearnerCall = Callable[[str, str, str], tuple[str, str, dict[str, Any] | None]]
 
+VERIFICATION_TARGET_JSON_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["problem", "trigger_condition", "expected_behavior"],
+    "properties": {
+        "problem": {"type": "string"},
+        "trigger_condition": {"type": "string"},
+        "expected_behavior": {"type": "string"},
+    },
+}
+CANONICAL_EDIT_JSON_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": [
+        "derived_from_patch_ids", "operation", "section", "target_rule_id",
+        "text", "reason", "source_ids", "repair_policy_ids",
+        "verification_target",
+    ],
+    "properties": {
+        "derived_from_patch_ids": {
+            "type": "array", "items": {"type": "string"},
+        },
+        "operation": {"type": "string", "enum": ["add", "replace", "delete"]},
+        "section": {"type": "string"},
+        "target_rule_id": {"type": "string"},
+        "text": {"type": "string"},
+        "reason": {"type": "string"},
+        "source_ids": {"type": "array", "items": {"type": "string"}},
+        "repair_policy_ids": {"type": "array", "items": {"type": "string"}},
+        "verification_target": VERIFICATION_TARGET_JSON_SCHEMA,
+    },
+}
+EDITOR_JSON_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["canonical_edits"],
+    "properties": {
+        "canonical_edits": {
+            "type": "array", "items": CANONICAL_EDIT_JSON_SCHEMA,
+        },
+    },
+}
+EDITOR_RESPONSE_FORMAT = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "v14_canonical_edits",
+        "strict": True,
+        "schema": EDITOR_JSON_SCHEMA,
+    },
+}
 
-def _default_learner_call(model: str, system: str, user: str) -> tuple[str, str, dict[str, Any] | None]:
+
+class EditorResponse(str):
+    """Internal tagged adapter carrying the original structured response."""
+
+    def __new__(cls, value: str, raw_response: str):
+        instance = super().__new__(cls, value)
+        instance.raw_response = raw_response
+        instance.structured_output_mode = "json_schema"
+        instance.error_reason = None
+        return instance
+
+
+def _default_learner_call(
+    model: str, system: str, user: str, *, response_format: dict | None = None,
+) -> tuple[str, str, dict[str, Any] | None]:
     from src.learners.stwebagentbench.generate_skill import call_learner
 
-    return call_learner(model, system, user, temperature=0.0)
+    return call_learner(
+        model, system, user, temperature=0.0, response_format=response_format,
+    )
 
 
 EDITOR_SYSTEM_PROMPT = """You are the v0.14 bounded Editor. In at most one call, perform cross-task deduplication, wording normalization, episode generalization, section placement, and final Skill wording.
@@ -71,10 +139,7 @@ Before emitting an edit, verify that its Skill text and verification target join
 H. Output contract
 Preserve all source_ids, repair_policy_ids, and derived_from_patch_ids; each patch contributes to at most one edit. For add or replace, text is actionable Skill wording without a Markdown bullet; delete has empty text.
 
-Return exactly one tagged JSON list with fields derived_from_patch_ids, operation, section, target_rule_id, text, reason, source_ids, repair_policy_ids, verification_target, and no prose:
-<CANONICAL_EDITS_JSON>
-[]
-</CANONICAL_EDITS_JSON>
+Return only the structured canonical-edit result required by the supplied response schema.
 """
 
 
@@ -103,13 +168,74 @@ def build_editor_prompts(request: DiagnosisEditorRequest) -> tuple[str, str]:
         + "\n</UPDATE_ELIGIBLE_TASK_DIAGNOSES>\n\n"
         "<AUTHORITATIVE_DOMAIN_CONTEXT>\n"
         + json.dumps(list(request.domain_contexts), ensure_ascii=False, indent=2, sort_keys=True)
-        + "\n</AUTHORITATIVE_DOMAIN_CONTEXT>\n\nReturn only the CANONICAL_EDITS_JSON block."
+        + "\n</AUTHORITATIVE_DOMAIN_CONTEXT>\n\nReturn only the structured response."
     )
+
+
+def _is_string_list(value: Any) -> bool:
+    return isinstance(value, list) and all(isinstance(item, str) for item in value)
+
+
+def _valid_structured_editor_result(value: Any) -> bool:
+    if not isinstance(value, dict) or set(value) != {"canonical_edits"}:
+        return False
+    edits = value["canonical_edits"]
+    expected_fields = set(CANONICAL_EDIT_JSON_SCHEMA["required"])
+    verification_fields = set(VERIFICATION_TARGET_JSON_SCHEMA["required"])
+    for edit in edits if isinstance(edits, list) else ():
+        verification = edit.get("verification_target") if isinstance(edit, dict) else None
+        if (
+            not isinstance(edit, dict) or set(edit) != expected_fields
+            or edit.get("operation") not in {"add", "replace", "delete"}
+            or any(not isinstance(edit.get(field), str) for field in (
+                "section", "target_rule_id", "text", "reason",
+            ))
+            or any(not _is_string_list(edit.get(field)) for field in (
+                "derived_from_patch_ids", "source_ids", "repair_policy_ids",
+            ))
+            or not isinstance(verification, dict)
+            or set(verification) != verification_fields
+            or any(not isinstance(verification.get(field), str) for field in verification_fields)
+        ):
+            return False
+    return isinstance(edits, list)
 
 
 def call_governed_editor(request: DiagnosisEditorRequest, *, learner_call: LearnerCall = _default_learner_call) -> str:
     system, user = build_editor_prompts(request)
-    response, _, _ = learner_call(LEARNER_MODEL, system, user)
+    try:
+        response, _, _ = learner_call(
+            LEARNER_MODEL, system, user, response_format=EDITOR_RESPONSE_FORMAT,
+        )
+    except Exception as error:
+        raise EditorContractError(
+            "EDITOR_STRUCTURED_OUTPUT_ERROR", raw_response=None,
+            structured_output_mode="json_schema", error_reason=str(error),
+        ) from error
     if not isinstance(response, str) or not response.strip():
-        raise RuntimeError("v0.14 Editor returned an empty response.")
-    return response.strip()
+        raise EditorContractError(
+            "EDITOR_EMPTY_RESPONSE",
+            raw_response=response if isinstance(response, str) else None,
+            structured_output_mode="json_schema",
+            error_reason="v0.14 Editor returned an empty response.",
+        )
+    raw_response = response.strip()
+    try:
+        structured = json.loads(raw_response)
+    except json.JSONDecodeError as error:
+        raise EditorContractError(
+            "EDITOR_SCHEMA_CONTRACT_ERROR", raw_response=raw_response,
+            structured_output_mode="json_schema", error_reason=str(error),
+        ) from error
+    if not _valid_structured_editor_result(structured):
+        raise EditorContractError(
+            "EDITOR_SCHEMA_CONTRACT_ERROR", raw_response=raw_response,
+            structured_output_mode="json_schema",
+            error_reason="Editor result does not match the strict response schema.",
+        )
+    internal = (
+        "<CANONICAL_EDITS_JSON>"
+        + json.dumps(structured["canonical_edits"], ensure_ascii=False)
+        + "</CANONICAL_EDITS_JSON>"
+    )
+    return EditorResponse(internal, raw_response)

@@ -534,15 +534,30 @@ def rerun_editor_only(
     domain_contexts = load_authoritative_domain_contexts(
         _resolved_path(campaign["benchmark"]["path"]),
     )
-    decision = propose_candidate(
-        ProposalContext(
-            candidate_id=f"candidate_step_{step:02d}", parent_skill=parent_text,
-            current_batch_governed_evidence=evidence,
-        ),
-        campaign=campaign, batch_map=batch_map, step=step,
-        domain_contexts=domain_contexts, diagnoser=cached_diagnoser,
-        editor=call_governed_editor if editor is None else editor,
-    )
+    try:
+        decision = propose_candidate(
+            ProposalContext(
+                candidate_id=f"candidate_step_{step:02d}", parent_skill=parent_text,
+                current_batch_governed_evidence=evidence,
+            ),
+            campaign=campaign, batch_map=batch_map, step=step,
+            domain_contexts=domain_contexts, diagnoser=cached_diagnoser,
+            editor=call_governed_editor if editor is None else editor,
+        )
+    except proposal_v14.EditorContractError as error:
+        _write_json(replay_root / "editor_contract_error.json", {
+            "schema_version": "autonomous_gse_editor_contract_error_0.14.0",
+            "mode": "editor_only_replay", "step": step,
+            "batch_id": batch["batch_id"],
+            "source_proposal": source_path.resolve().as_posix(),
+            "source_diagnosis_ids": source_diagnosis_ids,
+            "eligible_diagnosis_ids": source_eligible_ids,
+            "diagnosis_reexecuted": False, "diagnosis_llm_calls": 0,
+            "editor_calls": 1,
+            "compiled_decisions_replayed_without_drift": True,
+            **error.as_dict(),
+        })
+        raise
     replay_eligible_ids = [
         item["diagnosis_id"] for item in decision.diagnoses
         if item["compiled_decision"]["update_eligible"]
