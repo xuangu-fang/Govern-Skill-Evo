@@ -892,9 +892,10 @@ def _replay_editor(*, scoped: bool):
         domains = {item["task_identity"]["domain"] for item in request.eligible_diagnoses}
         if scoped and len(domains) == 1:
             domain = next(iter(domains))
-            edit["text"] = f"For {domain} requests, preserve the supported decision boundary."
+            prefix = proposal_v14.DOMAIN_SCOPE_PREFIX[domain]
+            edit["text"] = f"{prefix} preserve the supported decision boundary."
             edit["verification_target"]["trigger_condition"] = (
-                f"For a {domain} request, when the supported decision opportunity occurs"
+                f"{prefix} when the supported decision opportunity occurs"
             )
         return "<CANONICAL_EDITS_JSON>" + json.dumps([edit]) + "</CANONICAL_EDITS_JSON>"
 
@@ -1031,15 +1032,55 @@ def test_single_domain_scoped_text_with_generic_verification_target_fails_closed
     ("domain", "text", "trigger"),
     [
         ("airline", "For airline requests, preserve the supported boundary.",
-         "For an airline request, when the decision opportunity occurs."),
-        ("retail", "For retail order requests, preserve the supported boundary.",
-         "For a retail request, when the decision opportunity occurs."),
+         "For airline requests, when the decision opportunity occurs."),
+        ("retail", "For retail requests, preserve the supported boundary.",
+         "For retail requests, when the decision opportunity occurs."),
     ],
 )
-def test_single_domain_explicitly_scoped_text_and_target_pass(domain, text, trigger):
+def test_single_domain_canonical_prefix_in_text_and_target_pass(domain, text, trigger):
     edit = _guarded_domain_edit([domain], text=text, trigger_condition=trigger)
     assert "v13_validation_error" not in edit
     assert edit["derived_from_patch_ids"] == ["patch_0"]
+
+
+def test_domain_word_in_entity_role_is_not_a_scope_prefix():
+    edit = _guarded_domain_edit(
+        ["airline"],
+        text="For airline requests, verify the cancellation status.",
+        trigger_condition="Determine whether the flight was cancelled by the airline.",
+    )
+    assert edit["v13_validation_error"] == "DOMAIN_SCOPE_LEAKAGE"
+    assert edit["derived_from_patch_ids"] == []
+
+
+def test_single_domain_prefix_only_in_trigger_fails_closed():
+    edit = _guarded_domain_edit(
+        ["retail"],
+        text="Before making a database update, obtain confirmation.",
+        trigger_condition="For retail requests, before making a database update.",
+    )
+    assert edit["v13_validation_error"] == "DOMAIN_SCOPE_LEAKAGE"
+    assert edit["derived_from_patch_ids"] == []
+
+
+def test_wrong_domain_prefix_fails_closed():
+    edit = _guarded_domain_edit(
+        ["airline"],
+        text="For retail requests, preserve the supported boundary.",
+        trigger_condition="For retail requests, when the decision opportunity occurs.",
+    )
+    assert edit["v13_validation_error"] == "DOMAIN_SCOPE_LEAKAGE"
+    assert edit["derived_from_patch_ids"] == []
+
+
+def test_unknown_single_source_domain_fails_closed():
+    edit = _guarded_domain_edit(
+        ["unknown"],
+        text="For unknown requests, preserve the supported boundary.",
+        trigger_condition="For unknown requests, when the decision opportunity occurs.",
+    )
+    assert edit["v13_validation_error"] == "DOMAIN_SCOPE_LEAKAGE"
+    assert edit["derived_from_patch_ids"] == []
 
 
 def test_multi_domain_edit_does_not_require_explicit_domain_names():
@@ -1328,17 +1369,13 @@ def test_editor_preserves_single_domain_boundary():
     prompt = editor_v14.EDITOR_SYSTEM_PROMPT
     assert "Domain is a scope condition" in prompt
     assert (
-        "For every canonical edit supported by exactly one domain, the final Skill text "
-        "must explicitly name that domain in its scope"
+        "mandatory scope prefix at the beginning of BOTH the Skill text and "
+        "verification_target.trigger_condition"
     ) in prompt
-    assert (
-        "Do not rely on domain-specific objects, tools, entities, or workflow names as an "
-        "implicit substitute for the explicit domain scope"
-    ) in prompt
-    assert (
-        "The verification_target.trigger_condition must preserve the same explicit "
-        "single-domain boundary"
-    ) in prompt
+    assert 'airline -> "For airline requests,"' in prompt
+    assert 'retail -> "For retail requests,"' in prompt
+    assert "Do not paraphrase, relocate, or implicitly express this prefix" in prompt
+    assert "The deterministic Editor Guard validates this exact single-domain scope form" in prompt
     assert "unless the rule is inherently domain-specific through its object or tool semantics" not in prompt
 
 
@@ -1358,6 +1395,12 @@ def test_editor_preserves_user_controlled_choice_boundaries():
         "Diagnoses nor the authoritative Policy provides a supported deterministic selector, "
         "do not invent a preference or let the Agent choose among them autonomously"
     ) in prompt
+    assert "The absence of an expressed preference is NOT a deterministic selector" in prompt
+    assert (
+        "one alternative must eventually be selected does not authorize the Agent to select "
+        "autonomously"
+    ) in prompt
+    assert "asks the user which alternative to use before committing" in prompt
     assert "tool semantics do not specify a deterministic selector" not in prompt
     assert "If the user has explicitly selected or authorized one alternative, preserve that choice" in prompt
     assert (
@@ -1386,6 +1429,26 @@ def test_editor_requires_semantic_confirmation_not_lexical_matching():
     assert (
         "Confirmation must semantically and unambiguously authorize the complete listed "
         "action details and intended scope"
+    ) in prompt
+    assert "Do not turn an illustrative confirmation example into a lexical requirement" in prompt
+    assert (
+        'explicit positive confirmation (e.g., "yes"), preserve the semantic requirement '
+        "of unambiguous affirmative confirmation"
+    ) in prompt
+
+
+def test_editor_performs_final_single_call_boundary_check():
+    prompt = editor_v14.EDITOR_SYSTEM_PROMPT
+    assert "perform this final check within this same Editor call" in prompt
+    assert (
+        "both text and verification_target.trigger_condition begin with the required "
+        "canonical domain prefix"
+    ) in prompt
+    assert "preserve user choice or authorization rather than inventing a fallback choice" in prompt
+    assert 'an example such as "yes" must not become a literal-token requirement' in prompt
+    assert (
+        "do not add named categories, examples, fee types, objects, or exceptions not "
+        "supported by the eligible Diagnoses or authoritative Policy"
     ) in prompt
 
 

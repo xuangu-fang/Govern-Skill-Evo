@@ -34,6 +34,11 @@ _TASK_SPECIFIC_RULE_PATTERNS = (
     ),
 )
 
+DOMAIN_SCOPE_PREFIX = {
+    "airline": "For airline requests,",
+    "retail": "For retail requests,",
+}
+
 
 def _contains_task_specific_recipe(text: str) -> bool:
     return any(pattern.search(text) for pattern in _TASK_SPECIFIC_RULE_PATTERNS)
@@ -139,12 +144,11 @@ def _valid_verification_target(value: Any) -> bool:
     } and all(isinstance(value.get(key), str) and value[key].strip() for key in value)
 
 
-def _explicitly_names_domain(text: Any, domain: Any) -> bool:
+def _has_canonical_domain_scope(text: Any, domain: Any) -> bool:
+    prefix = DOMAIN_SCOPE_PREFIX.get(domain) if isinstance(domain, str) else None
     return (
-        isinstance(text, str) and isinstance(domain, str) and bool(domain.strip())
-        and re.search(
-            rf"(?<!\w){re.escape(domain.strip())}(?!\w)", text, re.IGNORECASE,
-        ) is not None
+        isinstance(text, str) and prefix is not None
+        and text.casefold().startswith(prefix.casefold())
     )
 
 
@@ -191,8 +195,8 @@ def _guard_editor_response(response: str, request: EditorRequest, sections: set[
             domain = next(iter(source_domains))
             trigger = edit["verification_target"]["trigger_condition"]
             if not (
-                _explicitly_names_domain(edit.get("text"), domain)
-                and _explicitly_names_domain(trigger, domain)
+                _has_canonical_domain_scope(edit.get("text"), domain)
+                and _has_canonical_domain_scope(trigger, domain)
             ):
                 exclusion = "DOMAIN_SCOPE_LEAKAGE"
         if exclusion is None and isinstance(edit.get("text"), str) and any(
