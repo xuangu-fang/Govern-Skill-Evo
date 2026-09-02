@@ -1387,6 +1387,40 @@ def test_editor_allows_compatible_multi_domain_mechanism_merge():
     ) in prompt
 
 
+def test_editor_preserves_source_specific_predicates_when_merging():
+    prompt = editor_v14.EDITOR_SYSTEM_PROMPT
+    assert "Preserve source-specific predicates when merging" in prompt
+    assert (
+        "do not propagate a condition, factual constraint, obligation, authorization "
+        "requirement, ordering relation, stopping boundary, or exception supported by only "
+        "one source into behavior governed by another source"
+    ) in prompt
+    assert "A shared repair goal does not make all source predicates shared" in prompt
+    assert "Only predicates supported by every source may enter the shared portion" in prompt
+    assert (
+        "Source-specific predicates must remain explicitly scoped to their corresponding "
+        "branch inside the merged rule, or the Diagnoses must remain separate canonical edits"
+    ) in prompt
+    assert "Do not form a merged rule by taking the union of all constraints" in prompt
+
+
+def test_editor_merge_example_keeps_one_source_predicate_branch_scoped():
+    prompt = editor_v14.EDITOR_SYSTEM_PROMPT
+    assert (
+        "if two operations share a completeness reminder but only one source says its action "
+        "can happen once, do not state that both actions can happen only once"
+    ) in prompt
+    assert "Keep that condition in the supported source branch, or emit separate edits" in prompt
+    assert (
+        "verify source by source which trigger predicates, factual constraints, obligations, "
+        "authorization or confirmation requirements, stopping boundaries, and ordering "
+        "relations are shared"
+    ) in prompt
+    assert (
+        "If a condition is not supported by every source, do not place it in the shared portion"
+    ) in prompt
+
+
 def test_editor_preserves_user_controlled_choice_boundaries():
     prompt = editor_v14.EDITOR_SYSTEM_PROMPT
     assert "Preserve user-controlled choice boundaries" in prompt
@@ -1407,6 +1441,34 @@ def test_editor_preserves_user_controlled_choice_boundaries():
         "the canonical rule must preserve the need to obtain that choice or authorization "
         "before committing to one alternative"
     ) in prompt
+
+
+def test_editor_preserves_choice_for_every_action_component():
+    prompt = editor_v14.EDITOR_SYSTEM_PROMPT
+    assert (
+        "Preserve user choice for every user-controlled component introduced or required by "
+        "the canonical rule"
+    ) in prompt
+    assert (
+        "Obtaining the user's choice or authorization for one component of an action does not "
+        "authorize the Agent to autonomously select another component"
+    ) in prompt
+    assert (
+        "For each required alternative, payment method, destination, option, item, or other "
+        "user-controlled parameter"
+    ) in prompt
+    assert "the user already explicitly selected or authorized it" in prompt
+    assert (
+        "the eligible Diagnosis or authoritative Policy provides a supported deterministic "
+        "selector"
+    ) in prompt
+    assert (
+        "If neither is true and the parameter must be chosen before execution, preserve a step "
+        "that obtains the user's choice or authorization before committing"
+    ) in prompt
+    assert '"cover the remainder with an allowed method"' in prompt
+    assert "Such wording must preserve the need to obtain the user's choice before execution" in prompt
+    assert "tool semantics do not specify a deterministic selector" not in prompt
 
 
 def test_editor_does_not_expand_abstract_boundary_into_unsupported_categories():
