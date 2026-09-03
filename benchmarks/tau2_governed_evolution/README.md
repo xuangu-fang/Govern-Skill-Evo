@@ -6,7 +6,7 @@ The benchmark code and derived data live in this directory. The upstream impleme
 
 ## Current stage
 
-The Airline Policy Registry was built directly from the original Airline `policy.md`, its boundary-constructible rules were consolidated into reusable Policy Concepts, and semantic Boundary Templates were defined for the three Pilot Concepts. The current stage implements a Latent Pair Generator MVP for three representative templates. It does not materialize database changes, generate surfaced tasks, specify dataset splits, or run agents or Governed Skill Evolution experiments.
+The Airline Policy Registry was built directly from the original Airline `policy.md`, its boundary-constructible rules were consolidated into reusable Policy Concepts, semantic Boundary Templates were defined for the three Pilot Concepts, and a Latent Pair Generator MVP was implemented for three representative templates. The current stage adds deterministic Surface Diversification for those three templates. It does not generate natural language, materialize database changes, compile τ² tasks, specify dataset splits, or run agents or Governed Skill Evolution experiments.
 
 The registry uses the initial primitive taxonomy requested for the benchmark: `prerequisite`, `authorization`, `confirmation`, `eligibility`, `grounding`, `scope`, `ordering`, `user_control`, and `escalation`. Every collected rule fits one of these primitives without changing its source meaning, so `other` is not currently used.
 
@@ -132,4 +132,40 @@ Latent Pair Audit
 
 `LatentWorld` keeps current-state facts, interaction evidence, and the proposed operation as separate optional mappings. `LatentPair` adds shared context, controlled variables, invariants, two worlds, and the audit result. The audit verifies the predicate flip, governance and resolution change, declared controlled differences, and invariant preservation. Controlled-variable bindings connect semantic variables from the Boundary Template to concrete paths in the latent representation without introducing a policy DSL.
 
-Three seed-zero YAML examples are included for internal schema verification. They contain semantic facts and base-entity references only: no generated utterances, real DB mutation, environment replay, or surfaced task. Surface Diversification, Final Tasks, and Train / Monitor / Test construction remain unimplemented.
+Three seed-zero YAML examples are included for internal schema verification. They contain semantic facts and base-entity references only: no generated utterances, real DB mutation, environment replay, or surfaced task. The Latent Pair stage itself did not perform Surface Diversification.
+
+## Surface Diversification MVP
+
+A Surface Manifestation is the intermediate representation between latent governance semantics and a future natural task. It retains hidden provenance to its Latent World, Latent Pair, Boundary Template, Concept, and Rule while adding a deterministic realization plan. It is not a user scenario, conversation, evaluation object, or final τ² Task.
+
+The current flow is:
+
+```text
+Boundary Template
+        ↓
+Latent Pair
+        ↓
+Latent Pair Audit
+        ↓
+Surface Diversification
+        ↓
+Surface Manifestations
+        ↓
+Surface Invariance Audit
+```
+
+The MVP may vary the following surface dimensions:
+
+- entity binding plan, currently fixed to the verified base entity;
+- policy-irrelevant state and secondary context;
+- information availability and presentation order;
+- persona style class;
+- secondary booking, passenger, preference, and price-attention context.
+
+It must preserve the predicate name and value, expected governance, expected resolution, and Template / Concept / Rule provenance. Latent facts are embedded unchanged inside the state, interaction, and proposed-operation contexts. Explicit policy guardrails record that unrelated blockers have not been introduced.
+
+For each of the three supported Latent Pairs, both worlds independently receive three manifestations, for 18 manifestations total. Deterministic profile selection uses disjoint profile phases on the two worlds, so entity/context/information/persona signatures are not mechanically paired as A1/B1, A2/B2, or A3/B3. Manifestation IDs are opaque and do not encode active/inactive or pair-side labels. The Latent Pair remains available only for benchmark construction and audit; a future learner-facing task will not expose the pair relationship.
+
+Automatic entity replacement is intentionally limited in this MVP. Each manifestation retains its verified Latent World base entity while varying other safe surface dimensions. Replacing a reservation before concrete state realization could silently introduce a flown segment, a basic-economy restriction, an itinerary mismatch, or another independent blocker. Entity diversification will require semantic compatibility checks before it can safely replace base entities.
+
+The three seed-zero example files contain six manifestations each. Within every Latent World, the three manifestations have distinct secondary contexts, information plans, persona plans, and complete surface signatures. Natural-language realization, final task compilation, and Train / Monitor / Test construction remain unimplemented.
