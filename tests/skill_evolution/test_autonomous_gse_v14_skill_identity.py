@@ -68,7 +68,6 @@ def _noop_services(campaign, batch_map, artifact_root, monitor):
             candidate_skill=None, diagnoses=[], applied_edits=[],
         ),
         candidate_monitor=monitor,
-        candidate_replay=lambda *args: pytest.fail("No-op must not replay Candidate."),
     )
 
 

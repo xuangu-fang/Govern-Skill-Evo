@@ -17,11 +17,7 @@ from src.skill_evolution.autonomous_gse_v14_proposal import (
 )
 from src.skill_evolution.distributional_gate_v14 import build_distributional_gate_decision
 from src.skill_evolution.joint_distribution_v14 import build_joint_distribution_report
-from src.skill_evolution.regression_analysis_v14 import analyze_regressions
-from src.skill_evolution.target_behavior_analysis_v14 import analyze_target_behaviors
-
 PROMOTION_SOURCE = "distributional_gate_only"
-EXPLANATION_REPLAY_RETRIES = 2
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -57,9 +53,6 @@ class EvolutionServices:
     parent_rollouts: Callable[[int, dict[str, Any], dict[str, str]], dict[str, Any]]
     propose: Callable[[ProposalContext, int], Any]
     candidate_monitor: Callable[[dict[str, str]], dict[str, Any]]
-    candidate_replay: Callable[[int, dict[str, Any], dict[str, str]], dict[str, Any]]
-    target_behavior: Callable[..., dict[str, Any]] = analyze_target_behaviors
-    regression: Callable[..., dict[str, Any]] = analyze_regressions
     joint_report: Callable[[dict[str, Any], dict[str, Any]], dict[str, Any]] = build_joint_distribution_report
     gate: Callable[[dict[str, Any]], dict[str, Any]] = build_distributional_gate_decision
 
@@ -118,22 +111,6 @@ def _validate_rollout_bundle(
             raise OrchestrationContractError("Learning Path rows/evidence lineage drifted.")
 
 
-def _validate_matched_replay(
-    parent_rows: list[dict[str, Any]], candidate_rows: list[dict[str, Any]],
-) -> None:
-    def indexed(rows: list[dict[str, Any]]) -> dict[tuple[str, str, int], dict[str, Any]]:
-        return {
-            (row.get("domain"), str(row.get("task_id")), row.get("rollout_index")): row
-            for row in rows
-        }
-
-    parent, candidate = indexed(parent_rows), indexed(candidate_rows)
-    if len(parent) != len(parent_rows) or len(candidate) != len(candidate_rows) or set(parent) != set(candidate):
-        raise OrchestrationContractError("Parent/Candidate current-batch replay is not matched.")
-    if any(parent[key].get("rollout_seed") != candidate[key].get("rollout_seed") for key in parent):
-        raise OrchestrationContractError("Parent/Candidate current-batch replay seeds drifted.")
-
-
 def _immutable_candidate(
     *, root: Path, step: int, candidate_text: str,
 ) -> dict[str, str]:
@@ -171,6 +148,8 @@ def _load_cached_proposal(
         candidate_skill=candidate_skill,
         diagnoses=copy.deepcopy(value.get("diagnoses", [])),
         applied_edits=copy.deepcopy(value.get("canonical_edits", [])),
+        raw_patches=copy.deepcopy(value.get("raw_patches", [])),
+        editor_transport=copy.deepcopy(value.get("editor_transport")),
     )
 
 
@@ -353,56 +332,6 @@ def run_evolution_step(
         "current_batch_replay_status": "not_run",
         "target_behavior_status": "not_run", "regression_analysis_status": "not_run",
     }
-    explanation_root = step_root / "explanation"
-    candidate_bundle = None
-    for attempt in range(1, EXPLANATION_REPLAY_RETRIES + 2):
-        try:
-            candidate_bundle = services.candidate_replay(
-                step, copy.deepcopy(batch), copy.deepcopy(candidate),
-            )
-            _validate_rollout_bundle(candidate_bundle, batch=batch, require_evidence=False)
-            _validate_matched_replay(parent_bundle["rows"], candidate_bundle["rows"])
-            explanation["current_batch_replay_status"] = "complete"
-            break
-        except Exception as error:
-            candidate_bundle = None
-            if attempt <= EXPLANATION_REPLAY_RETRIES:
-                continue
-            explanation["current_batch_replay_status"] = "error"
-            _write_json(explanation_root / "current_batch_replay_error.json", {
-                "attempts": attempt, "error_type": type(error).__name__,
-                "error_message": str(error), "traceback": traceback.format_exc(),
-            })
-
-    if candidate_bundle is not None:
-        analysis_inputs = (
-            copy.deepcopy(canonical_edits),
-            copy.deepcopy(getattr(proposal, "diagnoses", [])),
-            copy.deepcopy(parent_bundle["rows"]), copy.deepcopy(candidate_bundle["rows"]),
-        )
-        try:
-            target = services.target_behavior(*analysis_inputs)
-            _write_json(explanation_root / "target_behavior_analysis.json", target)
-            explanation["target_behavior_status"] = "complete"
-        except Exception as error:
-            explanation["target_behavior_status"] = "error"
-            _write_json(explanation_root / "target_behavior_analysis_error.json", {
-                "error_type": type(error).__name__, "error_message": str(error),
-                "traceback": traceback.format_exc(),
-            })
-        try:
-            regression = services.regression(
-                analysis_inputs[2], analysis_inputs[3], analysis_inputs[0],
-            )
-            _write_json(explanation_root / "regression_analysis.json", regression)
-            explanation["regression_analysis_status"] = "complete"
-        except Exception as error:
-            explanation["regression_analysis_status"] = "error"
-            _write_json(explanation_root / "regression_analysis_error.json", {
-                "error_type": type(error).__name__, "error_message": str(error),
-                "traceback": traceback.format_exc(),
-            })
-
     summary = {
         "schema_version": "autonomous_gse_step_summary_0.14.0",
         "step": step, "batch_id": batch["batch_id"], "parent_skill": copy.deepcopy(parent),
@@ -422,7 +351,6 @@ def run_evolution_step(
             "joint_distribution": selection["joint_distribution_path"],
             "distributional_gate": selection["distributional_gate_path"],
             "selection_decision": (selection_root / "selection_decision.json").as_posix(),
-            "explanation": explanation_root.as_posix(),
             "step_summary": (step_root / "step_summary.json").as_posix(),
         },
     }

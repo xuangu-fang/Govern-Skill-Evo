@@ -256,8 +256,11 @@ class TestV14LearnerIsolationAndPlan:
         assert gate["additional_trajectories"] == 0
         assert gate["automatic_candidate_execution"] is False
         phase5 = workload["phase_5_orchestration"]
-        assert phase5["candidate_step_trajectories"] == 180
-        assert phase5["three_step_worst_case_trajectories"] == 540
+        assert phase5["candidate_step_trajectories"] == 120
+        assert phase5["candidate_current_batch_replay_trajectories"] == 0
+        assert phase5["target_behavior_analysis_calls"] == 0
+        assert phase5["regression_analysis_calls"] == 0
+        assert phase5["three_step_worst_case_trajectories"] == 360
         assert phase5["final_test_automatic_execution"] is False
         assert plan["phase_6_and_later"] == "not_implemented"
 

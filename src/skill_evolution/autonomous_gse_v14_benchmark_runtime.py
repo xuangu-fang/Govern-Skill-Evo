@@ -202,9 +202,9 @@ def validate_campaign_contract(campaign: dict[str, Any]) -> None:
     }:
         raise RuntimeContractError("v0.14 Phase 5 orchestration contract drifted.")
     if campaign.get("current_batch_analysis") != {
-        "target_behavior": {"enabled": True, "role": "logging_only"},
+        "target_behavior": {"enabled": False, "role": "frozen"},
         "regression": {
-            "enabled": True, "role": "logging_only", "selector": "any_negative_axis",
+            "enabled": False, "role": "frozen", "selector": "any_negative_axis",
         },
         "feedback_to_learner": "forbidden",
     }:
@@ -217,9 +217,9 @@ def validate_campaign_contract(campaign: dict[str, Any]) -> None:
         "monitor_execution_enabled": True,
         "joint_distribution_additional_trajectories": 0,
         "distributional_gate_additional_trajectories": 0,
-        "candidate_current_batch_replay_trajectories_worst_case": 180,
+        "candidate_current_batch_replay_trajectories_worst_case": 0,
         "candidate_monitor_trajectories_worst_case": 180,
-        "three_step_evolution_trajectories_worst_case": 540,
+        "three_step_evolution_trajectories_worst_case": 360,
         "final_test_trajectories_if_authorized": 120,
     }:
         raise RuntimeContractError("v0.14 Phase 4 workload budget drifted.")
@@ -1103,14 +1103,14 @@ def build_campaign_dry_plan(campaign: dict[str, Any], batch_map: dict[str, Any])
                 "automatic_candidate_execution": False,
             },
             "phase_5_orchestration": {
-                "candidate_step_trajectories": 180,
+                "candidate_step_trajectories": 120,
                 "learning_parent_trajectories": 60,
-                "candidate_current_batch_replay_trajectories": 60,
+                "candidate_current_batch_replay_trajectories": 0,
                 "candidate_monitor_trajectories": 60,
-                "three_step_worst_case_trajectories": 540,
+                "three_step_worst_case_trajectories": 360,
                 "cached_s0_monitor_not_in_new_cost": 60,
-                "target_behavior_analysis_calls": "depends_on_canonical_edits_and_relevant_pairs",
-                "regression_analysis_calls": "depends_on_adverse_current_batch_pairs",
+                "target_behavior_analysis_calls": 0,
+                "regression_analysis_calls": 0,
                 "final_test_automatic_execution": False,
             },
             "test": {
@@ -1151,9 +1151,6 @@ def build_evolution_services(
         ),
         candidate_monitor=lambda skill: run_fixed_monitor(
             campaign, batch_map, skill=skill, artifact_root=artifact_root,
-        ),
-        candidate_replay=lambda step, batch, skill: rollout(
-            step, batch, skill, "candidate_replay",
         ),
     )
 

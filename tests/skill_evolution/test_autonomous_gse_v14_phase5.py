@@ -9,7 +9,7 @@ from types import SimpleNamespace
 import pytest
 
 from src.skill_evolution.autonomous_gse_v14_orchestrator import (
-    EvolutionServices, _analysis_edits, _immutable_candidate,
+    EvolutionServices, _analysis_edits, _immutable_candidate, _load_cached_proposal,
     canonical_skill_text, learner_skill_text, resume_campaign, run_campaign,
     run_evolution_step,
 )
@@ -86,7 +86,7 @@ def _campaign(skill_path):
     }
 
 
-def _services(decisions, calls, *, proposal=None, replay_error=None, target=None, regression=None):
+def _services(decisions, calls, *, proposal=None):
     iterator = iter(decisions)
 
     def monitor(skill):
@@ -98,12 +98,6 @@ def _services(decisions, calls, *, proposal=None, replay_error=None, target=None
         rows = _rows(batch)
         return {"rows": rows, "evidence": copy.deepcopy(rows)}
 
-    def candidate_replay(step, batch, skill):
-        calls["replay"].append((step, skill["skill_id"]))
-        if replay_error:
-            raise replay_error
-        return {"rows": _rows(batch), "evidence": []}
-
     def gate(_report):
         decision = next(iterator)
         return {
@@ -114,11 +108,9 @@ def _services(decisions, calls, *, proposal=None, replay_error=None, target=None
     return EvolutionServices(
         parent_rollouts=parent_rollouts,
         propose=proposal or (lambda context, step: _candidate(step)),
-        candidate_monitor=monitor, candidate_replay=candidate_replay,
+        candidate_monitor=monitor,
         joint_report=lambda parent, candidate: {"parent": parent, "candidate": candidate},
         gate=gate,
-        target_behavior=target or (lambda *args: {"role": "logging_only", "results": []}),
-        regression=regression or (lambda *args: {"role": "logging_only", "adverse_pairs": []}),
     )
 
 
@@ -427,16 +419,12 @@ def test_invalid_proposal_status_is_execution_failure_not_retain(tmp_path):
     assert not (tmp_path / "artifacts/steps/step_01/step_summary.json").exists()
 
 
-@pytest.mark.parametrize("analysis", ("target", "regression"))
-def test_logging_analysis_cannot_veto_accept(tmp_path, analysis):
+def test_post_selection_explanation_paths_are_frozen(tmp_path):
     skill = tmp_path / "S0.md"
     skill.write_text("# S0\n", encoding="utf-8")
     parent = {"skill_id": "S0", "skill_version": "S0", "skill_path": str(skill)}
-    target = lambda *args: {"role": "logging_only", "results": [{"label": "WORSENED"}]}
-    regression = lambda *args: {
-        "role": "logging_only", "adverse_pairs": [{"causal_assessment": "CHANGE_CAUSED"}],
-    }
-    services = _services(["ACCEPT"], _calls(), target=target, regression=regression)
+    calls = _calls()
+    services = _services(["ACCEPT"], calls)
     summary, next_parent, _ = run_evolution_step(
         step=1, batch=_batches()[0], parent=parent, parent_monitor={}, campaign={},
         services=services, artifact_root=tmp_path / "artifacts",
@@ -444,131 +432,13 @@ def test_logging_analysis_cannot_veto_accept(tmp_path, analysis):
     assert summary["selection"]["decision"] == "ACCEPT"
     assert summary["promotion_source"] == "distributional_gate_only"
     assert next_parent["skill_id"] == "candidate_step_01"
-
-
-def test_analysis_error_does_not_change_saved_accept(tmp_path):
-    skill = tmp_path / "S0.md"
-    skill.write_text("# S0\n", encoding="utf-8")
-    parent = {"skill_id": "S0", "skill_version": "S0", "skill_path": str(skill)}
-    services = _services(
-        ["ACCEPT"], _calls(),
-        regression=lambda *args: (_ for _ in ()).throw(RuntimeError("analysis failed")),
-    )
-    summary, next_parent, _ = run_evolution_step(
-        step=1, batch=_batches()[0], parent=parent, parent_monitor={}, campaign={},
-        services=services, artifact_root=tmp_path / "artifacts",
-    )
-    selection = json.loads((
-        tmp_path / "artifacts/steps/step_01/selection/selection_decision.json"
-    ).read_text())
-    assert selection["gate_decision"] == "ACCEPT"
-    assert summary["explanation"]["regression_analysis_status"] == "error"
-    assert next_parent["skill_id"] == "candidate_step_01"
-
-
-def test_candidate_replay_lineage_error_is_logging_only(tmp_path):
-    skill = tmp_path / "S0.md"
-    skill.write_text("# S0\n", encoding="utf-8")
-    parent = {"skill_id": "S0", "skill_version": "S0", "skill_path": str(skill)}
-    services = _services(["ACCEPT"], _calls())
-    original = services.candidate_replay
-    services = EvolutionServices(**{
-        **services.__dict__,
-        "candidate_replay": lambda step, batch, candidate: {
-            **original(step, batch, candidate),
-            "rows": _rows(batch, seed_shift=1),
-        },
-    })
-    summary, next_parent, _ = run_evolution_step(
-        step=1, batch=_batches()[0], parent=parent, parent_monitor={}, campaign={},
-        services=services, artifact_root=tmp_path / "artifacts",
-    )
-    assert summary["selection"]["decision"] == "ACCEPT"
-    assert summary["explanation"]["current_batch_replay_status"] == "error"
-    assert next_parent["skill_id"] == "candidate_step_01"
-
-
-def test_candidate_replay_transient_error_retries_whole_batch_then_completes(tmp_path):
-    skill = tmp_path / "S0.md"
-    skill.write_text("# S0\n", encoding="utf-8")
-    parent = {"skill_id": "S0", "skill_version": "S0", "skill_path": str(skill)}
-    calls = _calls()
-    services = _services(["ACCEPT"], calls)
-    original = services.candidate_replay
-    attempts = 0
-
-    def transient_replay(step, batch, candidate):
-        nonlocal attempts
-        attempts += 1
-        if attempts == 1:
-            raise RuntimeError("transient replay failure")
-        return original(step, batch, candidate)
-
-    services = EvolutionServices(**{**services.__dict__, "candidate_replay": transient_replay})
-    summary, next_parent, _ = run_evolution_step(
-        step=1, batch=_batches()[0], parent=parent, parent_monitor={}, campaign={},
-        services=services, artifact_root=tmp_path / "artifacts",
-    )
-
-    assert attempts == 2
     assert summary["explanation"] == {
-        "current_batch_replay_status": "complete",
-        "target_behavior_status": "complete",
-        "regression_analysis_status": "complete",
-    }
-    assert summary["selection"]["decision"] == "ACCEPT"
-    assert next_parent["skill_id"] == "candidate_step_01"
-
-
-def test_candidate_replay_retry_exhaustion_is_logging_only_and_preserves_selection(tmp_path):
-    skill = tmp_path / "S0.md"
-    skill.write_text("# S0\n", encoding="utf-8")
-    parent = {"skill_id": "S0", "skill_version": "S0", "skill_path": str(skill)}
-    calls = _calls()
-    gate_calls = 0
-    target_calls = 0
-    regression_calls = 0
-    services = _services(["ACCEPT"], calls, replay_error=RuntimeError("still unavailable"))
-    original_gate = services.gate
-
-    def gate(report):
-        nonlocal gate_calls
-        gate_calls += 1
-        return original_gate(report)
-
-    def target(*_args):
-        nonlocal target_calls
-        target_calls += 1
-
-    def regression(*_args):
-        nonlocal regression_calls
-        regression_calls += 1
-
-    services = EvolutionServices(**{
-        **services.__dict__, "gate": gate, "target_behavior": target,
-        "regression": regression,
-    })
-    summary, next_parent, _ = run_evolution_step(
-        step=1, batch=_batches()[0], parent=parent, parent_monitor={}, campaign={},
-        services=services, artifact_root=tmp_path / "artifacts",
-    )
-    selection_path = tmp_path / "artifacts/steps/step_01/selection/selection_decision.json"
-    selection = json.loads(selection_path.read_text(encoding="utf-8"))
-    error = json.loads((
-        tmp_path / "artifacts/steps/step_01/explanation/current_batch_replay_error.json"
-    ).read_text(encoding="utf-8"))
-
-    assert calls["replay"] == [(1, "candidate_step_01")] * 3
-    assert error["attempts"] == orchestrator.EXPLANATION_REPLAY_RETRIES + 1 == 3
-    assert summary["explanation"] == {
-        "current_batch_replay_status": "error",
+        "current_batch_replay_status": "not_run",
         "target_behavior_status": "not_run",
         "regression_analysis_status": "not_run",
     }
-    assert gate_calls == 1
-    assert target_calls == regression_calls == 0
-    assert selection["gate_decision"] == summary["selection"]["decision"] == "ACCEPT"
-    assert next_parent["skill_id"] == "candidate_step_01"
+    assert calls["replay"] == []
+    assert not (tmp_path / "artifacts/steps/step_01/explanation").exists()
 
 
 @pytest.mark.parametrize(
@@ -731,6 +601,35 @@ def test_v13_patch_lineage_is_expanded_for_v14_logging():
     assert _analysis_edits(proposal)[0]["derived_from_diagnosis_ids"] == ["diagnosis_001"]
 
 
+def test_cached_editor_replay_preserves_patch_lineage_and_transport(tmp_path):
+    path = tmp_path / "proposal.json"
+    parent = {"skill_id": "S0", "skill_version": "S0", "skill_path": "S0.md"}
+    path.write_text(json.dumps({
+        "batch_id": "batch_1",
+        "parent_skill": parent,
+        "proposal_status": "CANDIDATE",
+        "proposal_reason": {"code": "CANDIDATE_CONSTRUCTED"},
+        "candidate_skill": "# candidate\n",
+        "diagnoses": [{"diagnosis_id": "diagnosis_001"}],
+        "raw_patches": [{"patch_id": "diagnosis_001", "diagnosis_id": "diagnosis_001"}],
+        "canonical_edits": [{
+            "derived_from_patch_ids": ["diagnosis_001"],
+            "verification_target": {
+                "problem": "problem", "trigger_condition": "trigger",
+                "expected_behavior": "expected",
+            },
+        }],
+        "editor_transport": {"finish_reason": "stop", "max_completion_tokens": 16000},
+    }), encoding="utf-8")
+
+    proposal = _load_cached_proposal(path, batch_id="batch_1", parent=parent)
+
+    assert _analysis_edits(proposal)[0]["derived_from_diagnosis_ids"] == ["diagnosis_001"]
+    assert proposal.editor_transport == {
+        "finish_reason": "stop", "max_completion_tokens": 16000,
+    }
+
+
 def test_saved_proposal_is_reused_without_diagnosis_or_editor_call(tmp_path):
     skill = tmp_path / "S0.md"
     skill.write_text("# S0\n", encoding="utf-8")
@@ -763,15 +662,15 @@ def test_run_stop_after_step_one_persists_complete_state(tmp_path):
         stop_after_step=1,
     )
     assert calls["parent"] == [(1, "S0")]
-    assert calls["replay"] == [(1, "candidate_step_01")]
+    assert calls["replay"] == []
     assert state["current_step"] == 1
     assert len(state["completed_steps"]) == 1
     assert state["current_parent"]["skill_id"] == "candidate_step_01"
     assert state["final_skill"] is None
     assert state["completed_steps"][0]["explanation"] == {
-        "current_batch_replay_status": "complete",
-        "target_behavior_status": "complete",
-        "regression_analysis_status": "complete",
+        "current_batch_replay_status": "not_run",
+        "target_behavior_status": "not_run",
+        "regression_analysis_status": "not_run",
     }
     assert Path(
         state["completed_steps"][0]["artifact_paths"]["selection_decision"]
