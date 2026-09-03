@@ -6,7 +6,7 @@ The benchmark code and derived data live in this directory. The upstream impleme
 
 ## Current stage
 
-The Airline Policy Registry was built directly from the original Airline `policy.md`, its boundary-constructible rules were consolidated into reusable Policy Concepts, semantic Boundary Templates were defined for the three Pilot Concepts, and a Latent Pair Generator MVP was implemented for three representative templates. The current stage adds deterministic Surface Diversification for those three templates. It does not generate natural language, materialize database changes, compile τ² tasks, specify dataset splits, or run agents or Governed Skill Evolution experiments.
+The Airline Policy Registry was built directly from the original Airline `policy.md`, its boundary-constructible rules were consolidated into reusable Policy Concepts, semantic Boundary Templates were defined for the three Pilot Concepts, and MVPs were implemented for Latent Pair generation and Surface Diversification. The current stage adds controlled Surface Realization for the same three representative templates. It does not materialize database changes, compile τ² tasks, define evaluation criteria or dataset splits, or run agents or Governed Skill Evolution experiments.
 
 The registry uses the initial primitive taxonomy requested for the benchmark: `prerequisite`, `authorization`, `confirmation`, `eligibility`, `grounding`, `scope`, `ordering`, `user_control`, and `escalation`. Every collected rule fits one of these primitives without changing its source meaning, so `other` is not currently used.
 
@@ -168,4 +168,26 @@ For each of the three supported Latent Pairs, both worlds independently receive 
 
 Automatic entity replacement is intentionally limited in this MVP. Each manifestation retains its verified Latent World base entity while varying other safe surface dimensions. Replacing a reservation before concrete state realization could silently introduce a flown segment, a basic-economy restriction, an itinerary mismatch, or another independent blocker. Entity diversification will require semantic compatibility checks before it can safely replace base entities.
 
-The three seed-zero example files contain six manifestations each. Within every Latent World, the three manifestations have distinct secondary contexts, information plans, persona plans, and complete surface signatures. Natural-language realization, final task compilation, and Train / Monitor / Test construction remain unimplemented.
+The three seed-zero example files contain six manifestations each. Within every Latent World, the three manifestations have distinct secondary contexts, information plans, persona plans, and complete surface signatures. The Surface Diversification stage itself did not generate natural-language scenarios.
+
+## Surface Realization MVP
+
+A `RealizedScenario` is a controlled natural scenario specification between a `SurfaceManifestation` and a future τ² Task:
+
+```text
+SurfaceManifestation
+        ↓
+controlled natural scenario specification
+        ↓
+future τ² Task
+```
+
+It includes a natural user goal, known information, interaction instructions, secondary context, persona description, and explicit predicate evidence. It remains an internal construction artifact: it has no complete conversation, assistant response, initial-state patch, evaluation criteria, reward definition, or formal task schema.
+
+Predicate evidence is carried by the natural scenario as well as hidden metadata. Checked-baggage mandate evidence appears in the user goal or controlled interaction instructions; flight-change eligibility appears as the reservation cabin in known information; itinerary-invariant evidence appears across the current-itinerary facts and requested modification. The audit verifies that each declared evidence sentence is actually present in its listed natural field.
+
+Persona and presentation plans are realized through fixed phrase maps. Persona changes communication style only. Information plans control when identifiers, cabin facts, baggage mandate, and itinerary details become available. Secondary context introduces seat, price, schedule, payment, passenger, connection, timing, or date-flexibility details without changing policy eligibility or authorization.
+
+Each of the 18 Surface Manifestations produces exactly one Realized Scenario. Scenario IDs are opaque, while hidden provenance preserves the manifestation, Latent World, Latent Pair, Boundary Template, Concept, and Rule chain. The two pair sides retain disjoint surface-profile signatures, preventing realization from collapsing the decorrelated manifestations back into mechanically mirrored A/B scenarios.
+
+The Realization Audit checks predicate and governance preservation, evidence presence, absence of contradictory evidence, absence of extra policy blockers, task-intent preservation, persona isolation, and complete provenance. The three seed-zero example files contain six audited scenarios each, for 18 scenarios total. The Concrete τ² Task Compiler remains unimplemented.
