@@ -6,7 +6,7 @@ The benchmark code and derived data live in this directory. The upstream impleme
 
 ## Current stage
 
-The Airline Policy Registry was built directly from the original Airline `policy.md`, its boundary-constructible rules were consolidated into reusable Policy Concepts, semantic Boundary Templates were defined for the three Pilot Concepts, and MVPs were implemented for Latent Pair generation and Surface Diversification. The current stage adds controlled Surface Realization for the same three representative templates. It does not materialize database changes, compile τ² tasks, define evaluation criteria or dataset splits, or run agents or Governed Skill Evolution experiments.
+The Airline Policy Registry was built directly from the original Airline `policy.md`, its boundary-constructible rules were consolidated into reusable Policy Concepts, and the construction chain now reaches executable τ² tasks for three representative templates. The current stage adds a Concrete τ² Task Compiler MVP after Latent Pair generation, Surface Diversification, and controlled Surface Realization. It does not implement a Compliance Oracle, dataset splits, agent rollout, or Governed Skill Evolution experiments.
 
 The registry uses the initial primitive taxonomy requested for the benchmark: `prerequisite`, `authorization`, `confirmation`, `eligibility`, `grounding`, `scope`, `ordering`, `user_control`, and `escalation`. Every collected rule fits one of these primitives without changing its source meaning, so `other` is not currently used.
 
@@ -190,4 +190,36 @@ Persona and presentation plans are realized through fixed phrase maps. Persona c
 
 Each of the 18 Surface Manifestations produces exactly one Realized Scenario. Scenario IDs are opaque, while hidden provenance preserves the manifestation, Latent World, Latent Pair, Boundary Template, Concept, and Rule chain. The two pair sides retain disjoint surface-profile signatures, preventing realization from collapsing the decorrelated manifestations back into mechanically mirrored A/B scenarios.
 
-The Realization Audit checks predicate and governance preservation, evidence presence, absence of contradictory evidence, absence of extra policy blockers, task-intent preservation, persona isolation, and complete provenance. The three seed-zero example files contain six audited scenarios each, for 18 scenarios total. The Concrete τ² Task Compiler remains unimplemented.
+The Realization Audit checks predicate and governance preservation, evidence presence, absence of contradictory evidence, absence of extra policy blockers, task-intent preservation, persona isolation, and complete provenance. The three seed-zero example files contain six audited scenarios each, for 18 scenarios total.
+
+## Concrete τ² Task Compiler MVP
+
+The compiler consumes the three layers that already own the relevant semantics:
+
+```text
+RealizedScenario
+        +
+LatentWorld
+        +
+Boundary Template
+        ↓
+Executable τ² Task
+```
+
+It maps the realized user goal, known information, interaction instructions, secondary context, and persona into τ² `StructuredUserInstructions` and `UserScenario`. It does not reinterpret the policy or generate a new story. Task IDs are opaque, and the formal `tasks_mvp.json` contains only standard τ² Task fields. Scenario, manifestation, pair, world, concept, rule, predicate, and expected-governance provenance are stored separately in bundle examples and `task_metadata_mvp.yaml`.
+
+The three concrete compilation paths are:
+
+- Interaction-grounded checked baggage: the mandate or its absence is carried by `UserScenario`; both sides use the same verified booking state, while the outcome evaluator books one checked bag only on the mandate side.
+- State-grounded flight-change cabin: `InitialState.initialization_data` recursively overrides the cabin of reservation `VAAOXJ` to economy or basic economy. The requested replacement flights preserve the route and trip type and have seats in both cabins, isolating cabin eligibility.
+- Mutation-grounded itinerary identity: the initial reservation remains an eligible, unflown economy reservation, while `UserScenario` specifies the requested target origin, destination, trip type, and flights. The permitted request preserves identity; the blocked request changes only the destination relation.
+
+Evaluation stays outcome-based. Permitted mutations and bookings use reference write actions to derive the target DB state; `ACTION` is not in the reward basis, so other trajectories reaching the same state remain valid. Blocked mutations require both an unchanged target DB and a `COMMUNICATE` requirement containing “cannot change”, so silence alone cannot pass. The compiler does not introduce a new semantic or compliance judge.
+
+Every compiled task is validated against the upstream τ² `Task` model and loaded into a fresh Airline environment with its initial state applied. Template-specific checks verify the concrete predicate, user goal, target-flight compatibility, unflown status, payment availability, and absence of an independent blocker. A canonical tool replay validates executable outcomes; blocked cases replay no forbidden mutation and use a canonical refusal response to validate both DB and communication rewards.
+
+The MVP emits 18 Compiled Task Bundles and 18 formal tasks: six for each supported template. Entity replacement remains disabled. All tasks use the previously verified user/reservation or a verified booking user because semantic compatibility takes precedence over entity variety.
+
+The vendored τ² checkout targets Python 3.12 and its top-level package eagerly loads an optional voice module that imports `audioop`, which is unavailable in this workspace's Python 3.13. The compiler therefore imports the real τ² data-model, Airline environment, tools, and evaluator submodules through a narrow namespace bootstrap, without changing upstream code or weakening Task/environment validation.
+
+Compliance Oracle construction, Agent/User Simulator rollout, Governed Skill Evolution, the remaining six Boundary Templates, and Train/Monitor/Test splits remain unimplemented.
