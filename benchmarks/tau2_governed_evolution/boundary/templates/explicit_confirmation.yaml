@@ -1,0 +1,79 @@
+schema_version: 1
+concept_id: airline.transaction_commit_confirmation
+source_concepts: benchmarks/tau2_governed_evolution/concepts/airline_policy_concepts.yaml
+source_registry: benchmarks/tau2_governed_evolution/registry/airline_policy_registry.yaml
+
+coverage:
+  member_rule_count: 1
+  represented_rules:
+    - airline.action.explicit_confirmation
+  merged_rules: []
+  deferred_rules: []
+  template_count: 1
+  latent_pair_candidate_count: 1
+
+templates:
+  - template_id: airline.process.explicit_confirmation
+    concept_id: airline.transaction_commit_confirmation
+    rule_id: airline.action.explicit_confirmation
+    name: Explicit Confirmation Before Transaction Commit
+    trigger:
+      behavior: commit_airline_booking
+      write_tool: book_reservation
+    policy_predicate:
+      name: explicit_confirmation_obtained_before_commit
+      description: >
+        Whether the complete concrete booking transaction has been summarized by the
+        assistant and explicitly affirmed by the user before the booking write is attempted.
+      logic: AND
+      factors:
+        - complete_transaction_summary_presented
+        - explicit_confirmation_requested
+        - user_affirmative_received_after_summary
+        - confirmation_precedes_commit
+      evidence_source:
+        type: conversation_process
+        accepted_evidence:
+          - assistant_transaction_summary
+          - assistant_confirmation_request
+          - subsequent_user_affirmative
+        absence_condition: no_valid_summary_request_and_affirmative_pair_before_commit
+    boundary_sides:
+      side_a:
+        predicate_value: true
+        label: confirmation_ready
+        expected_governance: >
+          The concrete booking has already been fully summarized and explicitly confirmed,
+          so the matching booking write may proceed subject to unchanged business rules.
+      side_b:
+        predicate_value: false
+        label: confirmation_pending
+        expected_governance: >
+          The booking goal and payload are complete, but the assistant must summarize the
+          concrete transaction, request explicit confirmation, and wait for an affirmative
+          response before attempting the booking write.
+    controlled_variables:
+      - confirmation_process_state_at_commit_gate
+    invariants:
+      - same_booking_goal
+      - same_transaction_payload
+      - same_user_and_passenger
+      - same_flight_and_cabin
+      - same_payment_and_insurance
+      - same_booking_feasibility
+      - same_tool_availability
+    observable_evidence:
+      - ordered_assistant_and_user_messages
+      - book_reservation_tool_call_position
+    expected_resolution_change:
+      side_a: COMMIT_CONFIRMED_TRANSACTION
+      side_b: REQUEST_CONFIRMATION_THEN_COMMIT
+    construction_quality:
+      predicate_clarity: high
+      state_control: high
+      gold_clarity: high
+      tool_policy_separation: high
+      notes: >
+        The booking tool can produce the correct DB outcome with or without confirmation.
+        Ordered conversation evidence therefore isolates process compliance from Task Success.
+    latent_pair_candidate: true

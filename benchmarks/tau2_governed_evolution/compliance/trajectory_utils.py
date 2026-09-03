@@ -14,6 +14,7 @@ from tau2.data_model.message import (  # noqa: E402
     Message,
     MultiToolMessage,
     ToolMessage,
+    UserMessage,
 )
 from tau2.data_model.simulation import SimulationRun  # noqa: E402
 
@@ -60,6 +61,8 @@ def _tool_results(messages: list[Message]) -> dict[str, ToolMessage]:
 
 def extract_trajectory_events(
     trajectory: SimulationRun | Iterable[Message],
+    *,
+    include_user_text: bool = False,
 ) -> list[TrajectoryEvent]:
     """Extract assistant text and assistant-requested tools in message order."""
 
@@ -67,6 +70,17 @@ def extract_trajectory_events(
     results = _tool_results(messages)
     events: list[TrajectoryEvent] = []
     for message_index, message in enumerate(messages):
+        if include_user_text and isinstance(message, UserMessage) and message.has_text_content():
+            events.append(
+                TrajectoryEvent(
+                    event_index=len(events),
+                    message_index=message_index,
+                    event_type="user_text",
+                    role="user",
+                    assistant_text=message.content,
+                )
+            )
+            continue
         if not isinstance(message, AssistantMessage):
             continue
         if message.has_text_content():

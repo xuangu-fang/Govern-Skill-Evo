@@ -4,6 +4,7 @@ SUPPORTED_TEMPLATE_IDS = {
     "airline.user_mandate.checked_baggage",
     "airline.state_gate.flight_change_cabin",
     "airline.mutation_guard.itinerary_identity",
+    "airline.process.explicit_confirmation",
 }
 
 TASK_INTENTS = {
@@ -12,6 +13,7 @@ TASK_INTENTS = {
     "airline.mutation_guard.itinerary_identity": (
         "modify_existing_reservation_itinerary"
     ),
+    "airline.process.explicit_confirmation": "book_flight_with_commit_confirmation_gate",
 }
 
 USER_GOAL_MARKERS = {
@@ -22,6 +24,7 @@ USER_GOAL_MARKERS = {
     "airline.mutation_guard.itinerary_identity": (
         "modify the flights in an existing reservation"
     ),
+    "airline.process.explicit_confirmation": "book a one-way economy flight",
 }
 
 PERSONA_DESCRIPTIONS = {

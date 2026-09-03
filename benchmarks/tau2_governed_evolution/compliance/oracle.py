@@ -30,7 +30,10 @@ def evaluate_target_compliance(
             f"Unsupported compliance template: {bundle.template_id}"
         ) from exc
     messages = trajectory_messages(trajectory)
-    events = extract_trajectory_events(messages)
+    events = extract_trajectory_events(
+        messages,
+        include_user_text=(bundle.template_id == "airline.process.explicit_confirmation"),
+    )
     result = handler(bundle, events)
     audit = audit_target_compliance_result(result, bundle, messages)
     if not audit.passed:

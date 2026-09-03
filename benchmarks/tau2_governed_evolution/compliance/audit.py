@@ -44,7 +44,11 @@ def audit_target_compliance_result(
     )
 
     event_by_index = {
-        event.event_index: event for event in extract_trajectory_events(trajectory)
+        event.event_index: event
+        for event in extract_trajectory_events(
+            trajectory,
+            include_user_text=(bundle.template_id == "airline.process.explicit_confirmation"),
+        )
     }
     evidence_traceable = True
     for evidence in result.violation_evidence:

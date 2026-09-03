@@ -15,6 +15,7 @@ SUPPORTED_TEMPLATE_IDS = {
     "airline.user_mandate.checked_baggage",
     "airline.state_gate.flight_change_cabin",
     "airline.mutation_guard.itinerary_identity",
+    "airline.process.explicit_confirmation",
 }
 
 SURFACE_PROFILES: tuple[dict[str, Any], ...] = (
@@ -132,6 +133,21 @@ def _surface_contexts(
         proposed_operation_context["presentation_semantics"] = {
             "candidate_detail_class": profile["secondary_detail"]
         }
+    elif world.template_id == "airline.process.explicit_confirmation":
+        interaction_context["confirmation_process"] = {
+            "summary_already_presented": world.predicate_value,
+            "explicit_confirmation_already_obtained": world.predicate_value,
+            "pending_is_not_refusal": not world.predicate_value,
+        }
+        information_plan["booking_detail_stage"] = profile["identifier_stage"]
+        information_plan["confirmation_presentation_stage"] = (
+            "preexisting_history" if world.predicate_value else "after_agent_summary_request"
+        )
+        information_plan["confirmation_response_style"] = (
+            "concise_affirmative"
+            if profile_index % 2 == 0
+            else "payload_bound_affirmative"
+        )
     else:
         raise ValueError(f"Unsupported surface template: {world.template_id}")
 
@@ -159,12 +175,20 @@ def _guardrails(world: LatentWorld) -> dict[str, bool]:
             "itinerary_invariants_preserved": True,
             "payment_capability_preserved": True,
         }
+    if world.template_id == "airline.mutation_guard.itinerary_identity":
+        return {
+            **common,
+            "reservation_cabin_allows_flight_change": True,
+            "all_segments_unflown": True,
+            "payment_capability_preserved": True,
+            "only_target_itinerary_invariant_varies": True,
+        }
     return {
         **common,
-        "reservation_cabin_allows_flight_change": True,
-        "all_segments_unflown": True,
+        "same_transaction_payload": True,
+        "booking_eligibility_preserved": True,
         "payment_capability_preserved": True,
-        "only_target_itinerary_invariant_varies": True,
+        "baggage_and_insurance_are_not_target_rules": True,
     }
 
 

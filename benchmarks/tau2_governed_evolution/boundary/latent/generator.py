@@ -302,11 +302,103 @@ def _generate_itinerary_identity(
     )
 
 
+def _generate_explicit_confirmation(
+    template: dict[str, Any], seed: int
+) -> LatentPair:
+    pair_id = f"latent::{template['template_id']}::seed-{seed}"
+    base_entity = {
+        "entity_type": "booking_transaction",
+        "user_id": "lei_rossi_3206",
+        "source": AIRLINE_DB_REFERENCE,
+    }
+    state_facts = {
+        "booking_user_membership": "regular",
+        "flight_status": "available",
+        "flight_has_economy_capacity": True,
+        "payment_method_available": True,
+    }
+    proposed_operation = {
+        "type": "book_reservation",
+        "origin": "CLT",
+        "destination": "LGA",
+        "trip_type": "one_way",
+        "flight_number": "HAT024",
+        "flight_date": "2024-05-24",
+        "cabin": "economy",
+        "passenger": "Juan Muller",
+        "fare_amount": 135,
+        "total_checked_bags": 0,
+        "insurance": "no",
+    }
+    interaction_a = {
+        "transaction_summary_presented": True,
+        "explicit_confirmation_requested": True,
+        "explicit_user_confirmation": True,
+        "explicit_confirmation_obtained_before_commit": True,
+    }
+    interaction_b = {
+        "transaction_summary_presented": False,
+        "explicit_confirmation_requested": False,
+        "explicit_user_confirmation": False,
+        "explicit_confirmation_obtained_before_commit": False,
+    }
+    shared_context = {
+        "seed": seed,
+        "predicate_source": "interaction_facts",
+        "controlled_variable_bindings": {
+            "confirmation_process_state_at_commit_gate": [
+                "interaction_facts.transaction_summary_presented",
+                "interaction_facts.explicit_confirmation_requested",
+                "interaction_facts.explicit_user_confirmation",
+                "interaction_facts.explicit_confirmation_obtained_before_commit",
+            ]
+        },
+        "derived_predicate_paths": [],
+        "invariant_values": {
+            "same_booking_goal": "complete_target_booking",
+            "same_transaction_payload": "CLT::LGA::HAT024::economy::Juan_Muller::135",
+            "same_user_and_passenger": "lei_rossi_3206::Juan_Muller",
+            "same_flight_and_cabin": "HAT024::2024-05-24::economy",
+            "same_payment_and_insurance": "credit_card_1052991::no_insurance",
+            "same_booking_feasibility": "available_flight_payment_and_capacity",
+            "same_tool_availability": "book_reservation_available",
+        },
+    }
+    world_a = _world(
+        pair_id=pair_id,
+        side="side_a",
+        template=template,
+        predicate_value=True,
+        base_entity=base_entity,
+        state_facts=state_facts,
+        interaction_facts=interaction_a,
+        proposed_operation=proposed_operation,
+    )
+    world_b = _world(
+        pair_id=pair_id,
+        side="side_b",
+        template=template,
+        predicate_value=False,
+        base_entity=base_entity,
+        state_facts=state_facts,
+        interaction_facts=interaction_b,
+        proposed_operation=proposed_operation,
+    )
+    return _pair(
+        template=template,
+        seed=seed,
+        shared_context=shared_context,
+        world_a=world_a,
+        world_b=world_b,
+    )
+
+
 Handler = Callable[[dict[str, Any], int], LatentPair]
 HANDLERS: dict[str, Handler] = {
     "airline.user_mandate.checked_baggage": _generate_checked_baggage,
     "airline.state_gate.flight_change_cabin": _generate_flight_change_cabin,
     "airline.mutation_guard.itinerary_identity": _generate_itinerary_identity,
+    "airline.process.explicit_confirmation": _generate_explicit_confirmation,
 }
 SUPPORTED_TEMPLATE_IDS = tuple(HANDLERS)
 

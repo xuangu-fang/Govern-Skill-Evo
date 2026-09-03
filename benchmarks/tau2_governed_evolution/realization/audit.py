@@ -97,6 +97,22 @@ def _contradictory_evidence_absent(scenario: RealizedScenario) -> bool:
             )
         )
         return not has_destination_change if scenario.predicate_value else has_destination_change
+    if scenario.template_id == "airline.process.explicit_confirmation":
+        if scenario.predicate_value:
+            return all(
+                marker in text
+                for marker in (
+                    "complete concrete booking summary",
+                    "explicitly asked for confirmation",
+                    "answered yes to that exact transaction",
+                )
+            )
+        return (
+            "without claiming that a final transaction summary has already been confirmed"
+            in text
+            and "do not volunteer final confirmation" in text
+            and "after the assistant presents the complete booking summary" in text
+        )
     return False
 
 
@@ -107,7 +123,7 @@ def _required_evidence_present(scenario: RealizedScenario) -> bool:
             evidence.get("semantic_fact") == scenario.predicate_name,
             evidence.get("semantic_value") == scenario.predicate_value,
             evidence.get("type")
-            in {"interaction", "state", "proposed_operation"},
+            in {"interaction", "state", "proposed_operation", "conversation_process"},
         )
     ):
         return False

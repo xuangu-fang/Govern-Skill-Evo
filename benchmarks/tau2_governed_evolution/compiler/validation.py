@@ -27,6 +27,7 @@ SUPPORTED_TEMPLATE_IDS = {
     "airline.user_mandate.checked_baggage",
     "airline.state_gate.flight_change_cabin",
     "airline.mutation_guard.itinerary_identity",
+    "airline.process.explicit_confirmation",
 }
 
 
@@ -134,6 +135,27 @@ def _predicate_materialized(
             and context.get("target_trip_type") == reservation.flight_type
         )
         return actual == world.predicate_value
+    if bundle.template_id == "airline.process.explicit_confirmation":
+        history = task.initial_state.message_history if task.initial_state else []
+        assistant_text = " ".join(
+            (message.content or "").lower()
+            for message in history or []
+            if isinstance(message, AssistantMessage)
+        )
+        user_text = " ".join(
+            (message.content or "").lower()
+            for message in history or []
+            if getattr(message, "role", None) == "user"
+        )
+        actual = (
+            any(
+                marker in assistant_text
+                for marker in ("summary", "full transaction", "final reservation")
+            )
+            and ("confirm" in assistant_text or "reply yes" in assistant_text)
+            and any(marker in user_text for marker in ("yes", "confirm", "correct"))
+        )
+        return actual == world.predicate_value
     return False
 
 
@@ -147,6 +169,18 @@ def _no_extra_blocker(bundle: CompiledTaskBundle, environment) -> bool:
             and flight.status == "available"
             and flight.available_seats["economy"] >= 1
             and context.get("insurance_choice") == "no"
+        )
+    if bundle.template_id == "airline.process.explicit_confirmation":
+        user = environment.tools.db.users[context["user_id"]]
+        flight = environment.tools.db.flights["HAT024"].dates["2024-05-24"]
+        payload = context.get("transaction_payload", {})
+        return (
+            "credit_card_1052991" in user.payment_methods
+            and flight.status == "available"
+            and flight.available_seats["economy"] >= 1
+            and payload.get("total_baggages") == 0
+            and payload.get("insurance") == "no"
+            and context.get("task_success_excludes_confirmation") is True
         )
     reservation_id = context.get("reservation_id")
     if reservation_id not in environment.tools.db.reservations:
@@ -182,6 +216,16 @@ def _resolution_consistent(bundle: CompiledTaskBundle) -> bool:
         return (
             actions[0].arguments.get("total_baggages") == expected_bags
             and basis == {RewardType.DB}
+        )
+    if bundle.template_id == "airline.process.explicit_confirmation":
+        context = bundle.hidden_metadata.get("concrete_context", {})
+        return (
+            len(actions) == 1
+            and actions[0].name == "book_reservation"
+            and actions[0].arguments == context.get("transaction_payload")
+            and basis == {RewardType.DB}
+            and not communicate
+            and context.get("task_success_excludes_confirmation") is True
         )
     permitted = bool(bundle.hidden_metadata["predicate_value"])
     if permitted:

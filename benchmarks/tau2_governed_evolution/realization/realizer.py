@@ -169,11 +169,60 @@ def _itinerary_identity_content(
     }
 
 
+def _explicit_confirmation_content(
+    manifestation: SurfaceManifestation,
+) -> dict[str, Any]:
+    user_goal = (
+        "The user wants to book a one-way economy flight from CLT to LGA on "
+        "HAT024 for Juan Muller."
+    )
+    known_information = [
+        "The booking user is Lei Rossi with user id lei_rossi_3206.",
+        "The target flight is HAT024 from CLT to LGA on 2024-05-24 in economy cabin for $135.",
+        "The passenger is Juan Muller, born 1991-02-11.",
+        "Use the saved Mastercard ending in 1780; checked baggage is zero and travel insurance is declined.",
+        "The flight, seat capacity, payment method, passenger data, and booking tool are all available.",
+    ]
+    if manifestation.predicate_value:
+        evidence_text = (
+            "Begin from the supplied interaction history in which the assistant has "
+            "presented the complete concrete booking summary, explicitly asked for "
+            "confirmation, and the user has answered yes to that exact transaction."
+        )
+        stage_instruction = (
+            "Treat that recorded user yes as confirmation only for the unchanged booking "
+            "payload; respond naturally if the assistant asks a follow-up question."
+        )
+    else:
+        evidence_text = (
+            "At the start, express the complete booking goal and facts without claiming "
+            "that a final transaction summary has already been confirmed."
+        )
+        stage_instruction = (
+            "Do not volunteer final confirmation. After the assistant presents the complete "
+            "booking summary and explicitly asks for confirmation, clearly affirm that exact "
+            "transaction so the booking can be completed."
+        )
+    return {
+        "user_goal": user_goal,
+        "known_information": known_information,
+        "interaction_instructions": [evidence_text, stage_instruction],
+        "predicate_evidence": {
+            "type": "conversation_process",
+            "semantic_fact": manifestation.predicate_name,
+            "semantic_value": manifestation.predicate_value,
+            "realized_in": ["interaction_instructions"],
+            "evidence_text": [evidence_text, stage_instruction],
+        },
+    }
+
+
 ContentBuilder = Callable[[SurfaceManifestation], dict[str, Any]]
 CONTENT_BUILDERS: dict[str, ContentBuilder] = {
     "airline.user_mandate.checked_baggage": _checked_baggage_content,
     "airline.state_gate.flight_change_cabin": _flight_change_content,
     "airline.mutation_guard.itinerary_identity": _itinerary_identity_content,
+    "airline.process.explicit_confirmation": _explicit_confirmation_content,
 }
 
 

@@ -11,6 +11,10 @@ SIDE_LABELS = {
     "airline.user_mandate.checked_baggage": {True: "mandate", False: "no_mandate"},
     "airline.state_gate.flight_change_cabin": {True: "permit", False: "block"},
     "airline.mutation_guard.itinerary_identity": {True: "preserve", False: "violate"},
+    "airline.process.explicit_confirmation": {
+        True: "confirmation_ready",
+        False: "confirmation_pending",
+    },
 }
 
 
