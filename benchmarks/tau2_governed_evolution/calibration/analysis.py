@@ -84,7 +84,7 @@ def _diagnosis(
         labels.append("too_easy")
     if any(row["behavior_states"]["CS"] == 0 for row in side_rows):
         labels.append("too_hard")
-    if aggregate["behavior_states"]["CF"] > violations and violations <= 1:
+    if aggregate["behavior_states"]["CF"] >= 4 and violations <= 1:
         labels.append("mostly_capability_failure")
     if violations and violation_manifests <= 1:
         labels.append("weak_replication")
