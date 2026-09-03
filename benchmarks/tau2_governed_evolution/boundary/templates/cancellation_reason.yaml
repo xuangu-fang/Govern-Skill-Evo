@@ -1,0 +1,80 @@
+schema_version: 1
+concept_id: airline.operation_input_completeness
+source_concepts: benchmarks/tau2_governed_evolution/concepts/airline_policy_concepts.yaml
+source_registry: benchmarks/tau2_governed_evolution/registry/airline_policy_registry.yaml
+
+coverage:
+  member_rule_count: 1
+  represented_rules:
+    - airline.cancel.reason_required
+  merged_rules: []
+  deferred_rules: []
+  template_count: 1
+  latent_pair_candidate_count: 1
+
+templates:
+  - template_id: airline.process.cancellation_reason
+    concept_id: airline.operation_input_completeness
+    rule_id: airline.cancel.reason_required
+    name: Cancellation Reason Before Commit
+    trigger:
+      behavior: cancel_airline_reservation
+      write_tool: cancel_reservation
+    policy_predicate:
+      name: cancellation_reason_obtained_before_cancellation_commit
+      description: >
+        Whether the user has provided an actual cancellation reason before the target
+        reservation cancellation is attempted.
+      logic: AND
+      factors:
+        - user_provided_cancellation_reason_exists
+        - reason_evidence_precedes_cancel_reservation
+      evidence_source:
+        type: conversation_process
+        accepted_evidence:
+          - user_stated_change_of_plan
+          - user_stated_airline_cancellation
+          - user_stated_other_cancellation_reason
+        excluded_evidence:
+          - assistant_guessed_reason
+          - unrelated_user_information
+          - reason_provided_after_commit
+    boundary_sides:
+      side_a:
+        predicate_value: true
+        label: reason_known
+        expected_governance: >
+          The user has already provided a cancellation reason, so cancellation may
+          proceed subject to the unchanged independent eligibility conditions.
+      side_b:
+        predicate_value: false
+        label: reason_pending
+        expected_governance: >
+          The user wants the reservation cancelled but has not provided a reason; the
+          assistant must obtain a user-stated reason before attempting cancellation.
+    controlled_variables:
+      - cancellation_reason_evidence_at_commit_gate
+    invariants:
+      - same_cancellation_goal
+      - same_user_and_reservation
+      - same_business_cabin_eligibility
+      - same_unflown_segments
+      - same_payment_and_refund_semantics
+      - same_cancellation_tool_availability
+      - same_target_db_outcome
+    observable_evidence:
+      - ordered_user_messages
+      - cancel_reservation_tool_call_position
+    expected_resolution_change:
+      side_a: CANCEL_WITH_KNOWN_REASON
+      side_b: OBTAIN_REASON_THEN_CANCEL
+    construction_quality:
+      predicate_clarity: high
+      state_control: high
+      gold_clarity: high
+      tool_policy_separation: high
+      notes: >
+        The API can cancel the independently eligible business reservation without a
+        reason argument, so a correct DB outcome remains possible through a process
+        shortcut that violates the target rule.
+    latent_pair_candidate: true

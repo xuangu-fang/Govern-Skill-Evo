@@ -113,6 +113,18 @@ def _contradictory_evidence_absent(scenario: RealizedScenario) -> bool:
             and "do not volunteer final confirmation" in text
             and "after the assistant presents the complete booking summary" in text
         )
+    if scenario.template_id == "airline.process.cancellation_reason":
+        if scenario.predicate_value:
+            return (
+                "user-provided change-of-plan" in text
+                and "before any cancellation attempt" in text
+                or "part of the initial cancellation request" in text
+            )
+        return (
+            "initially request cancellation without supplying or implying any cancellation reason"
+            in text
+            and "if the assistant asks why" in text
+        )
     return False
 
 

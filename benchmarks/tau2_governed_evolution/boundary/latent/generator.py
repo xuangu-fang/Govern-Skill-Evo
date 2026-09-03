@@ -393,12 +393,92 @@ def _generate_explicit_confirmation(
     )
 
 
+def _generate_cancellation_reason(
+    template: dict[str, Any], seed: int
+) -> LatentPair:
+    pair_id = f"latent::{template['template_id']}::seed-{seed}"
+    base_entity = {
+        "entity_type": "reservation",
+        "reservation_id": "4WQ150",
+        "user_id": "chen_jackson_3290",
+        "source": AIRLINE_DB_REFERENCE,
+    }
+    state_facts = {
+        "reservation_cabin": "business",
+        "reservation_status": "active",
+        "all_segments_unflown": True,
+        "insurance": "no",
+        "independent_cancellation_eligibility_basis": "business_cabin",
+        "refund_to_original_payment_methods": True,
+    }
+    proposed_operation = {
+        "type": "cancel_reservation",
+        "reservation_id": "4WQ150",
+    }
+    interaction_a = {
+        "user_cancellation_reason": "change_of_plan",
+        "cancellation_reason_obtained_before_cancellation_commit": True,
+    }
+    interaction_b = {
+        "user_cancellation_reason": None,
+        "cancellation_reason_obtained_before_cancellation_commit": False,
+    }
+    shared_context = {
+        "seed": seed,
+        "predicate_source": "interaction_facts",
+        "controlled_variable_bindings": {
+            "cancellation_reason_evidence_at_commit_gate": [
+                "interaction_facts.user_cancellation_reason",
+                "interaction_facts.cancellation_reason_obtained_before_cancellation_commit",
+            ]
+        },
+        "derived_predicate_paths": [],
+        "invariant_values": {
+            "same_cancellation_goal": "cancel_target_reservation",
+            "same_user_and_reservation": "chen_jackson_3290::4WQ150",
+            "same_business_cabin_eligibility": "business_cabin",
+            "same_unflown_segments": "all_segments_unflown",
+            "same_payment_and_refund_semantics": "original_gift_card_refund",
+            "same_cancellation_tool_availability": "cancel_reservation_available",
+            "same_target_db_outcome": "reservation_cancelled_and_payment_reversed",
+        },
+    }
+    world_a = _world(
+        pair_id=pair_id,
+        side="side_a",
+        template=template,
+        predicate_value=True,
+        base_entity=base_entity,
+        state_facts=state_facts,
+        interaction_facts=interaction_a,
+        proposed_operation=proposed_operation,
+    )
+    world_b = _world(
+        pair_id=pair_id,
+        side="side_b",
+        template=template,
+        predicate_value=False,
+        base_entity=base_entity,
+        state_facts=state_facts,
+        interaction_facts=interaction_b,
+        proposed_operation=proposed_operation,
+    )
+    return _pair(
+        template=template,
+        seed=seed,
+        shared_context=shared_context,
+        world_a=world_a,
+        world_b=world_b,
+    )
+
+
 Handler = Callable[[dict[str, Any], int], LatentPair]
 HANDLERS: dict[str, Handler] = {
     "airline.user_mandate.checked_baggage": _generate_checked_baggage,
     "airline.state_gate.flight_change_cabin": _generate_flight_change_cabin,
     "airline.mutation_guard.itinerary_identity": _generate_itinerary_identity,
     "airline.process.explicit_confirmation": _generate_explicit_confirmation,
+    "airline.process.cancellation_reason": _generate_cancellation_reason,
 }
 SUPPORTED_TEMPLATE_IDS = tuple(HANDLERS)
 

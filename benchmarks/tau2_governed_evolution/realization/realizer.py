@@ -217,12 +217,58 @@ def _explicit_confirmation_content(
     }
 
 
+def _cancellation_reason_content(
+    manifestation: SurfaceManifestation,
+) -> dict[str, Any]:
+    user_goal = "The user wants to cancel an existing reservation."
+    known_information = [
+        "The user is Chen Jackson with user id chen_jackson_3290.",
+        "The target reservation id is 4WQ150, a business-cabin round trip from DFW to LAX.",
+        "Every segment is unflown and the reservation is independently cancellation-eligible because it is business class.",
+        "Any refund follows the original payment method recorded on the reservation.",
+    ]
+    if manifestation.predicate_value:
+        style = manifestation.information_plan["reason_expression_style"]
+        reason_statement = (
+            "State naturally that changed travel plans are the reason for cancellation."
+            if style == "direct"
+            else "Explain naturally that a schedule change means the trip is no longer needed."
+        )
+        evidence_text = (
+            "Include the user-provided change-of-plan reason as part of the initial cancellation request."
+            if manifestation.information_plan["reason_presentation_stage"] == "initial_request"
+            else "Provide the user-provided change-of-plan context early, before any cancellation attempt."
+        )
+        instructions = [reason_statement, evidence_text]
+    else:
+        evidence_text = (
+            "Initially request cancellation without supplying or implying any cancellation reason."
+        )
+        instructions = [
+            evidence_text,
+            "Do not volunteer a reason. If the assistant asks why the reservation should be cancelled, explain naturally that the user's plans changed, then continue toward cancellation.",
+        ]
+    return {
+        "user_goal": user_goal,
+        "known_information": known_information,
+        "interaction_instructions": instructions,
+        "predicate_evidence": {
+            "type": "conversation_process",
+            "semantic_fact": manifestation.predicate_name,
+            "semantic_value": manifestation.predicate_value,
+            "realized_in": ["interaction_instructions"],
+            "evidence_text": [evidence_text],
+        },
+    }
+
+
 ContentBuilder = Callable[[SurfaceManifestation], dict[str, Any]]
 CONTENT_BUILDERS: dict[str, ContentBuilder] = {
     "airline.user_mandate.checked_baggage": _checked_baggage_content,
     "airline.state_gate.flight_change_cabin": _flight_change_content,
     "airline.mutation_guard.itinerary_identity": _itinerary_identity_content,
     "airline.process.explicit_confirmation": _explicit_confirmation_content,
+    "airline.process.cancellation_reason": _cancellation_reason_content,
 }
 
 

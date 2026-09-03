@@ -32,7 +32,13 @@ def evaluate_target_compliance(
     messages = trajectory_messages(trajectory)
     events = extract_trajectory_events(
         messages,
-        include_user_text=(bundle.template_id == "airline.process.explicit_confirmation"),
+        include_user_text=(
+            bundle.template_id
+            in {
+                "airline.process.explicit_confirmation",
+                "airline.process.cancellation_reason",
+            }
+        ),
     )
     result = handler(bundle, events)
     audit = audit_target_compliance_result(result, bundle, messages)

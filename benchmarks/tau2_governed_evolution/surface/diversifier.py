@@ -16,6 +16,7 @@ SUPPORTED_TEMPLATE_IDS = {
     "airline.state_gate.flight_change_cabin",
     "airline.mutation_guard.itinerary_identity",
     "airline.process.explicit_confirmation",
+    "airline.process.cancellation_reason",
 }
 
 SURFACE_PROFILES: tuple[dict[str, Any], ...] = (
@@ -148,6 +149,20 @@ def _surface_contexts(
             if profile_index % 2 == 0
             else "payload_bound_affirmative"
         )
+    elif world.template_id == "airline.process.cancellation_reason":
+        interaction_context["cancellation_reason_process"] = {
+            "reason_already_provided": world.predicate_value,
+            "reason_category": "change_of_plan" if world.predicate_value else None,
+            "pending_is_not_refusal": not world.predicate_value,
+        }
+        information_plan["reason_presentation_stage"] = (
+            "initial_request" if world.predicate_value and profile_index % 3 == 0
+            else "early_context" if world.predicate_value
+            else "after_agent_reason_request"
+        )
+        information_plan["reason_expression_style"] = (
+            "direct" if profile_index % 3 == 0 else "contextual"
+        )
     else:
         raise ValueError(f"Unsupported surface template: {world.template_id}")
 
@@ -182,6 +197,15 @@ def _guardrails(world: LatentWorld) -> dict[str, bool]:
             "all_segments_unflown": True,
             "payment_capability_preserved": True,
             "only_target_itinerary_invariant_varies": True,
+        }
+    if world.template_id == "airline.process.cancellation_reason":
+        return {
+            **common,
+            "same_business_reservation": True,
+            "all_segments_unflown": True,
+            "independent_eligibility_preserved": True,
+            "refund_semantics_preserved": True,
+            "only_reason_evidence_varies": True,
         }
     return {
         **common,

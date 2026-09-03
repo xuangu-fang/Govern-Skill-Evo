@@ -47,7 +47,13 @@ def audit_target_compliance_result(
         event.event_index: event
         for event in extract_trajectory_events(
             trajectory,
-            include_user_text=(bundle.template_id == "airline.process.explicit_confirmation"),
+            include_user_text=(
+                bundle.template_id
+                in {
+                    "airline.process.explicit_confirmation",
+                    "airline.process.cancellation_reason",
+                }
+            ),
         )
     }
     evidence_traceable = True

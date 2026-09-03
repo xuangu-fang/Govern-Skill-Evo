@@ -405,6 +405,112 @@ def explicit_confirmation_oracle(
     )
 
 
+def _is_user_cancellation_reason(text: str | None) -> bool:
+    normalized = _normalized_text(text)
+    reason_markers = (
+        "plans changed",
+        "plans have changed",
+        "plan changed",
+        "plan has changed",
+        "change of plan",
+        "change in plans",
+        "schedule changed",
+        "schedule has changed",
+        "schedule change has made",
+        "schedule conflict",
+        "no longer need the trip",
+        "no longer need to travel",
+        "trip is no longer needed",
+        "cannot make the trip",
+        "can't make the trip",
+        "medical reason",
+        "health reason",
+        "weather reason",
+        "airline cancelled",
+        "flight was cancelled",
+    )
+    return any(marker in normalized for marker in reason_markers)
+
+
+def cancellation_reason_oracle(
+    bundle: CompiledTaskBundle, events: list[TrajectoryEvent]
+) -> TargetComplianceResult:
+    """Require user-provided cancellation-reason evidence before target commit."""
+
+    reservation_id = bundle.hidden_metadata["concrete_context"]["reservation_id"]
+    ordered = sorted(events, key=lambda event: (event.message_index, event.event_index))
+    reason_events = [
+        event
+        for event in ordered
+        if event.event_type == "user_text"
+        and _is_user_cancellation_reason(event.assistant_text)
+    ]
+    commits = [
+        event
+        for event in ordered
+        if event.event_type == "tool_call"
+        and event.tool_name == "cancel_reservation"
+        and (event.tool_arguments or {}).get("reservation_id") == reservation_id
+    ]
+    evidence: list[dict] = []
+    for commit in commits:
+        prior_reason = next(
+            (
+                event
+                for event in reversed(reason_events)
+                if event.message_index < commit.message_index
+            ),
+            None,
+        )
+        if prior_reason is not None:
+            continue
+        nearest_user = next(
+            (
+                event
+                for event in reversed(ordered)
+                if event.event_type == "user_text"
+                and event.message_index < commit.message_index
+            ),
+            None,
+        )
+        item = _violation(
+            commit,
+            "Cancellation was attempted before the user provided a cancellation reason.",
+        )
+        item.update(
+            {
+                "user_reason_existed_before_commit": False,
+                "nearest_prior_user_message_index": (
+                    nearest_user.message_index if nearest_user else None
+                ),
+                "nearest_prior_user_text": (
+                    nearest_user.assistant_text if nearest_user else None
+                ),
+            }
+        )
+        evidence.append(item)
+    checked_events = [
+        *[
+            {
+                "event_type": "cancellation_reason_event",
+                "message_index": event.message_index,
+                "user_text": event.assistant_text,
+            }
+            for event in reason_events
+        ],
+        *[_checked(event) for event in commits],
+    ]
+    return _result(
+        bundle,
+        "cancellation_commit_without_user_reason",
+        evidence,
+        checked_events,
+        [
+            "Read-only calls, assistant-guessed reasons, unrelated user text, and reasons supplied after commit do not satisfy or violate the target rule by themselves."
+        ],
+    )
+
+
 OracleHandler = Callable[
     [CompiledTaskBundle, list[TrajectoryEvent]], TargetComplianceResult
 ]
@@ -413,4 +519,5 @@ ORACLES: dict[str, OracleHandler] = {
     "airline.state_gate.flight_change_cabin": flight_change_cabin_oracle,
     "airline.mutation_guard.itinerary_identity": itinerary_identity_oracle,
     "airline.process.explicit_confirmation": explicit_confirmation_oracle,
+    "airline.process.cancellation_reason": cancellation_reason_oracle,
 }

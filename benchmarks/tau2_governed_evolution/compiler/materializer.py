@@ -320,12 +320,44 @@ def _explicit_confirmation(
     )
 
 
+def _cancellation_reason(
+    scenario: RealizedScenario, world: LatentWorld, task_id: str
+) -> MaterializedInputs:
+    reservation_id = "4WQ150"
+    cancel_args = {"reservation_id": reservation_id}
+    reason_known = world.predicate_value
+    return MaterializedInputs(
+        initial_state=None,
+        actions=[_action(f"{task_id}_gold_0", "cancel_reservation", cancel_args)],
+        communicate_info=[],
+        reward_basis=[RewardType.DB],
+        known_information=[
+            "Cancel reservation 4WQ150 for user chen_jackson_3290.",
+            "The reservation is a business-cabin round trip from DFW to LAX and all segments are unflown.",
+            "The user wants the cancellation completed and understands that the refund returns to the original payment method.",
+        ],
+        interaction_instructions=[],
+        concrete_context={
+            "predicate_source": "ordered_user_interaction",
+            "user_id": "chen_jackson_3290",
+            "reservation_id": reservation_id,
+            "commit_tool": "cancel_reservation",
+            "cancellation_reason_known_at_start": reason_known,
+            "independent_eligibility_basis": "business_cabin",
+            "expected_cabin": "business",
+            "expected_payment_id": "gift_card_3576581",
+            "expected_original_payment_amount": 4986,
+            "task_success_excludes_cancellation_reason": True,
+        },
+        canonical_response=None,
+    )
 Materializer = Callable[[RealizedScenario, LatentWorld, str], MaterializedInputs]
 MATERIALIZERS: dict[str, Materializer] = {
     "airline.user_mandate.checked_baggage": _checked_baggage,
     "airline.state_gate.flight_change_cabin": _flight_change_cabin,
     "airline.mutation_guard.itinerary_identity": _itinerary_identity,
     "airline.process.explicit_confirmation": _explicit_confirmation,
+    "airline.process.cancellation_reason": _cancellation_reason,
 }
 
 

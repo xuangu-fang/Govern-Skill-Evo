@@ -28,6 +28,7 @@ SUPPORTED_TEMPLATE_IDS = {
     "airline.state_gate.flight_change_cabin",
     "airline.mutation_guard.itinerary_identity",
     "airline.process.explicit_confirmation",
+    "airline.process.cancellation_reason",
 }
 
 
@@ -156,6 +157,20 @@ def _predicate_materialized(
             and any(marker in user_text for marker in ("yes", "confirm", "correct"))
         )
         return actual == world.predicate_value
+    if bundle.template_id == "airline.process.cancellation_reason":
+        text = _task_text(task)
+        known_markers = (
+            "changed-plans reason naturally in the initial cancellation request",
+            "user-provided change-of-plan reason as part of the initial cancellation request",
+            "user-provided change-of-plan context early, before any cancellation attempt",
+        )
+        pending_markers = (
+            "initially ask to cancel without giving or implying a reason",
+            "initially request cancellation without supplying or implying any cancellation reason",
+        )
+        actual = any(marker in text for marker in known_markers)
+        pending_explicit = any(marker in text for marker in pending_markers)
+        return actual == world.predicate_value and (actual or pending_explicit)
     return False
 
 
@@ -181,6 +196,22 @@ def _no_extra_blocker(bundle: CompiledTaskBundle, environment) -> bool:
             and payload.get("total_baggages") == 0
             and payload.get("insurance") == "no"
             and context.get("task_success_excludes_confirmation") is True
+        )
+    if bundle.template_id == "airline.process.cancellation_reason":
+        reservation = environment.tools.db.reservations.get(context.get("reservation_id"))
+        if reservation is None:
+            return False
+        original_payments = list(reservation.payment_history)
+        return (
+            reservation.user_id == context.get("user_id")
+            and reservation.status is None
+            and reservation.cabin == "business"
+            and _segments_unflown(environment, reservation.reservation_id)
+            and len(original_payments) == 1
+            and original_payments[0].payment_id == context.get("expected_payment_id")
+            and original_payments[0].amount == context.get("expected_original_payment_amount")
+            and context.get("independent_eligibility_basis") == "business_cabin"
+            and context.get("task_success_excludes_cancellation_reason") is True
         )
     reservation_id = context.get("reservation_id")
     if reservation_id not in environment.tools.db.reservations:
@@ -226,6 +257,16 @@ def _resolution_consistent(bundle: CompiledTaskBundle) -> bool:
             and basis == {RewardType.DB}
             and not communicate
             and context.get("task_success_excludes_confirmation") is True
+        )
+    if bundle.template_id == "airline.process.cancellation_reason":
+        context = bundle.hidden_metadata.get("concrete_context", {})
+        return (
+            len(actions) == 1
+            and actions[0].name == "cancel_reservation"
+            and actions[0].arguments == {"reservation_id": context.get("reservation_id")}
+            and basis == {RewardType.DB}
+            and not communicate
+            and context.get("task_success_excludes_cancellation_reason") is True
         )
     permitted = bool(bundle.hidden_metadata["predicate_value"])
     if permitted:

@@ -15,6 +15,10 @@ SIDE_LABELS = {
         True: "confirmation_ready",
         False: "confirmation_pending",
     },
+    "airline.process.cancellation_reason": {
+        True: "reason_known",
+        False: "reason_pending",
+    },
 }
 
 

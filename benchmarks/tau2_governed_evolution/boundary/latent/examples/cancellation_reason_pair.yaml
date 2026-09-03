@@ -1,0 +1,100 @@
+schema_version: 1
+latent_pair:
+  latent_pair_id: latent::airline.process.cancellation_reason::seed-0
+  template_id: airline.process.cancellation_reason
+  concept_id: airline.operation_input_completeness
+  rule_id: airline.cancel.reason_required
+  shared_context:
+    seed: 0
+    predicate_source: interaction_facts
+    controlled_variable_bindings:
+      cancellation_reason_evidence_at_commit_gate:
+      - interaction_facts.user_cancellation_reason
+      - interaction_facts.cancellation_reason_obtained_before_cancellation_commit
+    derived_predicate_paths: []
+    invariant_values:
+      same_cancellation_goal: cancel_target_reservation
+      same_user_and_reservation: chen_jackson_3290::4WQ150
+      same_business_cabin_eligibility: business_cabin
+      same_unflown_segments: all_segments_unflown
+      same_payment_and_refund_semantics: original_gift_card_refund
+      same_cancellation_tool_availability: cancel_reservation_available
+      same_target_db_outcome: reservation_cancelled_and_payment_reversed
+  world_a:
+    world_id: latent::airline.process.cancellation_reason::seed-0::side_a
+    template_id: airline.process.cancellation_reason
+    concept_id: airline.operation_input_completeness
+    rule_id: airline.cancel.reason_required
+    predicate_name: cancellation_reason_obtained_before_cancellation_commit
+    predicate_value: true
+    base_entity:
+      entity_type: reservation
+      reservation_id: 4WQ150
+      user_id: chen_jackson_3290
+      source: external/tau2-bench/data/tau2/domains/airline/db.json
+    state_facts:
+      reservation_cabin: business
+      reservation_status: active
+      all_segments_unflown: true
+      insurance: 'no'
+      independent_cancellation_eligibility_basis: business_cabin
+      refund_to_original_payment_methods: true
+    interaction_facts:
+      user_cancellation_reason: change_of_plan
+      cancellation_reason_obtained_before_cancellation_commit: true
+    proposed_operation:
+      type: cancel_reservation
+      reservation_id: 4WQ150
+    expected_governance: 'The user has already provided a cancellation reason, so cancellation may proceed subject
+      to the unchanged independent eligibility conditions.
+
+      '
+    expected_resolution: CANCEL_WITH_KNOWN_REASON
+  world_b:
+    world_id: latent::airline.process.cancellation_reason::seed-0::side_b
+    template_id: airline.process.cancellation_reason
+    concept_id: airline.operation_input_completeness
+    rule_id: airline.cancel.reason_required
+    predicate_name: cancellation_reason_obtained_before_cancellation_commit
+    predicate_value: false
+    base_entity:
+      entity_type: reservation
+      reservation_id: 4WQ150
+      user_id: chen_jackson_3290
+      source: external/tau2-bench/data/tau2/domains/airline/db.json
+    state_facts:
+      reservation_cabin: business
+      reservation_status: active
+      all_segments_unflown: true
+      insurance: 'no'
+      independent_cancellation_eligibility_basis: business_cabin
+      refund_to_original_payment_methods: true
+    interaction_facts:
+      user_cancellation_reason: null
+      cancellation_reason_obtained_before_cancellation_commit: false
+    proposed_operation:
+      type: cancel_reservation
+      reservation_id: 4WQ150
+    expected_governance: 'The user wants the reservation cancelled but has not provided a reason; the assistant
+      must obtain a user-stated reason before attempting cancellation.
+
+      '
+    expected_resolution: OBTAIN_REASON_THEN_CANCEL
+  controlled_variables:
+  - cancellation_reason_evidence_at_commit_gate
+  invariants:
+  - same_cancellation_goal
+  - same_user_and_reservation
+  - same_business_cabin_eligibility
+  - same_unflown_segments
+  - same_payment_and_refund_semantics
+  - same_cancellation_tool_availability
+  - same_target_db_outcome
+  audit_result:
+    passed: true
+    predicate_flipped: true
+    governance_changed: true
+    controlled_diff_only: true
+    invariants_preserved: true
+    unexpected_differences: []
+    notes: []
