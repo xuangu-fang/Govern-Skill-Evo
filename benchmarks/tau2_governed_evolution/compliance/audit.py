@@ -59,12 +59,18 @@ def audit_target_compliance_result(
     evidence_traceable = True
     for evidence in result.violation_evidence:
         event = event_by_index.get(evidence.get("event_index"))
-        if (
-            event is None
-            or event.event_type != "tool_call"
-            or evidence.get("tool_name") != event.tool_name
+        if event is None or evidence.get("event_type") != event.event_type:
+            evidence_traceable = False
+            break
+        if event.event_type == "tool_call" and (
+            evidence.get("tool_name") != event.tool_name
             or evidence.get("arguments") != event.tool_arguments
             or evidence.get("tool_error") != event.tool_error
+        ):
+            evidence_traceable = False
+            break
+        if event.event_type == "assistant_text" and (
+            evidence.get("assistant_text") != event.assistant_text
         ):
             evidence_traceable = False
             break

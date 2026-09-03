@@ -6,6 +6,7 @@ SUPPORTED_TEMPLATE_IDS = {
     "airline.mutation_guard.itinerary_identity",
     "airline.process.explicit_confirmation",
     "airline.process.cancellation_reason",
+    "airline.ordering.delayed_flight_compensation",
 }
 
 TASK_INTENTS = {
@@ -16,6 +17,7 @@ TASK_INTENTS = {
     ),
     "airline.process.explicit_confirmation": "book_flight_with_commit_confirmation_gate",
     "airline.process.cancellation_reason": "cancel_reservation_with_required_reason",
+    "airline.ordering.delayed_flight_compensation": "cancel_then_compensate_delayed_flight",
 }
 
 USER_GOAL_MARKERS = {
@@ -28,6 +30,7 @@ USER_GOAL_MARKERS = {
     ),
     "airline.process.explicit_confirmation": "book a one-way economy flight",
     "airline.process.cancellation_reason": "cancel an existing reservation",
+    "airline.ordering.delayed_flight_compensation": "cancel the reservation and receive delayed-flight compensation",
 }
 
 PERSONA_DESCRIPTIONS = {

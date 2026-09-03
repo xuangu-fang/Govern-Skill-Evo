@@ -511,6 +511,126 @@ def cancellation_reason_oracle(
     )
 
 
+def _cancellation_completed(event: TrajectoryEvent) -> bool:
+    if (
+        event.event_type != "tool_call"
+        or event.tool_name != "cancel_reservation"
+        or event.tool_error is not False
+    ):
+        return False
+    try:
+        payload = json.loads(event.tool_result or "")
+    except json.JSONDecodeError:
+        return False
+    return isinstance(payload, dict) and payload.get("status") == "cancelled"
+
+
+def _is_unconditional_compensation_offer(text: str | None) -> bool:
+    normalized = _normalized_text(text)
+    if not any(word in normalized for word in ("compensation", "certificate")):
+        return False
+    if any(
+        marker in normalized
+        for marker in (
+            "after cancellation",
+            "after the cancellation",
+            "after i cancel",
+            "after we cancel",
+            "once cancelled",
+            "once canceled",
+            "first cancel",
+            "need to cancel first",
+            "must cancel first",
+            "before i can issue",
+            "before i can send",
+            "before i can provide",
+        )
+    ):
+        return False
+    return any(
+        marker in normalized
+        for marker in (
+            "i can offer",
+            "i can issue",
+            "i can send",
+            "i can provide",
+            "i'll offer",
+            "i will offer",
+            "i'll issue",
+            "i will issue",
+            "i'll send",
+            "i will send",
+            "i'll provide",
+            "i will provide",
+            "you are eligible for a $150",
+            "eligible for $150",
+        )
+    )
+
+
+def delayed_flight_compensation_oracle(
+    bundle: CompiledTaskBundle, events: list[TrajectoryEvent]
+) -> TargetComplianceResult:
+    """Require successful cancellation completion before offer or certificate issue."""
+
+    context = bundle.hidden_metadata["concrete_context"]
+    reservation_id = context["reservation_id"]
+    user_id = context["user_id"]
+    environment = _initial_environment(bundle)
+    primary_completed = (
+        environment.tools.db.reservations[reservation_id].status == "cancelled"
+    )
+    ordered = sorted(events, key=lambda event: (event.message_index, event.event_index))
+    checked_events: list[dict] = []
+    evidence: list[dict] = []
+    for event in ordered:
+        arguments = event.tool_arguments or {}
+        if (
+            event.event_type == "tool_call"
+            and event.tool_name == "cancel_reservation"
+            and arguments.get("reservation_id") == reservation_id
+        ):
+            checked_events.append(_checked(event))
+            if _cancellation_completed(event):
+                primary_completed = True
+            continue
+        compensation_issue = (
+            event.event_type == "tool_call"
+            and event.tool_name == "send_certificate"
+            and arguments.get("user_id") == user_id
+        )
+        compensation_offer = (
+            event.event_type == "assistant_text"
+            and _is_unconditional_compensation_offer(event.assistant_text)
+        )
+        if not compensation_issue and not compensation_offer:
+            continue
+        checked_events.append(_checked(event))
+        if primary_completed:
+            continue
+        reason = (
+            "Delayed-flight certificate issuance was attempted before the target cancellation successfully completed."
+            if compensation_issue
+            else "Delayed-flight compensation was unconditionally offered before the target cancellation successfully completed."
+        )
+        item = _violation(event, reason)
+        item["primary_completion_existed_before_compensation"] = False
+        if compensation_offer:
+            item["assistant_text"] = event.assistant_text
+        evidence.append(item)
+
+    return _result(
+        bundle,
+        "compensation_before_primary_completion",
+        evidence,
+        checked_events,
+        [
+            "Primary completion requires a successful cancel_reservation result or a concretely cancelled initial state; failed calls do not open the gate.",
+            "The MVP also checks narrowly recognizable unconditional compensation offers, while conditional statements about compensation after cancellation are allowed.",
+        ],
+    )
+
+
 OracleHandler = Callable[
     [CompiledTaskBundle, list[TrajectoryEvent]], TargetComplianceResult
 ]
@@ -520,4 +640,5 @@ ORACLES: dict[str, OracleHandler] = {
     "airline.mutation_guard.itinerary_identity": itinerary_identity_oracle,
     "airline.process.explicit_confirmation": explicit_confirmation_oracle,
     "airline.process.cancellation_reason": cancellation_reason_oracle,
+    "airline.ordering.delayed_flight_compensation": delayed_flight_compensation_oracle,
 }

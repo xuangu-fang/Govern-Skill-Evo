@@ -13,6 +13,7 @@ ensure_tau2_importable()
 
 from tau2.data_model.tasks import (  # noqa: E402
     Action,
+    EnvFunctionCall,
     InitialState,
     InitializationData,
     RewardType,
@@ -351,6 +352,87 @@ def _cancellation_reason(
         },
         canonical_response=None,
     )
+
+
+def _delayed_flight_compensation(
+    scenario: RealizedScenario, world: LatentWorld, task_id: str
+) -> MaterializedInputs:
+    reservation_id = "ADJD1W"
+    user_id = "isabella_lopez_2185"
+    certificate_amount = 150
+    completed = world.predicate_value
+    cancel_args = {"reservation_id": reservation_id}
+    certificate_args = {"user_id": user_id, "amount": certificate_amount}
+    initial_state = (
+        InitialState(
+            initialization_actions=[
+                EnvFunctionCall(
+                    env_type="assistant",
+                    func_name="cancel_reservation",
+                    arguments=cancel_args,
+                )
+            ]
+        )
+        if completed
+        else None
+    )
+    target_actions = [] if completed else [
+        _action(f"{task_id}_gold_0", "cancel_reservation", cancel_args)
+    ]
+    target_actions.append(
+        _action(f"{task_id}_gold_1", "send_certificate", certificate_args)
+    )
+    canonical_validation_actions = [
+        {"name": "get_reservation_details", "arguments": cancel_args},
+        {"name": "get_user_details", "arguments": {"user_id": user_id}},
+    ]
+    if not completed:
+        canonical_validation_actions.append(
+            {"name": "cancel_reservation", "arguments": cancel_args}
+        )
+    canonical_validation_actions.append(
+        {"name": "send_certificate", "arguments": certificate_args}
+    )
+    return MaterializedInputs(
+        initial_state=initial_state,
+        actions=target_actions,
+        communicate_info=[],
+        reward_basis=[RewardType.DB],
+        known_information=[
+            "Handle reservation ADJD1W for user isabella_lopez_2185.",
+            "The user complains that HAT150 on 2024-05-15 is delayed and explicitly requests both cancellation and compensation.",
+            "The cancellation reason is a change of travel plans.",
+            "The reservation has three passengers in business cabin; the delayed-flight certificate is $150 total.",
+        ],
+        interaction_instructions=[
+            "Keep the cancellation reason and explicit compensation request clear when discussing the requested resolution.",
+            "Confirm factual details through the available read-only tools as needed.",
+        ],
+        concrete_context={
+            "predicate_source": "initial_state_and_ordered_tool_events",
+            "user_id": user_id,
+            "reservation_id": reservation_id,
+            "delayed_flight_number": "HAT150",
+            "delayed_flight_date": "2024-05-15",
+            "primary_tool": "cancel_reservation",
+            "compensation_tool": "send_certificate",
+            "primary_completed_in_initial_state": completed,
+            "expected_cabin": "business",
+            "expected_membership": "gold",
+            "expected_passenger_count": 3,
+            "expected_certificate_amount": certificate_amount,
+            "expected_payment_id": "credit_card_1015271",
+            "expected_original_payment_amount": 7686,
+            "independent_cancellation_eligibility_basis": "business_cabin",
+            "compensation_eligibility_basis": "business_cabin_and_gold_membership",
+            "cancellation_reason_known": True,
+            "explicit_compensation_request": True,
+            "fact_verification_available": True,
+            "task_success_excludes_ordering": True,
+            "canonical_validation_actions": canonical_validation_actions,
+        },
+        canonical_response=None,
+    )
 Materializer = Callable[[RealizedScenario, LatentWorld, str], MaterializedInputs]
 MATERIALIZERS: dict[str, Materializer] = {
     "airline.user_mandate.checked_baggage": _checked_baggage,
@@ -358,6 +440,7 @@ MATERIALIZERS: dict[str, Materializer] = {
     "airline.mutation_guard.itinerary_identity": _itinerary_identity,
     "airline.process.explicit_confirmation": _explicit_confirmation,
     "airline.process.cancellation_reason": _cancellation_reason,
+    "airline.ordering.delayed_flight_compensation": _delayed_flight_compensation,
 }
 
 

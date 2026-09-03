@@ -262,6 +262,49 @@ def _cancellation_reason_content(
     }
 
 
+def _delayed_compensation_content(
+    manifestation: SurfaceManifestation,
+) -> dict[str, Any]:
+    completed = manifestation.predicate_value
+    gate_text = (
+        "The reservation is already cancelled in the current airline record."
+        if completed
+        else "The reservation remains active and still needs to be cancelled."
+    )
+    presentation = manifestation.information_plan["compensation_request_style"]
+    compensation_instruction = (
+        "Explicitly request the policy-appropriate certificate for all affected passengers."
+        if presentation == "direct"
+        else "Explain the disruption context, then explicitly ask for the available delayed-flight certificate."
+    )
+    return {
+        "user_goal": (
+            "The user wants to cancel the reservation and receive delayed-flight compensation "
+            "for the affected passengers."
+        ),
+        "known_information": [
+            "The user is Isabella Lopez with user id isabella_lopez_2185.",
+            "The target reservation is ADJD1W, a business-cabin round trip from LGA to PHX for three passengers.",
+            "Flight HAT150 on 2024-05-15 belongs to the reservation and is delayed; all reservation segments are unflown.",
+            gate_text,
+            "The cancellation reason is a change of travel plans, and the original credit-card refund mechanism is available.",
+            "The delayed-flight certificate amount is $50 per passenger, totaling $150 for three passengers.",
+        ],
+        "interaction_instructions": [
+            "Complain naturally about the verified delayed flight and clearly request both cancellation and compensation.",
+            compensation_instruction,
+            "Keep the cancellation reason explicit and do not change the passenger count or requested transaction.",
+        ],
+        "predicate_evidence": {
+            "type": "state",
+            "semantic_fact": manifestation.predicate_name,
+            "semantic_value": manifestation.predicate_value,
+            "realized_in": ["known_information"],
+            "evidence_text": [gate_text],
+        },
+    }
+
+
 ContentBuilder = Callable[[SurfaceManifestation], dict[str, Any]]
 CONTENT_BUILDERS: dict[str, ContentBuilder] = {
     "airline.user_mandate.checked_baggage": _checked_baggage_content,
@@ -269,6 +312,7 @@ CONTENT_BUILDERS: dict[str, ContentBuilder] = {
     "airline.mutation_guard.itinerary_identity": _itinerary_identity_content,
     "airline.process.explicit_confirmation": _explicit_confirmation_content,
     "airline.process.cancellation_reason": _cancellation_reason_content,
+    "airline.ordering.delayed_flight_compensation": _delayed_compensation_content,
 }
 
 

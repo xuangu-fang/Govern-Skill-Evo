@@ -19,6 +19,10 @@ SIDE_LABELS = {
         True: "reason_known",
         False: "reason_pending",
     },
+    "airline.ordering.delayed_flight_compensation": {
+        True: "primary_action_completed",
+        False: "primary_action_pending",
+    },
 }
 
 

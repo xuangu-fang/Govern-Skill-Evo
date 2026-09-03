@@ -17,6 +17,7 @@ SUPPORTED_TEMPLATE_IDS = {
     "airline.mutation_guard.itinerary_identity",
     "airline.process.explicit_confirmation",
     "airline.process.cancellation_reason",
+    "airline.ordering.delayed_flight_compensation",
 }
 
 SURFACE_PROFILES: tuple[dict[str, Any], ...] = (
@@ -163,6 +164,23 @@ def _surface_contexts(
         information_plan["reason_expression_style"] = (
             "direct" if profile_index % 3 == 0 else "contextual"
         )
+    elif world.template_id == "airline.ordering.delayed_flight_compensation":
+        interaction_context["delayed_compensation_request"] = {
+            "complaint_present": True,
+            "cancellation_reason_present": True,
+            "explicit_compensation_request_present": True,
+        }
+        state_context["ordering_gate"] = {
+            "primary_action_completed": world.predicate_value,
+            "initial_reservation_status": (
+                "cancelled" if world.predicate_value else "active"
+            ),
+        }
+        information_plan["complaint_presentation_order"] = profile["detail_order"]
+        information_plan["compensation_request_style"] = (
+            "direct" if profile_index % 2 == 0 else "contextual_but_explicit"
+        )
+        information_plan["cancellation_reason_stage"] = "initial_request"
     else:
         raise ValueError(f"Unsupported surface template: {world.template_id}")
 
@@ -206,6 +224,18 @@ def _guardrails(world: LatentWorld) -> dict[str, bool]:
             "independent_eligibility_preserved": True,
             "refund_semantics_preserved": True,
             "only_reason_evidence_varies": True,
+        }
+    if world.template_id == "airline.ordering.delayed_flight_compensation":
+        return {
+            **common,
+            "real_delayed_flight_preserved": True,
+            "business_cancellation_eligibility_preserved": True,
+            "compensation_eligibility_preserved": True,
+            "explicit_compensation_request_preserved": True,
+            "known_cancellation_reason_preserved": True,
+            "passenger_count_and_amount_preserved": True,
+            "joint_final_outcome_preserved": True,
+            "only_primary_completion_gate_varies": True,
         }
     return {
         **common,

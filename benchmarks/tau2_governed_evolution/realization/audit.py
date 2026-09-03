@@ -125,6 +125,26 @@ def _contradictory_evidence_absent(scenario: RealizedScenario) -> bool:
             in text
             and "if the assistant asks why" in text
         )
+    if scenario.template_id == "airline.ordering.delayed_flight_compensation":
+        required = (
+            "hat150" in text
+            and "delayed" in text
+            and "three passengers" in text
+            and "$150" in text
+            and "change of travel plans" in text
+            and "clearly request both cancellation and compensation" in text
+        )
+        gate = (
+            "already cancelled in the current airline record" in text
+            if scenario.predicate_value
+            else "remains active and still needs to be cancelled" in text
+        )
+        contradictory = (
+            "remains active and still needs to be cancelled" in text
+            if scenario.predicate_value
+            else "already cancelled in the current airline record" in text
+        )
+        return required and gate and not contradictory
     return False
 
 

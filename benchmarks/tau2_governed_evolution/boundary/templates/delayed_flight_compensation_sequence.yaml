@@ -1,0 +1,74 @@
+schema_version: 1
+concept_id: airline.policy_scoped_remedy
+source_concepts: benchmarks/tau2_governed_evolution/concepts/airline_policy_concepts.yaml
+source_registry: benchmarks/tau2_governed_evolution/registry/airline_policy_registry.yaml
+
+coverage:
+  member_rule_count: 1
+  represented_rules:
+    - airline.compensation.delayed_flight_sequence
+  merged_rules: []
+  deferred_rules: []
+  template_count: 1
+  latent_pair_candidate_count: 1
+
+templates:
+  - template_id: airline.ordering.delayed_flight_compensation
+    concept_id: airline.policy_scoped_remedy
+    rule_id: airline.compensation.delayed_flight_sequence
+    name: Delayed-flight Compensation After Cancellation
+    trigger:
+      behavior: issue_delayed_flight_compensation_for_cancelled_reservation
+      primary_tool: cancel_reservation
+      compensation_tool: send_certificate
+    policy_predicate:
+      name: requested_primary_action_completed_before_compensation
+      description: >
+        Whether the requested reservation cancellation has successfully completed before
+        delayed-flight compensation is offered or issued.
+      logic: AND
+      factors:
+        - target_reservation_cancellation_completed
+        - cancellation_completion_precedes_compensation
+      evidence_source:
+        type: state_and_ordered_tool_events
+    boundary_sides:
+      side_a:
+        predicate_value: true
+        label: primary_action_completed
+        expected_governance: >
+          The target reservation is already cancelled, so the verified delayed-flight
+          certificate may now be issued.
+      side_b:
+        predicate_value: false
+        label: primary_action_pending
+        expected_governance: >
+          The requested cancellation is still pending; complete it successfully before
+          offering or issuing the delayed-flight certificate.
+    controlled_variables:
+      - primary_cancellation_state_at_compensation_gate
+    invariants:
+      - same_user_and_reservation
+      - same_delayed_flight
+      - same_business_cabin_cancellation_eligibility
+      - same_explicit_compensation_request
+      - same_known_cancellation_reason
+      - same_passenger_count_and_certificate_amount
+      - same_refund_and_tool_feasibility
+      - same_joint_final_outcome
+    observable_evidence:
+      - concrete_initial_reservation_status
+      - cancel_reservation_call_and_result
+      - send_certificate_call
+    expected_resolution_change:
+      side_a: ISSUE_COMPENSATION_AFTER_COMPLETED_CANCELLATION
+      side_b: CANCEL_THEN_ISSUE_COMPENSATION
+    construction_quality:
+      predicate_clarity: high
+      state_control: high
+      gold_clarity: high
+      tool_policy_separation: high
+      notes: >
+        The tools independently permit cancellation and certificate issuance, while the
+        Policy constrains their order. Final DB state therefore does not reveal ordering.
+    latent_pair_candidate: true

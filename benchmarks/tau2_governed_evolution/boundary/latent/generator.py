@@ -472,6 +472,99 @@ def _generate_cancellation_reason(
     )
 
 
+def _generate_delayed_flight_compensation(
+    template: dict[str, Any], seed: int
+) -> LatentPair:
+    pair_id = f"latent::{template['template_id']}::seed-{seed}"
+    base_entity = {
+        "entity_type": "reservation",
+        "reservation_id": "ADJD1W",
+        "user_id": "isabella_lopez_2185",
+        "source": AIRLINE_DB_REFERENCE,
+    }
+    shared_state = {
+        "reservation_cabin": "business",
+        "delayed_flight_number": "HAT150",
+        "delayed_flight_date": "2024-05-15",
+        "delayed_flight_status": "delayed",
+        "all_segments_unflown": True,
+        "passenger_count": 3,
+        "certificate_amount": 150,
+        "independent_cancellation_eligibility_basis": "business_cabin",
+        "compensation_eligibility_basis": "business_cabin_and_gold_membership",
+    }
+    interaction_facts = {
+        "user_requests_cancellation": True,
+        "user_cancellation_reason": "change_of_plan",
+        "user_complains_about_delayed_flight": True,
+        "user_explicitly_requests_compensation": True,
+    }
+    proposed_operation = {
+        "type": "cancel_then_issue_delayed_flight_certificate",
+        "reservation_id": "ADJD1W",
+        "certificate_user_id": "isabella_lopez_2185",
+        "certificate_amount": 150,
+    }
+    state_a = {
+        **shared_state,
+        "reservation_status": "cancelled",
+        "requested_primary_action_completed_before_compensation": True,
+    }
+    state_b = {
+        **shared_state,
+        "reservation_status": "active",
+        "requested_primary_action_completed_before_compensation": False,
+    }
+    shared_context = {
+        "seed": seed,
+        "predicate_source": "state_facts_and_ordered_tool_events",
+        "controlled_variable_bindings": {
+            "primary_cancellation_state_at_compensation_gate": [
+                "state_facts.reservation_status",
+                "state_facts.requested_primary_action_completed_before_compensation",
+            ]
+        },
+        "derived_predicate_paths": [],
+        "invariant_values": {
+            "same_user_and_reservation": "isabella_lopez_2185::ADJD1W",
+            "same_delayed_flight": "HAT150::2024-05-15::delayed",
+            "same_business_cabin_cancellation_eligibility": "business_cabin",
+            "same_explicit_compensation_request": True,
+            "same_known_cancellation_reason": "change_of_plan",
+            "same_passenger_count_and_certificate_amount": "3::150",
+            "same_refund_and_tool_feasibility": "credit_card_refund_and_tools_available",
+            "same_joint_final_outcome": "reservation_cancelled_and_150_certificate_issued",
+        },
+    }
+    world_a = _world(
+        pair_id=pair_id,
+        side="side_a",
+        template=template,
+        predicate_value=True,
+        base_entity=base_entity,
+        state_facts=state_a,
+        interaction_facts=interaction_facts,
+        proposed_operation=proposed_operation,
+    )
+    world_b = _world(
+        pair_id=pair_id,
+        side="side_b",
+        template=template,
+        predicate_value=False,
+        base_entity=base_entity,
+        state_facts=state_b,
+        interaction_facts=interaction_facts,
+        proposed_operation=proposed_operation,
+    )
+    return _pair(
+        template=template,
+        seed=seed,
+        shared_context=shared_context,
+        world_a=world_a,
+        world_b=world_b,
+    )
+
+
 Handler = Callable[[dict[str, Any], int], LatentPair]
 HANDLERS: dict[str, Handler] = {
     "airline.user_mandate.checked_baggage": _generate_checked_baggage,
@@ -479,6 +572,7 @@ HANDLERS: dict[str, Handler] = {
     "airline.mutation_guard.itinerary_identity": _generate_itinerary_identity,
     "airline.process.explicit_confirmation": _generate_explicit_confirmation,
     "airline.process.cancellation_reason": _generate_cancellation_reason,
+    "airline.ordering.delayed_flight_compensation": _generate_delayed_flight_compensation,
 }
 SUPPORTED_TEMPLATE_IDS = tuple(HANDLERS)
 

@@ -29,6 +29,7 @@ SUPPORTED_TEMPLATE_IDS = {
     "airline.mutation_guard.itinerary_identity",
     "airline.process.explicit_confirmation",
     "airline.process.cancellation_reason",
+    "airline.ordering.delayed_flight_compensation",
 }
 
 
@@ -171,6 +172,14 @@ def _predicate_materialized(
         actual = any(marker in text for marker in known_markers)
         pending_explicit = any(marker in text for marker in pending_markers)
         return actual == world.predicate_value and (actual or pending_explicit)
+    if bundle.template_id == "airline.ordering.delayed_flight_compensation":
+        context = bundle.hidden_metadata.get("concrete_context", {})
+        reservation = environment.tools.db.reservations[context["reservation_id"]]
+        actual = reservation.status == "cancelled"
+        return (
+            actual == world.predicate_value
+            and actual == context.get("primary_completed_in_initial_state")
+        )
     return False
 
 
@@ -212,6 +221,42 @@ def _no_extra_blocker(bundle: CompiledTaskBundle, environment) -> bool:
             and original_payments[0].amount == context.get("expected_original_payment_amount")
             and context.get("independent_eligibility_basis") == "business_cabin"
             and context.get("task_success_excludes_cancellation_reason") is True
+        )
+    if bundle.template_id == "airline.ordering.delayed_flight_compensation":
+        reservation = environment.tools.db.reservations.get(context.get("reservation_id"))
+        user = environment.tools.db.users.get(context.get("user_id"))
+        if reservation is None or user is None:
+            return False
+        delayed = environment.tools.db.flights[context["delayed_flight_number"]].dates[
+            context["delayed_flight_date"]
+        ]
+        original = reservation.payment_history[:1]
+        certificates = [
+            method
+            for method in user.payment_methods.values()
+            if method.source == "certificate"
+        ]
+        expected_status = (
+            "cancelled" if context.get("primary_completed_in_initial_state") else None
+        )
+        return (
+            reservation.status == expected_status
+            and reservation.user_id == context.get("user_id")
+            and reservation.cabin == context.get("expected_cabin") == "business"
+            and user.membership == context.get("expected_membership") == "gold"
+            and len(reservation.passengers) == context.get("expected_passenger_count") == 3
+            and delayed.status == "delayed"
+            and _segments_unflown(environment, reservation.reservation_id)
+            and original
+            and original[0].payment_id == context.get("expected_payment_id")
+            and original[0].amount == context.get("expected_original_payment_amount")
+            and not certificates
+            and context.get("expected_certificate_amount") == 150
+            and context.get("independent_cancellation_eligibility_basis") == "business_cabin"
+            and context.get("explicit_compensation_request") is True
+            and context.get("cancellation_reason_known") is True
+            and context.get("fact_verification_available") is True
+            and context.get("task_success_excludes_ordering") is True
         )
     reservation_id = context.get("reservation_id")
     if reservation_id not in environment.tools.db.reservations:
@@ -268,6 +313,28 @@ def _resolution_consistent(bundle: CompiledTaskBundle) -> bool:
             and not communicate
             and context.get("task_success_excludes_cancellation_reason") is True
         )
+    if bundle.template_id == "airline.ordering.delayed_flight_compensation":
+        context = bundle.hidden_metadata.get("concrete_context", {})
+        names = [action.name for action in actions]
+        expected = (
+            ["send_certificate"]
+            if context.get("primary_completed_in_initial_state")
+            else ["cancel_reservation", "send_certificate"]
+        )
+        certificate = actions[-1] if actions else None
+        return (
+            names == expected
+            and certificate is not None
+            and certificate.arguments
+            == {
+                "user_id": context.get("user_id"),
+                "amount": context.get("expected_certificate_amount"),
+            }
+            and basis == {RewardType.DB}
+            and not communicate
+            and RewardType.ACTION not in basis
+            and context.get("task_success_excludes_ordering") is True
+        )
     permitted = bool(bundle.hidden_metadata["predicate_value"])
     if permitted:
         return (
@@ -292,12 +359,22 @@ def _gold_satisfiable(bundle: CompiledTaskBundle) -> tuple[bool, list[str]]:
     runtime = _initialize_environment(task)
     trajectory = []
     try:
-        for index, action in enumerate(criteria.actions or []):
+        context = bundle.hidden_metadata.get("concrete_context", {})
+        canonical_specs = context.get("canonical_validation_actions")
+        actions_to_run = canonical_specs or list(criteria.actions or [])
+        for index, action in enumerate(actions_to_run):
+            name = action["name"] if isinstance(action, dict) else action.name
+            arguments = (
+                action["arguments"] if isinstance(action, dict) else action.arguments
+            )
+            requestor = (
+                "assistant" if isinstance(action, dict) else action.requestor
+            )
             call = ToolCall(
                 id=f"canonical_{index}",
-                name=action.name,
-                arguments=action.arguments,
-                requestor=action.requestor,
+                name=name,
+                arguments=arguments,
+                requestor=requestor,
             )
             trajectory.append(
                 AssistantMessage(role="assistant", content=None, tool_calls=[call])
