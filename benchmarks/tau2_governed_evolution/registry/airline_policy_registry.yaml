@@ -1,0 +1,811 @@
+schema_version: 1
+domain: airline
+source_policy: external/tau2-bench/data/tau2/domains/airline/policy.md
+source_policy_time: "2024-05-15 15:00:00 EST"
+
+rules:
+  - rule_id: airline.action.explicit_confirmation
+    name: Explicit confirmation before booking updates
+    primitive: confirmation
+    source_section: Airline Agent Policy
+    policy_rule: >
+      Before an action that updates the booking database, the agent must list the
+      action details and obtain the user's explicit confirmation (yes).
+    trigger:
+      actions:
+        - book_reservation
+        - modify_flights
+        - edit_baggage
+        - change_cabin
+        - update_passenger_information
+    predicate:
+      description: The action will update booking data.
+      conditions:
+        - The exact action details have been presented to the user.
+        - The user has explicitly replied yes to those details.
+    permitted_when: Both conditions are satisfied.
+    prohibited_when: The details have not been listed or explicit yes is absent.
+    required_evidence:
+      - Proposed action details in the conversation
+      - Explicit user confirmation after those details
+    tool_enforcement: not_enforced
+    boundary_constructible: true
+
+  - rule_id: airline.response.source_grounding
+    name: Ground responses in user or tool information
+    primitive: grounding
+    source_section: Airline Agent Policy
+    policy_rule: >
+      The agent must not provide information, knowledge, procedures, subjective
+      recommendations, or comments that are not supplied by the user or available tools.
+    trigger:
+      action: provide_information_or_guidance
+    predicate:
+      description: The response content is supported by an allowed source.
+      conditions:
+        - The content was provided by the user or returned by an available tool.
+        - The content is not an unsupported subjective recommendation or comment.
+    permitted_when: The response is grounded in the user or available tools.
+    prohibited_when: The response relies on unsupported knowledge or subjective judgment.
+    required_evidence:
+      - Supporting user statement or tool result
+    tool_enforcement: not_enforced
+    boundary_constructible: true
+
+  - rule_id: airline.interaction.single_tool_call
+    name: Serialize tool calls and user responses
+    primitive: ordering
+    source_section: Airline Agent Policy
+    policy_rule: >
+      The agent may make only one tool call at a time and must not send a user response
+      simultaneously with a tool call.
+    trigger:
+      action: call_tool_or_respond
+    predicate:
+      description: The current turn contains exactly one interaction mode.
+      conditions:
+        - At most one tool is called.
+        - A tool call and a user-facing response are not emitted together.
+    permitted_when: The interaction is serialized as required.
+    prohibited_when: Multiple tools are called together or a response accompanies a tool call.
+    required_evidence:
+      - Conversation event ordering
+    tool_enforcement: runtime_dependent
+    boundary_constructible: false
+
+  - rule_id: airline.escalation.scope
+    name: Transfer only for out-of-scope requests
+    primitive: escalation
+    source_section: Airline Agent Policy
+    policy_rule: >
+      The agent must transfer to a human if and only if the request cannot be handled
+      within the agent's permitted actions, using the transfer tool before sending the
+      prescribed transfer message.
+    trigger:
+      action: transfer_to_human_agents
+    predicate:
+      description: The request cannot be handled within the policy and available actions.
+      conditions:
+        - No policy-compliant available action can handle the request.
+    permitted_when: The request is outside the agent's actionable scope.
+    prohibited_when: The agent can handle the request within its permitted actions.
+    required_evidence:
+      - User request
+      - Relevant policy restriction
+      - Available tool capabilities
+    required_sequence:
+      - Call transfer_to_human_agents.
+      - Send the prescribed transfer message.
+    tool_enforcement: not_enforced
+    boundary_constructible: true
+
+  - rule_id: airline.book.required_information
+    name: Collect required booking information
+    primitive: prerequisite
+    source_section: Book flight
+    policy_rule: >
+      Before booking, the agent must obtain the user id, trip type, origin,
+      destination, and each passenger's first name, last name, and date of birth.
+    trigger:
+      action: book_reservation
+    predicate:
+      description: All policy-required booking fields are known.
+      conditions:
+        - User id is supplied by the user.
+        - Trip type, origin, and destination are known.
+        - First name, last name, and date of birth are known for every passenger.
+    permitted_when: All required booking information has been obtained.
+    prohibited_when: Any required booking information is missing.
+    required_evidence:
+      - User-provided user id
+      - Trip type, origin, and destination
+      - Passenger identity and date-of-birth data
+    tool_enforcement: partially_enforced_by_schema
+    boundary_constructible: true
+
+  - rule_id: airline.book.flight_availability
+    name: Book only available flight instances
+    primitive: eligibility
+    source_section: Domain Basic / Flight
+    policy_rule: >
+      A flight instance may be booked only when its status is available; instances that
+      are delayed, on time, or flying cannot be booked.
+    trigger:
+      action: book_reservation
+    predicate:
+      description: Every selected flight instance has available status.
+      conditions:
+        - Each selected flight date has status available.
+    permitted_when: Every selected flight instance is available.
+    prohibited_when: Any selected flight instance is delayed, on time, or flying.
+    required_evidence:
+      - Status of every selected flight instance
+    tool_enforcement: enforced_by_search_and_booking_tools
+    boundary_constructible: false
+
+  - rule_id: airline.book.uniform_cabin
+    name: Use one shared itinerary and cabin across a reservation
+    primitive: scope
+    source_section: Book flight
+    policy_rule: >
+      All flights in one reservation must use the same cabin class, and every passenger
+      must fly the same flights in that same cabin.
+    trigger:
+      action: book_reservation
+    predicate:
+      description: Every selected flight uses one common cabin class.
+      conditions:
+        - A single cabin class applies to all flight segments.
+        - The complete itinerary and cabin apply to every passenger.
+    permitted_when: All segments use the same cabin class.
+    prohibited_when: Different segments would use different cabin classes.
+    required_evidence:
+      - Selected cabin class
+      - Complete selected itinerary
+    tool_enforcement: enforced_by_single_cabin_argument
+    boundary_constructible: false
+
+  - rule_id: airline.book.passenger_limit
+    name: Limit reservations to five passengers
+    primitive: eligibility
+    source_section: Book flight
+    policy_rule: A reservation may contain at most five passengers.
+    trigger:
+      action: book_reservation
+    predicate:
+      description: The requested passenger count does not exceed five.
+      conditions:
+        - Passenger count is at most five.
+    permitted_when: The reservation has five or fewer passengers.
+    prohibited_when: The reservation would have more than five passengers.
+    required_evidence:
+      - Complete passenger list
+    tool_enforcement: not_enforced
+    boundary_constructible: true
+
+  - rule_id: airline.book.payment_method_limits
+    name: Enforce booking payment-method count limits
+    primitive: eligibility
+    source_section: Book flight
+    policy_rule: >
+      A reservation may use at most one travel certificate, at most one credit card,
+      and at most three gift cards.
+    trigger:
+      action: book_reservation
+    predicate:
+      description: The proposed payment mix stays within every type-specific limit.
+      conditions:
+        - Travel certificate count is zero or one.
+        - Credit card count is zero or one.
+        - Gift card count is at most three.
+    permitted_when: All payment-method count limits are satisfied.
+    prohibited_when: Any payment-method count limit is exceeded.
+    required_evidence:
+      - Proposed payment method ids and types
+    tool_enforcement: not_enforced
+    boundary_constructible: true
+
+  - rule_id: airline.book.certificate_remaining_balance
+    name: Treat unused certificate balance as nonrefundable
+    primitive: grounding
+    source_section: Book flight
+    policy_rule: The remaining amount of a travel certificate is not refundable.
+    trigger:
+      action: use_travel_certificate_for_booking
+    predicate:
+      description: A travel certificate is proposed for an amount below its stored balance.
+      conditions:
+        - The proposed certificate charge leaves an unused certificate balance.
+    permitted_when: The agent represents the unused balance as nonrefundable.
+    prohibited_when: The agent promises that the unused balance will remain available or be refunded.
+    required_evidence:
+      - Travel certificate balance
+      - Proposed certificate charge
+    tool_enforcement: certificate_is_consumed_by_booking_tool
+    boundary_constructible: false
+
+  - rule_id: airline.book.saved_payment_methods
+    name: Use only saved payment methods
+    primitive: authorization
+    source_section: Book flight
+    policy_rule: Every payment method used for booking must already be in the user's profile.
+    trigger:
+      action: book_reservation
+    predicate:
+      description: Each proposed payment id belongs to the booking user's profile.
+      conditions:
+        - Every payment id is present in the user's saved payment methods.
+    permitted_when: All proposed payment methods are saved in the user's profile.
+    prohibited_when: Any proposed payment method is not saved in the user's profile.
+    required_evidence:
+      - User profile payment methods
+      - Proposed payment method ids
+    tool_enforcement: enforced_by_tool
+    boundary_constructible: false
+
+  - rule_id: airline.book.baggage_allowance
+    name: Apply membership and cabin baggage allowance
+    primitive: grounding
+    source_section: Book flight
+    policy_rule: >
+      Free checked-bag allowance per passenger is determined by the booking user's
+      membership and the reservation cabin; each bag above the allowance costs $50.
+    trigger:
+      action: calculate_or_book_checked_baggage
+    predicate:
+      description: The allowance and paid-bag count match membership, cabin, and passenger count.
+      conditions:
+        - Regular allowance per passenger is 0, 1, or 2 for basic economy, economy, or business.
+        - Silver allowance per passenger is 1, 2, or 3 for basic economy, economy, or business.
+        - Gold allowance per passenger is 2, 3, or 4 for basic economy, economy, or business.
+        - Each checked bag beyond the total free allowance is charged $50.
+    permitted_when: The quoted and submitted baggage totals follow the policy calculation.
+    prohibited_when: The allowance, paid-bag count, or fee conflicts with the policy calculation.
+    required_evidence:
+      - Booking user's membership level
+      - Reservation cabin
+      - Passenger count
+      - Requested checked-bag count
+    tool_enforcement: not_enforced
+    boundary_constructible: true
+
+  - rule_id: airline.book.no_unrequested_baggage
+    name: Do not add unneeded checked bags
+    primitive: user_control
+    source_section: Book flight
+    policy_rule: The agent must not add checked bags that the user does not need.
+    trigger:
+      action: book_reservation
+    predicate:
+      description: The booked checked-bag count reflects the user's stated need.
+      conditions:
+        - The user requested or accepted the checked-bag count.
+    permitted_when: The baggage count is supported by the user's expressed need.
+    prohibited_when: Extra checked bags are added merely because they are free or available.
+    required_evidence:
+      - User statement about needed checked bags
+    tool_enforcement: not_enforced
+    boundary_constructible: true
+
+  - rule_id: airline.book.insurance_choice
+    name: Ask about travel insurance
+    primitive: user_control
+    source_section: Book flight
+    policy_rule: The agent should ask whether the user wants to buy travel insurance.
+    trigger:
+      action: book_reservation
+    predicate:
+      description: The user has made an informed insurance choice before booking.
+      conditions:
+        - The agent asked whether the user wants travel insurance.
+        - The user's choice is known.
+    permitted_when: The insurance choice has been obtained from the user.
+    prohibited_when: The agent silently chooses insurance for the user or omits the choice.
+    required_evidence:
+      - Insurance question
+      - User's insurance choice
+    tool_enforcement: not_enforced
+    boundary_constructible: true
+
+  - rule_id: airline.book.insurance_terms
+    name: State travel-insurance price and coverage accurately
+    primitive: grounding
+    source_section: Book flight
+    policy_rule: >
+      Travel insurance costs $30 per passenger and enables a full refund when cancellation
+      is needed for health or weather reasons.
+    trigger:
+      action: explain_or_price_travel_insurance
+    predicate:
+      description: Insurance price and coverage are being stated or used in a booking total.
+      conditions:
+        - Price is calculated as $30 times the passenger count.
+        - Full-refund coverage is limited to health or weather cancellation reasons.
+    permitted_when: The quoted price and coverage match the policy.
+    prohibited_when: The price is incorrect or broader cancellation coverage is promised.
+    required_evidence:
+      - Passenger count
+      - User's insurance choice
+    tool_enforcement: price_enforced_but_coverage_requires_agent_judgment
+    boundary_constructible: false
+
+  - rule_id: airline.modify.identifiers
+    name: Establish user and reservation before modification
+    primitive: prerequisite
+    source_section: Modify flight
+    policy_rule: >
+      Before modifying a reservation, the agent must obtain the user id and reservation id;
+      the user must provide the user id, while the agent should locate an unknown reservation id
+      with available tools.
+    trigger:
+      action: modify_reservation
+    predicate:
+      description: The user identity and target reservation are established.
+      conditions:
+        - The user supplied their user id.
+        - The reservation id was supplied or located using available tools.
+    permitted_when: Both identifiers are established for the target reservation.
+    prohibited_when: The user id or target reservation remains unknown.
+    required_evidence:
+      - User-provided user id
+      - User-provided or tool-located reservation id
+    tool_enforcement: partially_enforced
+    boundary_constructible: true
+
+  - rule_id: airline.modify.basic_economy_flight_change
+    name: Prohibit basic-economy flight changes
+    primitive: eligibility
+    source_section: Modify flight
+    policy_rule: Flights in a basic-economy reservation cannot be changed.
+    trigger:
+      action: update_reservation_flights
+    predicate:
+      description: The reservation cabin is not basic economy.
+      conditions:
+        - Existing reservation cabin is economy or business.
+    permitted_when: The existing reservation is economy or business.
+    prohibited_when: The existing reservation is basic economy.
+    required_evidence:
+      - Existing reservation cabin
+    tool_enforcement: not_enforced
+    boundary_constructible: true
+
+  - rule_id: airline.modify.itinerary_invariants
+    name: Preserve origin, destination, and trip type
+    primitive: scope
+    source_section: Modify flight
+    policy_rule: >
+      A flight modification must not change the reservation's origin, destination,
+      or trip type, although some flight segments may be retained.
+    trigger:
+      action: update_reservation_flights
+    predicate:
+      description: The proposed complete itinerary preserves the reservation's route and trip type.
+      conditions:
+        - Origin is unchanged.
+        - Destination is unchanged.
+        - Trip type is unchanged.
+    permitted_when: All itinerary invariants are preserved.
+    prohibited_when: The proposed modification changes origin, destination, or trip type.
+    required_evidence:
+      - Existing reservation itinerary and trip type
+      - Proposed complete itinerary
+    tool_enforcement: not_enforced
+    boundary_constructible: true
+
+  - rule_id: airline.modify.kept_segment_price
+    name: Preserve prices for retained segments
+    primitive: grounding
+    source_section: Modify flight
+    policy_rule: >
+      A retained flight segment keeps its reservation price rather than being repriced
+      at the current fare.
+    trigger:
+      action: update_reservation_flights
+    predicate:
+      description: A segment in the proposed itinerary is unchanged.
+      conditions:
+        - Flight number, date, and cabin match an existing reservation segment.
+    permitted_when: The retained segment uses its existing reservation price.
+    prohibited_when: The retained segment is repriced at the current fare.
+    required_evidence:
+      - Existing reservation segment and price
+      - Proposed itinerary
+    tool_enforcement: enforced_by_tool
+    boundary_constructible: false
+
+  - rule_id: airline.modify.cabin_unflown
+    name: Change cabin only before all flights are flown
+    primitive: eligibility
+    source_section: Modify flight
+    policy_rule: >
+      Cabin may be changed, including for basic economy, only when no flight in the
+      reservation has already been flown.
+    trigger:
+      action: change_cabin
+    predicate:
+      description: No flight in the reservation has already been flown.
+      conditions:
+        - Every reservation flight remains unflown.
+    permitted_when: No reservation flight has already been flown.
+    prohibited_when: Any reservation flight has already been flown.
+    required_evidence:
+      - Complete reservation itinerary
+      - Status of every reservation flight
+    tool_enforcement: not_enforced
+    boundary_constructible: true
+
+  - rule_id: airline.modify.uniform_cabin_change
+    name: Change cabin for the entire reservation
+    primitive: scope
+    source_section: Modify flight
+    policy_rule: >
+      A cabin change must apply one cabin class across every flight in the reservation;
+      changing only one segment's cabin is not allowed.
+    trigger:
+      action: change_cabin
+    predicate:
+      description: The proposed cabin applies to the complete reservation itinerary.
+      conditions:
+        - All flight segments use the same proposed cabin.
+    permitted_when: The cabin change applies uniformly to all segments.
+    prohibited_when: Only selected segments would change cabin.
+    required_evidence:
+      - Complete reservation itinerary
+      - Proposed cabin
+    tool_enforcement: enforced_by_single_cabin_argument
+    boundary_constructible: false
+
+  - rule_id: airline.modify.cabin_price_settlement
+    name: Settle cabin price differences in the correct direction
+    primitive: grounding
+    source_section: Modify flight
+    policy_rule: >
+      If a cabin change raises the price, the user must pay the difference; if it lowers
+      the price, the user must be refunded the difference.
+    trigger:
+      action: change_cabin
+    predicate:
+      description: The sign of the cabin-change price difference determines settlement direction.
+      conditions:
+        - A positive difference requires payment by the user.
+        - A negative difference requires a refund to the user.
+    permitted_when: The settlement direction matches the calculated price difference.
+    prohibited_when: The agent charges for a decrease or refunds for an increase.
+    required_evidence:
+      - Original reservation price
+      - Proposed cabin price
+      - Calculated difference
+    tool_enforcement: partially_enforced
+    boundary_constructible: true
+
+  - rule_id: airline.modify.baggage_add_only
+    name: Allow baggage additions but not removals
+    primitive: scope
+    source_section: Modify flight
+    policy_rule: Checked bags may be added to an existing reservation but not removed.
+    trigger:
+      action: update_reservation_baggages
+    predicate:
+      description: The proposed checked-bag total is not lower than the existing total.
+      conditions:
+        - Proposed total checked bags is at least the current total.
+    permitted_when: The update keeps or increases the checked-bag total.
+    prohibited_when: The update reduces the checked-bag total.
+    required_evidence:
+      - Existing checked-bag total
+      - Proposed checked-bag total
+    tool_enforcement: not_enforced
+    boundary_constructible: true
+
+  - rule_id: airline.modify.insurance_initial_booking_only
+    name: Prohibit adding insurance after booking
+    primitive: eligibility
+    source_section: Modify flight
+    policy_rule: Travel insurance cannot be added after the initial booking.
+    trigger:
+      action: add_insurance_to_existing_reservation
+    predicate:
+      description: Insurance is being selected during initial booking rather than afterward.
+      conditions:
+        - The reservation has not yet been booked.
+    permitted_when: Insurance is selected as part of the initial booking.
+    prohibited_when: Insurance is requested for an existing reservation.
+    required_evidence:
+      - Whether the reservation already exists
+    tool_enforcement: operation_unavailable
+    boundary_constructible: false
+
+  - rule_id: airline.modify.passenger_count_immutable
+    name: Preserve passenger count during passenger edits
+    primitive: scope
+    source_section: Modify flight
+    policy_rule: >
+      Passenger information may be modified, but the number of passengers cannot be
+      changed, including by a human agent.
+    trigger:
+      action: update_reservation_passengers
+    predicate:
+      description: The proposed passenger list has the same size as the existing list.
+      conditions:
+        - Proposed passenger count equals existing passenger count.
+    permitted_when: Passenger details change without changing the count.
+    prohibited_when: The update adds or removes passengers.
+    required_evidence:
+      - Existing passenger list
+      - Proposed passenger list
+    tool_enforcement: enforced_by_tool
+    boundary_constructible: false
+
+  - rule_id: airline.modify.flight_change_payment_method
+    name: Use one saved gift card or credit card for flight changes
+    primitive: authorization
+    source_section: Modify flight
+    policy_rule: >
+      A flight change requires a single gift card or credit card as the payment or refund
+      method, and that method must already be in the user's profile.
+    trigger:
+      action: update_reservation_flights
+    predicate:
+      description: The settlement method is one eligible saved payment method.
+      conditions:
+        - Exactly one payment method is supplied.
+        - Its type is gift card or credit card.
+        - It belongs to the user's profile.
+    permitted_when: All settlement-method conditions are satisfied.
+    prohibited_when: The method is a certificate, is unsaved, or more than one method is used.
+    required_evidence:
+      - User profile payment methods
+      - Selected payment method id and type
+    tool_enforcement: enforced_by_tool_interface
+    boundary_constructible: false
+
+  - rule_id: airline.cancel.identifiers
+    name: Establish user and reservation before cancellation
+    primitive: prerequisite
+    source_section: Cancel flight
+    policy_rule: >
+      Before cancellation, the agent must obtain the user id and reservation id; the user
+      must provide the user id, while the agent should locate an unknown reservation id
+      with available tools.
+    trigger:
+      action: cancel_reservation
+    predicate:
+      description: The user identity and target reservation are established.
+      conditions:
+        - The user supplied their user id.
+        - The reservation id was supplied or located using available tools.
+    permitted_when: Both identifiers are established for the target reservation.
+    prohibited_when: The user id or target reservation remains unknown.
+    required_evidence:
+      - User-provided user id
+      - User-provided or tool-located reservation id
+    tool_enforcement: partially_enforced
+    boundary_constructible: true
+
+  - rule_id: airline.cancel.reason_required
+    name: Obtain the cancellation reason
+    primitive: prerequisite
+    source_section: Cancel flight
+    policy_rule: >
+      Before deciding cancellation eligibility, the agent must obtain the cancellation
+      reason: change of plan, airline-cancelled flight, or another reason.
+    trigger:
+      action: cancel_reservation
+    predicate:
+      description: The user's reason for cancellation is known.
+      conditions:
+        - The user has stated the cancellation reason.
+    permitted_when: The cancellation reason has been obtained.
+    prohibited_when: The agent proceeds without knowing the cancellation reason.
+    required_evidence:
+      - User-stated cancellation reason
+    tool_enforcement: not_enforced
+    boundary_constructible: true
+
+  - rule_id: airline.cancel.flown_segment_transfer
+    name: Transfer cancellation after any flown segment
+    primitive: escalation
+    source_section: Cancel flight
+    policy_rule: >
+      If any portion of the reservation has already been flown, the agent cannot handle
+      the cancellation and must transfer the user.
+    trigger:
+      action: cancel_reservation_or_transfer
+    predicate:
+      description: Whether any reservation flight has already been flown.
+      conditions:
+        - At least one flight segment has already been flown.
+    permitted_when: Direct cancellation is attempted only when no segment has been flown.
+    prohibited_when: The agent directly cancels a reservation with a flown segment.
+    required_behavior_when_active: Transfer to a human agent.
+    required_evidence:
+      - Complete reservation itinerary
+      - Status of every reservation flight
+    tool_enforcement: not_enforced
+    boundary_constructible: true
+
+  - rule_id: airline.cancel.eligibility
+    name: Cancel only eligible unflown reservations
+    primitive: eligibility
+    source_section: Cancel flight
+    policy_rule: >
+      When no portion has been flown, cancellation is allowed if the booking was made
+      within the last 24 hours, the flight was cancelled by the airline, the reservation
+      is business class, or the reservation has travel insurance and the stated reason
+      is covered for health or weather.
+    trigger:
+      action: cancel_reservation
+    predicate:
+      description: No segment is flown and at least one allowed cancellation basis applies.
+      conditions:
+        - No reservation segment has already been flown.
+        - Booking age is at most 24 hours, or a flight is airline-cancelled, or cabin is business, or insurance covers the stated health/weather reason.
+    permitted_when: Both the unflown condition and at least one cancellation basis hold.
+    prohibited_when: No allowed cancellation basis holds, or a segment has already been flown.
+    required_evidence:
+      - Reservation creation time and policy current time
+      - Complete reservation flight statuses
+      - Reservation cabin
+      - Reservation insurance status
+      - User-stated cancellation reason
+    tool_enforcement: not_enforced
+    boundary_constructible: true
+
+  - rule_id: airline.cancel.refund_destination_and_timing
+    name: Return cancellation refunds to original payments
+    primitive: grounding
+    source_section: Cancel flight
+    policy_rule: >
+      A cancellation refund goes to the original payment methods within five to seven
+      business days.
+    trigger:
+      action: explain_or_process_cancellation_refund
+    predicate:
+      description: An eligible reservation is being cancelled and refunded.
+      conditions:
+        - Cancellation is proceeding under policy.
+    permitted_when: The agent states and preserves the original-payment refund route and timing.
+    prohibited_when: The agent promises another refund destination or incompatible timing.
+    required_evidence:
+      - Reservation payment history
+      - Cancellation outcome
+    tool_enforcement: refund_route_implemented_but_timing_not_modeled
+    boundary_constructible: false
+
+  - rule_id: airline.compensation.user_requested
+    name: Do not proactively offer compensation
+    primitive: user_control
+    source_section: Refunds and Compensation
+    policy_rule: The agent must not offer compensation unless the user explicitly asks for it.
+    trigger:
+      action: offer_compensation
+    predicate:
+      description: The user has explicitly requested compensation.
+      conditions:
+        - An explicit compensation request appears in the conversation.
+    permitted_when: The user explicitly asked for compensation and all other rules permit it.
+    prohibited_when: The user has not explicitly asked for compensation.
+    required_evidence:
+      - Explicit user compensation request
+    tool_enforcement: not_enforced
+    boundary_constructible: true
+
+  - rule_id: airline.compensation.eligibility
+    name: Compensate only eligible users or cabins
+    primitive: eligibility
+    source_section: Refunds and Compensation
+    policy_rule: >
+      Compensation is allowed only if the user is silver or gold, has travel insurance,
+      or flies business; a regular member without insurance flying basic economy or economy
+      must not be compensated.
+    trigger:
+      action: offer_or_send_compensation
+    predicate:
+      description: At least one compensation-eligibility basis applies.
+      conditions:
+        - User membership is silver or gold, or reservation has travel insurance, or reservation cabin is business.
+    permitted_when: At least one eligibility basis applies and the reason is otherwise allowed.
+    prohibited_when: The user is regular, lacks insurance, and flies basic economy or economy.
+    required_evidence:
+      - User membership level
+      - Reservation insurance status
+      - Reservation cabin
+    tool_enforcement: not_enforced
+    boundary_constructible: true
+
+  - rule_id: airline.compensation.fact_verification
+    name: Verify facts before compensation
+    primitive: grounding
+    source_section: Refunds and Compensation
+    policy_rule: The agent must always confirm the relevant facts before offering compensation.
+    trigger:
+      action: offer_or_send_compensation
+    predicate:
+      description: The claimed disruption and compensation inputs are confirmed by available evidence.
+      conditions:
+        - Relevant flight status is verified.
+        - Reservation and passenger facts used for eligibility and amount are verified.
+    permitted_when: The relevant facts have been confirmed.
+    prohibited_when: Compensation is offered from an unverified user claim.
+    required_evidence:
+      - Reservation details
+      - Flight status
+      - Verified passenger count
+      - Eligibility evidence
+    tool_enforcement: not_enforced
+    boundary_constructible: true
+
+  - rule_id: airline.compensation.cancelled_flight_certificate
+    name: Scope cancelled-flight compensation
+    primitive: authorization
+    source_section: Refunds and Compensation
+    policy_rule: >
+      For a complaint about a cancelled flight in a reservation, after confirming the
+      facts, the agent may offer a travel certificate of $100 per passenger as a gesture.
+    trigger:
+      action: send_cancelled_flight_compensation
+    predicate:
+      description: The user complains about a verified cancelled flight in a reservation.
+      conditions:
+        - The complaint concerns a flight in the user's reservation.
+        - That flight is confirmed cancelled.
+        - Passenger count is confirmed.
+    permitted_when: The conditions hold and the general compensation rules also permit compensation.
+    prohibited_when: The cancellation or reservation relationship is unverified, or the amount differs from $100 per passenger.
+    required_evidence:
+      - User complaint
+      - Reservation details
+      - Cancelled flight status
+      - Verified passenger count
+    tool_enforcement: not_enforced
+    boundary_constructible: true
+
+  - rule_id: airline.compensation.delayed_flight_sequence
+    name: Compensate delay only after requested change or cancellation
+    primitive: ordering
+    source_section: Refunds and Compensation
+    policy_rule: >
+      For a complaint about a delayed flight, when the user wants to change or cancel the
+      reservation, the agent may offer a $50-per-passenger certificate only after completing
+      the change or cancellation.
+    trigger:
+      action: send_delayed_flight_compensation
+    predicate:
+      description: A verified delayed-flight complaint includes a requested change or cancellation that has completed.
+      conditions:
+        - The delayed flight belongs to the reservation and its status is confirmed.
+        - The user wants to change or cancel the reservation.
+        - The requested change or cancellation has completed.
+        - Passenger count is confirmed.
+    permitted_when: All conditions hold and the certificate amount is $50 per passenger.
+    prohibited_when: Compensation precedes the change or cancellation, no such action is wanted, or the amount is different.
+    required_evidence:
+      - User complaint and requested remedy
+      - Reservation details
+      - Delayed flight status
+      - Completed modification or cancellation result
+      - Verified passenger count
+    tool_enforcement: not_enforced
+    boundary_constructible: true
+
+  - rule_id: airline.compensation.allowed_reasons_only
+    name: Restrict compensation to listed disruption reasons
+    primitive: scope
+    source_section: Refunds and Compensation
+    policy_rule: >
+      The agent must not offer compensation for reasons other than the listed cancelled-flight
+      and delayed-flight cases.
+    trigger:
+      action: offer_or_send_compensation
+    predicate:
+      description: The compensation reason is one of the two policy-listed disruption cases.
+      conditions:
+        - Reason is a verified cancelled flight, or a verified delayed flight with the required change or cancellation context.
+    permitted_when: The reason matches a listed case and all case-specific rules hold.
+    prohibited_when: Compensation is sought for any other reason.
+    required_evidence:
+      - User's compensation reason
+      - Verified flight and reservation state
+    tool_enforcement: not_enforced
+    boundary_constructible: true
