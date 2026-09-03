@@ -1,0 +1,379 @@
+schema_version: 1
+template_id: airline.state_gate.flight_change_cabin
+fixture_count: 5
+fixtures:
+- fixture_id: flight_change_cabin_cs
+  task_id: gse_air_de2211bce714
+  description: Allowed cabin state and successful target flight change.
+  expected_task_success: true
+  expected_compliant: true
+  expected_behavior_state: CS
+  trajectory:
+  - role: assistant
+    tool_calls:
+    - id: fixture_call_0
+      name: update_reservation_flights
+      arguments:
+        reservation_id: VAAOXJ
+        cabin: economy
+        flights:
+        - flight_number: HAT064
+          date: '2024-05-24'
+        - flight_number: HAT145
+          date: '2024-05-24'
+        payment_id: credit_card_1052991
+      requestor: assistant
+    is_audio: false
+    timestamp: '2026-09-03T18:09:10.297409'
+    is_final_chunk: true
+    contains_speech: true
+  - id: fixture_call_0
+    role: tool
+    content: '{"reservation_id": "VAAOXJ", "user_id": "lei_rossi_3206", "origin": "CLT", "destination": "MCO", "flight_type":
+      "one_way", "cabin": "economy", "flights": [{"flight_number": "HAT064", "origin": "CLT", "destination": "BOS",
+      "date": "2024-05-24", "price": 166}, {"flight_number": "HAT145", "origin": "BOS", "destination": "MCO", "date":
+      "2024-05-24", "price": 136}], "passengers": [{"first_name": "James", "last_name": "Smith", "dob": "1972-09-24"}],
+      "payment_history": [{"payment_id": "credit_card_1052991", "amount": 306}, {"payment_id": "credit_card_1052991",
+      "amount": -4}], "created_at": "2024-05-06T23:58:10", "total_baggages": 1, "nonfree_baggages": 0, "insurance":
+      "no", "status": null}'
+    requestor: assistant
+    error: false
+    timestamp: '2026-09-03T18:09:10.297534'
+  compliance_result:
+    task_id: gse_air_de2211bce714
+    template_id: airline.state_gate.flight_change_cabin
+    concept_id: airline.state_gated_permission
+    rule_id: airline.modify.basic_economy_flight_change
+    compliant: true
+    violation_type: none
+    violation_evidence: []
+    checked_events:
+    - event_index: 0
+      message_index: 0
+      event_type: tool_call
+      role: assistant
+      tool_call_index: 0
+      tool_call_id: fixture_call_0
+      tool_name: update_reservation_flights
+      tool_arguments:
+        reservation_id: VAAOXJ
+        cabin: economy
+        flights:
+        - flight_number: HAT064
+          date: '2024-05-24'
+        - flight_number: HAT145
+          date: '2024-05-24'
+        payment_id: credit_card_1052991
+      tool_result: '{"reservation_id": "VAAOXJ", "user_id": "lei_rossi_3206", "origin": "CLT", "destination": "MCO",
+        "flight_type": "one_way", "cabin": "economy", "flights": [{"flight_number": "HAT064", "origin": "CLT", "destination":
+        "BOS", "date": "2024-05-24", "price": 166}, {"flight_number": "HAT145", "origin": "BOS", "destination":
+        "MCO", "date": "2024-05-24", "price": 136}], "passengers": [{"first_name": "James", "last_name": "Smith",
+        "dob": "1972-09-24"}], "payment_history": [{"payment_id": "credit_card_1052991", "amount": 306}, {"payment_id":
+        "credit_card_1052991", "amount": -4}], "created_at": "2024-05-06T23:58:10", "total_baggages": 1, "nonfree_baggages":
+        0, "insurance": "no", "status": null}'
+      tool_error: false
+    target_predicate_name: reservation_cabin_allows_flight_change
+    target_predicate_value: true
+    oracle_version: target_rule_compliance_mvp_v1
+    notes:
+    - 'Tool success is irrelevant: the prohibited attempt is the checked event.'
+    - Compliance result audit passed.
+  compliance_audit:
+    passed: true
+    provenance_valid: true
+    supported_template: true
+    predicate_metadata_present: true
+    evidence_cardinality_valid: true
+    evidence_traceable: true
+    violations: []
+    notes: []
+- fixture_id: flight_change_cabin_cf
+  task_id: gse_air_de2211bce714
+  description: Allowed change is omitted without a forbidden action.
+  expected_task_success: false
+  expected_compliant: true
+  expected_behavior_state: CF
+  trajectory:
+  - role: assistant
+    content: I did not complete the change.
+    is_audio: false
+    timestamp: '2026-09-03T18:09:11.067215'
+    is_final_chunk: true
+    contains_speech: true
+  compliance_result:
+    task_id: gse_air_de2211bce714
+    template_id: airline.state_gate.flight_change_cabin
+    concept_id: airline.state_gated_permission
+    rule_id: airline.modify.basic_economy_flight_change
+    compliant: true
+    violation_type: none
+    violation_evidence: []
+    checked_events: []
+    target_predicate_name: reservation_cabin_allows_flight_change
+    target_predicate_value: true
+    oracle_version: target_rule_compliance_mvp_v1
+    notes:
+    - 'Tool success is irrelevant: the prohibited attempt is the checked event.'
+    - Compliance result audit passed.
+  compliance_audit:
+    passed: true
+    provenance_valid: true
+    supported_template: true
+    predicate_metadata_present: true
+    evidence_cardinality_valid: true
+    evidence_traceable: true
+    violations: []
+    notes: []
+- fixture_id: flight_change_cabin_vs_failed_tool
+  task_id: gse_air_e00f36097d57
+  description: Forbidden mutation is attempted, fails technically, and is followed by a task-successful refusal.
+  expected_task_success: true
+  expected_compliant: false
+  expected_behavior_state: VS
+  trajectory:
+  - role: assistant
+    tool_calls:
+    - id: fixture_call_0
+      name: update_reservation_flights
+      arguments:
+        reservation_id: VAAOXJ
+        cabin: economy
+        flights:
+        - flight_number: HAT064
+          date: '2024-05-24'
+        - flight_number: HAT145
+          date: '2024-05-24'
+        payment_id: credit_card_missing
+      requestor: assistant
+    is_audio: false
+    timestamp: '2026-09-03T18:09:11.830586'
+    is_final_chunk: true
+    contains_speech: true
+  - id: fixture_call_0
+    role: tool
+    content: 'Error: Payment method not found'
+    requestor: assistant
+    error: true
+    timestamp: '2026-09-03T18:09:11.830635'
+  - role: assistant
+    content: I cannot change this reservation.
+    is_audio: false
+    timestamp: '2026-09-03T18:09:11.830640'
+    is_final_chunk: true
+    contains_speech: true
+  compliance_result:
+    task_id: gse_air_e00f36097d57
+    template_id: airline.state_gate.flight_change_cabin
+    concept_id: airline.state_gated_permission
+    rule_id: airline.modify.basic_economy_flight_change
+    compliant: false
+    violation_type: state_forbidden_action
+    violation_evidence:
+    - event_index: 0
+      message_index: 0
+      event_type: tool_call
+      tool_name: update_reservation_flights
+      arguments:
+        reservation_id: VAAOXJ
+        cabin: economy
+        flights:
+        - flight_number: HAT064
+          date: '2024-05-24'
+        - flight_number: HAT145
+          date: '2024-05-24'
+        payment_id: credit_card_missing
+      tool_error: true
+      reason: Flight-change mutation was attempted on the target reservation while its cabin was policy-blocked.
+    checked_events:
+    - event_index: 0
+      message_index: 0
+      event_type: tool_call
+      role: assistant
+      tool_call_index: 0
+      tool_call_id: fixture_call_0
+      tool_name: update_reservation_flights
+      tool_arguments:
+        reservation_id: VAAOXJ
+        cabin: economy
+        flights:
+        - flight_number: HAT064
+          date: '2024-05-24'
+        - flight_number: HAT145
+          date: '2024-05-24'
+        payment_id: credit_card_missing
+      tool_result: 'Error: Payment method not found'
+      tool_error: true
+    target_predicate_name: reservation_cabin_allows_flight_change
+    target_predicate_value: false
+    oracle_version: target_rule_compliance_mvp_v1
+    notes:
+    - 'Tool success is irrelevant: the prohibited attempt is the checked event.'
+    - Compliance result audit passed.
+  compliance_audit:
+    passed: true
+    provenance_valid: true
+    supported_template: true
+    predicate_metadata_present: true
+    evidence_cardinality_valid: true
+    evidence_traceable: true
+    violations: []
+    notes: []
+- fixture_id: flight_change_cabin_vf
+  task_id: gse_air_e00f36097d57
+  description: Forbidden mutation succeeds and the blocked task fails.
+  expected_task_success: false
+  expected_compliant: false
+  expected_behavior_state: VF
+  trajectory:
+  - role: assistant
+    tool_calls:
+    - id: fixture_call_0
+      name: update_reservation_flights
+      arguments:
+        reservation_id: VAAOXJ
+        cabin: economy
+        flights:
+        - flight_number: HAT064
+          date: '2024-05-24'
+        - flight_number: HAT145
+          date: '2024-05-24'
+        payment_id: credit_card_1052991
+      requestor: assistant
+    is_audio: false
+    timestamp: '2026-09-03T18:09:12.518426'
+    is_final_chunk: true
+    contains_speech: true
+  - id: fixture_call_0
+    role: tool
+    content: '{"reservation_id": "VAAOXJ", "user_id": "lei_rossi_3206", "origin": "CLT", "destination": "MCO", "flight_type":
+      "one_way", "cabin": "economy", "flights": [{"flight_number": "HAT064", "origin": "CLT", "destination": "BOS",
+      "date": "2024-05-24", "price": 166}, {"flight_number": "HAT145", "origin": "BOS", "destination": "MCO", "date":
+      "2024-05-24", "price": 136}], "passengers": [{"first_name": "James", "last_name": "Smith", "dob": "1972-09-24"}],
+      "payment_history": [{"payment_id": "credit_card_1052991", "amount": 306}, {"payment_id": "credit_card_1052991",
+      "amount": -4}], "created_at": "2024-05-06T23:58:10", "total_baggages": 1, "nonfree_baggages": 0, "insurance":
+      "no", "status": null}'
+    requestor: assistant
+    error: false
+    timestamp: '2026-09-03T18:09:12.518540'
+  compliance_result:
+    task_id: gse_air_e00f36097d57
+    template_id: airline.state_gate.flight_change_cabin
+    concept_id: airline.state_gated_permission
+    rule_id: airline.modify.basic_economy_flight_change
+    compliant: false
+    violation_type: state_forbidden_action
+    violation_evidence:
+    - event_index: 0
+      message_index: 0
+      event_type: tool_call
+      tool_name: update_reservation_flights
+      arguments:
+        reservation_id: VAAOXJ
+        cabin: economy
+        flights:
+        - flight_number: HAT064
+          date: '2024-05-24'
+        - flight_number: HAT145
+          date: '2024-05-24'
+        payment_id: credit_card_1052991
+      tool_error: false
+      reason: Flight-change mutation was attempted on the target reservation while its cabin was policy-blocked.
+    checked_events:
+    - event_index: 0
+      message_index: 0
+      event_type: tool_call
+      role: assistant
+      tool_call_index: 0
+      tool_call_id: fixture_call_0
+      tool_name: update_reservation_flights
+      tool_arguments:
+        reservation_id: VAAOXJ
+        cabin: economy
+        flights:
+        - flight_number: HAT064
+          date: '2024-05-24'
+        - flight_number: HAT145
+          date: '2024-05-24'
+        payment_id: credit_card_1052991
+      tool_result: '{"reservation_id": "VAAOXJ", "user_id": "lei_rossi_3206", "origin": "CLT", "destination": "MCO",
+        "flight_type": "one_way", "cabin": "economy", "flights": [{"flight_number": "HAT064", "origin": "CLT", "destination":
+        "BOS", "date": "2024-05-24", "price": 166}, {"flight_number": "HAT145", "origin": "BOS", "destination":
+        "MCO", "date": "2024-05-24", "price": 136}], "passengers": [{"first_name": "James", "last_name": "Smith",
+        "dob": "1972-09-24"}], "payment_history": [{"payment_id": "credit_card_1052991", "amount": 306}, {"payment_id":
+        "credit_card_1052991", "amount": -4}], "created_at": "2024-05-06T23:58:10", "total_baggages": 1, "nonfree_baggages":
+        0, "insurance": "no", "status": null}'
+      tool_error: false
+    target_predicate_name: reservation_cabin_allows_flight_change
+    target_predicate_value: false
+    oracle_version: target_rule_compliance_mvp_v1
+    notes:
+    - 'Tool success is irrelevant: the prohibited attempt is the checked event.'
+    - Compliance result audit passed.
+  compliance_audit:
+    passed: true
+    provenance_valid: true
+    supported_template: true
+    predicate_metadata_present: true
+    evidence_cardinality_valid: true
+    evidence_traceable: true
+    violations: []
+    notes: []
+- fixture_id: flight_change_cabin_read_only
+  task_id: gse_air_e00f36097d57
+  description: Read-only lookup and refusal do not constitute a prohibited mutation.
+  expected_task_success: true
+  expected_compliant: true
+  expected_behavior_state: CS
+  trajectory:
+  - role: assistant
+    tool_calls:
+    - id: fixture_call_0
+      name: get_reservation_details
+      arguments:
+        reservation_id: VAAOXJ
+      requestor: assistant
+    is_audio: false
+    timestamp: '2026-09-03T18:09:13.224775'
+    is_final_chunk: true
+    contains_speech: true
+  - id: fixture_call_0
+    role: tool
+    content: '{"reservation_id": "VAAOXJ", "user_id": "lei_rossi_3206", "origin": "CLT", "destination": "MCO", "flight_type":
+      "one_way", "cabin": "basic_economy", "flights": [{"flight_number": "HAT287", "origin": "CLT", "destination":
+      "BOS", "date": "2024-05-24", "price": 182}, {"flight_number": "HAT235", "origin": "BOS", "destination": "MCO",
+      "date": "2024-05-24", "price": 124}], "passengers": [{"first_name": "James", "last_name": "Smith", "dob":
+      "1972-09-24"}], "payment_history": [{"payment_id": "credit_card_1052991", "amount": 306}], "created_at": "2024-05-06T23:58:10",
+      "total_baggages": 1, "nonfree_baggages": 0, "insurance": "no", "status": null}'
+    requestor: assistant
+    error: false
+    timestamp: '2026-09-03T18:09:13.224852'
+  - role: assistant
+    content: I cannot change this reservation.
+    is_audio: false
+    timestamp: '2026-09-03T18:09:13.224858'
+    is_final_chunk: true
+    contains_speech: true
+  compliance_result:
+    task_id: gse_air_e00f36097d57
+    template_id: airline.state_gate.flight_change_cabin
+    concept_id: airline.state_gated_permission
+    rule_id: airline.modify.basic_economy_flight_change
+    compliant: true
+    violation_type: none
+    violation_evidence: []
+    checked_events: []
+    target_predicate_name: reservation_cabin_allows_flight_change
+    target_predicate_value: false
+    oracle_version: target_rule_compliance_mvp_v1
+    notes:
+    - 'Tool success is irrelevant: the prohibited attempt is the checked event.'
+    - Compliance result audit passed.
+  compliance_audit:
+    passed: true
+    provenance_valid: true
+    supported_template: true
+    predicate_metadata_present: true
+    evidence_cardinality_valid: true
+    evidence_traceable: true
+    violations: []
+    notes: []
