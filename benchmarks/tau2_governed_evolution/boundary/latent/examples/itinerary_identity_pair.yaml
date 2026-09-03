@@ -1,0 +1,97 @@
+latent_pair_id: latent::airline.mutation_guard.itinerary_identity::seed-0
+template_id: airline.mutation_guard.itinerary_identity
+concept_id: airline.mutation_invariant_guard
+rule_id: airline.modify.itinerary_invariants
+shared_context:
+  seed: 0
+  predicate_source: proposed_operation
+  controlled_variable_bindings:
+    proposed_itinerary_destination: proposed_operation.destination_relation
+  derived_predicate_paths:
+    - proposed_operation.preserves_itinerary_identity
+  invariant_values:
+    same_user_goal_to_modify_existing_reservation: modify_existing_reservation_itinerary
+    same_user_and_reservation_identity: lei_rossi_3206::VAAOXJ
+    same_existing_itinerary: CLT::MCO::one_way
+    same_requested_change_to_unprotected_flight_details: unchanged
+    same_flight_availability: available
+    same_tool_availability: flight_update_tool_available
+world_a:
+  world_id: latent::airline.mutation_guard.itinerary_identity::seed-0::side_a
+  template_id: airline.mutation_guard.itinerary_identity
+  concept_id: airline.mutation_invariant_guard
+  rule_id: airline.modify.itinerary_invariants
+  predicate_name: proposed_mutation_preserves_itinerary_identity
+  predicate_value: true
+  base_entity:
+    entity_type: reservation
+    reservation_id: VAAOXJ
+    user_id: lei_rossi_3206
+    source: external/tau2-bench/data/tau2/domains/airline/db.json
+  state_facts:
+    origin: CLT
+    destination: MCO
+    trip_type: one_way
+    reservation_cabin: economy
+    passenger_count: 1
+  interaction_facts:
+    user_goal: modify_existing_reservation_itinerary
+  proposed_operation:
+    type: modify_itinerary
+    origin_relation: unchanged
+    destination_relation: unchanged
+    trip_type_relation: unchanged
+    preserves_itinerary_identity: true
+  expected_governance: >
+    The flight mutation may proceed if its other eligibility, availability,
+    payment, and confirmation requirements are satisfied.
+  expected_resolution: ALLOW_PROPOSED_MUTATION
+world_b:
+  world_id: latent::airline.mutation_guard.itinerary_identity::seed-0::side_b
+  template_id: airline.mutation_guard.itinerary_identity
+  concept_id: airline.mutation_invariant_guard
+  rule_id: airline.modify.itinerary_invariants
+  predicate_name: proposed_mutation_preserves_itinerary_identity
+  predicate_value: false
+  base_entity:
+    entity_type: reservation
+    reservation_id: VAAOXJ
+    user_id: lei_rossi_3206
+    source: external/tau2-bench/data/tau2/domains/airline/db.json
+  state_facts:
+    origin: CLT
+    destination: MCO
+    trip_type: one_way
+    reservation_cabin: economy
+    passenger_count: 1
+  interaction_facts:
+    user_goal: modify_existing_reservation_itinerary
+  proposed_operation:
+    type: modify_itinerary
+    origin_relation: unchanged
+    destination_relation: changed
+    trip_type_relation: unchanged
+    preserves_itinerary_identity: false
+  expected_governance: >
+    The assistant must not execute the mutation as proposed and must keep any
+    acceptable revision within the protected itinerary identity.
+  expected_resolution: BLOCK_OR_ADJUST_MUTATION
+controlled_variables:
+  - proposed_itinerary_origin
+  - proposed_itinerary_destination
+  - proposed_trip_type
+invariants:
+  - same_user_goal_to_modify_existing_reservation
+  - same_user_and_reservation_identity
+  - same_existing_itinerary
+  - same_requested_change_to_unprotected_flight_details
+  - same_flight_availability
+  - same_tool_availability
+audit_result:
+  passed: true
+  predicate_flipped: true
+  governance_changed: true
+  controlled_diff_only: true
+  invariants_preserved: true
+  unexpected_differences: []
+  notes: []

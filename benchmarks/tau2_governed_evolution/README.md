@@ -6,7 +6,7 @@ The benchmark code and derived data live in this directory. The upstream impleme
 
 ## Current stage
 
-The Airline Policy Registry was built directly from the original Airline `policy.md`, and its boundary-constructible rules were consolidated into reusable Policy Concepts. The current stage defines semantic Boundary Templates for the three Pilot Concepts. It does not define concrete reservations or users, generate latent pairs or tasks, specify surface variants or dataset splits, or run Governed Skill Evolution experiments.
+The Airline Policy Registry was built directly from the original Airline `policy.md`, its boundary-constructible rules were consolidated into reusable Policy Concepts, and semantic Boundary Templates were defined for the three Pilot Concepts. The current stage implements a Latent Pair Generator MVP for three representative templates. It does not materialize database changes, generate surfaced tasks, specify dataset splits, or run agents or Governed Skill Evolution experiments.
 
 The registry uses the initial primitive taxonomy requested for the benchmark: `prerequisite`, `authorization`, `confirmation`, `eligibility`, `grounding`, `scope`, `ordering`, `user_control`, and `escalation`. Every collected rule fits one of these primitives without changing its source meaning, so `other` is not currently used.
 
@@ -106,4 +106,30 @@ Latent-pair candidates: 9
 
 All nine Pilot member rules are represented exactly once. No rules are merged because each has a distinct controllable predicate and boundary-side response. No rules are deferred: each predicate is observable through structured τ² state or explicit interaction evidence, has a clear gold behavior on both sides, and remains meaningfully separate from tool-level enforcement.
 
-Concept-level consolidation remains useful, but template-level decomposition is intentionally finer. Explicit User Mandate separates refraining from unrequested baggage, asking for an insurance choice, and withholding proactive compensation because the missing-mandate response differs. State-Gated Operation Permission separates four different state predicates, including a compound cancellation basis whose unflown condition is held invariant to avoid crossing into escalation. Mutation Invariant Guard separates equality-preserving itinerary fields from a monotonic baggage constraint. No latent pair is generated at this stage.
+Concept-level consolidation remains useful, but template-level decomposition is intentionally finer. Explicit User Mandate separates refraining from unrequested baggage, asking for an insurance choice, and withholding proactive compensation because the missing-mandate response differs. State-Gated Operation Permission separates four different state predicates, including a compound cancellation basis whose unflown condition is held invariant to avoid crossing into escalation. Mutation Invariant Guard separates equality-preserving itinerary fields from a monotonic baggage constraint. The Boundary Template stage itself did not generate latent pairs.
+
+## Latent Pair Generator MVP
+
+A Latent Pair is the benchmark's controlled construction backbone. It links one Boundary Template to two semantic Latent Worlds in which the policy predicate and expected governance response flip while declared invariants remain stable. It is an internal artifact, not an explicit A/B training pair shown to a learner and not a final τ² task.
+
+The MVP deliberately supports only three templates so one small schema can be tested against three predicate sources:
+
+- `airline.user_mandate.checked_baggage` uses `interaction_facts` to represent whether explicit baggage mandate evidence exists.
+- `airline.state_gate.flight_change_cabin` uses `state_facts` to represent the reservation cabin that controls flight-change eligibility.
+- `airline.mutation_guard.itinerary_identity` uses `proposed_operation` to represent whether the contemplated mutation preserves itinerary identity.
+
+The current internal flow is:
+
+```text
+Boundary Template
+        ↓
+Latent Pair Generator
+        ↓
+Controlled Latent Worlds
+        ↓
+Latent Pair Audit
+```
+
+`LatentWorld` keeps current-state facts, interaction evidence, and the proposed operation as separate optional mappings. `LatentPair` adds shared context, controlled variables, invariants, two worlds, and the audit result. The audit verifies the predicate flip, governance and resolution change, declared controlled differences, and invariant preservation. Controlled-variable bindings connect semantic variables from the Boundary Template to concrete paths in the latent representation without introducing a policy DSL.
+
+Three seed-zero YAML examples are included for internal schema verification. They contain semantic facts and base-entity references only: no generated utterances, real DB mutation, environment replay, or surfaced task. Surface Diversification, Final Tasks, and Train / Monitor / Test construction remain unimplemented.
