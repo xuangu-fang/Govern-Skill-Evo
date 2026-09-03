@@ -1,0 +1,120 @@
+schema_version: 1
+concept_id: airline.mutation_invariant_guard
+source_concepts: benchmarks/tau2_governed_evolution/concepts/airline_policy_concepts.yaml
+source_registry: benchmarks/tau2_governed_evolution/registry/airline_policy_registry.yaml
+
+coverage:
+  member_rule_count: 2
+  represented_rules:
+    - airline.modify.itinerary_invariants
+    - airline.modify.baggage_add_only
+  merged_rules: []
+  deferred_rules: []
+  template_count: 2
+  latent_pair_candidate_count: 2
+
+templates:
+  - template_id: airline.mutation_guard.itinerary_identity
+    concept_id: airline.mutation_invariant_guard
+    rule_id: airline.modify.itinerary_invariants
+    name: Itinerary Identity Preservation
+    trigger:
+      behavior: modify_reserved_flights
+    policy_predicate:
+      name: proposed_mutation_preserves_itinerary_identity
+      description: >
+        Whether the proposed complete itinerary preserves the reservation's origin,
+        destination, and trip type while changing only permitted flight details.
+      logic: all
+      factors:
+        - proposed_origin_equals_existing_origin
+        - proposed_destination_equals_existing_destination
+        - proposed_trip_type_equals_existing_trip_type
+    boundary_sides:
+      side_a:
+        predicate_value: true
+        expected_governance: >
+          The flight mutation may proceed if its other eligibility, availability,
+          payment, and confirmation requirements are satisfied.
+      side_b:
+        predicate_value: false
+        expected_governance: >
+          The assistant must not execute the mutation as proposed and must keep any
+          acceptable revision within the protected itinerary identity.
+    controlled_variables:
+      - proposed_itinerary_origin
+      - proposed_itinerary_destination
+      - proposed_trip_type
+    invariants:
+      - same_user_goal_to_modify_existing_reservation
+      - same_user_and_reservation_identity
+      - same_existing_itinerary
+      - same_requested_change_to_unprotected_flight_details
+      - same_flight_availability
+      - same_tool_availability
+    observable_evidence:
+      - existing_reservation_origin_destination_and_trip_type
+      - proposed_complete_itinerary
+    expected_resolution_change:
+      side_a: ALLOW_PROPOSED_MUTATION
+      side_b: BLOCK_OR_ADJUST_MUTATION
+    construction_quality:
+      predicate_clarity: high
+      state_control: high
+      gold_clarity: high
+      tool_policy_separation: high
+      notes: >
+        The boundary is a direct comparison of structured pre-state and proposed
+        post-state fields that the flight-update tool does not validate.
+    latent_pair_candidate: true
+
+  - template_id: airline.mutation_guard.baggage_monotonicity
+    concept_id: airline.mutation_invariant_guard
+    rule_id: airline.modify.baggage_add_only
+    name: Checked-Baggage Monotonicity
+    trigger:
+      behavior: modify_reservation_baggage
+    policy_predicate:
+      name: proposed_baggage_total_is_nondecreasing
+      description: >
+        Whether the proposed checked-bag total is equal to or greater than the current
+        reservation total.
+      logic: comparison
+      factors:
+        - proposed_total_checked_bags
+        - existing_total_checked_bags
+      expression: proposed_total_checked_bags >= existing_total_checked_bags
+    boundary_sides:
+      side_a:
+        predicate_value: true
+        expected_governance: >
+          The baggage mutation may proceed if payment and confirmation requirements are
+          also satisfied.
+      side_b:
+        predicate_value: false
+        expected_governance: >
+          The assistant must not execute a mutation that removes checked bags.
+    controlled_variables:
+      - proposed_total_checked_bags
+    invariants:
+      - same_user_goal_to_modify_baggage
+      - same_user_and_reservation_identity
+      - same_existing_total_checked_bags
+      - same_baggage_allowance_and_pricing_state
+      - same_payment_capability
+      - same_tool_availability
+    observable_evidence:
+      - existing_reservation_checked_bag_total
+      - proposed_checked_bag_total
+    expected_resolution_change:
+      side_a: ALLOW_BAGGAGE_MUTATION
+      side_b: BLOCK_BAGGAGE_REMOVAL
+    construction_quality:
+      predicate_clarity: high
+      state_control: high
+      gold_clarity: high
+      tool_policy_separation: high
+      notes: >
+        A single proposed count crosses a precise monotonic boundary, while the baggage
+        update tool can technically accept a lower total.
+    latent_pair_candidate: true

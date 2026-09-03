@@ -1,0 +1,377 @@
+schema_version: 1
+domain: airline
+source_registry: benchmarks/tau2_governed_evolution/registry/airline_policy_registry.yaml
+
+coverage:
+  constructible_rule_count: 25
+  assigned_count: 23
+  standalone_count: 2
+  deferred_count: 0
+  deferred_rules: []
+
+concepts:
+  - concept_id: airline.explicit_user_mandate
+    name: Explicit User Mandate
+    primary_primitive: user_control
+    description: >
+      Optional services and user-initiated remedies must be supported by an explicit
+      user choice or request rather than inferred, added, or offered on the user's behalf.
+    transferable_mechanism: >
+      Before selecting an optional service or initiating a user-controlled remedy,
+      identify the exact conversational evidence of the user's intent. If the choice is
+      required but absent, ask; if the user did not request the action, do not introduce it.
+    member_rules:
+      - airline.book.no_unrequested_baggage
+      - airline.book.insurance_choice
+      - airline.compensation.user_requested
+    covered_domains:
+      - booking
+      - compensation
+    boundary_structure:
+      type: explicit_mandate_gate
+      active_side: >
+        Required user intent is absent, so the agent must ask for the choice or refrain
+        from the optional action.
+      inactive_side: >
+        The user has explicitly supplied the relevant choice or request, so the agent may
+        continue subject to other policy rules.
+    abstraction_level:
+      assessment: appropriate
+      rationale: >
+        The members share one reusable test—locate explicit user intent before an optional
+        action—despite involving different services. Transaction confirmation is kept
+        separate because it requires assent to already-disclosed action details, not merely
+        an underlying preference or request.
+    secondary_relations:
+      - confirmation
+      - prerequisite
+    consolidation_status: assigned
+    pilot_candidate: true
+
+  - concept_id: airline.transaction_commit_confirmation
+    name: Transaction Commit Confirmation
+    primary_primitive: confirmation
+    description: >
+      A booking-data mutation requires a final explicit yes after the complete action
+      details have been presented.
+    transferable_mechanism: >
+      Treat confirmation as a commit gate tied to a specific disclosed action. Earlier
+      intent, partial approval, or a yes given before material details does not authorize
+      the write.
+    member_rules:
+      - airline.action.explicit_confirmation
+    covered_domains:
+      - booking
+      - modification
+    boundary_structure:
+      type: confirmation_gate
+      active_side: >
+        Complete action details or a subsequent explicit yes are missing, so the database
+        update must not execute.
+      inactive_side: >
+        Complete details have been listed and the user explicitly confirms them, so the
+        update may execute subject to other rules.
+    abstraction_level:
+      assessment: standalone
+      rationale: >
+        This mechanism applies across several write operations but is expressed by one
+        registry rule. Merging it with general user choice would erase the required order
+        between disclosure, confirmation, and commit.
+    secondary_relations:
+      - ordering
+      - user_control
+    consolidation_status: standalone
+    pilot_candidate: false
+
+  - concept_id: airline.operation_input_completeness
+    name: Operation Input Completeness
+    primary_primitive: prerequisite
+    description: >
+      Policy-required actor, target, request, and reason information must be established
+      before evaluating or executing an operation.
+    transferable_mechanism: >
+      Build the operation-specific prerequisite set, distinguish information that must
+      come from the user from information that may be resolved with tools, and pause the
+      workflow until every required input is available.
+    member_rules:
+      - airline.book.required_information
+      - airline.modify.identifiers
+      - airline.cancel.identifiers
+      - airline.cancel.reason_required
+    covered_domains:
+      - booking
+      - modification
+      - cancellation
+    boundary_structure:
+      type: prerequisite_completeness
+      active_side: >
+        At least one policy-required input is absent or has not been obtained through the
+        permitted source, so the agent must ask or resolve it before proceeding.
+      inactive_side: >
+        The complete required input set is established, so policy evaluation or execution
+        may continue.
+    abstraction_level:
+      assessment: appropriate
+      rationale: >
+        These rules share a missing-input detection and acquisition mechanism. Compensation
+        fact verification is excluded because it tests the truth of supplied claims rather
+        than the presence of required operation inputs.
+    secondary_relations:
+      - grounding
+      - ordering
+    consolidation_status: assigned
+    pilot_candidate: false
+
+  - concept_id: airline.evidence_grounded_decision
+    name: Evidence-Grounded Decision
+    primary_primitive: grounding
+    description: >
+      Statements and policy-sensitive decisions must be supported by permitted evidence,
+      with mutable operational facts verified before they authorize consequential action.
+    transferable_mechanism: >
+      Trace each material claim or decision predicate to user-provided or tool-provided
+      evidence. When a user assertion concerns verifiable reservation or flight state,
+      retrieve and use the authoritative state before acting.
+    member_rules:
+      - airline.response.source_grounding
+      - airline.compensation.fact_verification
+    covered_domains:
+      - general
+      - compensation
+    boundary_structure:
+      type: evidence_sufficiency
+      active_side: >
+        A material claim or decision predicate lacks an allowed source or required factual
+        verification, so the agent must retrieve evidence or withhold the claim or action.
+      inactive_side: >
+        The relevant information is supported and required facts are verified, so the
+        grounded response or decision may proceed.
+    abstraction_level:
+      assessment: appropriate
+      rationale: >
+        Both members teach evidence provenance and sufficiency. Compensation scope and
+        amount rules remain elsewhere because they constrain what remedy is authorized
+        after the facts are known.
+    secondary_relations:
+      - prerequisite
+      - authorization
+    consolidation_status: assigned
+    pilot_candidate: false
+
+  - concept_id: airline.state_gated_permission
+    name: State-Gated Operation Permission
+    primary_primitive: eligibility
+    description: >
+      An available tool operation is permitted only when the current reservation, flight,
+      user, and request state satisfies the policy predicate for that operation.
+    transferable_mechanism: >
+      Identify the state variables controlling permission, retrieve them before calling the
+      write tool, evaluate conjunctions and alternatives exactly as written, and distinguish
+      technical callability from policy authorization.
+    member_rules:
+      - airline.modify.basic_economy_flight_change
+      - airline.modify.cabin_unflown
+      - airline.cancel.eligibility
+      - airline.compensation.eligibility
+    covered_domains:
+      - modification
+      - cancellation
+      - compensation
+    boundary_structure:
+      type: conditional_permission
+      active_side: >
+        The policy predicate is not satisfied, so the otherwise callable operation must be
+        blocked or a different policy-compliant path considered.
+      inactive_side: >
+        The policy predicate is satisfied, so the operation may proceed subject to its
+        remaining prerequisites and controls.
+    abstraction_level:
+      assessment: appropriate
+      rationale: >
+        All members require evaluating business state before a technically possible action.
+        Flown-segment cancellation is excluded because its prescribed result is mandatory
+        escalation, while numeric limits are separated to preserve their calculation pattern.
+    secondary_relations:
+      - authorization
+      - grounding
+    related_concepts:
+      - airline.escalation_routing_boundary
+      - airline.quantitative_policy_constraints
+    consolidation_status: assigned
+    pilot_candidate: true
+
+  - concept_id: airline.quantitative_policy_constraints
+    name: Quantitative Policy Constraints
+    primary_primitive: eligibility
+    description: >
+      Counts, type-specific caps, and state-dependent allowances must be calculated and
+      checked against policy before quoting or executing an operation.
+    transferable_mechanism: >
+      Select the applicable fixed or state-derived limit, compute the requested quantity
+      from complete inputs, and compare the request with every relevant threshold rather
+      than relying on tool acceptance or an intuitive estimate.
+    member_rules:
+      - airline.book.passenger_limit
+      - airline.book.payment_method_limits
+      - airline.book.baggage_allowance
+    covered_domains:
+      - booking
+    boundary_structure:
+      type: threshold_or_allowance
+      active_side: >
+        A requested count exceeds a policy cap or the quoted allowance and fee do not match
+        the state-derived calculation, so the request cannot proceed as proposed.
+      inactive_side: >
+        Counts are within all applicable caps and allowance calculations are correct, so
+        the proposal may proceed.
+    abstraction_level:
+      assessment: appropriate
+      rationale: >
+        The common learning mechanism is explicit quantitative constraint evaluation.
+        These rules are not split by passenger, payment, or baggage object, while nonnumeric
+        state predicates remain in the state-gated permission concept.
+    secondary_relations:
+      - grounding
+      - scope
+    consolidation_status: assigned
+    pilot_candidate: false
+
+  - concept_id: airline.mutation_invariant_guard
+    name: Mutation Invariant Guard
+    primary_primitive: scope
+    description: >
+      A requested update may use a valid mutation tool yet remain prohibited when its
+      proposed post-state changes protected fields or moves state in a forbidden direction.
+    transferable_mechanism: >
+      Compare the complete current state with the proposed post-state, identify immutable
+      dimensions and directional constraints, and reject or narrow updates that cross those
+      boundaries before invoking the tool.
+    member_rules:
+      - airline.modify.itinerary_invariants
+      - airline.modify.baggage_add_only
+    covered_domains:
+      - modification
+    boundary_structure:
+      type: before_after_invariant
+      active_side: >
+        The proposed post-state changes a protected field or violates an allowed direction,
+        so the mutation must not execute as requested.
+      inactive_side: >
+        Protected fields are preserved and directional constraints hold, so the mutation
+        may proceed subject to other rules.
+    abstraction_level:
+      assessment: appropriate
+      rationale: >
+        Both members require a pre-state/post-state comparison that the tools do not enforce.
+        Cabin eligibility is excluded because it checks external flight status rather than
+        the shape of the requested mutation.
+    secondary_relations:
+      - eligibility
+      - grounding
+    consolidation_status: assigned
+    pilot_candidate: true
+
+  - concept_id: airline.escalation_routing_boundary
+    name: Escalation Routing Boundary
+    primary_primitive: escalation
+    description: >
+      The agent must route to a human exactly when policy places the request outside the
+      agent's actionable scope, while avoiding unnecessary transfer for handleable requests.
+    transferable_mechanism: >
+      Determine whether any policy-compliant agent path remains. If none remains and policy
+      prescribes transfer, follow the transfer sequence; otherwise retain the request and
+      handle or deny it within the agent channel as required.
+    member_rules:
+      - airline.escalation.scope
+      - airline.cancel.flown_segment_transfer
+    covered_domains:
+      - general
+      - cancellation
+    boundary_structure:
+      type: workflow_routing
+      active_side: >
+        Policy makes the request unhandleable by the agent, so transfer is required using
+        the prescribed sequence.
+      inactive_side: >
+        A policy-compliant agent path exists, so transfer would be overreach and the agent
+        should continue in scope.
+    abstraction_level:
+      assessment: appropriate
+      rationale: >
+        The specific flown-segment rule instantiates the general routing mechanism and gives
+        it a state-observable boundary. It is not merged into eligibility because its active
+        side mandates a different workflow rather than simple refusal.
+    secondary_relations:
+      - scope
+      - ordering
+    consolidation_status: assigned
+    pilot_candidate: false
+
+  - concept_id: airline.policy_scoped_remedy
+    name: Policy-Scoped Remedy
+    primary_primitive: authorization
+    description: >
+      A remedy is authorized only for enumerated events and must follow the event-specific
+      prerequisites, sequence, form, and amount.
+    transferable_mechanism: >
+      Match the verified disruption to an allowed remedy branch, reject unlisted reasons,
+      satisfy branch-specific ordering requirements, and calculate only the exact remedy
+      authorized by that branch.
+    member_rules:
+      - airline.compensation.cancelled_flight_certificate
+      - airline.compensation.delayed_flight_sequence
+      - airline.compensation.allowed_reasons_only
+    covered_domains:
+      - compensation
+    boundary_structure:
+      type: enumerated_remedy_authorization
+      active_side: >
+        The reason is unlisted or a branch-specific prerequisite, sequence, form, or amount
+        is unsatisfied, so the remedy must not be issued as proposed.
+      inactive_side: >
+        A listed event and all branch-specific conditions are satisfied, so the exact
+        authorized remedy may be issued.
+    abstraction_level:
+      assessment: appropriate
+      rationale: >
+        The members jointly define a reusable closed-world remedy decision: allowed event,
+        required workflow, and exact outcome. General eligibility and evidence verification
+        remain separate because they apply before selecting the remedy branch.
+    secondary_relations:
+      - ordering
+      - scope
+      - grounding
+    consolidation_status: assigned
+    pilot_candidate: false
+
+  - concept_id: airline.bidirectional_settlement
+    name: Bidirectional Settlement
+    primary_primitive: grounding
+    description: >
+      The direction of a financial consequence must be derived from the sign of the
+      verified price difference rather than assumed from the fact that a change occurred.
+    transferable_mechanism: >
+      Compute new minus original value, preserve the sign, and map a positive result to a
+      user payment and a negative result to a user refund before presenting or confirming
+      the change.
+    member_rules:
+      - airline.modify.cabin_price_settlement
+    covered_domains:
+      - modification
+    boundary_structure:
+      type: signed_outcome_branch
+      active_side: >
+        The new price is higher, so the user must pay the positive difference.
+      inactive_side: >
+        The new price is lower, so the user must receive the absolute difference as a refund.
+    abstraction_level:
+      assessment: standalone
+      rationale: >
+        The signed settlement branch has independent learning value but no other constructible
+        Airline rule shares its bidirectional financial mapping. Folding it into quantitative
+        caps or compensation remedies would require exceptions and weaken both concepts.
+    secondary_relations:
+      - ordering
+      - confirmation
+    consolidation_status: standalone
+    pilot_candidate: false

@@ -1,0 +1,180 @@
+schema_version: 1
+concept_id: airline.explicit_user_mandate
+source_concepts: benchmarks/tau2_governed_evolution/concepts/airline_policy_concepts.yaml
+source_registry: benchmarks/tau2_governed_evolution/registry/airline_policy_registry.yaml
+
+coverage:
+  member_rule_count: 3
+  represented_rules:
+    - airline.book.no_unrequested_baggage
+    - airline.book.insurance_choice
+    - airline.compensation.user_requested
+  merged_rules: []
+  deferred_rules: []
+  template_count: 3
+  latent_pair_candidate_count: 3
+
+templates:
+  - template_id: airline.user_mandate.checked_baggage
+    concept_id: airline.explicit_user_mandate
+    rule_id: airline.book.no_unrequested_baggage
+    name: User-Mandated Checked Baggage
+    trigger:
+      behavior: include_checked_baggage_in_booking
+    policy_predicate:
+      name: baggage_count_has_explicit_user_mandate
+      description: >
+        Whether conversation evidence explicitly supports the checked-bag count the
+        assistant is considering adding to the booking.
+      logic: boolean
+      factors:
+        - user_requested_or_accepted_checked_bag_count
+      evidence_source:
+        type: conversation
+        accepted_evidence:
+          - explicit_request
+          - explicit_acceptance
+        absence_condition: no_request_or_acceptance_for_the_proposed_count
+    boundary_sides:
+      side_a:
+        predicate_value: true
+        expected_governance: >
+          The supported checked-bag count may be included, subject to baggage pricing
+          and the remaining booking rules.
+      side_b:
+        predicate_value: false
+        expected_governance: >
+          The assistant must not add the proposed checked bags merely because allowance
+          or technical capability exists.
+    controlled_variables:
+      - user_baggage_intent_evidence
+    invariants:
+      - same_booking_goal
+      - same_proposed_checked_bag_count
+      - same_user_and_passengers
+      - same_membership_and_cabin
+      - same_tool_availability
+      - same_non_policy_relevant_context
+    observable_evidence:
+      - conversation_state_for_baggage_intent
+    expected_resolution_change:
+      side_a: INCLUDE_REQUESTED_BAGGAGE
+      side_b: REFRAIN_FROM_ADDING_BAGGAGE
+    construction_quality:
+      predicate_clarity: high
+      state_control: high
+      gold_clarity: high
+      tool_policy_separation: high
+      notes: >
+        The interaction variable is explicit and independently controllable, while the
+        booking tool can technically accept the same baggage count on either side.
+    latent_pair_candidate: true
+
+  - template_id: airline.user_mandate.insurance_choice
+    concept_id: airline.explicit_user_mandate
+    rule_id: airline.book.insurance_choice
+    name: Explicit Travel-Insurance Choice
+    trigger:
+      behavior: finalize_booking_insurance_selection
+    policy_predicate:
+      name: explicit_insurance_choice_is_known
+      description: >
+        Whether the user has explicitly chosen to include or decline travel insurance
+        after the insurance choice was raised in the booking interaction.
+      logic: boolean
+      factors:
+        - insurance_choice_requested_from_user
+        - user_explicitly_selected_or_declined_insurance
+      evidence_source:
+        type: conversation
+        accepted_evidence:
+          - explicit_selection
+          - explicit_decline
+        absence_condition: no_explicit_insurance_choice
+    boundary_sides:
+      side_a:
+        predicate_value: true
+        expected_governance: >
+          The booking may continue using the user's explicit insurance choice, subject
+          to the remaining booking rules.
+      side_b:
+        predicate_value: false
+        expected_governance: >
+          The assistant must ask for the insurance choice and must not silently select
+          or decline insurance for the user.
+    controlled_variables:
+      - user_insurance_choice_evidence
+    invariants:
+      - same_booking_goal
+      - same_user_and_passengers
+      - same_itinerary_and_cabin
+      - same_insurance_terms
+      - same_tool_availability
+      - same_non_policy_relevant_context
+    observable_evidence:
+      - conversation_state_for_insurance_choice
+    expected_resolution_change:
+      side_a: CONTINUE_WITH_EXPLICIT_CHOICE
+      side_b: ASK_FOR_INSURANCE_CHOICE
+    construction_quality:
+      predicate_clarity: high
+      state_control: high
+      gold_clarity: high
+      tool_policy_separation: high
+      notes: >
+        The tool requires an insurance value but does not establish that the user chose
+        it, making conversation evidence the clean policy-control variable.
+    latent_pair_candidate: true
+
+  - template_id: airline.user_mandate.compensation_request
+    concept_id: airline.explicit_user_mandate
+    rule_id: airline.compensation.user_requested
+    name: User-Requested Compensation
+    trigger:
+      behavior: consider_offering_compensation
+    policy_predicate:
+      name: compensation_was_explicitly_requested
+      description: >
+        Whether the conversation contains an explicit user request for compensation,
+        rather than only a complaint or description of disruption.
+      logic: boolean
+      factors:
+        - explicit_compensation_request_present
+      evidence_source:
+        type: conversation
+        accepted_evidence:
+          - explicit_request
+        absence_condition: complaint_without_explicit_compensation_request
+    boundary_sides:
+      side_a:
+        predicate_value: true
+        expected_governance: >
+          The assistant may evaluate and, if all other compensation conditions hold,
+          offer the policy-authorized compensation.
+      side_b:
+        predicate_value: false
+        expected_governance: >
+          The assistant must not proactively offer compensation.
+    controlled_variables:
+      - explicit_compensation_request_evidence
+    invariants:
+      - same_disruption_and_complaint
+      - same_user_and_reservation
+      - same_compensation_eligibility
+      - same_verified_facts
+      - same_allowed_compensation_reason
+      - same_tool_availability
+    observable_evidence:
+      - conversation_state_for_compensation_request
+    expected_resolution_change:
+      side_a: EVALUATE_OR_OFFER_AUTHORIZED_COMPENSATION
+      side_b: DO_NOT_PROACTIVELY_OFFER_COMPENSATION
+    construction_quality:
+      predicate_clarity: high
+      state_control: high
+      gold_clarity: high
+      tool_policy_separation: high
+      notes: >
+        Holding disruption, eligibility, and verification constant isolates the explicit
+        request as the only reason the permissible compensation behavior changes.
+    latent_pair_candidate: true
