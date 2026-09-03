@@ -246,3 +246,15 @@ The Oracle consumes real τ² `Message` trajectories or `SimulationRun.get_messa
 Sixteen deterministic fixtures cover successful/compliant, failed/compliant, successful/violating, and failed/violating behavior. They also cover baggage inquiry without mutation, read-only flight lookup, discussion of a prohibited destination, a safe same-route alternative, failed prohibited tool calls, and a baggage violation followed by a DB-restoring correction. No LLM, Skill, Diagnosis, Editor output, Task Success reward, or final DB state is consulted by `evaluate_target_compliance()`.
 
 Global Compliance, Agent/User Simulator rollout, Governed Skill Evolution, the remaining six Boundary Templates, and Train/Monitor/Test splits remain unimplemented.
+
+## Pilot End-to-End Calibration
+
+Step 9 connects the fixed 18 compiled Airline tasks to the existing τ² execution pipeline. It runs the unchanged v14 S0 Base Agent and User Simulator three times per task, then combines the upstream τ² Task Success result with the deterministic Step 8 Target-Rule Compliance Oracle. These two axes remain independent and produce `CS`, `VS`, `CF`, and `VF` behavior states.
+
+Calibration diagnoses benchmark structure rather than ranking the Base Agent. Its outputs report headroom, predicate-side sensitivity, independent manifestation replication, within-world surface behavior variation, and rollout stability. Runtime failures are retained and labeled instead of being silently retried away. Pair provenance remains hidden from the Agent and is used only for internal grouping.
+
+The calibration runner is fixed to the current three Pilot Templates, 18 tasks, three rollout seeds, and no learned Skill injection. It does not invoke Diagnosis, Editor, Candidate generation, Selection Gate, Global Compliance, or any benchmark mutation. The generated report does not claim a numerical advantage over original τ² because this step does not run a same-model original-task control.
+
+The completed Pilot run contains 54/54 trajectories with no runtime failures: 30 CS, 0 VS, 17 CF, and 7 VF. Task Success is 55.6%, Target Compliance is 87.0%, and CuP is 55.6%. Checked-baggage overreach appears on all three no-mandate manifestations (one stable at two of three rollouts); prohibited basic-economy flight-change attempts appear on two of three block manifestations; itinerary-identity produces no target violations and mostly exposes resolution/evaluation failure. All six Latent Worlds show differing behavior-state distributions across their three Surface Manifestations.
+
+Calibration exposed a denial-evaluation issue without changing the benchmark: 13 failures have a correct DB state and fail only the deterministic `COMMUNICATE` check. Many trajectories communicate a semantically correct refusal such as “cannot be modified”, while the compiled criterion requires the literal information string “cannot change”. This criterion should be reviewed before Skill Evolution; the current output preserves the upstream τ² result unchanged and records its reward breakdown for audit.
