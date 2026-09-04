@@ -466,7 +466,7 @@ def _run_task(
 
 
 class TGERolloutBackend:
-    """Execute frozen Train or Monitor tasks with TGE evaluators."""
+    """Execute frozen Train, Monitor, or final-only Test tasks."""
 
     def __init__(self, campaign: dict[str, Any], *, artifact_root: Path) -> None:
         validate_campaign_contract(campaign)
@@ -488,20 +488,27 @@ class TGERolloutBackend:
         return (
             value.get("domain") == "airline"
             and value.get("task_id") == unit["task_id"]
-            and value.get("phase") == ("monitor" if split == "monitor" else "train")
+            and value.get("phase") == split
             and value.get("skill_version") == skill["skill_version"]
             and value.get("rollout_index") == unit["rollout_index"]
             and value.get("rollout_seed") == unit["rollout_seed"]
             and value.get("provenance", {}).get("skill_id") == skill["skill_id"]
             and value.get("provenance", {}).get("skill_path") == skill["skill_path"]
-            and value.get("provenance", {}).get("frozen_hashes")
-            == self.campaign["frozen_hashes"]
+            and (
+                split == "test"
+                or value.get("provenance", {}).get("frozen_hashes")
+                == self.campaign["frozen_hashes"]
+            )
         )
 
     def _run_one(
         self, *, split: str, unit: dict[str, Any], skill: dict[str, str], output: Path
     ) -> None:
-        operation = "selection" if split == "monitor" else "rollout_for_evolution"
+        operation = {
+            "train": "rollout_for_evolution",
+            "monitor": "selection",
+            "test": "final_evaluation",
+        }[split]
         assert_split_access(operation, split)
         task_id = unit["task_id"]
         if task_id not in self.split_ids[split]:
@@ -523,25 +530,29 @@ class TGERolloutBackend:
             raw_path = output.with_name(output.stem + "_tau2_raw.json")
             raw_path.parent.mkdir(parents=True, exist_ok=True)
             raw_path.write_text(simulation.model_dump_json(indent=2) + "\n", encoding="utf-8")
+            provenance = {
+                "campaign_id": self.campaign["campaign_id"],
+                "task_split": split,
+                "skill_id": skill["skill_id"],
+                "skill_path": skill["skill_path"],
+                "raw_tau2_result_path": raw_path.as_posix(),
+                "task_success_evaluator": "tge_v1",
+                "compliance_evaluator": "deterministic_tge_v1_oracles",
+            }
+            if split != "test":
+                provenance["frozen_hashes"] = copy.deepcopy(
+                    self.campaign["frozen_hashes"]
+                )
             write_rollout_artifact(
                 output,
                 domain="airline",
                 task_id=task_id,
-                phase="monitor" if split == "monitor" else "train",
+                phase=split,
                 skill_version=skill["skill_version"],
                 rollout_index=unit["rollout_index"],
                 rollout_seed=unit["rollout_seed"],
                 governed_evidence=evidence,
-                provenance={
-                    "campaign_id": self.campaign["campaign_id"],
-                    "task_split": split,
-                    "skill_id": skill["skill_id"],
-                    "skill_path": skill["skill_path"],
-                    "raw_tau2_result_path": raw_path.as_posix(),
-                    "task_success_evaluator": "tge_v1",
-                    "compliance_evaluator": "deterministic_tge_v1_oracles",
-                    "frozen_hashes": copy.deepcopy(self.campaign["frozen_hashes"]),
-                },
+                provenance=provenance,
             )
             error_path.unlink(missing_ok=True)
         except Exception as error:
@@ -560,7 +571,11 @@ class TGERolloutBackend:
     def run_batch(
         self, *, split: str, task_ids: list[str], skill: dict[str, str], label: str
     ) -> list[Path]:
-        operation = "selection" if split == "monitor" else "rollout_for_evolution"
+        operation = {
+            "train": "rollout_for_evolution",
+            "monitor": "selection",
+            "test": "final_evaluation",
+        }[split]
         assert_split_access(operation, split)
         ids = [value.split(":", 1)[1] for value in task_ids]
         if set(ids) - self.split_ids[split]:
@@ -578,9 +593,14 @@ class TGERolloutBackend:
         paths: list[Path] = []
         pending: list[tuple[dict[str, Any], Path]] = []
         for unit in units:
-            output = self.root / (
-                "monitor_rollouts" if split == "monitor" else "rollouts/train"
-            ) / label / f"airline_{unit['task_id']}_rollout_{unit['rollout_index']:02d}.json"
+            rollout_root = {
+                "train": Path("rollouts/train"),
+                "monitor": Path("monitor_rollouts"),
+                "test": Path("test_rollouts"),
+            }[split]
+            output = self.root / rollout_root / label / (
+                f"airline_{unit['task_id']}_rollout_{unit['rollout_index']:02d}.json"
+            )
             paths.append(output)
             if not self._reusable(output, split=split, unit=unit, skill=skill):
                 pending.append((unit, output))
@@ -864,6 +884,181 @@ def build_campaign_dry_plan(
     }
 
 
+def _completed_test_skills(
+    campaign: dict[str, Any], artifact_root: Path
+) -> tuple[dict[str, str], dict[str, str]]:
+    state_path = artifact_root / "campaign_state.json"
+    if not state_path.is_file():
+        raise TGEV1RuntimeContractError("Test requires a completed campaign_state.json.")
+    state = _load_json(state_path)
+    steps = campaign["schedule"]["evolution_steps"]
+    if (
+        state.get("campaign_id") != campaign["campaign_id"]
+        or state.get("current_step") != steps
+        or len(state.get("completed_steps", [])) != steps
+        or not isinstance(state.get("final_skill"), dict)
+    ):
+        raise TGEV1RuntimeContractError("Test is allowed only after all Evolution steps complete.")
+    initial = campaign["initial_parent"]
+    parent = {
+        "skill_id": "S0",
+        "skill_version": initial["version"],
+        "skill_path": initial["path"],
+    }
+    final = {
+        key: state["final_skill"][key]
+        for key in ("skill_id", "skill_version", "skill_path")
+    }
+    for skill in (parent, final):
+        if not _resolve(skill["skill_path"]).is_file():
+            raise TGEV1RuntimeContractError(
+                f"Test Skill artifact does not exist: {skill['skill_path']}"
+            )
+    return parent, final
+
+
+def build_test_plan(campaign: dict[str, Any], artifact_root: Path) -> dict[str, Any]:
+    """Build the final-only Parent-vs-Final Test plan without hash machinery."""
+
+    validate_campaign_contract(campaign)
+    assert_split_access("final_evaluation", "test")
+    tasks, metadata, _, split_ids = load_frozen_assets(campaign)
+    parent, final = _completed_test_skills(campaign, artifact_root)
+    test_ids = [task_id for task_id in tasks if task_id in split_ids["test"]]
+    if len(test_ids) != 48 or any(metadata[task_id]["assigned_split"] != "test" for task_id in test_ids):
+        raise TGEV1RuntimeContractError("Frozen Test task lineage is invalid.")
+    return {
+        "schema_version": "autonomous_gse_tge_test_plan_0.1.0",
+        "campaign_id": campaign["campaign_id"],
+        "split": "test",
+        "task_ids": test_ids,
+        "task_count": 48,
+        "rollouts_per_task": 3,
+        "seeds": list(ROLLOUT_SEEDS),
+        "trajectories_per_skill": 144,
+        "total_trajectories": 288,
+        "parent_skill": parent,
+        "final_skill": final,
+        "learning_access": False,
+        "selection_access": False,
+    }
+
+
+def _test_skill_result(
+    *,
+    campaign: dict[str, Any],
+    plan: dict[str, Any],
+    skill: dict[str, str],
+    paths: list[Path],
+    metadata: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    rows = []
+    for path in paths:
+        value = _load_json(path)
+        task_id = str(value["task_id"])
+        success = value["task_evaluation"]["success"]
+        compliant = value["compliance_evaluation"]["compliant"]
+        rows.append({
+            "task_id": task_id,
+            "rollout_index": value["rollout_index"],
+            "rollout_seed": value["rollout_seed"],
+            "family_id": metadata[task_id]["family_id"],
+            "mechanism_id": metadata[task_id]["template_id"],
+            "task_success": success,
+            "compliant": compliant,
+            "state_code": state_code(success, compliant),
+            "trajectory_artifact_path": path.resolve().as_posix(),
+        })
+    rows.sort(key=lambda row: (
+        plan["task_ids"].index(row["task_id"]), row["rollout_index"]
+    ))
+    counts = {code: sum(row["state_code"] == code for row in rows) for code in ("CS", "VS", "CF", "VF")}
+    total = len(rows)
+    if total != 144:
+        raise TGEV1RuntimeContractError("Test Skill result must contain 144 trajectories.")
+    return {
+        "schema_version": "autonomous_gse_tge_test_result_0.1.0",
+        "campaign_id": campaign["campaign_id"],
+        "split": "test",
+        "skill": copy.deepcopy(skill),
+        "task_ids": copy.deepcopy(plan["task_ids"]),
+        "rollouts_per_task": 3,
+        "rows": rows,
+        "summary": {
+            "total_rollouts": total,
+            "counts": counts,
+            "success_rate": (counts["CS"] + counts["VS"]) / total,
+            "compliance_rate": (counts["CS"] + counts["CF"]) / total,
+            "cup_rate": counts["CS"] / total,
+        },
+    }
+
+
+def _test_comparison(
+    campaign: dict[str, Any], parent: dict[str, Any], final: dict[str, Any]
+) -> dict[str, Any]:
+    parent_rows = {
+        (row["task_id"], row["rollout_index"], row["rollout_seed"]): row
+        for row in parent["rows"]
+    }
+    final_rows = {
+        (row["task_id"], row["rollout_index"], row["rollout_seed"]): row
+        for row in final["rows"]
+    }
+    if set(parent_rows) != set(final_rows) or len(parent_rows) != 144:
+        raise TGEV1RuntimeContractError("Parent and Final Test trajectories are not matched.")
+    transitions = {before: {after: 0 for after in ("CS", "VS", "CF", "VF")} for before in ("CS", "VS", "CF", "VF")}
+    for key, parent_row in parent_rows.items():
+        transitions[parent_row["state_code"]][final_rows[key]["state_code"]] += 1
+    return {
+        "schema_version": "autonomous_gse_tge_test_comparison_0.1.0",
+        "campaign_id": campaign["campaign_id"],
+        "split": "test",
+        "parent_skill": copy.deepcopy(parent["skill"]),
+        "final_skill": copy.deepcopy(final["skill"]),
+        "matched_trajectories": 144,
+        "parent_summary": copy.deepcopy(parent["summary"]),
+        "final_summary": copy.deepcopy(final["summary"]),
+        "delta_success": final["summary"]["success_rate"] - parent["summary"]["success_rate"],
+        "delta_compliance": final["summary"]["compliance_rate"] - parent["summary"]["compliance_rate"],
+        "delta_cup": final["summary"]["cup_rate"] - parent["summary"]["cup_rate"],
+        "transition_counts": transitions,
+        "used_for_learning": False,
+        "used_for_selection": False,
+    }
+
+
+def run_final_test(campaign: dict[str, Any], *, artifact_root: Path) -> dict[str, Any]:
+    """Evaluate S0 and the completed campaign's Final Skill on frozen Test only."""
+
+    plan = build_test_plan(campaign, artifact_root)
+    tasks, metadata, _, _ = load_frozen_assets(campaign)
+    del tasks
+    backend = TGERolloutBackend(campaign, artifact_root=artifact_root)
+    output_root = artifact_root / "test_evaluation"
+    _write_json(output_root / "test_plan.json", plan)
+    results = []
+    for label, skill in (("parent", plan["parent_skill"]), ("final", plan["final_skill"])):
+        paths = backend.run_batch(
+            split="test",
+            task_ids=[f"airline:{task_id}" for task_id in plan["task_ids"]],
+            skill=skill,
+            label=label,
+        )
+        result = _test_skill_result(
+            campaign=campaign,
+            plan=plan,
+            skill=skill,
+            paths=paths,
+            metadata=metadata,
+        )
+        _write_json(output_root / f"{label}_result.json", result)
+        results.append(result)
+    comparison = _test_comparison(campaign, results[0], results[1])
+    _write_json(output_root / "comparison.json", comparison)
+    return comparison
+
+
 def _runtime_lock(campaign_path: Path, campaign: dict[str, Any]) -> dict[str, Any]:
     return {
         "schema_version": "autonomous_gse_tge_runtime_lock_0.1.0",
@@ -914,8 +1109,22 @@ def main(argv: Sequence[str] | None = None) -> int:
         command_parser.add_argument("--campaign", type=Path, required=True)
         command_parser.add_argument("--artifact-root", type=Path)
         command_parser.add_argument("--stop-after-step", type=int, choices=(1, 2, 3))
+    test_parser = subparsers.add_parser("test")
+    test_parser.add_argument("--campaign", type=Path, required=True)
+    test_parser.add_argument("--artifact-root", type=Path)
     args = parser.parse_args(argv)
     campaign_path = args.campaign.resolve()
+    if args.command == "test":
+        campaign = _load_json(campaign_path)
+        validate_campaign_contract(campaign)
+        artifact_root = (
+            _resolve(campaign["artifact_root_default"])
+            if args.artifact_root is None
+            else args.artifact_root.resolve()
+        )
+        result = run_final_test(campaign, artifact_root=artifact_root)
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0
     campaign, batch_map = _campaign_files(campaign_path)
     if args.command == "plan":
         plan = build_campaign_dry_plan(campaign, batch_map)

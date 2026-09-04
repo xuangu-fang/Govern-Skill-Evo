@@ -191,6 +191,80 @@ def test_plan_is_static_and_does_not_create_formal_state(campaign, batch_map, tm
     assert not (tmp_path / "formal" / "campaign_state.json").exists()
 
 
+def _completed_artifact_root(tmp_path: Path, campaign: dict) -> Path:
+    root = tmp_path / "formal"
+    final_skill = root / "steps/step_01/candidate_skill.md"
+    final_skill.parent.mkdir(parents=True)
+    final_skill.write_text("final skill", encoding="utf-8")
+    state = {
+        "campaign_id": campaign["campaign_id"],
+        "current_step": 3,
+        "completed_steps": [{"step": index} for index in (1, 2, 3)],
+        "final_skill": {
+            "skill_id": "candidate_step_01",
+            "skill_version": "candidate_step_01",
+            "skill_path": str(final_skill),
+        },
+    }
+    (root / "campaign_state.json").write_text(json.dumps(state), encoding="utf-8")
+    return root
+
+
+def test_final_test_plan_requires_completion_and_uses_test_only(campaign, tmp_path, monkeypatch):
+    root = _completed_artifact_root(tmp_path, campaign)
+    monkeypatch.setattr(runtime, "_sha256", lambda path: pytest.fail("test used SHA/hash"))
+    plan = runtime.build_test_plan(campaign, root)
+    assert plan["split"] == "test"
+    assert plan["task_count"] == 48
+    assert plan["rollouts_per_task"] == 3
+    assert plan["trajectories_per_skill"] == 144
+    assert plan["total_trajectories"] == 288
+    assert plan["learning_access"] is False
+    assert plan["selection_access"] is False
+
+
+def test_final_test_plan_rejects_incomplete_campaign(campaign, tmp_path):
+    root = _completed_artifact_root(tmp_path, campaign)
+    state_path = root / "campaign_state.json"
+    state = _load(state_path)
+    state["current_step"] = 2
+    state["completed_steps"].pop()
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+    with pytest.raises(runtime.TGEV1RuntimeContractError, match="all Evolution steps"):
+        runtime.build_test_plan(campaign, root)
+
+
+def test_test_comparison_requires_matched_parent_and_final(campaign):
+    rows = [
+        {
+            "task_id": f"task_{index // 3:02d}",
+            "rollout_index": index % 3 + 1,
+            "rollout_seed": (200, 201, 202)[index % 3],
+            "task_success": True,
+            "compliant": True,
+            "state_code": "CS",
+        }
+        for index in range(144)
+    ]
+    summary = {
+        "total_rollouts": 144,
+        "counts": {"CS": 144, "VS": 0, "CF": 0, "VF": 0},
+        "success_rate": 1.0,
+        "compliance_rate": 1.0,
+        "cup_rate": 1.0,
+    }
+    parent = {"skill": {"skill_id": "S0"}, "rows": rows, "summary": summary}
+    final = copy.deepcopy(parent)
+    final["skill"] = {"skill_id": "candidate_step_01"}
+    result = runtime._test_comparison(campaign, parent, final)
+    assert result["matched_trajectories"] == 144
+    assert result["delta_success"] == 0
+    assert result["transition_counts"]["CS"]["CS"] == 144
+    final["rows"].pop()
+    with pytest.raises(runtime.TGEV1RuntimeContractError, match="not matched"):
+        runtime._test_comparison(campaign, parent, final)
+
+
 def _airline_monitor(skill_id: str, state: str = "CS") -> dict:
     success, compliant = {
         "CS": (True, True), "VS": (True, False),
@@ -249,4 +323,3 @@ def test_old_v14_runtime_and_campaign_still_validate():
     old_batch_map = _load(ROOT / "experiments/campaigns/autonomous_gse_v14/batch_map.json")
     old_v14.validate_campaign_contract(old_campaign)
     old_v14.validate_batch_map(old_batch_map, old_campaign)
-
