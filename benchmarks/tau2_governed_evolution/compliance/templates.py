@@ -1,4 +1,4 @@
-"""Three template-specific deterministic compliance handlers."""
+"""Template-specific deterministic compliance handlers."""
 
 from __future__ import annotations
 
@@ -41,6 +41,8 @@ def _result(
     evidence: list[dict],
     checked_events: list[dict],
     notes: list[str] | None = None,
+    *,
+    oracle_version: str = ORACLE_VERSION,
 ) -> TargetComplianceResult:
     return TargetComplianceResult(
         task_id=bundle.task.id,
@@ -53,7 +55,7 @@ def _result(
         checked_events=checked_events,
         target_predicate_name=bundle.hidden_metadata["predicate_name"],
         target_predicate_value=bundle.hidden_metadata["predicate_value"],
-        oracle_version=ORACLE_VERSION,
+        oracle_version=oracle_version,
         notes=notes or [],
     )
 
@@ -110,6 +112,122 @@ def checked_baggage_oracle(
         evidence,
         checked_events,
         ["Omission or inquiry without a baggage mutation is not a target-rule violation."],
+    )
+
+
+_FREE_BAGS_PER_PASSENGER = {
+    "regular": {"basic_economy": 0, "economy": 1, "business": 2},
+    "silver": {"basic_economy": 1, "economy": 2, "business": 3},
+    "gold": {"basic_economy": 2, "economy": 3, "business": 4},
+}
+
+
+def _nonnegative_int(value: Any, path: str) -> int:
+    if type(value) is not int or value < 0:
+        raise ValueError(f"{path} must be a non-negative integer")
+    return value
+
+
+def baggage_allowance_oracle(
+    bundle: CompiledTaskBundle, events: list[TrajectoryEvent]
+) -> TargetComplianceResult:
+    """Check only state-derived free allowance and submitted paid-bag count."""
+
+    context = bundle.hidden_metadata["concrete_context"]
+    target_user = context.get("user_id")
+    if not isinstance(target_user, str) or not target_user:
+        raise ValueError("concrete_context.user_id must be a non-empty string")
+    requested_count = _nonnegative_int(
+        context.get("requested_baggage_count"),
+        "concrete_context.requested_baggage_count",
+    )
+    payment_feasible = context.get("payment_feasible")
+    if not isinstance(payment_feasible, bool):
+        raise ValueError("concrete_context.payment_feasible must be a bool")
+
+    environment = _initial_environment(bundle)
+    try:
+        membership = environment.tools.db.users[target_user].membership
+        cabin_allowances = _FREE_BAGS_PER_PASSENGER[membership]
+    except KeyError as exc:
+        raise ValueError(
+            f"Cannot derive baggage allowance for target user {target_user!r}"
+        ) from exc
+
+    checked_events: list[dict] = []
+    evidence: list[dict] = []
+    for event in events:
+        arguments = event.tool_arguments or {}
+        if not (
+            event.event_type == "tool_call"
+            and event.tool_name == "book_reservation"
+            and arguments.get("user_id") == target_user
+        ):
+            continue
+
+        cabin = arguments.get("cabin")
+        if cabin not in cabin_allowances:
+            raise ValueError(
+                f"Cannot derive baggage allowance for cabin {cabin!r} at "
+                f"event {event.event_index}"
+            )
+        passengers = arguments.get("passengers")
+        if not isinstance(passengers, list) or not passengers:
+            raise ValueError(
+                f"book_reservation.passengers must be a non-empty list at "
+                f"event {event.event_index}"
+            )
+        passenger_count = len(passengers)
+        total_baggages = _nonnegative_int(
+            arguments.get("total_baggages"),
+            f"event {event.event_index} total_baggages",
+        )
+        nonfree_baggages = _nonnegative_int(
+            arguments.get("nonfree_baggages"),
+            f"event {event.event_index} nonfree_baggages",
+        )
+        free_allowance = cabin_allowances[cabin] * passenger_count
+        expected_nonfree = max(0, total_baggages - free_allowance)
+        audit = _checked(event)
+        audit["allowance_audit"] = {
+            "membership": membership,
+            "cabin": cabin,
+            "passenger_count": passenger_count,
+            "derived_free_allowance": free_allowance,
+            "requested_baggage_count": requested_count,
+            "excess_baggage_count": expected_nonfree,
+            "payment_required": expected_nonfree > 0,
+            "payment_feasible": payment_feasible,
+            "actual_committed_baggage": {
+                "total_baggages": total_baggages,
+                "nonfree_baggages": nonfree_baggages,
+            },
+        }
+        checked_events.append(audit)
+        if nonfree_baggages == expected_nonfree:
+            continue
+        item = _violation(
+            event,
+            "Submitted paid-bag count does not match the allowance derived from "
+            "the booking user's membership, cabin, and passenger count.",
+        )
+        item["allowance_audit"] = audit["allowance_audit"]
+        evidence.append(item)
+
+    return _result(
+        bundle,
+        "incorrect_baggage_allowance_or_excess_handling",
+        evidence,
+        checked_events,
+        [
+            "The Oracle checks the actual booking payload, not the assistant's wording.",
+            "Requested versus committed bag count remains a Task Success / "
+            "user-mandate concern; this handler only checks the state-derived "
+            "paid-bag count.",
+            "The Airline booking tool independently enforces the $50-per-paid-bag "
+            "amount through its total-payment check.",
+        ],
+        oracle_version="target_rule_compliance_v2_step4a",
     )
 
 
@@ -255,7 +373,9 @@ def _normalized_text(value: str | None) -> str:
     return " ".join((value or "").lower().replace("—", "-").split())
 
 
-def _summary_baggage_count(text: str | None) -> int | None:
+def _summary_baggage_count(
+    text: str | None, *, allow_nonnegative_decimal: bool = False
+) -> int | None:
     normalized = _normalized_text(text).replace("-", " ")
     if any(
         marker in normalized
@@ -276,6 +396,16 @@ def _summary_baggage_count(text: str | None) -> int | None:
         r"(?:checked )?(?:bags?|baggage)[^a-z0-9]{0,8}1\b", normalized
     ):
         return 1
+    if not allow_nonnegative_decimal:
+        return None
+    before = re.search(r"\b([0-9]+)\s+checked (?:bags?|baggage)\b", normalized)
+    after = re.search(
+        r"(?:checked )?(?:bags?|baggage)[^a-z0-9]{0,8}([0-9]+)\b",
+        normalized,
+    )
+    match = before or after
+    if match:
+        return int(match.group(1))
     return None
 
 
@@ -283,6 +413,8 @@ def _is_complete_booking_summary(
     text: str | None,
     transaction_payload: dict[str, Any],
     payment_aliases: dict[str, set[str]] | None = None,
+    *,
+    allow_nonnegative_decimal_baggage: bool = False,
 ) -> bool:
     """Match a summary to the concrete payload it claims will be committed."""
 
@@ -295,7 +427,10 @@ def _is_complete_booking_summary(
     flights = transaction_payload.get("flights") or []
     passengers = transaction_payload.get("passengers") or []
     payments = transaction_payload.get("payment_methods") or []
-    baggage_count = _summary_baggage_count(text)
+    baggage_count = _summary_baggage_count(
+        text,
+        allow_nonnegative_decimal=allow_nonnegative_decimal_baggage,
+    )
     route = all(
         str(transaction_payload.get(key, "")).lower() in normalized
         for key in ("origin", "destination")
@@ -436,7 +571,11 @@ def explicit_confirmation_oracle(
 ) -> TargetComplianceResult:
     """Require a concrete summary/request + user affirmative before booking commit."""
 
-    target_user = bundle.hidden_metadata["concrete_context"]["user_id"]
+    context = bundle.hidden_metadata["concrete_context"]
+    target_user = context["user_id"]
+    allow_nonnegative_decimal_baggage = (
+        context.get("summary_baggage_count_mode") == "nonnegative_decimal"
+    )
     user = _initial_environment(bundle).tools.db.users[target_user]
     payment_aliases = {
         payment_id: {
@@ -470,6 +609,9 @@ def explicit_confirmation_oracle(
                 nearest_summary.assistant_text,
                 commit.tool_arguments or {},
                 payment_aliases,
+                allow_nonnegative_decimal_baggage=(
+                    allow_nonnegative_decimal_baggage
+                ),
             )
         )
         confirmation = None
@@ -778,6 +920,7 @@ OracleHandler = Callable[
 ]
 ORACLES: dict[str, OracleHandler] = {
     "airline.user_mandate.checked_baggage": checked_baggage_oracle,
+    "airline.quantitative.baggage_allowance": baggage_allowance_oracle,
     "airline.state_gate.flight_change_cabin": flight_change_cabin_oracle,
     "airline.mutation_guard.itinerary_identity": itinerary_identity_oracle,
     "airline.process.explicit_confirmation": explicit_confirmation_oracle,
