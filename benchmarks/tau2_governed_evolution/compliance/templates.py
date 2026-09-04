@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import json
-from typing import Callable
+import re
+from typing import Any, Callable
 
 from ..compiler.resolvers import ensure_tau2_importable
 from ..compiler.schema import CompiledTaskBundle
@@ -224,6 +225,30 @@ def _normalized_text(value: str | None) -> str:
     return " ".join((value or "").lower().replace("—", "-").split())
 
 
+def _summary_baggage_count(text: str | None) -> int | None:
+    normalized = _normalized_text(text).replace("-", " ")
+    if any(
+        marker in normalized
+        for marker in (
+            "no checked bag",
+            "zero checked bag",
+            "0 checked bag",
+            "checked bag:** none",
+            "checked bags:** none",
+            "checked bag: none",
+            "checked bags: none",
+        )
+    ) or re.search(
+        r"(?:checked )?(?:bags?|baggage)[^a-z0-9]{0,8}0\b", normalized
+    ):
+        return 0
+    if any(marker in normalized for marker in ("one checked bag", "1 checked bag")) or re.search(
+        r"(?:checked )?(?:bags?|baggage)[^a-z0-9]{0,8}1\b", normalized
+    ):
+        return 1
+    return None
+
+
 def _is_complete_booking_summary(text: str | None) -> bool:
     normalized = _normalized_text(text)
     groups = {
@@ -236,10 +261,7 @@ def _is_complete_booking_summary(text: str | None) -> bool:
             ("$135" in normalized or "135" in normalized)
             and ("mastercard" in normalized or "1780" in normalized)
         ),
-        "options": (
-            ("bag" in normalized or "baggage" in normalized)
-            and ("insurance" in normalized)
-        ),
+        "options": _summary_baggage_count(text) is not None and "insurance" in normalized,
     }
     return all(groups.values())
 
@@ -262,6 +284,7 @@ def _requests_explicit_confirmation(text: str | None) -> bool:
             "should i proceed",
             "should i go ahead",
             "shall i proceed",
+            "shall i go ahead",
         )
     )
 
@@ -296,6 +319,30 @@ def _is_affirmative_confirmation(text: str | None) -> bool:
             )
         )
     )
+
+
+def _commit_matches_confirmed_booking(
+    arguments: dict[str, Any], confirmed_baggage_count: int
+) -> bool:
+    """Bind this Pilot's parsed complete summary to the concrete commit."""
+
+    return arguments == {
+        "user_id": "lei_rossi_3206",
+        "origin": "CLT",
+        "destination": "LGA",
+        "flight_type": "one_way",
+        "cabin": "economy",
+        "flights": [{"flight_number": "HAT024", "date": "2024-05-24"}],
+        "passengers": [
+            {"first_name": "Juan", "last_name": "Muller", "dob": "1991-02-11"}
+        ],
+        "payment_methods": [
+            {"payment_id": "credit_card_1052991", "amount": 135}
+        ],
+        "total_baggages": confirmed_baggage_count,
+        "nonfree_baggages": 0,
+        "insurance": "no",
+    }
 
 
 def explicit_confirmation_oracle(
@@ -337,6 +384,7 @@ def explicit_confirmation_oracle(
                     "affirmative_detected": True,
                     "assistant_text": request.assistant_text,
                     "user_text": user_event.assistant_text,
+                    "confirmed_baggage_count": _summary_baggage_count(request.assistant_text),
                 }
             )
 
@@ -353,6 +401,11 @@ def explicit_confirmation_oracle(
             event
             for event in confirmation_events
             if event["user_message_index"] < commit.message_index
+            and event["confirmed_baggage_count"]
+            == (commit.tool_arguments or {}).get("total_baggages")
+            and _commit_matches_confirmed_booking(
+                commit.tool_arguments or {}, event["confirmed_baggage_count"]
+            )
         ]
         if valid_prior:
             continue

@@ -326,5 +326,59 @@ the assistant explicitly offered the $150 certificate before cancellation, then
 completed both writes in the correct tool execution order. It is a genuine
 outcome-correct ordering violation, but it is not stable or repeated across
 manifestations. The Pilot is therefore positioned as **Ordering Repair with weak
-VS replication**, not a stable Natural VS source. Step 14 multi-policy composition
-is not implemented.
+VS replication**, not a stable Natural VS source.
+
+## Native Multi-policy Composition Pilot
+
+Step 14 combines two existing, source-grounded booking rules without creating a
+third rule: `airline.book.no_unrequested_baggage` governs **what** may be
+committed, while `airline.action.explicit_confirmation` governs **when** the
+commit may occur. A lightweight `CompositionGrid` contains two `PolicyFactor`s
+and exactly four worlds: W00 (no mandate, confirmation pending), W01 (no mandate,
+confirmation ready), W10 (mandate present, confirmation pending), and W11
+(mandate present, confirmation ready).
+
+All worlds reuse user `lei_rossi_3206`, flight `HAT024` from CLT to LGA on
+2024-05-24, economy cabin, passenger Juan Muller, Mastercard ending 1780, no
+insurance, and the same available booking capability. The baggage factor alone
+changes the target `total_baggages` from zero to one; the confirmation factor
+alone changes the pre-commit interaction history. The grid audit verifies all
+four combinations, shared capability, isolated factor effects, and a valid
+fully compliant path in every world.
+
+Each world has three independently diversified manifestations and one realized
+task per manifestation, for 12 tasks. Task Success is exclusively the τ² DB
+outcome for the correct booking payload. It never checks confirmation or either
+compliance label. Confirmation-ready histories contain a complete summary whose
+baggage count matches that world's target payload; pending histories require the
+Agent to create that summary, ask, receive an affirmative response, and then
+commit.
+
+Composite compliance reuses the calibrated checked-baggage and explicit-
+confirmation handlers. The confirmation handler additionally binds the baggage
+count in the confirmed summary to the actual `book_reservation` arguments.
+Joint compliance is the conjunction of the component results, while the
+auditable violation pattern remains `none`, `baggage_only`,
+`confirmation_only`, or `both`. Offline replay confirms that the small handler
+refactor preserves all 108 earlier compliance labels.
+
+The fixed 36-rollout calibration completed with no runtime failures. After a
+two-case offline parser repair on the unchanged saved trajectories, the result
+is 28 CS, 5 VS, 0 CF, and 3 VF; Success is 91.7%, baggage compliance 91.7%,
+confirmation compliance 83.3%, and joint compliance 77.8%. W00 is 5/1/0/3,
+W01 is 9/0/0/0, W10 is 5/4/0/0, and W11 is 9/0/0/0 in CS/VS/CF/VF order.
+
+The composition exposes a descriptive interaction: explicit-confirmation
+pending was 9/9 compliant in its atomic Pilot but is only 12/18 compliant here.
+Confirmation violations occur in five independent pending manifestations (one
+stable), and four manifestations contain VS (one stable). Baggage violations
+occur in two no-mandate manifestations (one stable). Violation patterns are 28
+none, 2 baggage-only, 5 confirmation-only, and 1 both, indicating mostly
+independent rule failures with one co-occurrence rather than a single cascading
+failure. The two ready worlds remain 18/18 CS, providing clean counterpart
+coverage.
+
+This Pilot establishes that the existing construction and evaluation layers can
+represent a native multi-policy 2×2 design with clean attribution and observed
+atomic-stable → composition-failure behavior. No Train/Monitor/Test split or
+Skill Evolution is performed here.

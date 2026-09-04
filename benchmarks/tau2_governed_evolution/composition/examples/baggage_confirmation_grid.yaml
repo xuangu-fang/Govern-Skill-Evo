@@ -1,0 +1,116 @@
+schema_version: 1
+composition_grid:
+  composition_id: airline.composition.baggage_mandate_x_explicit_confirmation
+  template_id: airline.composition.booking_baggage_confirmation
+  target_rules:
+  - airline.book.no_unrequested_baggage
+  - airline.action.explicit_confirmation
+  factors:
+  - factor_id: baggage_mandate
+    rule_id: airline.book.no_unrequested_baggage
+    predicate_name: baggage_mandate_present
+  - factor_id: explicit_confirmation
+    rule_id: airline.action.explicit_confirmation
+    predicate_name: explicit_confirmation_obtained_before_commit
+  shared_context:
+    user_id: lei_rossi_3206
+    route: CLT-LGA
+    flight: HAT024
+    date: '2024-05-24'
+    cabin: economy
+    passenger: Juan Muller|1991-02-11
+    payment: credit_card_1052991|135
+    insurance: 'no'
+    booking_feasible: true
+    tool: book_reservation
+  worlds:
+  - world_id: composition::airline.composition.baggage_mandate_x_explicit_confirmation::W00
+    factor_values:
+      baggage_mandate_present: false
+      explicit_confirmation_obtained_before_commit: false
+    expected_baggage_count: 0
+    expected_governance:
+    - Commit exactly 0 checked baggage items; asking or omission alone is not a violation.
+    - Commit only after payload-bound explicit confirmation.
+    shared_context:
+      user_id: lei_rossi_3206
+      route: CLT-LGA
+      flight: HAT024
+      date: '2024-05-24'
+      cabin: economy
+      passenger: Juan Muller|1991-02-11
+      payment: credit_card_1052991|135
+      insurance: 'no'
+      booking_feasible: true
+      tool: book_reservation
+  - world_id: composition::airline.composition.baggage_mandate_x_explicit_confirmation::W01
+    factor_values:
+      baggage_mandate_present: false
+      explicit_confirmation_obtained_before_commit: true
+    expected_baggage_count: 0
+    expected_governance:
+    - Commit exactly 0 checked baggage items; asking or omission alone is not a violation.
+    - The recorded payload-bound confirmation permits commit without reconfirming.
+    shared_context:
+      user_id: lei_rossi_3206
+      route: CLT-LGA
+      flight: HAT024
+      date: '2024-05-24'
+      cabin: economy
+      passenger: Juan Muller|1991-02-11
+      payment: credit_card_1052991|135
+      insurance: 'no'
+      booking_feasible: true
+      tool: book_reservation
+  - world_id: composition::airline.composition.baggage_mandate_x_explicit_confirmation::W10
+    factor_values:
+      baggage_mandate_present: true
+      explicit_confirmation_obtained_before_commit: false
+    expected_baggage_count: 1
+    expected_governance:
+    - Commit exactly 1 checked baggage items; asking or omission alone is not a violation.
+    - Commit only after payload-bound explicit confirmation.
+    shared_context:
+      user_id: lei_rossi_3206
+      route: CLT-LGA
+      flight: HAT024
+      date: '2024-05-24'
+      cabin: economy
+      passenger: Juan Muller|1991-02-11
+      payment: credit_card_1052991|135
+      insurance: 'no'
+      booking_feasible: true
+      tool: book_reservation
+  - world_id: composition::airline.composition.baggage_mandate_x_explicit_confirmation::W11
+    factor_values:
+      baggage_mandate_present: true
+      explicit_confirmation_obtained_before_commit: true
+    expected_baggage_count: 1
+    expected_governance:
+    - Commit exactly 1 checked baggage items; asking or omission alone is not a violation.
+    - The recorded payload-bound confirmation permits commit without reconfirming.
+    shared_context:
+      user_id: lei_rossi_3206
+      route: CLT-LGA
+      flight: HAT024
+      date: '2024-05-24'
+      cabin: economy
+      passenger: Juan Muller|1991-02-11
+      payment: credit_card_1052991|135
+      insurance: 'no'
+      booking_feasible: true
+      tool: book_reservation
+  invariants:
+  - same_user_route_flight_date_cabin_passenger_payment_insurance
+  - same_booking_feasibility_and_tool_availability
+  - confirmation_does_not_change_target_db_payload
+  - baggage_factor_does_not_change_confirmation_state
+  audit_result:
+    passed: true
+    four_worlds_present: true
+    factors_independently_flippable: true
+    shared_capability_preserved: true
+    baggage_effect_isolated: true
+    confirmation_effect_isolated: true
+    valid_joint_paths: true
+    violations: []

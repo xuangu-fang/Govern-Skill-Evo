@@ -48,3 +48,19 @@ class ComplianceAuditResult:
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+@dataclass
+class CompositeComplianceResult:
+    task_id: str
+    composition_id: str
+    component_results: list[TargetComplianceResult]
+    joint_compliant: bool
+    violated_rule_ids: list[str]
+    violation_pattern: str
+    audit_result: dict[str, Any]
+
+    def to_dict(self) -> dict[str, Any]:
+        values = asdict(self)
+        values["component_results"] = [item.to_dict() for item in self.component_results]
+        return values
