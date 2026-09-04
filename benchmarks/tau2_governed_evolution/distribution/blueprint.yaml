@@ -1,0 +1,225 @@
+schema_version: 1
+benchmark_version: tau2_governed_evolution_v1
+domain_scope: airline
+status: blueprint_only
+formal_tasks_generated: false
+new_rollouts_executed: false
+skill_evolution_executed: false
+
+selected_v1_mechanisms:
+  repair_boundary:
+    - airline.user_mandate.checked_baggage
+    - airline.state_gate.flight_change_cabin
+  preservation:
+    - airline.mutation_guard.itinerary_identity
+    - airline.process.explicit_confirmation
+    - airline.process.cancellation_reason
+  ordering:
+    - airline.ordering.delayed_flight_compensation
+  composition:
+    - airline.composition.booking_baggage_confirmation
+
+split_targets:
+  train:
+    preferred_task_count: 48
+    role_task_targets:
+      repair_boundary: 32
+      multi_step_ordering: 12
+      preservation_only: 4
+      heldout_composition: 0
+    generalization_levels: [G1, G2]
+  monitor:
+    exact_task_count: 20
+    role_task_targets:
+      repair_boundary: 8
+      preservation_process: 8
+      multi_step_ordering: 4
+      composition: 0
+    generalization_levels: [G1, G2]
+    rollout_compatibility: 20_tasks_x_3_matched_rollouts
+  test:
+    preferred_task_count: 48
+    allowed_range: [36, 48]
+    role_task_targets:
+      unseen_atomic_boundary_and_preservation: 14
+      unseen_multi_step_ordering: 10
+      heldout_composition: 24
+    generalization_levels: [G2, G3, G4]
+
+family_requirements:
+  high_priority_atomic_repair:
+    mechanisms:
+      - airline.user_mandate.checked_baggage
+      - airline.state_gate.flight_change_cabin
+    minimum_independent_families: {train: 3, monitor: 1, test: 1}
+  multi_step_ordering:
+    mechanism: airline.ordering.delayed_flight_compensation
+    minimum_independent_families: {train: 2, monitor: 1, test: 2}
+  preservation:
+    mechanisms:
+      - airline.mutation_guard.itinerary_identity
+      - airline.process.explicit_confirmation
+      - airline.process.cancellation_reason
+    train_policy: limited_not_required_for_every_mechanism
+    monitor_policy: cover_all_mechanisms_with_unseen_families
+    test_policy: cover_all_mechanisms_with_unseen_families
+  heldout_composition:
+    mechanism: airline.composition.booking_baggage_confirmation
+    train_families: 0
+    test_minimum_independent_families: 2
+    complete_grid_required: true
+  manifestations:
+    allocation_unit: within_family
+    manifestations_never_substitute_for_independent_families: true
+
+family_population_plan:
+  train:
+    airline.user_mandate.checked_baggage:
+      independent_family_count: 4
+      task_count: 16
+      family_shape: 2_worlds_x_2_manifestations
+    airline.state_gate.flight_change_cabin:
+      independent_family_count: 4
+      task_count: 16
+      family_shape: 2_worlds_x_2_manifestations
+    airline.ordering.delayed_flight_compensation:
+      independent_family_count: 3
+      task_count: 12
+      family_shape: 2_worlds_x_2_manifestations
+    airline.mutation_guard.itinerary_identity:
+      independent_family_count: 1
+      task_count: 2
+      family_shape: 2_worlds_x_1_manifestation
+    airline.process.explicit_confirmation:
+      independent_family_count: 1
+      task_count: 2
+      family_shape: 2_worlds_x_1_manifestation
+    airline.process.cancellation_reason:
+      independent_family_count: 0
+      task_count: 0
+    airline.composition.booking_baggage_confirmation:
+      independent_family_count: 0
+      task_count: 0
+
+  monitor:
+    airline.user_mandate.checked_baggage:
+      independent_family_count: 1
+      task_count: 4
+      family_shape: 2_worlds_x_2_manifestations
+    airline.state_gate.flight_change_cabin:
+      independent_family_count: 1
+      task_count: 4
+      family_shape: 2_worlds_x_2_manifestations
+    airline.mutation_guard.itinerary_identity:
+      independent_family_count: 1
+      task_count: 2
+      family_shape: 2_worlds_x_1_manifestation
+    airline.process.explicit_confirmation:
+      independent_family_count: 2
+      task_count: 4
+      family_shape: 2_worlds_x_1_manifestation
+    airline.process.cancellation_reason:
+      independent_family_count: 1
+      task_count: 2
+      family_shape: 2_worlds_x_1_manifestation
+    airline.ordering.delayed_flight_compensation:
+      independent_family_count: 1
+      task_count: 4
+      family_shape: 2_worlds_x_2_manifestations
+    airline.composition.booking_baggage_confirmation:
+      independent_family_count: 0
+      task_count: 0
+
+  test:
+    airline.user_mandate.checked_baggage:
+      independent_family_count: 2
+      task_count: 4
+      family_shape: 2_worlds_x_1_manifestation
+    airline.state_gate.flight_change_cabin:
+      independent_family_count: 2
+      task_count: 4
+      family_shape: 2_worlds_x_1_manifestation
+    airline.mutation_guard.itinerary_identity:
+      independent_family_count: 1
+      task_count: 2
+      family_shape: 2_worlds_x_1_manifestation
+    airline.process.explicit_confirmation:
+      independent_family_count: 1
+      task_count: 2
+      family_shape: 2_worlds_x_1_manifestation
+    airline.process.cancellation_reason:
+      independent_family_count: 1
+      task_count: 2
+      family_shape: 2_worlds_x_1_manifestation
+    airline.ordering.delayed_flight_compensation:
+      independent_family_count: 2
+      task_count: 10
+      tasks_per_family: [4, 6]
+      family_shapes: [2_worlds_x_2_manifestations, 2_worlds_x_3_manifestations]
+    airline.composition.booking_baggage_confirmation:
+      independent_family_count: 2
+      task_count: 24
+      family_shape: 4_worlds_x_3_manifestations
+
+generalization_levels:
+  G1:
+    name: Surface Generalization
+    definition: New wording, persona, information order, and policy-irrelevant context.
+  G2:
+    name: Boundary Generalization
+    definition: A known rule and mechanism expressed through a new concrete predicate realization.
+  G3:
+    name: State Generalization
+    definition: New entity family, reservation state, flight, user, or compatible DB configuration.
+  G4:
+    name: Composition Generalization
+    definition: Atomic rules are seen separately; their joint activation is held out.
+
+distribution_metrics:
+  independent_family_count_per_rule:
+    unit: family
+    purpose: Prevent paraphrase count from masquerading as concept replication.
+  manifestation_count_per_family:
+    unit: surface_manifestation
+    purpose: Measure surface coverage within, but never across, a leakage unit.
+  repair_oriented_task_fraction:
+    basis: evolution_role
+    recommendation:
+      train: high_approximately_65_to_70_percent_atomic_repair_boundary
+      monitor: moderate_8_of_20
+      test: evaluated_with_unseen_families
+  preservation_task_fraction:
+    basis: evolution_role
+    recommendation:
+      train: low_4_of_48
+      monitor: medium_high_8_of_20
+      test: enough_to_cover_all_three_preservation_mechanisms
+  composition_coverage:
+    fields: [composition_family_count, composition_rule_pair_count, heldout_composition_family_count]
+    v1_composition_rule_pair_count: 1
+    preferred_test_composition_family_count: 2
+    test_minimum_heldout_families: 2
+
+calibration_only_assets:
+  inventory: calibration_asset_inventory.yaml
+  task_count: 48
+  rollout_count: 144
+  allowed_uses: [role_diagnosis, difficulty_diagnosis, construction_validation, oracle_regression, distribution_planning]
+  prohibited_final_splits: [train, monitor, test]
+
+external_preservation_policy:
+  track: original_tau2_preservation
+  separate_from_governed_splits: true
+  used_for_candidate_edit: false
+  selection_behavior: retain_existing_gse_v14_design
+  gate_modified_by_step15: false
+
+step16_population_contract:
+  inputs: [blueprint.yaml, role_registry.yaml, split_policy.yaml]
+  required_order:
+    - generate_independent_families
+    - assign_splits_from_provenance
+    - materialize_tasks
+    - validate_tasks_and_leakage
+    - run_final_calibration_only_after_assignment
+  prohibit_instance_selection_by_model_outcome: true

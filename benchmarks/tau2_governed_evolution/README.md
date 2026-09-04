@@ -382,3 +382,32 @@ This Pilot establishes that the existing construction and evaluation layers can
 represent a native multi-policy 2×2 design with clean attribution and observed
 atomic-stable → composition-failure behavior. No Train/Monitor/Test split or
 Skill Evolution is performed here.
+
+## Benchmark Distribution & Split Blueprint
+
+Step 15 freezes the seven calibrated mechanisms as v1 inputs and moves from
+mechanism validation to family-level distribution design. All 48 existing Pilot
+tasks and their 144 trajectories are explicitly `calibration_only`; none may be
+copied into formal Train, Monitor, or Test.
+
+The leakage unit is the complete latent family. A `latent_family_id` groups the
+shared base entity/state configuration, predicate construction, worlds,
+manifestations, and tasks. A `composition_family_id` additionally groups the
+complete 2×2 grid. Tasks, worlds, manifestations, entity families, latent
+families, and composition grids are split-exclusive. Concepts and Boundary
+Templates may cross splits so that a mechanism learned from seen families can be
+evaluated on unseen families.
+
+The preferred v1 allocation is 48 Governed Train tasks, exactly 20 Fixed Monitor
+tasks, and 48 Held-out Test tasks. Train is repair-heavy (32 Atomic
+Repair/Boundary, 12 Ordering, 4 Preservation-only). Monitor contains 8
+Repair/Boundary, 8 Preservation/Process, and 4 Ordering tasks. Test contains 14
+unseen Atomic/Preservation, 10 unseen Ordering, and 24 held-out Composition
+tasks. Its two composition families are fresh complete grids and are absent from
+Train and Monitor.
+
+Original τ² evaluation remains a separate preservation track and is not used as
+Diagnosis, Editor, or evolution-batch evidence. Step 15 changes no GSE v14 Gate,
+generates no formal task, runs no model, and performs no Skill Evolution. The
+authoritative allocation, role, leakage, inventory, and audit files live under
+`distribution/` and form the input contract for Step 16 population expansion.
