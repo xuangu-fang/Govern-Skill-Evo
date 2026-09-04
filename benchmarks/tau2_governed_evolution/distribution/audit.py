@@ -108,8 +108,8 @@ def audit_distribution_blueprint() -> DistributionAuditResult:
         "gse_gate_unchanged": not blueprint["external_preservation_policy"]["gate_modified_by_step15"],
         "no_random_or_outcome_split": not policy["assignment_policy"]["random_task_level_split_allowed"]
         and not policy["assignment_policy"]["calibration_outcome_instance_selection_allowed"],
-        "blueprint_only_no_execution": blueprint["status"] == "blueprint_only"
-        and not blueprint["formal_tasks_generated"]
+        "static_population_without_execution": blueprint["status"] == "frozen_final_v1_population"
+        and blueprint["formal_tasks_generated"]
         and not blueprint["new_rollouts_executed"]
         and not blueprint["skill_evolution_executed"],
     }

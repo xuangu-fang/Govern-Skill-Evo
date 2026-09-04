@@ -4487,7 +4487,7 @@ Step 3 继续以 S0 为基准，使用 `batch_3` 生成 3 条 Skill 规则：
 ### 问题
 
 当前 benchmark 中，大多数任务在 Parent Skill 下已经能够达到 Success + Compliance。即使某条 Skill 修改确实修复了局部问题，其带来的整体收益也可能不足以抵消 rollout 的随机波动，或对原本正确行为造成的轻微扰动。因此，Candidate 在单次观测中即使呈现局部改善，也较难在分布层面的 Selection Gate 中达到稳定晋级所需的阈值。
-一个Skill自进化得到的 Skill 级别的规则，在独立任务中重复出现得太少。例如某条 Skill 只影响一个 task，Skill自进化很难发挥优势。
+一个Skill自进化得到的 Skill 级别的规则，在独立任务中重复出现得太少。例如某条 Skill 只影响一个 task。也就是说，Skill对任务的帮助不一定大，Skill自进化很难发挥优势。
 
 
 ## Day 27 记录（2026-09-03）

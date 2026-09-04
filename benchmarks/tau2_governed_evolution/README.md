@@ -401,9 +401,10 @@ evaluated on unseen families.
 The preferred v1 allocation is 48 Governed Train tasks, exactly 20 Fixed Monitor
 tasks, and 48 Held-out Test tasks. Train is repair-heavy (32 Atomic
 Repair/Boundary, 12 Ordering, 4 Preservation-only). Monitor contains 8
-Repair/Boundary, 8 Preservation/Process, and 4 Ordering tasks. Test contains 14
-unseen Atomic/Preservation, 10 unseen Ordering, and 24 held-out Composition
-tasks. Its two composition families are fresh complete grids and are absent from
+Repair/Boundary, 8 Preservation/Process, and 4 Ordering tasks. After the Step 16
+concentration repair, Test contains 18 unseen Atomic/Preservation, 14 unseen
+Ordering, and 16 held-out Composition tasks. Composition is therefore 33.3% of
+Test rather than 50%. Its two composition families are fresh complete grids and are absent from
 Train and Monitor.
 
 Original τ² evaluation remains a separate preservation track and is not used as
@@ -411,3 +412,27 @@ Diagnosis, Editor, or evolution-batch evidence. Step 15 changes no GSE v14 Gate,
 generates no formal task, runs no model, and performs no Skill Evolution. The
 authoritative allocation, role, leakage, inventory, and audit files live under
 `distribution/` and form the input contract for Step 16 population expansion.
+
+## Fresh final-v1 population
+
+Step 16 repairs Test concentration from 14/10/24 to 18 unseen
+Atomic/Preservation, 14 unseen Ordering, and 16 held-out Composition tasks. It
+then freezes entity-backed family assignments before materialization and emits
+exactly 48 Train, 20 Monitor, and 48 Test tasks. The population contains 32
+fresh atomic/ordering latent families and two fresh complete composition
+families; all calibration primary entities and all cross-split entity families
+are excluded.
+
+All 116 tasks pass τ² schema loading, Airline environment loading, target-state
+and extra-blocker checks, canonical governed satisfiability, and compliance
+Oracle coverage. Only delayed compensation needs minimal state materialization:
+seven distinct native business reservations are retained while one target
+flight instance per family is changed to delayed, because the fresh DB has only
+two native delayed-business candidates. The payload-driven confirmation Oracle
+refactor preserves all 144 historical compliance labels under offline replay.
+
+The formal entry points are `final_v1/train/tasks.json`,
+`final_v1/monitor/tasks.json`, and `final_v1/test/tasks.json`; hidden provenance
+is stored separately. No Base Agent, User Simulator, rollout, LLM judge, or
+Skill Evolution was run in Step 16. The frozen population is ready for Step 17
+Base-Agent calibration.

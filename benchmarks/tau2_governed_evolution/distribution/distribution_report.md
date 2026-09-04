@@ -5,8 +5,9 @@
 Steps 1–14 established boundary control, independent manifestations, repair and
 preservation roles, Success × Compliance decoupling, ordering, and native
 multi-policy composition. Step 15 therefore freezes mechanism discovery for v1
-and specifies how fresh task families will be populated. It creates no formal
-tasks and performs no rollout or Skill Evolution.
+and specifies how fresh task families will be populated. Step 16 applies the
+concentration repair below and materializes those families without any rollout
+or Skill Evolution.
 
 ## 2. Calibration evidence and exclusion
 
@@ -36,13 +37,14 @@ evolution evidence.
 |---|---:|---|
 | Governed Train | 48 tasks | 32 Repair/Boundary, 12 Ordering, 4 Preservation-only |
 | Fixed Governed Monitor | exactly 20 tasks | 8 Repair/Boundary, 8 Preservation/Process, 4 Ordering |
-| Held-out Governed Test | 48 preferred (36–48 allowed) | 14 unseen Atomic/Preservation, 10 Ordering, 24 Composition |
+| Held-out Governed Test | exactly 48 tasks | 18 unseen Atomic/Preservation, 14 Ordering, 16 Composition |
 | Original τ² Preservation | separate | External Parent-vs-Final evaluation track |
 
 Train is repair-heavy: 66.7% Atomic Repair/Boundary and 25% Ordering. Pure
 preservation is only 8.3%. Monitor deliberately increases preservation pressure
 to 8/20 while retaining both sides of repair and ordering boundaries. Test puts
-half of its preferred tasks into unseen composition families.
+16/48 (33.3%) into composition, down from 24/48 (50%), so one calibrated rule
+pair does not dominate half of held-out evaluation.
 
 ## 5. Family population plan
 
@@ -70,13 +72,14 @@ The exact count is 20 to preserve compatibility with the current 20-task ×
 
 ### Held-out Test
 
-- Checked Baggage: 2 unseen families / 4 tasks.
-- Flight Change Cabin: 2 unseen families / 4 tasks.
+- Checked Baggage: 3 unseen families / 6 tasks.
+- Flight Change Cabin: 3 unseen families / 6 tasks.
 - Itinerary Identity, Explicit Confirmation, Cancellation Reason: 1 unseen
   family and 2 tasks each.
-- Delayed Compensation Ordering: 2 unseen families / 10 tasks.
+- Delayed Compensation Ordering: 3 unseen families / 14 tasks, with family
+  shapes of 4, 4, and 6 tasks.
 - Baggage × Confirmation: 2 fresh composition families, each a complete 2×2
-  grid, totaling 24 tasks.
+  grid with two manifestations per world, totaling 16 tasks.
 
 Composition is excluded from Train so atomic rule evidence is seen separately
 while joint activation remains unseen. Two independent Test grids prevent one
