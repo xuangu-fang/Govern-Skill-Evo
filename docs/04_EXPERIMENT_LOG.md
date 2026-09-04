@@ -4598,6 +4598,74 @@ Test 除了包含新的单规则任务外，还进一步加入新的多步骤任
 总体而言，该 benchmark 希望同时提供“可学习的问题”“需要保持的正确行为”和“训练阶段未直接出现的新任务”，从而更完整地评估 Skill Evolution 的修复能力、稳定性和泛化能力。
 
 
+#### 三步演化结果
+
+完整执行 3 个 Step，Selection 结果依次为 `ACCEPT`、`RETAIN` 和 `RETAIN`。
+
+新 benchmark 上 Step 1 产生的 Candidate 首次达到 `P_positive ≥ 0.80`，因此由 S0 晋级为新的 Parent Skill。Step 2 和 Step 3 均在 Step 1 Skill 的基础上继续尝试修改，没有再次通过 Selection Gate。最终保留的 Skill 为 `candidate_step_01`。
+
+Train 共包含 48 个任务，划分为 3 个 batch，每个 Step 使用对应的 16 个 Train tasks，每个 task 执行 3 次 rollout。Selection 始终在固定的 20 个 Monitor tasks 上进行，每个 task 对 Parent 和 Candidate 分别执行 3 次 matched rollout，共比较 60 对轨迹。
+
+##### Step 1：Success 与 Target Compliance 同时提升，Candidate 首次通过 Gate
+
+Step 1 以空 Skill S0 为 Parent，使用 `batch_1` 的 16 个任务进行 Diagnosis，最终生成 4 条 Skill 规则：
+
+1. 当用户明确表示不需要托运行李时，即使用户具有免费托运行李额度，在 `book_reservation` 中也必须将托运行李数量设置为 0，不得自行加入免费行李。
+2. 当 Basic Economy 预订不允许修改，而用户进一步提出通过“取消原预订并重新预订”来实现日期变更时，不得通过取消并重新预订的方式绕过原有修改限制，应拒绝该操作。
+3. 在正式提交预订前，如果仍缺少用户身份信息或乘客出生日期等必要信息，必须先向用户获取并确认这些信息，再执行 `book_reservation`。
+4. 在执行预订、修改航班、修改行李或修改乘客等数据库更新操作前，必须先向用户展示完整操作内容，并获得明确、无歧义的肯定确认；如果确认信息不明确，则需要继续询问，不能直接执行修改。
+
+固定 Monitor 上，Parent S0 的四状态分布为CS：53、CF：2、VS：2、VF：3，Candidate 的分布变为：CS：58，CF：2，VS：0，VF：0。因此，Candidate 相比 S0：
+
+- Task Success 从 55/60 提升至 58/60，即提升 `3/60`；
+- Target Compliance 从 55/60 提升至 60/60，即提升 `5/60`；
+- 同时成功且合规的轨迹从 53/60 提升至 58/60。
+
+对 20 个 Monitor task 进行 10,000 次按任务重抽样后，其中 9,310 次满足 Gate 所要求的整体正向变化条件，得到：`P_positive = 0.9310`。因此 Step 1 的 Selection 结果为 `ACCEPT`，`candidate_step_01` 替代 S0，成为后续演化的 Parent Skill。
+
+##### Step 2：Success 小幅提升，但改善稳定性不足
+
+Step 2 以 Step 1 已接受的 Skill 为 Parent，在 `batch_2` 的 16 个新任务上继续进行 Diagnosis。
+
+此次 Candidate 保留 Step 1 已有的 4 条规则，并新增 1 条规则：
+
+1. 当用户已经明确确认预订，但确认消息同时包含 `###STOP###` 时，不应因为结束标记而在预订执行前终止任务；应先完成已经确认的 `book_reservation`，向用户报告预订结果，再结束对话。
+
+固定 Monitor 中，Parent `candidate_step_01` 的分布为：CS：58、CF：2、VS：0、VF：0，Step 2 Candidate 的分布为：CS：59、CF：1、VS：0、VF：0。因此该 Candidate 的 Task Success 相比 Parent 提升 `1/60`，Target Compliance 保持不变，同时成功且合规的轨迹由 58/60 增加至 59/60。
+
+经过 10,000 次任务级重抽样后，仅有 6,461 次满足 Gate 的整体正向变化条件：`P_positive = 0.6461`低于 0.80 门槛，说明这一改善主要集中在少量任务上。因此 Step 2 的 Selection 结果为 `RETAIN`，继续保留 `candidate_step_01` 作为 Parent。
+
+##### Step 3：Success 小幅提升，但 Target Compliance 出现下降
+
+由于 Step 2 未被接受，Step 3 仍以 `candidate_step_01` 为 Parent，在 `batch_3` 的 16 个任务上继续进行 Diagnosis Candidate 在 Step 1 Skill 的基础上新增 2 条规则：
+
+1. 用户已经明确确认某项数据库更新操作后，如果确认消息中同时出现 `###STOP###`，仍应先完成已经确认的操作并向用户发送最终结果，再结束对话。
+2. 当已经确认的操作计划中包含取消预订时，在实际调用 `cancel_reservation` 前应再次检查当前预订状态；如果预订已经处于取消状态，则不应重复执行取消操作，而应告知用户并继续处理剩余已确认步骤。
+
+固定 Monitor 中，Parent `candidate_step_01` 仍为：CS：58、CF：2、VS：0、VF：0，Step 3 Candidate 的分布为：CS：58、CF：1、VS：1、VF：0。因此，相比 Parent：Task Success 提升 `1/60`，Target Compliance 下降 `1/60`，同时成功且合规的轨迹仍为 58/60，没有进一步提升。
+
+Step 3 虽然减少了一次任务失败，但同时新增了一次目标规则违规，经过 10,000 次任务级重抽样后，满足整体正向变化条件的采样为 4,543 次：
+`P_positive = 0.4543`低于 0.80 门槛。因此 Step 3 的 Selection 结果仍为 `RETAIN`，新增规则未进入最终 Skill。
+
+### 问题
+
+#### 1. 可学习机制覆盖不足，Policy 机制少
+
+虽然增加了同一 Policy 机制在多个独立任务重复出现，使 Skill 修复能够跨任务泛化，但真正进入 Train 和 Monitor 的可学习机制种类仍然较少。不同 Batch 虽然在用户、实体、表述上相互独立，但考察的仍是少数几类 Policy 机制。因此，一旦前一轮 Skill 学会了较通用的规则，后续大量属于同一机制的新任务也会被同时解决，导致后续 Evolution 缺少新的学习内容。
+
+需要增加更多真正不同的可学习机制，而不是继续为已有机制增加更多相似任务。
+
+### 2. 任务结构过于简单，大多数任务只对应单一 Policy 条件
+
+为了保证 Policy 边界清晰，大部分任务只围绕一个主要 Policy 条件进行构造。例如，一个任务主要判断某个资格条件是否成立，另一个任务主要判断用户是否明确授权某个操作。导致任务难度有限。真实 Agent 场景中，一个用户目标往往同时受到多个条件约束，例如资格判断、用户确认、状态检查、操作顺序等规则可能同时生效。Agent 即使能够分别处理每条规则，也不代表在多条规则共同作用时仍然能够正确决策。
+
+需要在 Train 和 Monitor 中加入适量的多规则组合任务，同时在 Test 中继续保留未见过的组合，用于测试更高层次的泛化能力。
+
+### 3. 任务构造主要围绕Compliance，无Success设计
+
+任务构造主要从 Policy 出发，通过控制 Policy 条件成立或不成立，明确什么行为应该被允许、什么行为应该被禁止，但 Task Success 只有在任务执行结束后由 evaluator 判断，Benchmark 在构造阶段没有设计Success维度。
+
+需要显式加入任务成功所依赖的条件，例如信息补全、状态判断、多步完成、替代方案选择、支付与退款处理等，使 Benchmark 不仅能够控制：什么行为合规”，也能够控制：完成任务需要解决什么问题。
 
 
 ---

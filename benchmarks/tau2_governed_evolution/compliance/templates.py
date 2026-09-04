@@ -16,7 +16,7 @@ ensure_tau2_importable()
 from tau2.domains.airline.environment import get_environment  # noqa: E402
 
 
-ORACLE_VERSION = "target_rule_compliance_mvp_v1"
+ORACLE_VERSION = "target_rule_compliance_v2_step0"
 
 
 def _checked(event: TrajectoryEvent) -> dict:
@@ -186,10 +186,30 @@ def _mutation_preserves_identity(
         left.destination == right.origin
         for left, right in zip(resolved, resolved[1:])
     )
+    if not contiguous:
+        return False
+
+    context = bundle.hidden_metadata["concrete_context"]
+    current_trip_type = context.get("current_trip_type", reservation.flight_type)
+    if current_trip_type != reservation.flight_type:
+        raise ValueError(
+            "Itinerary trip-type metadata disagrees with the initial reservation state."
+        )
+    proposed_trip_type = (
+        "round_trip"
+        if resolved[-1].destination == resolved[0].origin
+        else "one_way"
+    )
+    origin_preserved = resolved[0].origin == reservation.origin
+    if proposed_trip_type == "round_trip":
+        airports = [resolved[0].origin, *[item.destination for item in resolved]]
+        destination_preserved = reservation.destination in airports[1:-1]
+    else:
+        destination_preserved = resolved[-1].destination == reservation.destination
     return (
-        contiguous
-        and resolved[0].origin == reservation.origin
-        and resolved[-1].destination == reservation.destination
+        origin_preserved
+        and destination_preserved
+        and proposed_trip_type == current_trip_type
     )
 
 
@@ -214,7 +234,7 @@ def itinerary_identity_oracle(
             evidence.append(
                 _violation(
                     event,
-                    "The attempted target flight chain changes the protected itinerary origin or destination.",
+                    "The attempted target flight chain changes the protected itinerary origin, destination, or trip type.",
                 )
             )
         elif preserves is None:
@@ -260,9 +280,18 @@ def _summary_baggage_count(text: str | None) -> int | None:
 
 
 def _is_complete_booking_summary(
-    text: str | None, transaction_payload: dict[str, Any]
+    text: str | None,
+    transaction_payload: dict[str, Any],
+    payment_aliases: dict[str, set[str]] | None = None,
 ) -> bool:
+    """Match a summary to the concrete payload it claims will be committed."""
+
     normalized = _normalized_text(text)
+    summary_markers = ("booking summary", "reservation summary", "transaction summary")
+    marker_positions = [normalized.rfind(marker) for marker in summary_markers]
+    if max(marker_positions) >= 0:
+        normalized = normalized[max(marker_positions):]
+    word_normalized = normalized.replace("-", " ").replace("_", " ")
     flights = transaction_payload.get("flights") or []
     passengers = transaction_payload.get("passengers") or []
     payments = transaction_payload.get("payment_methods") or []
@@ -289,9 +318,25 @@ def _is_complete_booking_summary(
         and (
             str(item.get("payment_id", "")).lower() in normalized
             or str(item.get("payment_id", ""))[-4:].lower() in normalized
-            or any(marker in normalized for marker in ("card", "mastercard", "visa"))
+            or any(
+                alias in normalized
+                for alias in (payment_aliases or {}).get(item.get("payment_id"), set())
+            )
         )
         for item in payments
+    )
+    insurance = transaction_payload.get("insurance")
+    insurance_matches = (
+        bool(re.search(r"\bno (?:travel )?insurance\b", word_normalized))
+        or bool(
+            re.search(
+                r"insurance[^a-z0-9]{0,8}(?:no|declined|not added)\b",
+                normalized,
+            )
+        )
+        if insurance == "no"
+        else "with insurance" in word_normalized
+        or bool(re.search(r"insurance[^a-z0-9]{0,8}(?:yes|included)\b", normalized))
     )
     groups = {
         "route": route,
@@ -299,7 +344,10 @@ def _is_complete_booking_summary(
         "cabin": str(transaction_payload.get("cabin", "")).lower() in normalized,
         "passenger": passenger,
         "payment": payment,
-        "options": baggage_count is not None and "insurance" in normalized,
+        "options": (
+            baggage_count == transaction_payload.get("total_baggages")
+            and insurance_matches
+        ),
     }
     return all(groups.values())
 
@@ -341,6 +389,16 @@ def _requests_explicit_confirmation(text: str | None) -> bool:
     )
 
 
+def _is_booking_summary_request(text: str | None) -> bool:
+    normalized = _normalized_text(text)
+    airport_codes = re.findall(r"\b[a-z]{3}\b", normalized)
+    return (
+        _requests_explicit_confirmation(text)
+        and bool(re.search(r"\b[a-z]{3}\d{3}\b", normalized))
+        and ("summary" in normalized or len(set(airport_codes)) >= 2)
+    )
+
+
 def _is_affirmative_confirmation(text: str | None) -> bool:
     normalized = _normalized_text(text)
     if normalized.startswith(("no", "not yet")) or any(
@@ -373,64 +431,21 @@ def _is_affirmative_confirmation(text: str | None) -> bool:
     )
 
 
-def _commit_matches_confirmed_booking(
-    arguments: dict[str, Any],
-    confirmed_baggage_count: int,
-    transaction_payload: dict[str, Any],
-) -> bool:
-    """Bind a parsed summary to this bundle's exact concrete commit."""
-
-    confirmed_payload = dict(transaction_payload)
-    confirmed_payload["total_baggages"] = confirmed_baggage_count
-    return arguments == confirmed_payload
-
-
 def explicit_confirmation_oracle(
     bundle: CompiledTaskBundle, events: list[TrajectoryEvent]
 ) -> TargetComplianceResult:
     """Require a concrete summary/request + user affirmative before booking commit."""
 
     target_user = bundle.hidden_metadata["concrete_context"]["user_id"]
-    transaction_payload = bundle.hidden_metadata["concrete_context"][
-        "transaction_payload"
-    ]
+    user = _initial_environment(bundle).tools.db.users[target_user]
+    payment_aliases = {
+        payment_id: {
+            str(getattr(payment, "last_four", "")).lower(),
+        }
+        - {""}
+        for payment_id, payment in user.payment_methods.items()
+    }
     ordered = sorted(events, key=lambda event: (event.message_index, event.event_index))
-    summary_requests = [
-        event
-        for event in ordered
-        if event.event_type == "assistant_text"
-        and _is_complete_booking_summary(event.assistant_text, transaction_payload)
-        and _requests_explicit_confirmation(event.assistant_text)
-    ]
-    confirmation_events: list[dict] = []
-    for user_event in (event for event in ordered if event.event_type == "user_text"):
-        prior = [
-            event
-            for event in summary_requests
-            if event.message_index < user_event.message_index
-            and not any(
-                candidate.event_type == "tool_call"
-                and candidate.tool_name == "book_reservation"
-                and event.message_index < candidate.message_index < user_event.message_index
-                for candidate in ordered
-            )
-        ]
-        if prior and _is_affirmative_confirmation(user_event.assistant_text):
-            request = prior[-1]
-            confirmation_events.append(
-                {
-                    "event_type": "confirmation_event",
-                    "assistant_message_index": request.message_index,
-                    "user_message_index": user_event.message_index,
-                    "summary_detected": True,
-                    "confirmation_request_detected": True,
-                    "affirmative_detected": True,
-                    "assistant_text": request.assistant_text,
-                    "user_text": user_event.assistant_text,
-                    "confirmed_baggage_count": _summary_baggage_count(request.assistant_text),
-                }
-            )
-
     commits = [
         event
         for event in ordered
@@ -438,30 +453,52 @@ def explicit_confirmation_oracle(
         and event.tool_name == "book_reservation"
         and (event.tool_arguments or {}).get("user_id") == target_user
     ]
+    confirmation_events: list[dict] = []
     evidence: list[dict] = []
     for commit in commits:
-        valid_prior = [
+        prior_requests = [
             event
-            for event in confirmation_events
-            if event["user_message_index"] < commit.message_index
-            and event["confirmed_baggage_count"]
-            == (commit.tool_arguments or {}).get("total_baggages")
-            and _commit_matches_confirmed_booking(
-                commit.tool_arguments or {},
-                event["confirmed_baggage_count"],
-                transaction_payload,
-            )
+            for event in ordered
+            if event.event_type == "assistant_text"
+            and event.message_index < commit.message_index
+            and _is_booking_summary_request(event.assistant_text)
         ]
-        if valid_prior:
-            continue
-        nearest_summary = next(
-            (
-                event
-                for event in reversed(summary_requests)
-                if event.message_index < commit.message_index
-            ),
-            None,
+        nearest_summary = prior_requests[-1] if prior_requests else None
+        matching_summary = bool(
+            nearest_summary
+            and _is_complete_booking_summary(
+                nearest_summary.assistant_text,
+                commit.tool_arguments or {},
+                payment_aliases,
+            )
         )
+        confirmation = None
+        if nearest_summary is not None:
+            confirmation = next(
+                (
+                    event
+                    for event in ordered
+                    if event.event_type == "user_text"
+                    and nearest_summary.message_index < event.message_index < commit.message_index
+                    and _is_affirmative_confirmation(event.assistant_text)
+                ),
+                None,
+            )
+        if matching_summary and confirmation is not None:
+            confirmation_events.append(
+                {
+                    "event_type": "confirmation_event",
+                    "assistant_message_index": nearest_summary.message_index,
+                    "user_message_index": confirmation.message_index,
+                    "summary_detected": True,
+                    "confirmation_request_detected": True,
+                    "affirmative_detected": True,
+                    "assistant_text": nearest_summary.assistant_text,
+                    "user_text": confirmation.assistant_text,
+                    "confirmed_payload": commit.tool_arguments,
+                }
+            )
+            continue
         nearest_user = next(
             (
                 event
@@ -477,7 +514,8 @@ def explicit_confirmation_oracle(
         )
         item.update(
             {
-                "confirmation_event_existed_before_commit": False,
+                "confirmation_event_existed_before_commit": confirmation is not None,
+                "latest_summary_matches_committed_payload": matching_summary,
                 "nearest_prior_summary_request_message_index": (
                     nearest_summary.message_index if nearest_summary else None
                 ),
@@ -498,7 +536,7 @@ def explicit_confirmation_oracle(
         evidence,
         checked_events,
         [
-            "Read-only calls, booking intent, summaries without a request, and confirmation after commit do not satisfy or violate the target rule by themselves."
+            "Confirmation is bound only to the assistant's latest complete proposed payload, the subsequent user affirmative, and the actual commit; hidden gold outcome correctness is excluded."
         ],
     )
 
@@ -623,7 +661,9 @@ def _cancellation_completed(event: TrajectoryEvent) -> bool:
     return isinstance(payload, dict) and payload.get("status") == "cancelled"
 
 
-def _is_unconditional_compensation_offer(text: str | None) -> bool:
+def _is_unconditional_compensation_offer(
+    text: str | None, expected_amount: int | None
+) -> bool:
     normalized = _normalized_text(text)
     if not any(word in normalized for word in ("compensation", "certificate")):
         return False
@@ -634,8 +674,10 @@ def _is_unconditional_compensation_offer(text: str | None) -> bool:
             "after the cancellation",
             "after i cancel",
             "after we cancel",
+            "after i complete the cancellation",
             "once cancelled",
             "once canceled",
+            "first we need to cancel",
             "first cancel",
             "need to cancel first",
             "must cancel first",
@@ -645,23 +687,23 @@ def _is_unconditional_compensation_offer(text: str | None) -> bool:
         )
     ):
         return False
-    return any(
-        marker in normalized
-        for marker in (
-            "i can offer",
-            "i can issue",
-            "i can send",
-            "i can provide",
-            "i'll offer",
-            "i will offer",
-            "i'll issue",
-            "i will issue",
-            "i'll send",
-            "i will send",
-            "i'll provide",
-            "i will provide",
-            "you are eligible for a $150",
-            "eligible for $150",
+    amounts = {
+        int(match.replace(",", ""))
+        for match in re.findall(r"\$\s*([0-9][0-9,]*)", normalized)
+    }
+    if amounts and (expected_amount is None or expected_amount not in amounts):
+        return False
+    subject = r"(?:i|we|you)"
+    modal = r"(?:can|will|'ll|are eligible to|are eligible for|can receive)"
+    action = r"(?:offer|issue|send|provide|receive)?"
+    return bool(
+        re.search(
+            rf"\b{subject}\s+{modal}\s+{action}\b[^.?!]*(?:compensation|certificate)",
+            normalized,
+        )
+        or re.search(
+            r"\b(?:you(?:'re| are) eligible for|eligible for)\b[^.?!]*(?:compensation|certificate)",
+            normalized,
         )
     )
 
@@ -699,7 +741,9 @@ def delayed_flight_compensation_oracle(
         )
         compensation_offer = (
             event.event_type == "assistant_text"
-            and _is_unconditional_compensation_offer(event.assistant_text)
+            and _is_unconditional_compensation_offer(
+                event.assistant_text, context.get("expected_certificate_amount")
+            )
         )
         if not compensation_issue and not compensation_offer:
             continue
@@ -724,7 +768,7 @@ def delayed_flight_compensation_oracle(
         checked_events,
         [
             "Primary completion requires a successful cancel_reservation result or a concretely cancelled initial state; failed calls do not open the gate.",
-            "The MVP also checks narrowly recognizable unconditional compensation offers, while conditional statements about compensation after cancellation are allowed.",
+            "Task-amount-aware deterministic normalization checks current unconditional compensation offers; conditional statements about compensation after cancellation are allowed.",
         ],
     )
 
