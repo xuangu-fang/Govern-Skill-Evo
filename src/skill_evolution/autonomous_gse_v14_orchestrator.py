@@ -89,16 +89,23 @@ def _validate_rollout_bundle(
         for domain, task_id in (tagged.split(":", 1),)
         for rollout_index in (1, 2, 3)
     }
-    if not isinstance(rows, list) or len(rows) != 60:
-        raise OrchestrationContractError("Current-batch rollout bundle must contain 60 rows.")
+    expected_count = len(expected)
+    if not isinstance(rows, list) or len(rows) != expected_count:
+        raise OrchestrationContractError(
+            f"Current-batch rollout bundle must contain {expected_count} rows."
+        )
     actual = {
         (row.get("domain"), str(row.get("task_id")), row.get("rollout_index"))
         for row in rows if isinstance(row, dict)
     }
     if actual != expected or len(actual) != len(rows):
         raise OrchestrationContractError("Current-batch rollout lineage is incomplete.")
-    if require_evidence and (not isinstance(evidence, list) or len(evidence) != 60):
-        raise OrchestrationContractError("Learning Path must contain 60 governed evidence rows.")
+    if require_evidence and (
+        not isinstance(evidence, list) or len(evidence) != expected_count
+    ):
+        raise OrchestrationContractError(
+            f"Learning Path must contain {expected_count} governed evidence rows."
+        )
     if require_evidence:
         lineage_fields = (
             "source_id", "domain", "task_id", "rollout_index", "rollout_seed", "state",

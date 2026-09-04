@@ -1,0 +1,165 @@
+{
+  "schema_version": "autonomous_gse_tge_campaign_0.1.0",
+  "protocol_version": "autonomous_gse_v14",
+  "runtime_module": "src.skill_evolution.autonomous_gse_v14_tge_v1_runtime",
+  "runtime_version": "tge_v1_runtime_0.1.0",
+  "campaign_id": "autonomous_gse_v14_tge_v1",
+  "campaign_seed": 200,
+  "status": "plan_ready",
+  "benchmark": {
+    "name": "tau2_governed_evolution",
+    "version": "tau2_governed_evolution_v1",
+    "root": "benchmarks/tau2_governed_evolution/final_v1",
+    "tau2_root": "external/tau2-bench",
+    "domains": ["airline"]
+  },
+  "benchmark_root": "benchmarks/tau2_governed_evolution/final_v1",
+  "frozen_split_manifest": "benchmarks/tau2_governed_evolution/distribution/final_v1/split_manifest.yaml",
+  "family_registry": "benchmarks/tau2_governed_evolution/distribution/final_v1/family_registry.yaml",
+  "entity_assignments": "benchmarks/tau2_governed_evolution/distribution/final_v1/entity_assignments.yaml",
+  "train_tasks": "benchmarks/tau2_governed_evolution/final_v1/train/tasks.json",
+  "monitor_tasks": "benchmarks/tau2_governed_evolution/final_v1/monitor/tasks.json",
+  "test_tasks": "benchmarks/tau2_governed_evolution/final_v1/test/tasks.json",
+  "train_task_count": 48,
+  "monitor_task_count": 20,
+  "test_task_count": 48,
+  "frozen_hashes": {
+    "split_manifest": "67081da4d8d3b0e4fa04501139ea6b7e7de4437ad180453cf19d6814b2383f52",
+    "train_tasks": "35b2d27b4a42c913a7db5a8bf558b1302a194c5588c6f6d8cbb86e3d0c16ed65",
+    "monitor_tasks": "0fe62508afa15023043736902f99ccb790a6d01156ede3c7d484ba917e98d71a",
+    "test_tasks": "055d025a95474bbcabb36fb01c4d19538cf0c3b9f8772afc7f6cbb837a829bef",
+    "batch_map": "ddf0bd196a69f02c07d0a43de85e787c5a5d3ab424699a394f10f1c948d6af56"
+  },
+  "initial_parent": {
+    "kind": "empty_skill",
+    "version": "S0",
+    "path": "experiments/campaigns/autonomous_gse_v14_tge_v1/skills/S0_empty_skill.md",
+    "rollout_semantics": "benchmark_default_prompt_without_learned_skill_injection"
+  },
+  "schedule": {"evolution_steps": 3},
+  "evolution": {
+    "source_split": "train",
+    "tasks": 48,
+    "batches": 3,
+    "tasks_per_batch": 16,
+    "rollouts_per_task": 3,
+    "batch_map": "experiments/campaigns/autonomous_gse_v14_tge_v1/batch_map.json",
+    "outcome_independent_assignment": true,
+    "cumulative_evidence": false,
+    "replay_previous_batches": false
+  },
+  "monitor": {
+    "source_split": "monitor",
+    "tasks": 20,
+    "rollouts_per_task": 3,
+    "fixed_across_steps": true,
+    "purpose": "distribution_monitor",
+    "learning_access": "forbidden",
+    "feedback_to_learner": "forbidden",
+    "execution_enabled": true,
+    "measurement_enabled": true,
+    "gate_enabled": true
+  },
+  "test": {
+    "source_split": "test",
+    "tasks": 48,
+    "rollouts_per_task": 3,
+    "compare": ["S0", "S_final"],
+    "learning_access": "forbidden",
+    "feedback_to_learner": "forbidden",
+    "automatic_execution": false,
+    "participates_in_step_gate": false
+  },
+  "test_policy": {
+    "held_out": true,
+    "allowed_during_evolution": false,
+    "allowed_for_selection": false,
+    "allowed_for_diagnosis": false,
+    "allowed_after_evolution": true,
+    "automatic_execution": false
+  },
+  "agent": {
+    "implementation_s0": "llm_agent",
+    "implementation_learned_skill": "llm_agent_manual_skill",
+    "skill_environment_variable": "TAU2_AGENT_SKILL_PATH",
+    "model": "openai/deepseek-v4-flash",
+    "temperature": 0.2,
+    "thinking": "high",
+    "reasoning_effort": "high",
+    "max_tokens": 8192,
+    "empty_response_retries": 2,
+    "empty_response_retry_max_tokens": 8192,
+    "max_steps": 200,
+    "seed_strategy": "fixed_200_201_202"
+  },
+  "user_simulator": {
+    "implementation": "user_simulator",
+    "model": "openai/deepseek-v4-flash",
+    "temperature": 0.0,
+    "thinking": "high",
+    "reasoning_effort": "high",
+    "max_tokens": 8192,
+    "empty_response_retries": 2,
+    "empty_response_retry_max_tokens": 8192,
+    "seed_strategy": "same_matched_rollout_seed"
+  },
+  "task_success_evaluator": {
+    "implementation": "benchmarks.tau2_governed_evolution.evaluation.evaluate_tge_v1_task_success",
+    "nl_assertions_model": "openai/deepseek-v4-pro",
+    "nl_assertions_temperature": 0.0,
+    "compliance_independent": true
+  },
+  "compliance_evaluator": {
+    "implementation": "deterministic_tge_v1_oracles",
+    "llm_judge": false,
+    "routing": ["atomic", "ordering", "composition"]
+  },
+  "learner_stack": {
+    "diagnosis": "src.skill_evolution.diagnosis_v14",
+    "diagnosis_contract": "src.skill_evolution.diagnosis_contract_v14",
+    "proposal_operator": "src.skill_evolution.autonomous_gse_v14_proposal.MultiRolloutDiagnosisProposalOperator",
+    "editor": "src.learners.stwebagentbench.generate_governed_skill_v14.call_governed_editor",
+    "semantics_snapshot_from": "autonomous_gse_v14"
+  },
+  "diagnosis_config": {"model": "openai/deepseek-v4-pro", "temperature": 0.0, "task_level_multi_rollout": true},
+  "editor_config": {"model": "openai/deepseek-v4-pro", "temperature": 0.0, "maximum_calls_per_step": 1},
+  "distributional_gate": {
+    "bootstrap_unit": "task",
+    "stratify_by_domain": true,
+    "bootstrap_replicates": 10000,
+    "bootstrap_seed": 200,
+    "epsilon_pair_count": 1,
+    "epsilon_rate": 0.016666666666666666,
+    "positive_probability_threshold": 0.8,
+    "decisions": ["ACCEPT", "RETAIN"]
+  },
+  "bootstrap_config": {"available_domain_strata": ["airline"], "matched_rollouts_per_task": 3},
+  "gate_config": {"implementation": "distributional_gate_v14", "method_semantics_changed": false},
+  "orchestration": {
+    "promotion_source": "distributional_gate_only",
+    "parent_monitor_cache_promotion": true,
+    "retain_reuses_parent_monitor": true,
+    "no_partial_promotion": true
+  },
+  "current_batch_analysis": {
+    "target_behavior": {"enabled": false, "role": "frozen"},
+    "regression": {"enabled": false, "role": "frozen", "selector": "any_negative_axis"},
+    "feedback_to_learner": "forbidden"
+  },
+  "execution": {"parallelism_unit": "task_x_rollout", "max_concurrency": 6},
+  "skill_artifact_contract": {
+    "identity_fields": ["skill_id", "skill_version", "skill_path"],
+    "immutability": "required_after_first_monitor_run",
+    "content_change_requires": "new_skill_id_or_skill_version_or_skill_path",
+    "content_hashing": "not_used"
+  },
+  "monitor_rollouts_per_task": 3,
+  "artifact_root_default": "artifacts/autonomous_gse_v14_tge_v1/formal",
+  "budget": {
+    "defined_parent_evolution_trajectories": 144,
+    "monitor_trajectories_per_skill_evaluation": 60,
+    "candidate_monitor_trajectories_worst_case": 180,
+    "candidate_current_batch_replay_trajectories": 0,
+    "final_test_automatic_trajectories": 0
+  }
+}

@@ -22,7 +22,7 @@ from ...compiler.schema import CompiledTaskBundle
 from ...compliance.composite import evaluate_composed_compliance
 from ...compliance.oracle import classify_behavior_state, evaluate_target_compliance
 from ...compliance.trajectory_utils import extract_trajectory_events
-from ...evaluation.denial import evaluate_denial_resolution
+from ...evaluation.task_success import evaluate_tge_v1_task_success
 
 ensure_tau2_importable()
 
@@ -41,10 +41,6 @@ FINAL_ROOT = ROOT / "final_v1"
 OUTPUT_DIR = Path(__file__).resolve().parent / "outputs"
 SPLITS = {"train": 48, "monitor": 20, "test": 48}
 EXPECTED_JOBS = 348
-DENIAL_TEMPLATES = {
-    "airline.state_gate.flight_change_cabin",
-    "airline.mutation_guard.itinerary_identity",
-}
 ORDERING_TEMPLATE = "airline.ordering.delayed_flight_compensation"
 COMPOSITION_TEMPLATE = "airline.composition.booking_baggage_confirmation"
 LOCK = Lock()
@@ -167,22 +163,7 @@ def _trajectory_hash(trajectory: list[dict[str, Any]]) -> str:
 def _reward_success(
     bundle: CompiledTaskBundle, simulation: Any
 ) -> tuple[bool, dict[str, Any] | None]:
-    reward = simulation.reward_info
-    native_success = bool(reward is not None and reward.reward == 1.0)
-    detail = reward.model_dump(mode="json", exclude_none=True) if reward else None
-    if (
-        bundle.template_id in DENIAL_TEMPLATES
-        and bundle.hidden_metadata["predicate_value"] is False
-    ):
-        breakdown = (detail or {}).get("reward_breakdown") or {}
-        denial = evaluate_denial_resolution(bundle, simulation)
-        return bool(breakdown.get("DB") == 1.0 and denial.passed), {
-            "native_reward": detail,
-            "db_success": breakdown.get("DB") == 1.0,
-            "denial_semantic_result": denial.to_dict(),
-            "denial_semantic_override": True,
-        }
-    return native_success, detail
+    return evaluate_tge_v1_task_success(bundle, simulation)
 
 
 def _ordering_workflow(
