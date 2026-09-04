@@ -1,4 +1,4 @@
-"""Run and summarize the fixed 28 x 3 v2 Base Structural Pilot."""
+"""Run and summarize the bounded Step 5R 28 x 3 Base recalibration."""
 
 from __future__ import annotations
 
@@ -53,7 +53,7 @@ PARENT_SKILL_PATH = (
     REPO_ROOT
     / "experiments/campaigns/autonomous_gse_v14_tge_v1/skills/S0_empty_skill.md"
 )
-OUTPUT_ROOT = Path(__file__).resolve().parent / "base_calibration"
+OUTPUT_ROOT = Path(__file__).resolve().parent / "base_calibration_revised"
 ROLLOUT_SEEDS = (200, 201, 202)
 
 
@@ -267,7 +267,10 @@ def _judgment_for_h2(
         if not challenge or any(not item["evidence_complete"] for item in challenge):
             incomplete = True
             continue
-        challenge_failure = any(item["success_failures"] >= 2 for item in challenge)
+        challenge_failure = any(
+            item["issue_counts"].get("alternative_resolution_failure", 0) >= 2
+            for item in challenge
+        )
         baseline_stable = all(item["success_failures"] < 2 for item in baseline)
         if challenge_failure and baseline_stable:
             recurrent_families.append(family_id)
@@ -282,7 +285,10 @@ def _judgment_for_h2(
         "judgment": judgment,
         "recurrent_families": recurrent_families,
         "incomplete_evidence": incomplete,
-        "rule": "challenge Task Success fails in >=2/3 while family baseline is not recurrent",
+        "rule": (
+            "declared one-stop recovery failure occurs in >=2/3 challenge rollouts "
+            "while the matched easy baseline is not recurrent"
+        ),
     }
 
 
@@ -423,7 +429,7 @@ def build_summary(rows: list[dict[str, Any]], campaign: dict[str, Any]) -> dict[
         }
 
     headroom: dict[str, Any] = {}
-    for component in ("A", "B", "C"):
+    for component in ("A", "C"):
         relevant = {
             family_id: value
             for family_id, value in families.items()
@@ -437,28 +443,9 @@ def build_summary(rows: list[dict[str, Any]], campaign: dict[str, Any]) -> dict[
         recurrent_families = []
         for family_id, family in relevant.items():
             family_worlds = family["worlds"].values()
-            if component == "B":
-                allowance_recurrent = any(
-                    "allowance_or_paid_bag_error" in world["recurrent_issues"]
-                    for world in family_worlds
-                )
-                challenge_recurrent = any(
-                    world["role"] == "success_challenge"
-                    and world["success_failures"] >= 2
-                    for world in family_worlds
-                )
-                baseline_recurrent = any(
-                    world["role"] == "atomic_baseline"
-                    and world["success_failures"] >= 2
-                    for world in family_worlds
-                )
-                is_recurrent = allowance_recurrent or (
-                    challenge_recurrent and not baseline_recurrent
-                )
-            else:
-                is_recurrent = any(
-                    world["recurrent_issues"] for world in family_worlds
-                )
+            is_recurrent = any(
+                world["recurrent_issues"] for world in family_worlds
+            )
             if is_recurrent:
                 recurrent_families.append(family_id)
         if incomplete:
@@ -473,6 +460,11 @@ def build_summary(rows: list[dict[str, Any]], campaign: dict[str, Any]) -> dict[
             "status": status,
             "recurrent_families": recurrent_families,
         }
+    headroom["B"] = {
+        "status": "CONTROL_NOT_EVALUATED",
+        "recurrent_families": [],
+        "role": "stable atomic factor / preservation control / I1 component",
+    }
     observable = sum(
         value["status"] == "OBSERVABLE_HEADROOM" for value in headroom.values()
     )
@@ -486,39 +478,31 @@ def build_summary(rows: list[dict[str, Any]], campaign: dict[str, Any]) -> dict[
     else:
         h1 = "FAIL"
 
-    h2 = {
-        component: _judgment_for_h2(
-            component,
-            {
-                family_id: value
-                for family_id, value in families.items()
-                if value["component"] == component
-            },
-        )
-        for component in ("A", "B", "C")
-    }
-    h2_values = [value["judgment"] for value in h2.values()]
-    h2_overall = (
-        "SUPPORTED"
-        if "SUPPORTED" in h2_values
-        else "MIXED" if "MIXED" in h2_values else "NOT_SUPPORTED"
+    h2_a = _judgment_for_h2(
+        "A",
+        {
+            family_id: value
+            for family_id, value in families.items()
+            if value["component"] == "A"
+        },
     )
+    h2_a["required_success_behavior"] = "discover_unique_one_stop_itinerary"
+    h2 = {
+        "A": h2_a,
+        "B": {"judgment": "NOT_APPLICABLE", "role": "NONE"},
+        "C": {"judgment": "NOT_APPLICABLE", "role": "NONE"},
+    }
+    h2_overall = h2_a["judgment"]
     h3 = {
         interaction: _interaction_judgment(interaction, rows)
         for interaction in ("I1", "I2")
     }
-    h3_values = [value["judgment"] for value in h3.values()]
-    h3_overall = (
-        "SUPPORTED"
-        if "SUPPORTED" in h3_values
-        else "MIXED" if "MIXED" in h3_values else "NOT_SUPPORTED"
+    h3_overall = h3["I1"]["judgment"]
+    decision = (
+        "PROCEED"
+        if h1 == "PASS" and h2_overall == h3_overall == "SUPPORTED"
+        else "HOLD"
     )
-    if h1 in {"PASS", "MIXED"} and h2_overall == h3_overall == "SUPPORTED":
-        decision = "PROCEED_TO_STEP6"
-    elif h1 == "FAIL" or "NOT_SUPPORTED" in {h2_overall, h3_overall}:
-        decision = "STOP"
-    else:
-        decision = "REVIEW_BEFORE_STEP6"
 
     representatives = []
     recurrent_world_codes = {
@@ -563,6 +547,7 @@ def build_summary(rows: list[dict[str, Any]], campaign: dict[str, Any]) -> dict[
             "max_concurrency": campaign["execution"]["max_concurrency"],
             "diagnosis_editor_candidate_gate_calls": 0,
             "reference_skill_calls": 0,
+            "calibration_round": "Step 5R single bounded revision",
         },
         "task_count": 28,
         "rollouts_per_task": 3,
@@ -590,7 +575,12 @@ def build_summary(rows: list[dict[str, Any]], campaign: dict[str, Any]) -> dict[
         "by_family": families,
         "h1_base_prerequisite": {"judgment": h1, "mechanisms": headroom},
         "h2": {**h2, "overall": h2_overall},
-        "h3": {**h3, "overall": h3_overall},
+        "h3": {
+            **h3,
+            "overall": h3_overall,
+            "positive_candidate": "I1",
+            "negative_diagnostic": "I2",
+        },
         "representative_recurrent_evidence": representatives,
         "ambiguous_cases": [
             {

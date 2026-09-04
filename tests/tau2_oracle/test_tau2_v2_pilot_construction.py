@@ -17,6 +17,7 @@ from benchmarks.tau2_governed_evolution.compliance.composite import (
 from benchmarks.tau2_governed_evolution.v2.pilot.construction import (
     ARTIFACT_ROOT,
     COMPONENT_COUNTS,
+    COMPONENT_ROLES,
     _booking_summary,
     _initialize,
     materialize_declared_pilot,
@@ -64,6 +65,8 @@ def test_population_is_fixed_sparse_and_not_a_formal_split(pilot):
     assert audit["population"]["user_simulator_runs"] == 0
     assert audit["population"]["reference_skill_runs"] == 0
     assert audit["population"]["selection_uses_model_outcomes"] is False
+    assert audit["population"]["component_roles"] == COMPONENT_ROLES
+    assert audit["population"]["revision_round"] == "step_5r_single_bounded_revision"
     assert all(item.hidden_metadata["formal_split"] is None for item in bundles)
     assert all("assigned_split" not in item.hidden_metadata for item in bundles)
     assert all(item.compilation_audit.passed for item in bundles)
@@ -107,7 +110,7 @@ def test_families_are_latent_world_units_not_surface_or_task_ids(pilot):
     )
 
 
-def test_a_hard_worlds_hide_target_and_expose_one_scorable_alternative(pilot):
+def test_a_hard_worlds_require_one_unique_scorable_one_stop_recovery(pilot):
     bundles, _ = pilot
     hard = [
         item
@@ -125,17 +128,87 @@ def test_a_hard_worlds_hide_target_and_expose_one_scorable_alternative(pilot):
         assert success["alternative_discoverable_by_tools"] is True
         assert success["route_preserved"] is True
         assert success["trip_type_preserved"] is True
+        assert success["one_stop_recovery_required"] is True
+        assert success["required_success_behavior"] == "discover_unique_one_stop_itinerary"
         assert governance["basic_economy_permission"] is True
         assert len(bundle.task.evaluation_criteria.actions) == 1
         expected = context["frozen_expected_alternative"]
-        assert bundle.task.evaluation_criteria.actions[0].arguments["flights"] == [expected]
+        assert len(expected) == 2
+        assert bundle.task.evaluation_criteria.actions[0].arguments["flights"] == expected
         visible = "\n".join(
             [
                 bundle.task.user_scenario.instructions.reason_for_call,
                 bundle.task.user_scenario.instructions.known_info,
             ]
         )
-        assert expected["flight_number"] not in visible
+        assert all(item["flight_number"] not in visible for item in expected)
+
+
+def test_a_blocked_worlds_make_denial_the_unique_user_resolution(pilot):
+    bundles, _ = pilot
+    blocked = [
+        item
+        for item in bundles
+        if item.hidden_metadata["structural_pilot_component"] == "A"
+        and item.hidden_metadata["structural_role"] == "opposite_boundary"
+    ]
+    assert len(blocked) == 2
+    for bundle in blocked:
+        visible = "\n".join(
+            [
+                bundle.task.user_scenario.instructions.known_info,
+                bundle.task.user_scenario.instructions.task_instructions,
+            ]
+        ).lower()
+        assert "existing reservation" in visible
+        assert "do not cancel" in visible
+        assert "new booking" in visible
+        assert bundle.task.evaluation_criteria.actions == []
+        assert bundle.hidden_metadata["concrete_context"]["existing_reservation_only"] is True
+
+
+def test_booking_passengers_are_explicit_and_confirmation_controls_are_matched(pilot):
+    bundles, _ = pilot
+    booking = [
+        item
+        for item in bundles
+        if item.hidden_metadata["structural_pilot_component"]
+        in {"B", "I1", "confirmation_control"}
+    ]
+    for bundle in booking:
+        payload = bundle.hidden_metadata["concrete_context"]["transaction_payload"]
+        known = bundle.task.user_scenario.instructions.known_info
+        for passenger in payload["passengers"]:
+            assert (
+                f"{passenger['first_name']} {passenger['last_name']} "
+                f"(DOB {passenger['dob']})"
+            ) in known
+
+    i1 = {
+        item.latent_pair_id: item
+        for item in bundles
+        if item.hidden_metadata["structural_pilot_component"] == "I1"
+        and item.hidden_metadata["structural_role"] == "interaction_baseline"
+    }
+    controls = [
+        item
+        for item in bundles
+        if item.hidden_metadata["structural_pilot_component"] == "confirmation_control"
+    ]
+    for control in controls:
+        matched = i1[control.hidden_metadata["matched_interaction_family_id"]]
+        assert (
+            control.task.user_scenario.instructions.reason_for_call
+            == matched.task.user_scenario.instructions.reason_for_call
+        )
+        assert (
+            control.task.user_scenario.instructions.known_info
+            == matched.task.user_scenario.instructions.known_info
+        )
+        assert (
+            control.hidden_metadata["concrete_context"]["transaction_payload"]
+            == matched.hidden_metadata["concrete_context"]["transaction_payload"]
+        )
 
 
 def test_b_worlds_derive_allowance_from_membership_cabin_and_passengers(pilot):

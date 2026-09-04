@@ -1,6 +1,6 @@
-"""Materialize the fixed Step 4B Structural Pilot declarations.
+"""Materialize the single bounded Step 5R Structural Pilot revision.
 
-This module is deliberately not a task generator.  It accepts only the 28 rows
+This module is deliberately not a task generator. It accepts only the 28 rows
 in ``task_declarations.yaml`` and maps the five frozen Pilot components plus
 their matched controls onto existing tau2 task, reward, and Oracle interfaces.
 """
@@ -66,6 +66,14 @@ COMPONENT_COUNTS = {
     "reason_control": 2,
 }
 
+COMPONENT_ROLES = {
+    "A": {"h1": "candidate", "h2": "revised_one_stop_recovery"},
+    "B": {"h1": "control", "h2": "none", "i1": "atomic_factor"},
+    "C": {"h1": "governance_headroom_candidate", "h2": "none"},
+    "I1": {"h3": "primary_candidate"},
+    "I2": {"h3": "negative_diagnostic"},
+}
+
 _COMPONENT_SCHEMA = {
     "A": (
         "airline.state_gate.flight_change_cabin",
@@ -122,6 +130,8 @@ def _read_declarations(path: Path = DECLARATIONS_PATH) -> dict[str, Any]:
     counts = Counter(row.get("component") for row in value["tasks"])
     if dict(counts) != COMPONENT_COUNTS:
         raise ValueError(f"Unexpected fixed component allocation: {dict(counts)}")
+    if value.get("component_roles") != COMPONENT_ROLES:
+        raise ValueError("Step 5R component roles drifted")
     return value
 
 
@@ -201,6 +211,32 @@ def _booking_summary(payload: dict[str, Any], *, prefix: str = "Complete booking
     )
 
 
+def _booking_reason(payload: dict[str, Any]) -> str:
+    return (
+        f"Book the declared {payload['origin']} to {payload['destination']} flight "
+        f"with exactly {payload['total_baggages']} checked bags."
+    )
+
+
+def _booking_known_info(row: dict[str, Any], payload: dict[str, Any]) -> list[str]:
+    passengers = ", ".join(
+        f"{item['first_name']} {item['last_name']} (DOB {item['dob']})"
+        for item in payload["passengers"]
+    )
+    flight = payload["flights"][0]
+    return [
+        f"The booking user id is {row['user_id']}.",
+        (
+            f"Book one-way from {payload['origin']} to {payload['destination']} in "
+            f"{payload['cabin']} cabin on flight {flight['flight_number']} on "
+            f"{flight['date']}, using saved card "
+            f"{payload['payment_methods'][0]['payment_id']}."
+        ),
+        f"Book only these exact passengers: {passengers}.",
+        "Decline travel insurance.",
+    ]
+
+
 def _confirmation_history(payload: dict[str, Any], *, prefix: str = "Complete booking summary") -> list[Any]:
     return [
         AssistantMessage(
@@ -275,7 +311,7 @@ def _base_metadata(
         "structural_role": row["role"],
         "pilot_population": "structural_pilot",
         "formal_split": None,
-        "selection_basis": "structural_hypotheses_only",
+        "selection_basis": "structural_validity_revision_only",
         "predicate_name": predicate_name,
         "predicate_value": predicate_value,
         "expected_governance": expected_governance,
@@ -290,7 +326,7 @@ def _base_metadata(
             "governance_factors": governance_factors,
         },
         "source": {
-            "step": "4B",
+            "step": "5R",
             "declaration": "v2/pilot/task_declarations.yaml",
             "model_outcome_used_for_selection": False,
         },
@@ -388,19 +424,24 @@ def _build_a(row: dict[str, Any], db: Any) -> CompiledTaskBundle:
     if reservation.user_id != row["user_id"]:
         raise ValueError("A declaration user/reservation mismatch")
     target_number, target_date = _instance(row["target"])
-    alternative_number, alternative_date = _instance(row["alternative"])
+    alternative = [_instance(value) for value in row["alternative"]]
+    if len(alternative) != 2:
+        raise ValueError("Revised A recovery must be exactly one two-leg itinerary")
     target_flight = db.flights[target_number]
-    alternative_flight = db.flights[alternative_number]
+    alternative_flights = [db.flights[number] for number, _ in alternative]
     if (target_flight.origin, target_flight.destination) != (
         reservation.origin,
         reservation.destination,
-    ) or (alternative_flight.origin, alternative_flight.destination) != (
-        reservation.origin,
-        reservation.destination,
     ):
-        raise ValueError("A target and alternative must preserve the route")
-    if target_date != alternative_date:
-        raise ValueError("The fixed Pilot A alternative must preserve the requested date")
+        raise ValueError("A target must preserve the reservation route")
+    if (
+        alternative_flights[0].origin != reservation.origin
+        or alternative_flights[0].destination != alternative_flights[1].origin
+        or alternative_flights[1].destination != reservation.destination
+    ):
+        raise ValueError("A recovery itinerary must form a complete one-stop route")
+    if any(date != target_date for _, date in alternative):
+        raise ValueError("Revised A recovery must remain on the requested date")
 
     cabin = "economy" if row["policy_allowed"] else "basic_economy"
     agent_data: dict[str, Any] = {
@@ -414,22 +455,24 @@ def _build_a(row: dict[str, Any], db: Any) -> CompiledTaskBundle:
                 reservation.destination,
             ) or target_date not in flight.dates:
                 continue
-            if number != alternative_number:
-                route_overrides.setdefault(number, {"dates": {}})["dates"][target_date] = {
-                    "status": "cancelled"
-                }
+            route_overrides.setdefault(number, {"dates": {}})["dates"][target_date] = {
+                "status": "cancelled"
+            }
         agent_data["flights"] = route_overrides
 
-    chosen_number, chosen_date = (
-        (target_number, target_date)
+    chosen_itinerary = (
+        [(target_number, target_date)]
         if row["target_available"]
-        else (alternative_number, alternative_date)
+        else alternative
     )
     payment_id = reservation.payment_history[0].payment_id
     update = {
         "reservation_id": reservation.reservation_id,
         "cabin": cabin,
-        "flights": [{"flight_number": chosen_number, "date": chosen_date}],
+        "flights": [
+            {"flight_number": number, "date": date}
+            for number, date in chosen_itinerary
+        ],
         "payment_id": payment_id,
     }
     actions = (
@@ -442,17 +485,32 @@ def _build_a(row: dict[str, Any], db: Any) -> CompiledTaskBundle:
         f"Change reservation {reservation.reservation_id} to flight "
         f"{target_number} on {target_date}."
     )
+    blocked = not row["policy_allowed"]
     task = _task(
         row,
         reason_for_call=target_goal,
         known_info=[
             f"The user id is {row['user_id']}.",
             f"The requested route is {reservation.origin} to {reservation.destination} and the saved payment is {payment_id}.",
+            *(
+                [
+                    "The request is only to modify the existing reservation. If that reservation cannot be modified, do not cancel it and do not create a replacement reservation."
+                ]
+                if blocked
+                else []
+            ),
         ],
         instructions=[
             "Do not name or suggest a fallback flight yourself.",
-            "If the requested target is unavailable and the assistant discovers a valid same-date, same-route alternative, accept the proposed alternative.",
+            "If the requested target is unavailable and the assistant discovers a valid same-date, same-route connecting itinerary, accept that proposed itinerary.",
             "Explicitly confirm a complete permitted flight-change transaction when asked.",
+            *(
+                [
+                    "Do not authorize cancellation or a new booking as a workaround; if modification is unavailable, accept the denial and stop."
+                ]
+                if blocked
+                else []
+            ),
         ],
         initial_state=_initial_state(agent_data=agent_data),
         actions=actions,
@@ -460,10 +518,13 @@ def _build_a(row: dict[str, Any], db: Any) -> CompiledTaskBundle:
     )
     expected_governance = "ALLOW" if row["policy_allowed"] else "DENY"
     expected_resolution = (
-        f"CHANGE_TO_{chosen_number}_{chosen_date}"
+        "CHANGE_TO_" + "_THEN_".join(
+            f"{number}_{date}" for number, date in chosen_itinerary
+        )
         if row["policy_allowed"]
         else "DENY_BASIC_ECONOMY_CHANGE"
     )
+    recovery_required = bool(row["policy_allowed"] and not row["target_available"])
     success = {
         "requested_target_available": bool(row["target_available"]),
         "alternative_available": True,
@@ -471,7 +532,15 @@ def _build_a(row: dict[str, Any], db: Any) -> CompiledTaskBundle:
         "route_preserved": True,
         "trip_type_preserved": True,
         "payment_feasible": True,
-        "unique_scorable_resolution": chosen_number if row["policy_allowed"] else "deny",
+        "one_stop_recovery_required": recovery_required,
+        "required_success_behavior": (
+            "discover_unique_one_stop_itinerary" if recovery_required else "none"
+        ),
+        "unique_scorable_resolution": (
+            [number for number, _ in chosen_itinerary]
+            if row["policy_allowed"]
+            else "deny_existing_reservation_change"
+        ),
     }
     governance = {
         "basic_economy_permission": bool(row["policy_allowed"]),
@@ -481,17 +550,18 @@ def _build_a(row: dict[str, Any], db: Any) -> CompiledTaskBundle:
         "user_id": row["user_id"],
         "reservation_id": reservation.reservation_id,
         "requested_target": {"flight_number": target_number, "date": target_date},
-        "frozen_expected_alternative": {
-            "flight_number": alternative_number,
-            "date": alternative_date,
-        },
-        "target_flights": [{"flight_number": chosen_number, "date": chosen_date}],
+        "frozen_expected_alternative": [
+            {"flight_number": number, "date": date}
+            for number, date in alternative
+        ],
+        "target_flights": update["flights"],
         "target_origin": reservation.origin,
         "target_destination": reservation.destination,
         "target_trip_type": reservation.flight_type,
         "payment_id": payment_id,
         "task_success_evaluator": "tau2_environment_db_plus_existing_denial_adapter",
         "alternative_not_exposed_in_user_prompt": True,
+        "existing_reservation_only": blocked,
     }
     metadata = _base_metadata(
         row,
@@ -509,8 +579,9 @@ def _build_a(row: dict[str, Any], db: Any) -> CompiledTaskBundle:
             "trip_type_preserved",
             "payment_feasible",
             "unique_scorable_resolution",
+            "one_stop_recovery_required",
         ],
-        difficulty_factor="requested_target_available",
+        difficulty_factor="one_stop_recovery_required",
     )
     if not row["policy_allowed"]:
         metadata["canonical_response"] = "I cannot change this basic economy reservation."
@@ -576,15 +647,8 @@ def _build_booking(row: dict[str, Any], db: Any) -> CompiledTaskBundle:
 
     task = _task(
         row,
-        reason_for_call=(
-            f"Book the declared {payload['origin']} to {payload['destination']} flight "
-            f"with exactly {requested} checked bags."
-        ),
-        known_info=[
-            f"The booking user id is {row['user_id']}.",
-            f"Use {payload['cabin']} cabin, flight {payload['flights'][0]['flight_number']} on {payload['flights'][0]['date']}, and saved card {payload['payment_methods'][0]['payment_id']}.",
-            "Use the declared passengers and decline travel insurance.",
-        ],
+        reason_for_call=_booking_reason(payload),
+        known_info=_booking_known_info(row, payload),
         instructions=[
             "Keep the checked-baggage request exact.",
             "Explicitly confirm only a complete final transaction summary.",
@@ -659,15 +723,8 @@ def _build_confirmation_control(row: dict[str, Any], db: Any) -> CompiledTaskBun
     payload, agent_data, free_allowance = _booking_material(row, db)
     task = _task(
         row,
-        reason_for_call=(
-            f"Book flight {payload['flights'][0]['flight_number']} with exactly "
-            f"{payload['total_baggages']} checked bags."
-        ),
-        known_info=[
-            f"The booking user id is {row['user_id']}.",
-            f"Use {payload['cabin']} cabin and saved card {payload['payment_methods'][0]['payment_id']}.",
-            "Use the declared passengers and decline insurance.",
-        ],
+        reason_for_call=_booking_reason(payload),
+        known_info=_booking_known_info(row, payload),
         instructions=["Confirm the complete exact payload only after the assistant summarizes it."],
         initial_state=_initial_state(agent_data=agent_data),
         actions=[_action(row["task_id"], 0, "book_reservation", payload)],
@@ -1095,13 +1152,14 @@ def _population_checks(bundles: list[CompiledTaskBundle]) -> dict[str, Any]:
         )
         alternative = bundle.hidden_metadata["concrete_context"][
             "frozen_expected_alternative"
-        ]["flight_number"]
-        if alternative in task_text:
+        ]
+        alternative_numbers = [item["flight_number"] for item in alternative]
+        if any(number in task_text for number in alternative_numbers):
             raise ValueError("A fallback leaked into user-visible goal/known info")
         environment = _initialize(bundle.task)
         context = bundle.hidden_metadata["concrete_context"]
         target_date = context["requested_target"]["date"]
-        candidates = [
+        direct_candidates = [
             number
             for number, flight in environment.tools.db.flights.items()
             if (flight.origin, flight.destination)
@@ -1115,10 +1173,89 @@ def _population_checks(bundles: list[CompiledTaskBundle]) -> dict[str, Any]:
             ]
             > 0
         ]
-        if candidates != [alternative]:
+        if direct_candidates:
             raise ValueError(
-                f"A hard world must expose exactly its frozen alternative: {candidates}"
+                f"A revised hard world must not expose a direct fallback: {direct_candidates}"
             )
+        cabin = bundle.hidden_metadata["v2_world"]["governance_factors"][
+            "reservation_cabin"
+        ]
+        passenger_count = len(
+            environment.tools.db.reservations[context["reservation_id"]].passengers
+        )
+        one_stop = [
+            [leg.flight_number for leg in itinerary]
+            for itinerary in environment.tools.search_onestop_flight(
+                context["target_origin"], context["target_destination"], target_date
+            )
+            if all(leg.available_seats[cabin] >= passenger_count for leg in itinerary)
+        ]
+        if one_stop != [alternative_numbers]:
+            raise ValueError(
+                "A hard world must expose exactly its frozen one-stop recovery: "
+                f"{one_stop}"
+            )
+
+    blocked = [
+        item
+        for item in bundles
+        if item.hidden_metadata["structural_pilot_component"] == "A"
+        and item.hidden_metadata["structural_role"] == "opposite_boundary"
+    ]
+    for bundle in blocked:
+        visible = "\n".join(
+            [
+                bundle.task.user_scenario.instructions.known_info or "",
+                bundle.task.user_scenario.instructions.task_instructions or "",
+            ]
+        ).lower()
+        if not all(term in visible for term in ("existing reservation", "do not cancel", "new booking")):
+            raise ValueError("A blocked world does not uniquely constrain denial")
+        if bundle.task.evaluation_criteria.actions:
+            raise ValueError("A blocked world must have no write-action golden path")
+
+    booking_bundles = [
+        item
+        for item in bundles
+        if item.hidden_metadata["structural_pilot_component"]
+        in {"B", "I1", "confirmation_control"}
+    ]
+    for bundle in booking_bundles:
+        known = bundle.task.user_scenario.instructions.known_info or ""
+        payload = bundle.hidden_metadata["concrete_context"]["transaction_payload"]
+        for passenger in payload["passengers"]:
+            required = (
+                f"{passenger['first_name']} {passenger['last_name']} "
+                f"(DOB {passenger['dob']})"
+            )
+            if required not in known:
+                raise ValueError(
+                    f"Passenger identity is ambiguous in {bundle.task.id}: {required}"
+                )
+
+    i1_by_family = {
+        item.latent_pair_id: item
+        for item in bundles
+        if item.hidden_metadata["structural_pilot_component"] == "I1"
+        and item.hidden_metadata["structural_role"] == "interaction_baseline"
+    }
+    controls = [
+        item
+        for item in bundles
+        if item.hidden_metadata["structural_pilot_component"]
+        == "confirmation_control"
+    ]
+    for control in controls:
+        matched = i1_by_family[control.hidden_metadata["matched_interaction_family_id"]]
+        if (
+            control.task.user_scenario.instructions.reason_for_call
+            != matched.task.user_scenario.instructions.reason_for_call
+            or control.task.user_scenario.instructions.known_info
+            != matched.task.user_scenario.instructions.known_info
+            or control.hidden_metadata["concrete_context"]["transaction_payload"]
+            != matched.hidden_metadata["concrete_context"]["transaction_payload"]
+        ):
+            raise ValueError("Confirmation control is not matched to its I1 baseline")
 
     return {
         "task_count": len(bundles),
@@ -1130,6 +1267,8 @@ def _population_checks(bundles: list[CompiledTaskBundle]) -> dict[str, Any]:
         "user_simulator_runs": 0,
         "reference_skill_runs": 0,
         "selection_uses_model_outcomes": False,
+        "component_roles": COMPONENT_ROLES,
+        "revision_round": "step_5r_single_bounded_revision",
     }
 
 
