@@ -1,0 +1,569 @@
+contract: tau2_complex_workflow_pilot_cw2
+task_count: 15
+family_count: 15
+formal_split: null
+selection_basis: workflow_structure_only
+model_outcomes_used: false
+archetype_counts:
+  per_entity_portfolio_triage: 3
+  constraint_coupled_booking_payment: 3
+  policy_triggered_fallback: 2
+  multi_attribute_mutation: 2
+  mid_dialogue_goal_accumulation: 3
+  authority_conflict_protected_remedy: 2
+
+tasks:
+  - task_id: cw2_portfolio_01
+    family_id: cw2_family_portfolio_eligibility_partition
+    workflow_archetype: per_entity_portfolio_triage
+    user_id: amelia_davis_8890
+    reason_for_call: >-
+      Review all of my upcoming reservations. Cancel only the future business-cabin
+      reservations with exactly two passengers, leave every other reservation unchanged,
+      and tell me the combined refund from the cancellations.
+    known_info: >-
+      You are Amelia Davis (user id amelia_davis_8890). Your plans changed because of a
+      schedule conflict. Confirm each cancellation when the agent presents it.
+    task_instructions: >-
+      Do not name reservation ids until the agent discovers them. Keep all reservations
+      outside the stated subset unchanged. Ask for the combined refund after the selected
+      cancellations are complete.
+    declared_goals: [enumerate_upcoming_reservations, cancel_selected_subset, report_combined_refund]
+    relevant_entities: [user:amelia_davis_8890, reservation:8C8K4E, reservation:LU15PA, reservation:4XGCCM, reservation:MSJ4OA]
+    governed_decision_points: [per_reservation_cancellation_eligibility, cancellation_reason, explicit_confirmation]
+    workflow_dependencies: [enumerate_then_classify, classify_then_cancel_selected, mutations_then_refund_aggregation]
+    protected_invariants: [reservations.UDMOP1, reservations.XAZ3C0, reservations.MSJ4OA, reservations.I6M8JQ, reservations.4XGCCM]
+    expected_reconciliation: {kind: refund_total, value: 8046, communicate: "8046"}
+    complexity_dimensions: [multi_goal, multi_reservation, multi_state, multi_policy, preservation_constraint, numeric_aggregation]
+    source_structure_refs: [original_task_18, original_task_39]
+    abstracted_structure: per-reservation classification followed by selected writes and portfolio refund reconciliation
+    new_realization: passenger-count-and-cabin partition over a different seven-reservation topology
+    golden_actions:
+      - {name: get_user_details, arguments: {user_id: amelia_davis_8890}}
+      - {name: get_reservation_details, arguments: {reservation_id: 8C8K4E}}
+      - {name: get_reservation_details, arguments: {reservation_id: UDMOP1}}
+      - {name: get_reservation_details, arguments: {reservation_id: XAZ3C0}}
+      - {name: get_reservation_details, arguments: {reservation_id: LU15PA}}
+      - {name: get_reservation_details, arguments: {reservation_id: MSJ4OA}}
+      - {name: get_reservation_details, arguments: {reservation_id: I6M8JQ}}
+      - {name: get_reservation_details, arguments: {reservation_id: 4XGCCM}}
+      - {name: cancel_reservation, arguments: {reservation_id: 8C8K4E}}
+      - {name: cancel_reservation, arguments: {reservation_id: LU15PA}}
+    compliance_components:
+      - {rule_id: airline.cancel.reason_required, target: 8C8K4E}
+      - {rule_id: airline.cancel.reason_required, target: LU15PA}
+
+  - task_id: cw2_portfolio_02
+    family_id: cw2_family_portfolio_insurance_route_partition
+    workflow_archetype: per_entity_portfolio_triage
+    user_id: sophia_silva_7557
+    reason_for_call: >-
+      I cannot travel for a medical reason. Review my future reservations and cancel only
+      the insured trips whose destination is Charlotte. Preserve all other reservations
+      and tell me the total refund for the cancelled subset.
+    known_info: >-
+      You are Sophia Silva (user id sophia_silva_7557). Confirm each eligible cancellation.
+    task_instructions: >-
+      Let the agent discover the reservation ids, insurance values, and destinations.
+      Do not authorize cancellation of any reservation outside the requested subset.
+    declared_goals: [inspect_insurance_and_routes, cancel_matching_subset, preserve_nonmatching_reservations, report_refund_total]
+    relevant_entities: [user:sophia_silva_7557, reservation:KC18K6, reservation:S61CZX, reservation:NM1VX1, reservation:H8Q05L, reservation:WUNA5K]
+    governed_decision_points: [insured_health_cancellation_eligibility, cancellation_reason, explicit_confirmation]
+    workflow_dependencies: [enumerate_then_join_route_and_insurance_state, cancel_only_matching_entities, aggregate_actual_refunds]
+    protected_invariants: [reservations.NM1VX1, reservations.H8Q05L, reservations.WUNA5K]
+    expected_reconciliation: {kind: refund_total, value: 803, communicate: "803"}
+    complexity_dimensions: [multi_reservation, multi_state, multi_policy, cross_entity_binding, preservation_constraint, numeric_aggregation]
+    source_structure_refs: [original_task_39, original_task_44]
+    abstracted_structure: state-derived portfolio partition with policy-eligible writes and protected remainder
+    new_realization: conjunction of destination and insurance state rather than duration or cabin class
+    golden_actions:
+      - {name: get_user_details, arguments: {user_id: sophia_silva_7557}}
+      - {name: get_reservation_details, arguments: {reservation_id: NM1VX1}}
+      - {name: get_reservation_details, arguments: {reservation_id: KC18K6}}
+      - {name: get_reservation_details, arguments: {reservation_id: S61CZX}}
+      - {name: get_reservation_details, arguments: {reservation_id: H8Q05L}}
+      - {name: get_reservation_details, arguments: {reservation_id: WUNA5K}}
+      - {name: cancel_reservation, arguments: {reservation_id: KC18K6}}
+      - {name: cancel_reservation, arguments: {reservation_id: S61CZX}}
+    compliance_components:
+      - {rule_id: airline.cancel.reason_required, target: KC18K6}
+      - {rule_id: airline.cancel.reason_required, target: S61CZX}
+
+  - task_id: cw2_portfolio_03
+    family_id: cw2_family_portfolio_downgrade_reconciliation
+    workflow_archetype: per_entity_portfolio_triage
+    user_id: omar_davis_3817
+    reason_for_call: >-
+      Find my future one-way business reservations that contain exactly two passengers,
+      downgrade only those reservations to economy without changing their flights or
+      passengers, and report the combined refund.
+    known_info: >-
+      You are Omar Davis (user id omar_davis_3817). Use a saved credit card if a payment
+      identifier is required and confirm each complete downgrade payload.
+    task_instructions: >-
+      Preserve round trips, non-business reservations, all flight chains, and passenger
+      lists. Ask for the combined refund only after all selected updates complete.
+    declared_goals: [enumerate_reservations, select_three_attribute_subset, downgrade_selected_subset, reconcile_refunds]
+    relevant_entities: [user:omar_davis_3817, reservation:JG7FMM, reservation:X7BYG1, reservation:BOH180, reservation:LQ940Q, reservation:2FBBAH, reservation:EQ1G6C]
+    governed_decision_points: [cabin_change_permission, complete_payload_confirmation, original_payment_refund]
+    workflow_dependencies: [classify_before_mutation, preserve_flights_and_passengers_per_write, aggregate_post_mutation_refunds]
+    protected_invariants: [reservations.LQ940Q, reservations.2FBBAH, reservations.EQ1G6C]
+    expected_reconciliation: {kind: refund_total, value: 17176, communicate: "17176"}
+    complexity_dimensions: [multi_reservation, multi_state, multi_policy, cross_entity_binding, preservation_constraint, numeric_aggregation]
+    source_structure_refs: [original_task_18, original_task_42]
+    abstracted_structure: per-entity mutation ledger with invariant preservation and aggregate settlement
+    new_realization: a three-predicate subset and three-reservation downgrade rather than all business reservations
+    golden_actions:
+      - {name: get_user_details, arguments: {user_id: omar_davis_3817}}
+      - {name: get_reservation_details, arguments: {reservation_id: JG7FMM}}
+      - {name: get_reservation_details, arguments: {reservation_id: LQ940Q}}
+      - {name: get_reservation_details, arguments: {reservation_id: 2FBBAH}}
+      - {name: get_reservation_details, arguments: {reservation_id: X7BYG1}}
+      - {name: get_reservation_details, arguments: {reservation_id: EQ1G6C}}
+      - {name: get_reservation_details, arguments: {reservation_id: BOH180}}
+      - name: update_reservation_flights
+        arguments: {reservation_id: JG7FMM, cabin: economy, flights: [{flight_number: HAT028, date: '2024-05-21'}, {flight_number: HAT277, date: '2024-05-21'}], payment_id: credit_card_2929732}
+      - name: update_reservation_flights
+        arguments: {reservation_id: X7BYG1, cabin: economy, flights: [{flight_number: HAT232, date: '2024-05-24'}, {flight_number: HAT228, date: '2024-05-24'}], payment_id: credit_card_2929732}
+      - name: update_reservation_flights
+        arguments: {reservation_id: BOH180, cabin: economy, flights: [{flight_number: HAT276, date: '2024-05-21'}, {flight_number: HAT279, date: '2024-05-22'}], payment_id: credit_card_9525117}
+    compliance_components:
+      - {rule_id: airline.modify.itinerary_invariants, target: JG7FMM}
+      - {rule_id: airline.modify.itinerary_invariants, target: X7BYG1}
+      - {rule_id: airline.modify.itinerary_invariants, target: BOH180}
+
+  - task_id: cw2_booking_01
+    family_id: cw2_family_booking_itinerary_certificate_remainder
+    workflow_archetype: constraint_coupled_booking_payment
+    user_id: mia_li_3668
+    reason_for_call: >-
+      Book the lowest-cost one-way economy itinerary from JFK to Seattle on May 20 that
+      arrives that day. Book only me, add three checked bags and insurance, use my $250
+      certificate first, and put the exact remainder on my saved card.
+    known_info: >-
+      You are Mia Li (user id mia_li_3668, DOB 1990-04-05). Use certificate_7504069 and
+      credit_card_4421486. Confirm only after the complete itinerary and payment split are known.
+    task_instructions: >-
+      Accept a one-stop itinerary if it is the lowest-cost valid option. Do not add another
+      passenger or another payment source.
+    declared_goals: [discover_and_rank_itinerary, bind_single_passenger, derive_baggage_allowance, add_insurance, reconcile_certificate_and_card, confirm_and_book]
+    relevant_entities: [user:mia_li_3668, flight:HAT136@2024-05-20, flight:HAT039@2024-05-20, payment:certificate_7504069, payment:credit_card_4421486]
+    governed_decision_points: [booking_fields_complete, baggage_allowance, insurance_choice, one_certificate_limit, explicit_confirmation]
+    workflow_dependencies: [search_then_rank, itinerary_and_options_determine_total, total_determines_payment_remainder, final_payload_then_confirmation_then_commit]
+    protected_invariants: [reservations.NO6JO3, reservations.AIXC49, reservations.HKEG34]
+    expected_reconciliation: {kind: payment_total, value: 285, parts: [250, 35]}
+    complexity_dimensions: [multi_goal, multi_state, multi_policy, payment_reconciliation, cross_entity_binding, workflow_prerequisite]
+    source_structure_refs: [original_task_8, original_task_20]
+    abstracted_structure: itinerary ranking and complete transaction ledger before confirmation
+    new_realization: insurance-inclusive certificate remainder with a one-stop itinerary and three state-derived free bags
+    golden_actions:
+      - {name: get_user_details, arguments: {user_id: mia_li_3668}}
+      - {name: search_direct_flight, arguments: {origin: JFK, destination: SEA, date: '2024-05-20'}}
+      - {name: search_onestop_flight, arguments: {origin: JFK, destination: SEA, date: '2024-05-20'}}
+      - name: book_reservation
+        arguments:
+          {user_id: mia_li_3668, origin: JFK, destination: SEA, flight_type: one_way, cabin: economy,
+           flights: [{flight_number: HAT136, date: '2024-05-20'}, {flight_number: HAT039, date: '2024-05-20'}],
+           passengers: [{first_name: Mia, last_name: Li, dob: '1990-04-05'}],
+           payment_methods: [{payment_id: certificate_7504069, amount: 250}, {payment_id: credit_card_4421486, amount: 35}],
+           total_baggages: 3, nonfree_baggages: 0, insurance: 'yes'}
+    compliance_components:
+      - {rule_id: airline.book.baggage_allowance, target: mia_li_3668}
+      - {rule_id: airline.action.explicit_confirmation, target: mia_li_3668}
+
+  - task_id: cw2_booking_02
+    family_id: cw2_family_booking_two_passenger_gift_remainder
+    workflow_archetype: constraint_coupled_booking_payment
+    user_id: ava_davis_9130
+    reason_for_call: >-
+      Book the cheaper direct one-way economy flight from Atlanta to JFK on May 26 for Ava
+      Davis and Emma Gonzalez. Include four checked bags total and travel insurance for both.
+      Use my $150 certificate, then gift_card_2820585, then only the needed gift-card remainder.
+    known_info: >-
+      You are Ava Davis (user id ava_davis_9130, DOB 1985-11-24). Emma Gonzalez's DOB is
+      2000-09-27. Use certificate_1877014, gift_card_2820585, and gift_card_9760542,
+      and confirm the complete payload before booking.
+    task_instructions: >-
+      Compare the direct choices and use HAT233. Do not book another saved passenger and
+      do not charge more than the exact transaction total across the three methods.
+    declared_goals: [select_direct_itinerary, bind_two_passengers, reconcile_allowance_and_insurance, allocate_exact_certificate_payment, confirm_and_book]
+    relevant_entities: [user:ava_davis_9130, passenger:Emma_Gonzalez_2000-09-27, flight:HAT233@2024-05-26, payment:certificate_1877014, payment:gift_card_2820585, payment:gift_card_9760542]
+    governed_decision_points: [passenger_identity, shared_cabin, baggage_allowance, insurance_pricing, explicit_confirmation]
+    workflow_dependencies: [passenger_count_affects_fare_and_insurance, membership_and_cabin_affect_allowance, final_total_constrains_three_part_payment]
+    protected_invariants: [reservations.YMMK5P, reservations.AQ12FI, reservations.UAUH1S, reservations.N0C84K]
+    expected_reconciliation: {kind: payment_total, value: 270, parts: [150, 71, 49]}
+    complexity_dimensions: [multi_entity, multi_state, multi_policy, payment_reconciliation, cross_entity_binding, workflow_prerequisite]
+    source_structure_refs: [original_task_8, original_task_25]
+    abstracted_structure: passenger-dependent ancillary pricing and exact single-source settlement
+    new_realization: a previously unused Gold user, two named passengers, four free bags, insurance, and partial use of the second gift card
+    golden_actions:
+      - {name: get_user_details, arguments: {user_id: ava_davis_9130}}
+      - {name: search_direct_flight, arguments: {origin: ATL, destination: JFK, date: '2024-05-26'}}
+      - name: book_reservation
+        arguments:
+          {user_id: ava_davis_9130, origin: ATL, destination: JFK, flight_type: one_way, cabin: economy,
+           flights: [{flight_number: HAT233, date: '2024-05-26'}],
+           passengers: [{first_name: Ava, last_name: Davis, dob: '1985-11-24'}, {first_name: Emma, last_name: Gonzalez, dob: '2000-09-27'}],
+           payment_methods: [{payment_id: certificate_1877014, amount: 150}, {payment_id: gift_card_2820585, amount: 71}, {payment_id: gift_card_9760542, amount: 49}],
+           total_baggages: 4, nonfree_baggages: 0, insurance: 'yes'}
+    compliance_components:
+      - {rule_id: airline.book.baggage_allowance, target: ava_davis_9130}
+      - {rule_id: airline.action.explicit_confirmation, target: ava_davis_9130}
+
+  - task_id: cw2_booking_03
+    family_id: cw2_family_booking_roundtrip_multi_source_payment
+    workflow_archetype: constraint_coupled_booking_payment
+    user_id: mohamed_silva_9265
+    reason_for_call: >-
+      Book a business round trip from JFK to San Francisco leaving May 26 and returning
+      May 28 for Mohamed Silva and Raj Sanchez. Include two checked bags and insurance.
+      Use one certificate, both gift cards, then charge the exact remainder to my saved card.
+    known_info: >-
+      You are Mohamed Silva (user id mohamed_silva_9265, DOB 1960-11-26). Raj Sanchez's
+      DOB is 1986-09-12. Use certificate_3765853, gift_card_8020792,
+      gift_card_6136092, and credit_card_2198526 in that order.
+    task_instructions: >-
+      Select HAT023 outbound and the HAT204/HAT100 return connection. Confirm the complete
+      itinerary, passengers, options, and four-part payment allocation before booking.
+    declared_goals: [construct_roundtrip, bind_two_passengers, add_baggage_and_insurance, consume_limited_value_methods, compute_card_remainder, confirm_and_book]
+    relevant_entities: [user:mohamed_silva_9265, flight:HAT023@2024-05-26, flight:HAT204@2024-05-28, flight:HAT100@2024-05-28, payment:certificate_3765853, payment:gift_card_8020792, payment:gift_card_6136092, payment:credit_card_2198526]
+    governed_decision_points: [round_trip_chain, one_certificate_limit, gift_card_balance, baggage_allowance, insurance_pricing, explicit_confirmation]
+    workflow_dependencies: [itinerary_and_passengers_determine_base_total, options_complete_total, limited_value_payments_determine_card_remainder, full_ledger_then_confirmation]
+    protected_invariants: [reservations.K1NW8N]
+    expected_reconciliation: {kind: payment_total, value: 1802, parts: [500, 198, 129, 975]}
+    complexity_dimensions: [multi_goal, multi_entity, multi_state, multi_policy, payment_reconciliation, cross_entity_binding]
+    source_structure_refs: [original_task_14, original_task_23]
+    abstracted_structure: multi-source exact settlement for a complete multi-segment booking
+    new_realization: two-passenger insured booking with one certificate and two gift-card balances in one legal transaction
+    golden_actions:
+      - {name: get_user_details, arguments: {user_id: mohamed_silva_9265}}
+      - {name: search_direct_flight, arguments: {origin: JFK, destination: SFO, date: '2024-05-26'}}
+      - {name: search_onestop_flight, arguments: {origin: SFO, destination: JFK, date: '2024-05-28'}}
+      - name: book_reservation
+        arguments:
+          {user_id: mohamed_silva_9265, origin: JFK, destination: SFO, flight_type: round_trip, cabin: business,
+           flights: [{flight_number: HAT023, date: '2024-05-26'}, {flight_number: HAT204, date: '2024-05-28'}, {flight_number: HAT100, date: '2024-05-28'}],
+           passengers: [{first_name: Mohamed, last_name: Silva, dob: '1960-11-26'}, {first_name: Raj, last_name: Sanchez, dob: '1986-09-12'}],
+           payment_methods: [{payment_id: certificate_3765853, amount: 500}, {payment_id: gift_card_8020792, amount: 198}, {payment_id: gift_card_6136092, amount: 129}, {payment_id: credit_card_2198526, amount: 975}],
+           total_baggages: 2, nonfree_baggages: 0, insurance: 'yes'}
+    compliance_components:
+      - {rule_id: airline.book.baggage_allowance, target: mohamed_silva_9265}
+      - {rule_id: airline.action.explicit_confirmation, target: mohamed_silva_9265}
+
+  - task_id: cw2_fallback_01
+    family_id: cw2_family_fallback_route_change_to_replacement
+    workflow_archetype: policy_triggered_fallback
+    user_id: mohamed_taylor_9830
+    reason_for_call: >-
+      I want to change reservation UB8QZ1 from its current Miami-to-Atlanta route to a
+      Miami-to-Orlando round trip on the same dates. If the endpoints cannot be modified,
+      I explicitly authorize cancelling it and making the replacement booking instead.
+    known_info: >-
+      You are Mohamed Taylor (user id mohamed_taylor_9830). Your plans changed. Keep the
+      passenger Aarav Wilson (DOB 1980-11-12), the May 19 / May 27 round-trip dates, one bag,
+      and no insurance. For the fallback use credit_card_4104573.
+    task_instructions: >-
+      Do not write a partial modification. Confirm the cancellation and, separately, the
+      full replacement booking. The fallback is authorized only after the preferred path
+      is found policy-blocked.
+    declared_goals: [evaluate_preferred_modification, activate_authorized_fallback_if_blocked, cancel_old_reservation, create_equivalent_replacement]
+    relevant_entities: [user:mohamed_taylor_9830, reservation:UB8QZ1, flight:HAT062@2024-05-19, flight:HAT154@2024-05-19, flight:HAT299@2024-05-27, flight:HAT115@2024-05-27, payment:credit_card_4104573]
+    governed_decision_points: [itinerary_endpoint_preservation, within_24_hour_cancellation, cancellation_reason_and_confirmation, complete_booking_confirmation, payment_constraints]
+    workflow_dependencies: [policy_denial_before_fallback, cancellation_before_replacement, replacement_feasibility_before_commit]
+    protected_invariants: [reservations.WPK8DQ, reservations.RSD7NA, reservations.V4D9ZA, reservations.C60W5M, reservations.H7L67Y, reservations.KY93IV, reservations.C007C7]
+    expected_reconciliation: {kind: replacement_payment_total, value: 570, parts: [570]}
+    complexity_dimensions: [conditional_fallback, multi_policy, workflow_prerequisite, preservation_constraint, payment_reconciliation, multi_action]
+    source_structure_refs: [original_task_19, original_task_29]
+    abstracted_structure: explicitly authorized transaction replacement after a policy-blocked modification
+    new_realization: a previously unused within-24-hour reservation, new MIA–MCO route, four-leg replacement, and single-card settlement
+    golden_actions:
+      - {name: get_reservation_details, arguments: {reservation_id: UB8QZ1}}
+      - {name: search_onestop_flight, arguments: {origin: MIA, destination: MCO, date: '2024-05-19'}}
+      - {name: search_onestop_flight, arguments: {origin: MCO, destination: MIA, date: '2024-05-27'}}
+      - {name: cancel_reservation, arguments: {reservation_id: UB8QZ1}}
+      - name: book_reservation
+        arguments:
+          {user_id: mohamed_taylor_9830, origin: MIA, destination: MCO, flight_type: round_trip, cabin: economy,
+           flights: [{flight_number: HAT062, date: '2024-05-19'}, {flight_number: HAT154, date: '2024-05-19'}, {flight_number: HAT299, date: '2024-05-27'}, {flight_number: HAT115, date: '2024-05-27'}],
+           passengers: [{first_name: Aarav, last_name: Wilson, dob: '1980-11-12'}],
+           payment_methods: [{payment_id: credit_card_4104573, amount: 570}],
+           total_baggages: 1, nonfree_baggages: 0, insurance: 'no'}
+    compliance_components:
+      - {rule_id: airline.cancel.reason_required, target: UB8QZ1}
+      - {rule_id: airline.book.baggage_allowance, target: mohamed_taylor_9830}
+      - {rule_id: airline.action.explicit_confirmation, target: mohamed_taylor_9830}
+
+  - task_id: cw2_fallback_02
+    family_id: cw2_family_fallback_passenger_to_cabin
+    workflow_archetype: policy_triggered_fallback
+    user_id: noah_sanchez_4225
+    reason_for_call: >-
+      For reservation AQSRNQ I would prefer to remove Mia Wilson. If passenger count cannot
+      be changed, keep both passengers and instead upgrade the entire reservation to economy
+      on exactly the same flights. Do not cancel or rebook.
+    known_info: >-
+      You are Noah Sanchez (user id noah_sanchez_4225). Use credit_card_8798553 for any
+      fare difference and confirm the complete fallback update.
+    task_instructions: >-
+      The cabin fallback is explicitly authorized only if removal is policy-blocked. Preserve
+      the round-trip flight chain and both passenger records.
+    declared_goals: [evaluate_passenger_removal, retain_passengers_if_blocked, execute_authorized_cabin_fallback, preserve_itinerary]
+    relevant_entities: [user:noah_sanchez_4225, reservation:AQSRNQ, passenger:Daiki_Moore_1970-03-14, passenger:Mia_Wilson_1951-06-27, payment:credit_card_8798553]
+    governed_decision_points: [passenger_count_preservation, all_segments_same_cabin, explicit_confirmation, itinerary_identity]
+    workflow_dependencies: [reject_primary_before_fallback, refresh_same_reservation_state, confirm_then_commit_fallback]
+    protected_invariants: [reservations.VE2NTF, reservations.AQSRNQ.flight_instances, reservations.AQSRNQ.passengers]
+    expected_reconciliation: {kind: fare_difference, value: 576}
+    complexity_dimensions: [conditional_fallback, multi_policy, workflow_prerequisite, preservation_constraint, cross_entity_binding]
+    source_structure_refs: [original_task_11, original_task_24]
+    abstracted_structure: policy-blocked passenger mutation activates a narrower authorized fallback
+    new_realization: two-passenger round trip upgraded in place with explicit no-cancel/no-rebook preservation
+    golden_actions:
+      - {name: get_reservation_details, arguments: {reservation_id: AQSRNQ}}
+      - name: update_reservation_flights
+        arguments: {reservation_id: AQSRNQ, cabin: economy, flights: [{flight_number: HAT284, date: '2024-05-26'}, {flight_number: HAT256, date: '2024-05-26'}, {flight_number: HAT245, date: '2024-05-30'}, {flight_number: HAT027, date: '2024-05-30'}], payment_id: credit_card_8798553}
+    compliance_components:
+      - {rule_id: airline.modify.itinerary_invariants, target: AQSRNQ}
+
+  - task_id: cw2_mutation_01
+    family_id: cw2_family_mutation_cabin_passenger_baggage
+    workflow_archetype: multi_attribute_mutation
+    user_id: omar_rossi_1241
+    reason_for_call: >-
+      On reservation FQ8APE, upgrade the whole itinerary to economy, correct the passenger
+      to Omar Rossi, and add two checked bags. Keep the existing flight chain and insurance.
+    known_info: >-
+      You are Omar Rossi (user id omar_rossi_1241, DOB 1970-06-06). Use
+      gift_card_8190333 where a payment id is required. Confirm each updated payload.
+    task_instructions: >-
+      Complete all three requested changes. Re-read the current reservation after each
+      write before constructing the next payload.
+    declared_goals: [upgrade_cabin, correct_passenger_identity, add_checked_baggage, preserve_flights_and_insurance]
+    relevant_entities: [reservation:FQ8APE, user:omar_rossi_1241, payment:gift_card_8190333]
+    governed_decision_points: [basic_economy_cabin_only_change, passenger_count_preservation, baggage_add_only, explicit_confirmation]
+    workflow_dependencies: [ordered_writes, refresh_after_each_write, later_payload_uses_updated_state]
+    protected_invariants: [reservations.UM3OG5, reservations.5RJ7UH, reservations.QKRY03, reservations.FQ8APE.flight_instances, reservations.FQ8APE.insurance]
+    expected_reconciliation: {kind: final_reservation_fields, value: [cabin:economy, passenger:Omar_Rossi, total_baggages:2]}
+    complexity_dimensions: [multi_goal, multi_attribute_mutation, workflow_dependency, post_mutation_re_evaluation, preservation_constraint, cross_entity_binding]
+    source_structure_refs: [original_task_17, original_task_21]
+    abstracted_structure: sequential same-reservation writes with refreshed state and protected fields
+    new_realization: different bag count and explicit insurance/flight-chain preservation after passenger correction
+    golden_actions:
+      - {name: get_reservation_details, arguments: {reservation_id: FQ8APE}}
+      - name: update_reservation_flights
+        arguments: {reservation_id: FQ8APE, cabin: economy, flights: [{flight_number: HAT056, date: '2024-05-25'}, {flight_number: HAT138, date: '2024-05-25'}], payment_id: gift_card_8190333}
+      - {name: get_reservation_details, arguments: {reservation_id: FQ8APE}}
+      - name: update_reservation_passengers
+        arguments: {reservation_id: FQ8APE, passengers: [{first_name: Omar, last_name: Rossi, dob: '1970-06-06'}]}
+      - {name: get_reservation_details, arguments: {reservation_id: FQ8APE}}
+      - {name: update_reservation_baggages, arguments: {reservation_id: FQ8APE, total_baggages: 2, nonfree_baggages: 0, payment_id: gift_card_8190333}}
+    compliance_components:
+      - {rule_id: airline.modify.itinerary_invariants, target: FQ8APE}
+
+  - task_id: cw2_mutation_02
+    family_id: cw2_family_mutation_temporal_passenger_baggage
+    workflow_archetype: multi_attribute_mutation
+    user_id: sofia_kim_7287
+    reason_for_call: >-
+      On reservation OBUT9V, keep the outbound legs, replace the return with the HAT290 and
+      HAT175 same-day connection departing no earlier than 2 p.m., correct the sole passenger
+      to Mia Jackson, and increase the
+      checked-bag total to two. Keep economy cabin and no insurance.
+    known_info: >-
+      You are Sofia Kim (user id sofia_kim_7287). Mia Jackson's DOB is 1986-05-05. Use
+      gift_card_6276644 when required and confirm each complete update.
+    task_instructions: >-
+      Verify the requested return connection and its elapsed time including layover. After each update, continue from the
+      refreshed reservation and preserve every field not named by the request.
+    declared_goals: [verify_return_connection, update_return_flights, correct_passenger, add_one_more_bag, preserve_outbound_cabin_insurance]
+    relevant_entities: [user:sofia_kim_7287, reservation:OBUT9V, passenger:Mia_Jackson_1986-05-05, flight:HAT290@2024-05-27, flight:HAT175@2024-05-27, payment:gift_card_6276644]
+    governed_decision_points: [itinerary_identity_and_trip_type, passenger_count_preservation, baggage_add_only, explicit_confirmation]
+    workflow_dependencies: [temporal_verification_before_flight_write, refresh_before_passenger_write, refresh_before_baggage_write]
+    protected_invariants: [reservations.OI5L9G, reservations.AQLBTL, reservations.KA7I60, reservations.I57WUD, reservations.4BMN53, reservations.Q0ZF0J, reservations.OBUT9V.cabin, reservations.OBUT9V.insurance]
+    expected_reconciliation: {kind: return_elapsed_minutes, value: 360}
+    complexity_dimensions: [multi_goal, temporal_reasoning, multi_attribute_mutation, workflow_dependency, post_mutation_re_evaluation, preservation_constraint]
+    source_structure_refs: [original_task_21, original_task_33]
+    abstracted_structure: temporal connection verification feeds a chain of same-reservation mutations
+    new_realization: passenger substitution is added after a return-only update while outbound/cabin/insurance remain invariant
+    golden_actions:
+      - {name: get_reservation_details, arguments: {reservation_id: OBUT9V}}
+      - {name: search_onestop_flight, arguments: {origin: DEN, destination: IAH, date: '2024-05-27'}}
+      - name: update_reservation_flights
+        arguments: {reservation_id: OBUT9V, cabin: economy, flights: [{flight_number: HAT078, date: '2024-05-27'}, {flight_number: HAT118, date: '2024-05-27'}, {flight_number: HAT290, date: '2024-05-27'}, {flight_number: HAT175, date: '2024-05-27'}], payment_id: gift_card_6276644}
+      - {name: get_reservation_details, arguments: {reservation_id: OBUT9V}}
+      - name: update_reservation_passengers
+        arguments: {reservation_id: OBUT9V, passengers: [{first_name: Mia, last_name: Jackson, dob: '1986-05-05'}]}
+      - {name: get_reservation_details, arguments: {reservation_id: OBUT9V}}
+      - {name: update_reservation_baggages, arguments: {reservation_id: OBUT9V, total_baggages: 2, nonfree_baggages: 0, payment_id: gift_card_6276644}}
+    compliance_components:
+      - {rule_id: airline.modify.itinerary_invariants, target: OBUT9V}
+
+  - task_id: cw2_accumulation_01
+    family_id: cw2_family_accumulation_mutation_then_portfolio_query
+    workflow_archetype: mid_dialogue_goal_accumulation
+    user_id: anya_garcia_5901
+    reason_for_call: >-
+      Correct the two passenger names on reservation 3RK2T9 to Anya Garcia and Mei Garcia.
+    known_info: >-
+      You are Anya Garcia (user id anya_garcia_5901, DOB 1992-11-12). Mei Garcia's DOB is
+      1989-12-13. Confirm the passenger update.
+    task_instructions: >-
+      Start only with the passenger correction. After the agent reports that update complete,
+      add a second goal: ask for the total number of free checked bags on reservation JMO1MG.
+      Keep the completed first goal and wait for the second answer before ending.
+    staged_goals:
+      - {trigger: after_passenger_update_succeeds, operation: add, goal: report_free_baggage_total_for_JMO1MG, user_utterance: "Thanks. Also, how many checked bags are free in total on JMO1MG?"}
+    declared_goals: [correct_passengers_on_3RK2T9, report_free_baggage_total_on_JMO1MG]
+    relevant_entities: [reservation:3RK2T9, reservation:JMO1MG, user:anya_garcia_5901, passenger:Mei_Garcia_1989-12-13]
+    governed_decision_points: [passenger_count_preservation, explicit_confirmation, membership_cabin_passenger_allowance]
+    workflow_dependencies: [complete_initial_write, introduce_secondary_goal_after_trigger, inspect_second_entity, finish_all_active_goals]
+    protected_invariants: [reservations.JMO1MG, reservations.3RK2T9.flight_instances, reservations.3RK2T9.cabin, reservations.3RK2T9.baggage]
+    expected_reconciliation: {kind: free_baggage_total, value: 4, communicate: "4"}
+    complexity_dimensions: [mid_dialogue_goal_accumulation, multi_goal, multi_reservation, multi_policy, preservation_constraint, workflow_dependency]
+    source_structure_refs: [original_task_2, original_task_3, original_task_40]
+    abstracted_structure: completed mutation remains closed while a newly introduced cross-reservation query is resolved
+    new_realization: passenger correction followed by state-derived portfolio information rather than topic abandonment
+    golden_actions:
+      - {name: get_reservation_details, arguments: {reservation_id: 3RK2T9}}
+      - name: update_reservation_passengers
+        arguments: {reservation_id: 3RK2T9, passengers: [{first_name: Anya, last_name: Garcia, dob: '1992-11-12'}, {first_name: Mei, last_name: Garcia, dob: '1989-12-13'}]}
+      - {name: get_reservation_details, arguments: {reservation_id: JMO1MG}}
+      - {name: get_user_details, arguments: {user_id: anya_garcia_5901}}
+    compliance_components: []
+
+  - task_id: cw2_accumulation_02
+    family_id: cw2_family_accumulation_change_then_ancillary
+    workflow_archetype: mid_dialogue_goal_accumulation
+    user_id: aarav_garcia_1177
+    reason_for_call: >-
+      Move reservation M05KNL to the cheapest economy itinerary on May 24 while preserving
+      its ATL-to-PHL one-way route and passenger.
+    known_info: >-
+      You are Aarav Garcia (user id aarav_garcia_1177). Use gift_card_8887175 if a payment
+      id is required and confirm the flight-change payload.
+    task_instructions: >-
+      Start only with the flight change. After it succeeds, add a second goal: request two
+      checked bags on that updated reservation. Confirm the baggage update separately and
+      do not let the new goal replace the completed flight goal.
+    staged_goals:
+      - {trigger: after_flight_change_succeeds, operation: add, goal: add_two_checked_bags_to_updated_M05KNL, user_utterance: "One more thing: please add two checked bags to that updated reservation."}
+    declared_goals: [change_flight_to_cheapest_economy, add_two_bags_after_change]
+    relevant_entities: [user:aarav_garcia_1177, reservation:M05KNL, flight:HAT110@2024-05-24, flight:HAT172@2024-05-24, payment:gift_card_8887175]
+    governed_decision_points: [itinerary_identity, explicit_confirmation_per_mutation, baggage_add_only_and_allowance]
+    workflow_dependencies: [first_goal_commit, staged_goal_introduction, refresh_updated_reservation, second_confirmation_and_commit]
+    protected_invariants: [reservations.UHDAHF, reservations.M05KNL.passengers, reservations.M05KNL.insurance]
+    expected_reconciliation: {kind: final_reservation_fields, value: [cabin:economy, total_baggages:2]}
+    complexity_dimensions: [mid_dialogue_goal_accumulation, multi_goal, workflow_dependency, post_mutation_re_evaluation, multi_policy, preservation_constraint]
+    source_structure_refs: [original_task_15, original_task_33]
+    abstracted_structure: later ancillary goal must attach to the post-change reservation state
+    new_realization: sequential flight-then-baggage writes with separate confirmations and no cabin fallback
+    golden_actions:
+      - {name: get_reservation_details, arguments: {reservation_id: M05KNL}}
+      - name: update_reservation_flights
+        arguments: {reservation_id: M05KNL, cabin: economy, flights: [{flight_number: HAT110, date: '2024-05-24'}, {flight_number: HAT172, date: '2024-05-24'}], payment_id: gift_card_8887175}
+      - {name: get_reservation_details, arguments: {reservation_id: M05KNL}}
+      - {name: update_reservation_baggages, arguments: {reservation_id: M05KNL, total_baggages: 2, nonfree_baggages: 0, payment_id: gift_card_8887175}}
+    compliance_components:
+      - {rule_id: airline.modify.itinerary_invariants, target: M05KNL}
+
+  - task_id: cw2_accumulation_03
+    family_id: cw2_family_accumulation_cancel_then_cross_reservation_addition
+    workflow_archetype: mid_dialogue_goal_accumulation
+    user_id: ethan_martin_2396
+    reason_for_call: >-
+      Cancel business reservation BSSSM3 because my schedule changed and refund it to the
+      original payment method.
+    known_info: >-
+      You are Ethan Martin (user id ethan_martin_2396). Confirm the cancellation.
+    task_instructions: >-
+      Start only with the cancellation. After it succeeds, add a second goal: ask to increase
+      checked baggage on reservation GXWCPN from one to two, using credit_card_5447957 if
+      required. Confirm the second write separately and finish both goals.
+    staged_goals:
+      - {trigger: after_cancellation_succeeds, operation: add, goal: increase_GXWCPN_baggage_to_two, user_utterance: "Also, please increase the checked-bag total on GXWCPN from one to two."}
+    declared_goals: [cancel_BSSSM3, add_baggage_to_GXWCPN]
+    relevant_entities: [reservation:BSSSM3, reservation:GXWCPN, user:ethan_martin_2396, payment:credit_card_5447957]
+    governed_decision_points: [business_cancellation_eligibility, cancellation_reason_and_confirmation, baggage_add_only_and_allowance, second_confirmation]
+    workflow_dependencies: [complete_cancellation, introduce_cross_reservation_goal, resolve_second_entity_state, commit_second_goal]
+    protected_invariants: [reservations.DQST39, reservations.RVQC22, reservations.P824NH, reservations.HG8X9P, reservations.GXWCPN.flight_instances, reservations.GXWCPN.passengers]
+    expected_reconciliation: {kind: cancelled_refund, value: 2117, communicate: "2117"}
+    complexity_dimensions: [mid_dialogue_goal_accumulation, multi_goal, multi_reservation, multi_policy, workflow_dependency, preservation_constraint]
+    source_structure_refs: [original_task_7, original_task_33]
+    abstracted_structure: post-commit goal addition must be bound to a different reservation without reopening the first goal
+    new_realization: business cancellation followed by a cross-reservation baggage mutation, with no portfolio query
+    golden_actions:
+      - {name: get_reservation_details, arguments: {reservation_id: BSSSM3}}
+      - {name: cancel_reservation, arguments: {reservation_id: BSSSM3}}
+      - {name: get_reservation_details, arguments: {reservation_id: GXWCPN}}
+      - {name: update_reservation_baggages, arguments: {reservation_id: GXWCPN, total_baggages: 2, nonfree_baggages: 0, payment_id: credit_card_5447957}}
+    compliance_components:
+      - {rule_id: airline.cancel.reason_required, target: BSSSM3}
+
+  - task_id: cw2_authority_01
+    family_id: cw2_family_authority_membership_booking_preservation
+    workflow_archetype: authority_conflict_protected_remedy
+    user_id: liam_santos_5621
+    reason_for_call: >-
+      I believe I am a Gold member. Book a one-way economy trip from Boston to Philadelphia
+      on May 26 for me alone, with two checked bags and insurance, using my saved credit card.
+      Do not alter any of my existing reservations.
+    known_info: >-
+      You are Liam Santos (user id liam_santos_5621, DOB 1998-03-11). Use
+      credit_card_1835044. If the membership record disagrees with your belief, accept the
+      authoritative record and any resulting lawful bag charge. Confirm the final payload.
+    task_instructions: >-
+      Keep the new booking goal active after correcting the membership claim. Do not modify
+      or cancel an existing reservation to satisfy it.
+    declared_goals: [resolve_membership_authority, construct_booking_with_correct_allowance, preserve_existing_reservations, confirm_and_book]
+    relevant_entities: [user:liam_santos_5621, reservation:T7RO4F, flight:HAT260@2024-05-26, flight:HAT205@2024-05-26, payment:credit_card_1835044]
+    governed_decision_points: [db_membership_authority, state_derived_baggage_allowance, exact_payment, explicit_confirmation]
+    workflow_dependencies: [verify_authority_before_allowance, allowance_changes_total, total_changes_payment_payload, confirmation_after_resolution]
+    protected_invariants: [reservations.ZZSA4W, reservations.V75SFJ, reservations.EFIAC5, reservations.T7RO4F, reservations.96HBVR, reservations.C2SZKK, reservations.IDTRDM]
+    expected_reconciliation: {kind: payment_total, value: 364, parts: [364], authoritative_membership: regular}
+    complexity_dimensions: [authority_conflict, multi_state, multi_policy, preservation_constraint, payment_reconciliation, workflow_dependency]
+    source_structure_refs: [original_task_3, original_task_5, original_task_20]
+    abstracted_structure: authoritative state resolution changes a remedy payload while protected reservations remain untouched
+    new_realization: a previously unused Regular user and BOS–PHL connection make the membership dispute affect paid baggage inside a new booking
+    golden_actions:
+      - {name: get_user_details, arguments: {user_id: liam_santos_5621}}
+      - {name: search_onestop_flight, arguments: {origin: BOS, destination: PHL, date: '2024-05-26'}}
+      - name: book_reservation
+        arguments:
+          {user_id: liam_santos_5621, origin: BOS, destination: PHL, flight_type: one_way, cabin: economy,
+           flights: [{flight_number: HAT260, date: '2024-05-26'}, {flight_number: HAT205, date: '2024-05-26'}],
+           passengers: [{first_name: Liam, last_name: Santos, dob: '1998-03-11'}],
+           payment_methods: [{payment_id: credit_card_1835044, amount: 364}],
+           total_baggages: 2, nonfree_baggages: 1, insurance: 'yes'}
+    compliance_components:
+      - {rule_id: airline.book.baggage_allowance, target: liam_santos_5621}
+      - {rule_id: airline.action.explicit_confirmation, target: liam_santos_5621}
+
+  - task_id: cw2_authority_02
+    family_id: cw2_family_authority_insurance_denial_preservation
+    workflow_archetype: authority_conflict_protected_remedy
+    user_id: aarav_ahmed_6699
+    reason_for_call: >-
+      I am sick and believe reservation M20IZO is insured, so cancel it and refund me. If
+      the authoritative reservation record shows that this cancellation is not eligible,
+      leave M20IZO unchanged. In every case, do not alter business reservation N6F783.
+    known_info: >-
+      You are Aarav Ahmed (user id aarav_ahmed_6699). Give the medical reason if asked and
+      accept the database record as authoritative.
+    task_instructions: >-
+      Ask the agent to explain the verified insurance value and eligibility outcome. If
+      ineligible, do not pressure the agent into another workaround and preserve both named
+      reservations.
+    declared_goals: [verify_insurance_claim, evaluate_cancellation_eligibility, communicate_denial_if_ineligible, preserve_named_reservations]
+    relevant_entities: [user:aarav_ahmed_6699, reservation:M20IZO, reservation:N6F783]
+    governed_decision_points: [db_insurance_authority, insured_health_cancellation_eligibility, cancellation_reason, protected_state]
+    workflow_dependencies: [inspect_authoritative_state, evaluate_policy, deny_without_write, communicate_verified_result]
+    protected_invariants: [reservations.M20IZO, reservations.N6F783, reservations.IFOYYZ, reservations.NQNU5R]
+    expected_reconciliation: {kind: verified_denial, value: not_insured_and_not_eligible, communicate: "not insured"}
+    complexity_dimensions: [authority_conflict, multi_state, multi_policy, preservation_constraint, workflow_dependency, multi_entity]
+    source_structure_refs: [original_task_5, original_task_45, original_task_49]
+    abstracted_structure: user claim must be reconciled against authoritative eligibility state before any remedy write
+    new_realization: insurance conflict on a non-business reservation with a separately protected business reservation
+    golden_actions:
+      - {name: get_user_details, arguments: {user_id: aarav_ahmed_6699}}
+      - {name: get_reservation_details, arguments: {reservation_id: M20IZO}}
+      - {name: get_reservation_details, arguments: {reservation_id: N6F783}}
+    compliance_components: []
