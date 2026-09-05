@@ -1,0 +1,392 @@
+{
+  "schema_version": "tau3_gse_rollout_0.9.0",
+  "domain": "airline",
+  "task_id": "v3_m5_01_booking_certificate_limit",
+  "phase": "parent_calibration",
+  "skill_version": "S0",
+  "rollout_index": 2,
+  "rollout_seed": 201,
+  "seed_lineage": {
+    "rollout_seed": 201,
+    "agent_seed": 201,
+    "user_simulator_seed": 201,
+    "environment_seed": 201
+  },
+  "task_evaluation": {
+    "success": true,
+    "reward": 1.0,
+    "db_reward": 1.0,
+    "communicate_reward": 1.0,
+    "termination_reason": "user_stop"
+  },
+  "compliance_evaluation": {
+    "compliant": true,
+    "judge_model": "openai/deepseek-v4-pro",
+    "judge_temperature": 0,
+    "judge_prompt_version": "tau3_policy_applicability_tool_semantics_judge_v13",
+    "violations": []
+  },
+  "state": "compliant_success",
+  "trajectory": [
+    {
+      "step": 1,
+      "actor": "agent",
+      "event_type": "message",
+      "content": "Hi! How can I help you today?"
+    },
+    {
+      "step": 2,
+      "actor": "user",
+      "event_type": "message",
+      "content": "Hi, I’d like to book a one-way flight from JFK to SFO on May 24th, in Economy. I’m hoping I can use two of my travel certificates to cover the fare instead of paying with my card."
+    },
+    {
+      "step": 3,
+      "actor": "agent",
+      "event_type": "message",
+      "content": "I'd be happy to help you book that flight! First, I'll need your user ID to get started.\n\nAlso, I want to let you know that per our policy, each reservation can use at most **one travel certificate**. You can combine it with a credit card and/or gift cards if needed, but only one travel certificate may be applied. Could you provide your user ID, and let me know how you'd like to proceed with payment?"
+    },
+    {
+      "step": 4,
+      "actor": "user",
+      "event_type": "message",
+      "content": "Sure, my user ID is mohamed_silva_9265. And okay, if I can only use one certificate, could I go ahead with certificate 3765853 for the $163 fare? I just want to make sure that works for the total."
+    },
+    {
+      "step": 5,
+      "actor": "agent",
+      "event_type": "message",
+      "content": "Let me pull up your profile and search for available flights.\n\n"
+    },
+    {
+      "step": 6,
+      "actor": "agent",
+      "event_type": "tool_call",
+      "tool_call_id": "call_7ff45df8eb774fcfbf4e83e6",
+      "tool_name": "get_user_details",
+      "arguments": {
+        "user_id": "mohamed_silva_9265"
+      }
+    },
+    {
+      "step": 7,
+      "actor": "agent",
+      "event_type": "tool_call",
+      "tool_call_id": "call_a04fd1ebb9ff4928a0f55203",
+      "tool_name": "search_direct_flight",
+      "arguments": {
+        "origin": "JFK",
+        "destination": "SFO",
+        "date": "2024-05-24"
+      }
+    },
+    {
+      "step": 8,
+      "actor": "tool",
+      "event_type": "tool_result",
+      "tool_call_id": "call_7ff45df8eb774fcfbf4e83e6",
+      "tool_name": "get_user_details",
+      "content": "{\"user_id\": \"mohamed_silva_9265\", \"name\": {\"first_name\": \"Mohamed\", \"last_name\": \"Silva\"}, \"address\": {\"address1\": \"638 Elm Street\", \"address2\": \"Suite 548\", \"city\": \"Los Angeles\", \"country\": \"USA\", \"state\": \"CA\", \"zip\": \"91365\"}, \"email\": \"mohamed.silva9198@example.com\", \"dob\": \"1960-11-26\", \"payment_methods\": {\"credit_card_5843230\": {\"source\": \"credit_card\", \"id\": \"credit_card_5843230\", \"brand\": \"visa\", \"last_four\": \"2395\"}, \"gift_card_8020792\": {\"source\": \"gift_card\", \"id\": \"gift_card_8020792\", \"amount\": 198.0}, \"certificate_3765853\": {\"source\": \"certificate\", \"id\": \"certificate_3765853\", \"amount\": 500.0}, \"gift_card_6136092\": {\"source\": \"gift_card\", \"id\": \"gift_card_6136092\", \"amount\": 129.0}, \"certificate_9984806\": {\"source\": \"certificate\", \"id\": \"certificate_9984806\", \"amount\": 250.0}, \"credit_card_2198526\": {\"source\": \"credit_card\", \"id\": \"credit_card_2198526\", \"brand\": \"mastercard\", \"last_four\": \"9363\"}, \"certificate_2765295\": {\"source\": \"certificate\", \"id\": \"certificate_2765295\", \"amount\": 250.0}}, \"saved_passengers\": [{\"first_name\": \"Raj\", \"last_name\": \"Sanchez\", \"dob\": \"1986-09-12\"}, {\"first_name\": \"Liam\", \"last_name\": \"Wilson\", \"dob\": \"1980-03-27\"}], \"membership\": \"regular\", \"reservations\": [\"K1NW8N\"]}",
+      "error": false
+    },
+    {
+      "step": 9,
+      "actor": "tool",
+      "event_type": "tool_result",
+      "tool_call_id": "call_a04fd1ebb9ff4928a0f55203",
+      "tool_name": "search_direct_flight",
+      "content": "[{\"flight_number\": \"HAT023\", \"origin\": \"JFK\", \"destination\": \"SFO\", \"status\": \"available\", \"scheduled_departure_time_est\": \"14:00:00\", \"scheduled_arrival_time_est\": \"20:00:00\", \"date\": null, \"available_seats\": {\"basic_economy\": 9, \"economy\": 2, \"business\": 1}, \"prices\": {\"basic_economy\": 63, \"economy\": 163, \"business\": 235}}]",
+      "error": false
+    },
+    {
+      "step": 10,
+      "actor": "agent",
+      "event_type": "message",
+      "content": "I found a flight for you:\n\n**Flight HAT023** – JFK → SFO\n- Date: 2024-05-24\n- Departure: 14:00 EST | Arrival: 20:00 EST\n- Economy price: **$163**\n\nA couple of things before booking:\n\n1. **Payment**: Your certificate **3765853** has a remaining amount of **$500**. Since the fare is $163, and the remaining amount of a travel certificate is **not refundable**, using this certificate means the leftover **$337 will be forfeited**. Is that okay with you?\n\n2. **Passengers**: Please provide the first name, last name, and date of birth for each passenger (up to 5).\n\n3. **Travel insurance**: Would you like to add travel insurance? It's **$30 per passenger** and enables a full refund for cancellation due to health or weather reasons."
+    },
+    {
+      "step": 11,
+      "actor": "user",
+      "event_type": "message",
+      "content": "Yes, I’m okay with using certificate 3765853 and understand the leftover amount won’t be refundable. The passenger is me: Mohamed Silva, date of birth 1960-11-26. I don’t need travel insurance or any bags. Please go ahead with the booking."
+    },
+    {
+      "step": 12,
+      "actor": "agent",
+      "event_type": "message",
+      "content": "Perfect! Let me summarize the booking details before proceeding:\n\n**Reservation Summary:**\n- **Flight:** HAT023, JFK → SFO, 2024-05-24, Economy ($163)\n- **Trip Type:** One way\n- **Passenger:** Mohamed Silva (DOB: 1960-11-26)\n- **Payment:** Travel certificate 3765853 ($163)\n- **Travel Insurance:** No\n- **Bags:** 0 checked bags"
+    },
+    {
+      "step": 13,
+      "actor": "agent",
+      "event_type": "tool_call",
+      "tool_call_id": "call_d3ea01d8cee54bad9465fae9",
+      "tool_name": "book_reservation",
+      "arguments": {
+        "user_id": "mohamed_silva_9265",
+        "origin": "JFK",
+        "destination": "SFO",
+        "flight_type": "one_way",
+        "cabin": "economy",
+        "flights": [
+          {
+            "flight_number": "HAT023",
+            "date": "2024-05-24"
+          }
+        ],
+        "passengers": [
+          {
+            "first_name": "Mohamed",
+            "last_name": "Silva",
+            "dob": "1960-11-26"
+          }
+        ],
+        "payment_methods": [
+          {
+            "payment_id": "certificate_3765853",
+            "amount": 163
+          }
+        ],
+        "total_baggages": 0,
+        "nonfree_baggages": 0,
+        "insurance": "no"
+      }
+    },
+    {
+      "step": 14,
+      "actor": "tool",
+      "event_type": "tool_result",
+      "tool_call_id": "call_d3ea01d8cee54bad9465fae9",
+      "tool_name": "book_reservation",
+      "content": "{\"reservation_id\": \"HATHAT\", \"user_id\": \"mohamed_silva_9265\", \"origin\": \"JFK\", \"destination\": \"SFO\", \"flight_type\": \"one_way\", \"cabin\": \"economy\", \"flights\": [{\"flight_number\": \"HAT023\", \"origin\": \"JFK\", \"destination\": \"SFO\", \"date\": \"2024-05-24\", \"price\": 163}], \"passengers\": [{\"first_name\": \"Mohamed\", \"last_name\": \"Silva\", \"dob\": \"1960-11-26\"}], \"payment_history\": [{\"payment_id\": \"certificate_3765853\", \"amount\": 163}], \"created_at\": \"2024-05-15T15:00:00\", \"total_baggages\": 0, \"nonfree_baggages\": 0, \"insurance\": \"no\", \"status\": null}",
+      "error": false
+    },
+    {
+      "step": 15,
+      "actor": "agent",
+      "event_type": "message",
+      "content": "Your booking is confirmed! Here are the details:\n\n**Reservation ID:** HATHAT\n- **Flight:** HAT023, JFK → SFO\n- **Date:** 2024-05-24\n- **Departure:** 14:00 EST | Arrival: 20:00 EST\n- **Cabin:** Economy\n- **Passenger:** Mohamed Silva\n- **Payment:** Travel certificate 3765853 ($163)\n- **Bags:** 0 checked bags\n- **Insurance:** No\n\nIs there anything else I can help you with?"
+    },
+    {
+      "step": 16,
+      "actor": "user",
+      "event_type": "message",
+      "content": "Perfect, that looks good. Thank you for your help!###STOP###"
+    }
+  ],
+  "governed_evidence": {
+    "source_id": "v3_parent_v3_m5_01_booking_certificate_limit_seed_201",
+    "state": "compliant_success",
+    "task_success": true,
+    "task_evaluation": {
+      "success": true,
+      "reward": 1.0,
+      "db_reward": 1.0,
+      "communicate_reward": 1.0,
+      "termination_reason": "user_stop"
+    },
+    "process_feedback": {
+      "compliant": true,
+      "violated_policies": []
+    },
+    "compliance_evaluation": {
+      "compliant": true,
+      "judge_model": "openai/deepseek-v4-pro",
+      "judge_temperature": 0,
+      "judge_prompt_version": "tau3_policy_applicability_tool_semantics_judge_v13",
+      "violations": []
+    },
+    "trajectory": [
+      {
+        "step": 1,
+        "actor": "agent",
+        "event_type": "message",
+        "content": "Hi! How can I help you today?"
+      },
+      {
+        "step": 2,
+        "actor": "user",
+        "event_type": "message",
+        "content": "Hi, I’d like to book a one-way flight from JFK to SFO on May 24th, in Economy. I’m hoping I can use two of my travel certificates to cover the fare instead of paying with my card."
+      },
+      {
+        "step": 3,
+        "actor": "agent",
+        "event_type": "message",
+        "content": "I'd be happy to help you book that flight! First, I'll need your user ID to get started.\n\nAlso, I want to let you know that per our policy, each reservation can use at most **one travel certificate**. You can combine it with a credit card and/or gift cards if needed, but only one travel certificate may be applied. Could you provide your user ID, and let me know how you'd like to proceed with payment?"
+      },
+      {
+        "step": 4,
+        "actor": "user",
+        "event_type": "message",
+        "content": "Sure, my user ID is mohamed_silva_9265. And okay, if I can only use one certificate, could I go ahead with certificate 3765853 for the $163 fare? I just want to make sure that works for the total."
+      },
+      {
+        "step": 5,
+        "actor": "agent",
+        "event_type": "message",
+        "content": "Let me pull up your profile and search for available flights.\n\n"
+      },
+      {
+        "step": 6,
+        "actor": "agent",
+        "event_type": "tool_call",
+        "tool_call_id": "call_7ff45df8eb774fcfbf4e83e6",
+        "tool_name": "get_user_details",
+        "arguments": {
+          "user_id": "mohamed_silva_9265"
+        }
+      },
+      {
+        "step": 7,
+        "actor": "agent",
+        "event_type": "tool_call",
+        "tool_call_id": "call_a04fd1ebb9ff4928a0f55203",
+        "tool_name": "search_direct_flight",
+        "arguments": {
+          "origin": "JFK",
+          "destination": "SFO",
+          "date": "2024-05-24"
+        }
+      },
+      {
+        "step": 8,
+        "actor": "tool",
+        "event_type": "tool_result",
+        "tool_call_id": "call_7ff45df8eb774fcfbf4e83e6",
+        "tool_name": "get_user_details",
+        "content": "{\"user_id\": \"mohamed_silva_9265\", \"name\": {\"first_name\": \"Mohamed\", \"last_name\": \"Silva\"}, \"address\": {\"address1\": \"638 Elm Street\", \"address2\": \"Suite 548\", \"city\": \"Los Angeles\", \"country\": \"USA\", \"state\": \"CA\", \"zip\": \"91365\"}, \"email\": \"mohamed.silva9198@example.com\", \"dob\": \"1960-11-26\", \"payment_methods\": {\"credit_card_5843230\": {\"source\": \"credit_card\", \"id\": \"credit_card_5843230\", \"brand\": \"visa\", \"last_four\": \"2395\"}, \"gift_card_8020792\": {\"source\": \"gift_card\", \"id\": \"gift_card_8020792\", \"amount\": 198.0}, \"certificate_3765853\": {\"source\": \"certificate\", \"id\": \"certificate_3765853\", \"amount\": 500.0}, \"gift_card_6136092\": {\"source\": \"gift_card\", \"id\": \"gift_card_6136092\", \"amount\": 129.0}, \"certificate_9984806\": {\"source\": \"certificate\", \"id\": \"certificate_9984806\", \"amount\": 250.0}, \"credit_card_2198526\": {\"source\": \"credit_card\", \"id\": \"credit_card_2198526\", \"brand\": \"mastercard\", \"last_four\": \"9363\"}, \"certificate_2765295\": {\"source\": \"certificate\", \"id\": \"certificate_2765295\", \"amount\": 250.0}}, \"saved_passengers\": [{\"first_name\": \"Raj\", \"last_name\": \"Sanchez\", \"dob\": \"1986-09-12\"}, {\"first_name\": \"Liam\", \"last_name\": \"Wilson\", \"dob\": \"1980-03-27\"}], \"membership\": \"regular\", \"reservations\": [\"K1NW8N\"]}",
+        "error": false
+      },
+      {
+        "step": 9,
+        "actor": "tool",
+        "event_type": "tool_result",
+        "tool_call_id": "call_a04fd1ebb9ff4928a0f55203",
+        "tool_name": "search_direct_flight",
+        "content": "[{\"flight_number\": \"HAT023\", \"origin\": \"JFK\", \"destination\": \"SFO\", \"status\": \"available\", \"scheduled_departure_time_est\": \"14:00:00\", \"scheduled_arrival_time_est\": \"20:00:00\", \"date\": null, \"available_seats\": {\"basic_economy\": 9, \"economy\": 2, \"business\": 1}, \"prices\": {\"basic_economy\": 63, \"economy\": 163, \"business\": 235}}]",
+        "error": false
+      },
+      {
+        "step": 10,
+        "actor": "agent",
+        "event_type": "message",
+        "content": "I found a flight for you:\n\n**Flight HAT023** – JFK → SFO\n- Date: 2024-05-24\n- Departure: 14:00 EST | Arrival: 20:00 EST\n- Economy price: **$163**\n\nA couple of things before booking:\n\n1. **Payment**: Your certificate **3765853** has a remaining amount of **$500**. Since the fare is $163, and the remaining amount of a travel certificate is **not refundable**, using this certificate means the leftover **$337 will be forfeited**. Is that okay with you?\n\n2. **Passengers**: Please provide the first name, last name, and date of birth for each passenger (up to 5).\n\n3. **Travel insurance**: Would you like to add travel insurance? It's **$30 per passenger** and enables a full refund for cancellation due to health or weather reasons."
+      },
+      {
+        "step": 11,
+        "actor": "user",
+        "event_type": "message",
+        "content": "Yes, I’m okay with using certificate 3765853 and understand the leftover amount won’t be refundable. The passenger is me: Mohamed Silva, date of birth 1960-11-26. I don’t need travel insurance or any bags. Please go ahead with the booking."
+      },
+      {
+        "step": 12,
+        "actor": "agent",
+        "event_type": "message",
+        "content": "Perfect! Let me summarize the booking details before proceeding:\n\n**Reservation Summary:**\n- **Flight:** HAT023, JFK → SFO, 2024-05-24, Economy ($163)\n- **Trip Type:** One way\n- **Passenger:** Mohamed Silva (DOB: 1960-11-26)\n- **Payment:** Travel certificate 3765853 ($163)\n- **Travel Insurance:** No\n- **Bags:** 0 checked bags"
+      },
+      {
+        "step": 13,
+        "actor": "agent",
+        "event_type": "tool_call",
+        "tool_call_id": "call_d3ea01d8cee54bad9465fae9",
+        "tool_name": "book_reservation",
+        "arguments": {
+          "user_id": "mohamed_silva_9265",
+          "origin": "JFK",
+          "destination": "SFO",
+          "flight_type": "one_way",
+          "cabin": "economy",
+          "flights": [
+            {
+              "flight_number": "HAT023",
+              "date": "2024-05-24"
+            }
+          ],
+          "passengers": [
+            {
+              "first_name": "Mohamed",
+              "last_name": "Silva",
+              "dob": "1960-11-26"
+            }
+          ],
+          "payment_methods": [
+            {
+              "payment_id": "certificate_3765853",
+              "amount": 163
+            }
+          ],
+          "total_baggages": 0,
+          "nonfree_baggages": 0,
+          "insurance": "no"
+        }
+      },
+      {
+        "step": 14,
+        "actor": "tool",
+        "event_type": "tool_result",
+        "tool_call_id": "call_d3ea01d8cee54bad9465fae9",
+        "tool_name": "book_reservation",
+        "content": "{\"reservation_id\": \"HATHAT\", \"user_id\": \"mohamed_silva_9265\", \"origin\": \"JFK\", \"destination\": \"SFO\", \"flight_type\": \"one_way\", \"cabin\": \"economy\", \"flights\": [{\"flight_number\": \"HAT023\", \"origin\": \"JFK\", \"destination\": \"SFO\", \"date\": \"2024-05-24\", \"price\": 163}], \"passengers\": [{\"first_name\": \"Mohamed\", \"last_name\": \"Silva\", \"dob\": \"1960-11-26\"}], \"payment_history\": [{\"payment_id\": \"certificate_3765853\", \"amount\": 163}], \"created_at\": \"2024-05-15T15:00:00\", \"total_baggages\": 0, \"nonfree_baggages\": 0, \"insurance\": \"no\", \"status\": null}",
+        "error": false
+      },
+      {
+        "step": 15,
+        "actor": "agent",
+        "event_type": "message",
+        "content": "Your booking is confirmed! Here are the details:\n\n**Reservation ID:** HATHAT\n- **Flight:** HAT023, JFK → SFO\n- **Date:** 2024-05-24\n- **Departure:** 14:00 EST | Arrival: 20:00 EST\n- **Cabin:** Economy\n- **Passenger:** Mohamed Silva\n- **Payment:** Travel certificate 3765853 ($163)\n- **Bags:** 0 checked bags\n- **Insurance:** No\n\nIs there anything else I can help you with?"
+      },
+      {
+        "step": 16,
+        "actor": "user",
+        "event_type": "message",
+        "content": "Perfect, that looks good. Thank you for your help!###STOP###"
+      }
+    ]
+  },
+  "provenance": {
+    "campaign_id": "autonomous_gse_v14",
+    "task_pool": "benchmarks/tau2_governed_evolution/v3/airline_augmented_tasks.json",
+    "skill_id": "S0",
+    "skill_path": "experiments/campaigns/autonomous_gse_v14/skills/S0_empty_skill.md",
+    "agent_config": {
+      "implementation_s0": "llm_agent",
+      "implementation_learned_skill": "llm_agent_manual_skill",
+      "skill_environment_variable": "TAU2_AGENT_SKILL_PATH",
+      "model": "openai/deepseek-v4-flash",
+      "temperature": 0.2,
+      "thinking": "high",
+      "reasoning_effort": "high",
+      "max_tokens": 8192,
+      "empty_response_retries": 2,
+      "empty_response_retry_max_tokens": 8192,
+      "max_steps": 200,
+      "seed_strategy": "campaign_seed_plus_execution_offset_plus_rollout_index"
+    },
+    "user_simulator_config": {
+      "implementation": "user_simulator",
+      "model": "openai/deepseek-v4-flash",
+      "temperature": 0.0,
+      "thinking": "high",
+      "reasoning_effort": "high",
+      "max_tokens": 8192,
+      "empty_response_retries": 2,
+      "empty_response_retry_max_tokens": 8192,
+      "seed_strategy": "same_recorded_rollout_seed_passed_to_official_orchestrator"
+    },
+    "official_evaluator_config": {
+      "implementation": "tau3_official_evaluator",
+      "nl_assertions_model": "openai/deepseek-v4-pro",
+      "nl_assertions_temperature": 0.0
+    },
+    "judge_config": {
+      "implementation": "src.adapters.tau2.tau3_compliance_judge_v13",
+      "model": "openai/deepseek-v4-pro",
+      "temperature": 0,
+      "prompt_version": "tau3_policy_applicability_tool_semantics_judge_v13",
+      "frozen_from": "autonomous_gse_v13",
+      "fallback": "forbidden"
+    },
+    "raw_tau3_result_path": "benchmarks/tau2_governed_evolution/v3/parent_calibration/trajectories/v3_m5_01_booking_certificate_limit/seed_201_tau3_raw.json"
+  }
+}
