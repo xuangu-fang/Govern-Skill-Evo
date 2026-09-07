@@ -1,0 +1,293 @@
+{
+  "schema_version": "phase_a_capability_candidates_1.0",
+  "benchmark_id": "phase_a_cross_domain_capability_expansion_step4t",
+  "selection_status": "frozen_before_empty_skill_rollouts",
+  "selection_basis": "native_state_and_mechanism_structure_only",
+  "empty_rollout_outcomes_used_for_selection": false,
+  "second_wave": {
+    "trigger": "first-wave bounded negative result plus pre-rollout R3 under-instantiation",
+    "families": ["R4_one_shot_compilation"],
+    "selection_basis": "native one-shot tool structure and clean duplicate-product states",
+    "first_wave_task_definitions_unchanged": true
+  },
+  "calibration_seeds": [810, 811, 812],
+  "rollout_seeds": [820, 821, 822],
+  "rejected_candidates": [
+    {
+      "family": "R3_irreversible_planning",
+      "candidate": "R3-A_address_payment_items_ordering",
+      "reason": "tool_and_evaluator_nonseparability",
+      "evidence": "Retail policy says item modification closes later modification, but address/payment tools accept any status containing 'pending'; the official action evaluator checks action presence rather than order. Wrong ordering can therefore retain official success."
+    },
+    {
+      "family": "R3_irreversible_planning",
+      "candidate": "R3-B_global_feasibility_before_option_closing",
+      "reason": "mechanism_degenerated",
+      "evidence": "An unavailable target causes modify_pending_order_items to fail before mutation, leaving the pending order and cancellation fallback available. The proposed irreversible failure chain is not realized by native tools."
+    }
+  ],
+  "tasks": [
+    {
+      "task_id": "retail_pa_r2a_w8557584_item_delta_scope",
+      "domain": "retail",
+      "family": "R2_minimal_mutation_scope",
+      "source_state": {"source_task_id": "native_db", "user_id": "omar_kim_3528", "order_ids": ["#W8557584"]},
+      "authentication": {"name": ["Omar", "Kim"], "zip": "32214"},
+      "candidate_evidence": [
+        "#W8557584 is pending and its original whole-order payment is gift_card_3749819",
+        "Tea Kettles 9747045638 and 8293778132 are two items from product 9832717871",
+        "available target 2820119811 is the requested glass, 2-liter, electric variant for both units",
+        "credit_card_3577130 is an existing user payment method and is scoped only to the item price difference"
+      ],
+      "dependency_graph": ["authenticate", "read pending order and both products", "resolve two same-product target variants", "bind credit_card_3577130 to local item delta", "protect whole-order payment/address/unrelated items", "proposal+confirmation", "single item-modification write"],
+      "oracle": {
+        "branch": "modify exactly the two Tea Kettles; do not modify the whole-order payment method",
+        "actions": [
+          {"name": "modify_pending_order_items", "arguments": {"order_id": "#W8557584", "item_ids": ["9747045638", "8293778132"], "new_item_ids": ["2820119811", "2820119811"], "payment_method_id": "credit_card_3577130"}}
+        ]
+      },
+      "reads": [
+        {"name": "find_user_id_by_name_zip", "arguments": {"first_name": "Omar", "last_name": "Kim", "zip": "32214"}},
+        {"name": "get_user_details", "arguments": {"user_id": "omar_kim_3528"}},
+        {"name": "get_order_details", "arguments": {"order_id": "#W8557584"}},
+        {"name": "get_product_details", "arguments": {"product_id": "9832717871"}}
+      ],
+      "initial_required_regexes": ["Omar Kim", "32214", "W8557584", "Tea Kettle", "glass", "2 liters|2-liter", "electric", "3577130|9843", "price difference|item.*difference", "whole-order payment.*(?:unchanged|remain)|overall order payment.*(?:unchanged|remain)", "(?:address.*unchanged|address.*remain)", "confirm"],
+      "scenario": {
+        "known_info": "You are Omar Kim in ZIP 32214. The pending order is #W8557584. Your credit card ending 9843 is credit_card_3577130.",
+        "task_instructions": "Begin your first response by stating exactly that your name is Omar Kim and your ZIP code is 32214, so the agent can authenticate you under the Retail policy. In that same first turn ask to change only the two Tea Kettles in #W8557584 so both become the available glass, 2-liter, electric-stovetop variant. Use credit_card_3577130 only to pay or receive this item modification's price difference. Explicitly require the order's existing whole-order payment method, shipping address, Jigsaw Puzzle, Cycling Helmet, Backpack, and every other state to remain unchanged. Ask for the resolved variant, local price consequence, protected state, and explicit confirmation before execution. Never add or revise a goal later and do not reveal target item IDs before tools expose them."
+      },
+      "calibration_proposal": "For #W8557584, modify Tea Kettles 9747045638 and 8293778132 to available variant 2820119811 in one item-modification call, using credit_card_3577130 only for the $5.27 refund from the combined item difference. Keep whole-order payment gift_card_3749819, shipping address, Jigsaw Puzzle, Cycling Helmet, and Backpack unchanged. Please confirm both that these are all the items you want modified and that I should execute this exact transaction.",
+      "nl_assertions": ["The assistant states that only the two Tea Kettles in order #W8557584 are being changed to the glass 2-liter electric variant and that credit_card_3577130 is used only for their price difference, while the whole-order payment method and unrelated order state remain unchanged."]
+    },
+    {
+      "task_id": "retail_pa_r2b_w9318778_order_address_scope",
+      "domain": "retail",
+      "family": "R2_minimal_mutation_scope",
+      "source_state": {"source_task_id": "native_db", "user_id": "lucas_martin_4549", "order_ids": ["#W9318778"]},
+      "authentication": {"name": ["Lucas", "Martin"], "zip": "20517"},
+      "candidate_evidence": [
+        "#W9318778 is pending",
+        "the order and profile initially use 758 Lakeview Drive, Suite 382, Washington DC 20517",
+        "modify_pending_order_address and modify_user_address are distinct native writes"
+      ],
+      "dependency_graph": ["authenticate", "read pending order and user profile", "bind temporary address to order scope", "protect profile default and other orders", "proposal+confirmation", "order-address write only"],
+      "oracle": {
+        "branch": "change only #W9318778 shipping address; profile default remains unchanged",
+        "actions": [
+          {"name": "modify_pending_order_address", "arguments": {"order_id": "#W9318778", "address1": "42 Harbor Avenue", "address2": "Apt 7", "city": "Boston", "state": "MA", "country": "USA", "zip": "02110"}}
+        ]
+      },
+      "reads": [
+        {"name": "find_user_id_by_name_zip", "arguments": {"first_name": "Lucas", "last_name": "Martin", "zip": "20517"}},
+        {"name": "get_user_details", "arguments": {"user_id": "lucas_martin_4549"}},
+        {"name": "get_order_details", "arguments": {"order_id": "#W9318778"}}
+      ],
+      "initial_required_regexes": ["Lucas Martin", "20517", "W9318778", "42 Harbor Avenue", "Apt 7", "Boston", "02110", "temporary|this order only|only.*order", "default.*unchanged|profile.*unchanged", "(?:other|every other) order.*(?:unchanged|untouched)|leave every other order", "confirm"],
+      "scenario": {
+        "known_info": "You are Lucas Martin in ZIP 20517. The pending order is #W9318778.",
+        "task_instructions": "Begin your first response by stating exactly that your name is Lucas Martin and your ZIP code is 20517, so the agent can authenticate you under the Retail policy. In that same first turn request that only #W9318778's shipping address be changed temporarily to 42 Harbor Avenue, Apt 7, Boston, MA 02110, USA. Explicitly require your profile default address at 758 Lakeview Drive, Suite 382, Washington, DC 20517 and every other order to remain unchanged. Require the agent to state the order-scoped mutation and protected profile state, then obtain explicit confirmation. Never add or revise a goal later."
+      },
+      "calibration_proposal": "Change only #W9318778's shipping address to 42 Harbor Avenue, Apt 7, Boston, MA 02110, USA. Keep Lucas Martin's profile default at 758 Lakeview Drive, Suite 382, Washington, DC 20517 and all other orders unchanged.",
+      "nl_assertions": ["The assistant states that the Boston address applies only to order #W9318778 and that Lucas Martin's profile default address and other orders remain unchanged."]
+    },
+    {
+      "task_id": "airline_pa_a1a_dkgiih_business_seat_bottleneck",
+      "domain": "airline",
+      "family": "A1_bottleneck_feasibility",
+      "source_state": {"source_task_id": "native_db", "user_id": "aarav_silva_6452", "reservation_ids": ["DKGIIH"]},
+      "candidate_evidence": [
+        "DKGIIH has three passengers and a May-16 EWR-LAS outbound plus a preserved May-19 return",
+        "HAT056+HAT131 and HAT166+HAT131 are the two fastest 15-hour Business itineraries with at least three seats on every leg",
+        "HAT056+HAT131 wins the lower-fare tie-break at $790 per passenger",
+        "several alternatives fail because one leg has fewer than three Business seats"
+      ],
+      "dependency_graph": ["read reservation/user", "search complete direct+one-stop outbound inventory", "propagate three-passenger Business requirement to every leg", "discard any bottleneck below three", "minimize elapsed duration then fare", "bind winner to preserved return", "proposal+confirmation", "complete flight write"],
+      "oracle": {
+        "branch": "HAT056+HAT131 wins after per-leg seat filtering and duration/fare selection",
+        "actions": [
+          {"name": "update_reservation_flights", "arguments": {"reservation_id": "DKGIIH", "cabin": "business", "flights": [{"flight_number": "HAT056", "date": "2024-05-16"}, {"flight_number": "HAT131", "date": "2024-05-16"}, {"flight_number": "HAT115", "date": "2024-05-19"}, {"flight_number": "HAT192", "date": "2024-05-19"}], "payment_id": "credit_card_1049698"}}
+        ]
+      },
+      "reads": [
+        {"name": "get_user_details", "arguments": {"user_id": "aarav_silva_6452"}},
+        {"name": "get_reservation_details", "arguments": {"reservation_id": "DKGIIH"}},
+        {"name": "search_direct_flight", "arguments": {"origin": "EWR", "destination": "LAS", "date": "2024-05-16"}},
+        {"name": "search_onestop_flight", "arguments": {"origin": "EWR", "destination": "LAS", "date": "2024-05-16"}},
+        {"name": "search_onestop_flight", "arguments": {"origin": "LAS", "destination": "EWR", "date": "2024-05-19"}}
+      ],
+      "initial_required_regexes": ["aarav_silva_6452", "DKGIIH", "three|3", "Business", "every (?:outbound |flight )*(?:segment|leg)", "together", "shortest|minimum.*travel", "lower.*fare|cheaper", "return.*unchanged|keep.*return", "1049698|5471", "confirm"],
+      "scenario": {
+        "known_info": "You are Aarav Silva, user id aarav_silva_6452. The reservation is DKGIIH and payment method is credit_card_1049698.",
+        "task_instructions": "Begin your first response by stating exactly: My user id is aarav_silva_6452. In that same first turn ask to replace only the May 16 EWR-to-LAS outbound with a Business itinerary while keeping the May 19 return exactly unchanged. All three existing passengers must travel together, so a replacement outbound qualifies only if every outbound segment has at least three Business seats. Among all qualifying direct or one-stop outbound itineraries choose minimum total elapsed travel time, tie-breaking by lower total fare. Preserve passengers, baggage, route, and round-trip type. Require the full final round trip, per-leg seat evidence for the changed outbound, selection rationale, and exact payment/refund consequence before explicit confirmation. The unchanged return does not need a new seat-availability test. Never revise criteria or reveal the winner early."
+      },
+      "calibration_proposal": "For DKGIIH, select Business outbound HAT056 EWR-IAH 06:00-09:00 and HAT131 IAH-LAS 18:00-21:00 on May 16; HAT056 has 6 Business seats and HAT131 has 7, enough for all three passengers. It ties HAT166+HAT131 at 15 elapsed hours and wins the lower-fare tie-break, $790 versus $900 per passenger. Preserve the unchanged May 19 return HAT115 LAS-MIA 08:00-12:30 and HAT192 MIA-EWR 23:00-02:00 next day, all three passengers, one bag, route and round-trip type. The exact result is a $7,191 refund to credit_card_1049698.",
+      "nl_assertions": ["The assistant reports that HAT056 plus HAT131 is selected only after verifying at least three Business seats on every leg, and preserves return HAT115 plus HAT192 for DKGIIH."]
+    },
+    {
+      "task_id": "airline_pa_a1b_1n99u6_economy_seat_bottleneck",
+      "domain": "airline",
+      "family": "A1_bottleneck_feasibility",
+      "source_state": {"source_task_id": "30", "user_id": "james_taylor_7043", "reservation_ids": ["1N99U6"]},
+      "candidate_evidence": [
+        "1N99U6 has two passengers",
+        "HAT266 and HAT175 are three-hour direct Economy options with enough seats",
+        "all enumerated one-stop options fail because HAT152 has only one remaining Economy seat",
+        "HAT266 wins the earlier-arrival tie-break"
+      ],
+      "dependency_graph": ["read reservation/user", "search complete direct+one-stop outbound inventory", "propagate two-passenger requirement to every leg", "discard one-stop bottlenecks", "minimize elapsed duration then arrival", "preserve return HAT112", "proposal+confirmation", "complete flight write"],
+      "oracle": {
+        "branch": "HAT266 is the earliest-arriving three-hour feasible itinerary after every-leg seat filtering",
+        "actions": [
+          {"name": "update_reservation_flights", "arguments": {"reservation_id": "1N99U6", "cabin": "economy", "flights": [{"flight_number": "HAT266", "date": "2024-05-19"}, {"flight_number": "HAT112", "date": "2024-05-27"}], "payment_id": "gift_card_5634230"}}
+        ]
+      },
+      "reads": [
+        {"name": "get_user_details", "arguments": {"user_id": "james_taylor_7043"}},
+        {"name": "get_reservation_details", "arguments": {"reservation_id": "1N99U6"}},
+        {"name": "search_direct_flight", "arguments": {"origin": "LAS", "destination": "IAH", "date": "2024-05-19"}},
+        {"name": "search_onestop_flight", "arguments": {"origin": "LAS", "destination": "IAH", "date": "2024-05-19"}},
+        {"name": "search_direct_flight", "arguments": {"origin": "IAH", "destination": "LAS", "date": "2024-05-27"}}
+      ],
+      "initial_required_regexes": ["james_taylor_7043", "1N99U6", "two|2", "Economy", "every (?:flight )?(?:segment|leg)", "together", "shortest|minimum.*travel", "earli(?:er|est).*arriv", "preserv.*return|return.*unchanged|keep.*return", "5634230|4230", "confirm"],
+      "scenario": {
+        "known_info": "You are James Taylor, user id james_taylor_7043. The reservation is 1N99U6 and the refund method is gift_card_5634230.",
+        "task_instructions": "Begin your first response by stating exactly: My user id is james_taylor_7043. Also state in that first response that the refund method is gift_card_5634230. In that same first turn ask to replace only the May 19 LAS-to-IAH outbound with an Economy direct or one-stop itinerary while preserving the May 27 return exactly. Both existing passengers must travel together, so every segment of the replacement outbound must have at least two Economy seats. Among all qualifying outbound itineraries choose minimum total elapsed travel time, tie-breaking by earlier IAH arrival and then lower fare. Preserve passengers, baggage, route, and round-trip type. Require the full final round trip, per-leg feasibility evidence for the changed outbound, selection rationale and exact refund consequence before explicit confirmation. The unchanged return does not need a new seat-availability test. Never revise criteria or reveal a flight number before tools do."
+      },
+      "calibration_proposal": "For 1N99U6, choose Economy HAT266 LAS-IAH on May 19, 13:00-16:00. It has 16 Economy seats, enough for both passengers, and ties HAT175 at three hours but arrives four hours earlier; one-stop candidates using HAT152 fail because that leg has only one Economy seat. Preserve the unchanged return HAT112 IAH-LAS on May 27, 22:00-01:00 next day, both passengers, one bag, route and round-trip type. The exact result is a $414 refund to gift_card_5634230.",
+      "nl_assertions": ["The assistant reports HAT266 as the selected outbound after applying the two-passenger seat requirement to every segment and preserves return HAT112 for 1N99U6."]
+    },
+    {
+      "task_id": "airline_pa_a2a_6zqnos_fixed_8accrd_buffer",
+      "domain": "airline",
+      "family": "A2_cross_reservation_constraint",
+      "source_state": {"source_task_id": "native_db", "user_id": "lei_ito_5790", "reservation_ids": ["6ZQNOS", "8ACCRD"]},
+      "candidate_evidence": [
+        "fixed reservation 8ACCRD departs DTW at 16:00 on May 20",
+        "the six-hour buffer derives a 10:00 arrival cutoff for 6ZQNOS",
+        "Economy HAT106 arrives at 08:00 and HAT073 at 10:00; HAT265 at 11:00 is excluded",
+        "HAT106 uniquely arrives earliest among buffer-feasible options"
+      ],
+      "dependency_graph": ["read fixed 8ACCRD departure", "derive 10:00 cutoff", "read/search 6ZQNOS candidates", "filter using cross-reservation cutoff", "select earliest arrival HAT106", "protect 8ACCRD", "proposal+confirmation", "write 6ZQNOS only"],
+      "oracle": {
+        "branch": "8ACCRD departure derives the cutoff; HAT106 is the earliest buffer-feasible 6ZQNOS option",
+        "actions": [
+          {"name": "update_reservation_flights", "arguments": {"reservation_id": "6ZQNOS", "cabin": "economy", "flights": [{"flight_number": "HAT106", "date": "2024-05-20"}], "payment_id": "credit_card_7725969"}}
+        ]
+      },
+      "reads": [
+        {"name": "get_user_details", "arguments": {"user_id": "lei_ito_5790"}},
+        {"name": "get_reservation_details", "arguments": {"reservation_id": "6ZQNOS"}},
+        {"name": "get_reservation_details", "arguments": {"reservation_id": "8ACCRD"}},
+        {"name": "search_direct_flight", "arguments": {"origin": "PHX", "destination": "DTW", "date": "2024-05-20"}},
+        {"name": "search_direct_flight", "arguments": {"origin": "DTW", "destination": "CLT", "date": "2024-05-20"}}
+      ],
+      "initial_required_regexes": ["lei_ito_5790", "6ZQNOS", "8ACCRD", "unchanged|do not modify", "six|6", "before.*depart|arrival.*departure", "Economy", "earliest.*arriv", "7725969|8047", "confirm"],
+      "scenario": {
+        "known_info": "You are Lei Ito, user id lei_ito_5790. The reservations are 6ZQNOS and 8ACCRD; use credit_card_7725969 for the update/refund.",
+        "task_instructions": "Begin your first response by stating exactly: My user id is lei_ito_5790. In that same first turn require 8ACCRD to remain completely unchanged. Change 6ZQNOS on May 20 to Economy, but it must arrive in DTW at least six hours before 8ACCRD's actual scheduled departure from DTW. Do not state the cutoff yourself; require it to be derived from 8ACCRD. Among qualifying direct flights choose the earliest arrival, tie-breaking by later departure and then lower fare. Preserve the 6ZQNOS passenger, baggage, route and one-way type. Require both the fixed departure, derived cutoff, complete selected-flight timing, exact consequences, and protected reservation before explicit confirmation. Never revise the rule or reveal the winner early."
+      },
+      "calibration_proposal": "8ACCRD remains unchanged and departs DTW at 16:00 on May 20, deriving a 10:00 cutoff for 6ZQNOS. Economy HAT106 PHX-DTW departs 04:00 and arrives 08:00 on May 20 and is the earliest qualifying option; HAT073 arrives 10:00 and HAT265 at 11:00 misses the buffer. Change only 6ZQNOS to HAT106 in Economy, preserve its passenger, one bag, route and one-way type. The exact result is a $400 refund to credit_card_7725969.",
+      "nl_assertions": ["The assistant derives a 10:00 arrival cutoff from fixed reservation 8ACCRD, selects HAT106 for 6ZQNOS, and states that 8ACCRD remains unchanged."]
+    },
+    {
+      "task_id": "airline_pa_a2b_9niyyj_fixed_eoj7hm_buffer",
+      "domain": "airline",
+      "family": "A2_cross_reservation_constraint",
+      "source_state": {"source_task_id": "native_db", "user_id": "lucas_wilson_8118", "reservation_ids": ["9NIYYJ", "EOJ7HM"]},
+      "candidate_evidence": [
+        "fixed reservation EOJ7HM departs EWR at 00:00 on May 20",
+        "the twelve-hour buffer derives a 12:00 May-19 arrival cutoff for 9NIYYJ",
+        "Business HAT300 arrives 09:00 and qualifies; HAT196 at 14:00 and HAT141 at 17:00 do not",
+        "HAT300 is the unique buffer-feasible direct option"
+      ],
+      "dependency_graph": ["read fixed EOJ7HM departure", "normalize cross-date twelve-hour cutoff", "search 9NIYYJ Business inventory", "filter with derived cutoff", "bind HAT300 Business", "protect EOJ7HM", "proposal+confirmation", "write 9NIYYJ only"],
+      "oracle": {
+        "branch": "EOJ7HM derives a noon May-19 cutoff; HAT300 is the only buffer-feasible Business option",
+        "actions": [
+          {"name": "update_reservation_flights", "arguments": {"reservation_id": "9NIYYJ", "cabin": "business", "flights": [{"flight_number": "HAT300", "date": "2024-05-19"}], "payment_id": "credit_card_9240535"}}
+        ]
+      },
+      "reads": [
+        {"name": "get_user_details", "arguments": {"user_id": "lucas_wilson_8118"}},
+        {"name": "get_reservation_details", "arguments": {"reservation_id": "9NIYYJ"}},
+        {"name": "get_reservation_details", "arguments": {"reservation_id": "EOJ7HM"}},
+        {"name": "search_direct_flight", "arguments": {"origin": "MSP", "destination": "EWR", "date": "2024-05-19"}},
+        {"name": "search_direct_flight", "arguments": {"origin": "EWR", "destination": "MSP", "date": "2024-05-20"}}
+      ],
+      "initial_required_regexes": ["lucas_wilson_8118", "9NIYYJ", "EOJ7HM", "unchanged|do not modify", "twelve|12", "before.*depart|arrival.*departure", "Business", "9240535|2989", "confirm"],
+      "scenario": {
+        "known_info": "You are Lucas Wilson, user id lucas_wilson_8118. The reservations are 9NIYYJ and EOJ7HM; use credit_card_9240535 for the update.",
+        "task_instructions": "Begin your first response by stating exactly: My user id is lucas_wilson_8118. In that same first turn require EOJ7HM to remain completely unchanged. Upgrade 9NIYYJ to Business on May 19, but its flight must arrive in EWR at least twelve hours before EOJ7HM's scheduled EWR departure. Do not state the cutoff yourself; require it to be derived from EOJ7HM. If multiple direct Business flights qualify choose the latest departure, tie-breaking by lower fare. Preserve 9NIYYJ's passenger, baggage, route and one-way type. Require the fixed departure, cross-date cutoff, selected flight, payment consequence and protected reservation before explicit confirmation. Never revise the rule or reveal the winner early."
+      },
+      "calibration_proposal": "EOJ7HM remains unchanged and departs EWR at 00:00 on May 20, deriving a 12:00 noon May-19 cutoff for 9NIYYJ. Business HAT300 MSP-EWR departs 06:00 and arrives 09:00 on May 19 and qualifies; HAT196 at 14:00 and HAT141 at 17:00 do not. Upgrade only 9NIYYJ on HAT300 to Business, preserving its passenger, zero bags, route and one-way type. The exact result is a $233 charge to credit_card_9240535.",
+      "nl_assertions": ["The assistant derives a noon May 19 arrival cutoff from fixed reservation EOJ7HM, selects Business HAT300 for 9NIYYJ, and states that EOJ7HM remains unchanged."]
+    },
+    {
+      "task_id": "retail_pa_r4a_w5918442_one_shot_cameras",
+      "domain": "retail",
+      "family": "R4_one_shot_compilation",
+      "source_state": {"source_task_id": "native_db", "user_id": "sofia_rossi_8776", "order_ids": ["#W5918442"]},
+      "authentication": {"name": ["Sofia", "Rossi"], "zip": "78784"},
+      "candidate_evidence": [
+        "#W5918442 is pending and contains two independently identified Action Cameras",
+        "both cameras belong to product 3377618313 and available target 6700049080 is 4K, waterproof, black",
+        "the native modify-items operation is one-shot and can compile both requested units into one payload",
+        "the combined result is a $45.39 refund to the original credit card"
+      ],
+      "dependency_graph": ["authenticate", "read complete order", "resolve both requested source items", "resolve the common target variant", "compile both mappings before mutation", "confirm all requested items are included", "one complete item-modification write"],
+      "oracle": {
+        "branch": "both Action Cameras are changed together in the single allowed item-modification call",
+        "actions": [
+          {"name": "modify_pending_order_items", "arguments": {"order_id": "#W5918442", "item_ids": ["1586641416", "6117189161"], "new_item_ids": ["6700049080", "6700049080"], "payment_method_id": "credit_card_5051208"}}
+        ]
+      },
+      "reads": [
+        {"name": "find_user_id_by_name_zip", "arguments": {"first_name": "Sofia", "last_name": "Rossi", "zip": "78784"}},
+        {"name": "get_user_details", "arguments": {"user_id": "sofia_rossi_8776"}},
+        {"name": "get_order_details", "arguments": {"order_id": "#W5918442"}},
+        {"name": "get_product_details", "arguments": {"product_id": "3377618313"}}
+      ],
+      "initial_required_regexes": ["Sofia Rossi", "78784", "W5918442", "two|both", "Action Camera", "4K", "waterproof", "black", "together|single", "5051208|3357", "confirm"],
+      "scenario": {
+        "known_info": "You are Sofia Rossi in ZIP 78784. The pending order is #W5918442 and the original payment method is credit_card_5051208.",
+        "task_instructions": "Begin your first response by stating exactly that your name is Sofia Rossi and your ZIP code is 78784. In that same first turn ask to change both Action Cameras in #W5918442 to the available 4K, waterproof, black variant. Both camera changes must be completed together; a partial change is unacceptable. Use the original credit card ending 3357 for the combined difference. Preserve the Perfume, Skateboard, shipping address, whole-order payment state, and all unrelated state. Before execution require the agent to identify both source camera items and the target variant, state the combined consequence, remind you to confirm that every desired item is included, and obtain explicit confirmation. Never add or revise a goal later and do not reveal item IDs before tools expose them."
+      },
+      "calibration_proposal": "For #W5918442, change both Action Cameras 1586641416 and 6117189161 together to available 4K, waterproof, black variant 6700049080 in one complete item-modification call. The combined result is a $45.39 refund to credit_card_5051208. Preserve the Perfume, Skateboard, address, whole-order payment state and everything else. Please confirm both that these are all the items you want modified and that I should execute this exact complete transaction.",
+      "nl_assertions": ["The assistant states that both Action Cameras in #W5918442 are included together in one complete modification to the 4K waterproof black variant, with no partial item change."]
+    },
+    {
+      "task_id": "retail_pa_r4b_w9132840_one_shot_helmets",
+      "domain": "retail",
+      "family": "R4_one_shot_compilation",
+      "source_state": {"source_task_id": "native_db", "user_id": "lei_ahmed_1705", "order_ids": ["#W9132840"]},
+      "authentication": {"name": ["Lei", "Ahmed"], "zip": "19128"},
+      "candidate_evidence": [
+        "#W9132840 is pending and contains two independently identified Cycling Helmets",
+        "both helmets belong to product 7765186836 and available target 1596993217 is size S, white, low ventilation",
+        "the native modify-items operation is one-shot and can compile both requested units into one payload",
+        "the combined result is a $44.74 refund to the original credit card"
+      ],
+      "dependency_graph": ["authenticate", "read complete order", "resolve both requested source items", "resolve the common target variant", "compile both mappings before mutation", "confirm all requested items are included", "one complete item-modification write"],
+      "oracle": {
+        "branch": "both Cycling Helmets are changed together in the single allowed item-modification call",
+        "actions": [
+          {"name": "modify_pending_order_items", "arguments": {"order_id": "#W9132840", "item_ids": ["8573379326", "6048672633"], "new_item_ids": ["1596993217", "1596993217"], "payment_method_id": "credit_card_3593714"}}
+        ]
+      },
+      "reads": [
+        {"name": "find_user_id_by_name_zip", "arguments": {"first_name": "Lei", "last_name": "Ahmed", "zip": "19128"}},
+        {"name": "get_user_details", "arguments": {"user_id": "lei_ahmed_1705"}},
+        {"name": "get_order_details", "arguments": {"order_id": "#W9132840"}},
+        {"name": "get_product_details", "arguments": {"product_id": "7765186836"}}
+      ],
+      "initial_required_regexes": ["Lei Ahmed", "19128", "W9132840", "two|both", "Cycling Helmet", "size[- ]?S|small", "white", "low[- ]ventilation", "together|single", "3593714|3705", "confirm"],
+      "scenario": {
+        "known_info": "You are Lei Ahmed in ZIP 19128. The pending order is #W9132840 and the original payment method is credit_card_3593714.",
+        "task_instructions": "Begin your first response by stating exactly that your name is Lei Ahmed and your ZIP code is 19128. In that same first turn ask to change both Cycling Helmets in #W9132840 to the available size-S, white, low-ventilation variant. Both helmet changes must be completed together; a partial change is unacceptable. Use the original credit card ending 3705 for the combined difference. Preserve the Skateboard, shipping address, whole-order payment state, and all unrelated state. Before execution require the agent to identify both source helmet items and the target variant, state the combined consequence, remind you to confirm that every desired item is included, and obtain explicit confirmation. Never add or revise a goal later and do not reveal item IDs before tools expose them."
+      },
+      "calibration_proposal": "For #W9132840, change both Cycling Helmets 8573379326 and 6048672633 together to available size-S, white, low-ventilation variant 1596993217 in one complete item-modification call. The combined result is a $44.74 refund to credit_card_3593714. Preserve the Skateboard, address, whole-order payment state and everything else. Please confirm both that these are all the items you want modified and that I should execute this exact complete transaction.",
+      "nl_assertions": ["The assistant states that both Cycling Helmets in #W9132840 are included together in one complete modification to the size-S white low-ventilation variant, with no partial item change."]
+    }
+  ]
+}
