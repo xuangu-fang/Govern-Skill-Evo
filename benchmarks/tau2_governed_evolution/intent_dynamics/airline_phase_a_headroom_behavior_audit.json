@@ -1,0 +1,81 @@
+{
+  "schema_version": "airline_phase_a_headroom_behavior_audit_1.0",
+  "audit_id": "airline_phase_a_headroom_step4",
+  "eligible_non_cs_trajectories_reviewed": 8,
+  "classifications": [
+    {
+      "task_id": "native_airline_37",
+      "rollouts": [3],
+      "states": ["VS"],
+      "classification": "policy_paraphrase_headroom",
+      "representative_behavior": "The agent resolved all three reservation branches and made the correct upgrade, but never obtained the cancellation reason required by the explicit Cancel flight clause.",
+      "materiality": "Compliance only; official task success remained 1.",
+      "recurrence": "cross_task_recurrence_with_native_airline_41",
+      "skill_addressable": false,
+      "reason_not_admitted": "The missing capability is direct recall of an explicit Policy clause, not a distinct reusable execution procedure."
+    },
+    {
+      "task_id": "native_airline_39",
+      "rollouts": [1, 2, 3],
+      "states": ["CF", "CF", "CF"],
+      "classification": "non_skill_evaluator_policy_mismatch",
+      "representative_behavior": "All runs cancelled the two clearly eligible business reservations and refused MSJ4OA because the user supplied a non-health/non-weather reason; the official target nevertheless requires MSJ4OA cancellation.",
+      "materiality": "Official success failed in all three runs.",
+      "recurrence": "recurrent_3_of_3",
+      "skill_addressable": false,
+      "reason_not_admitted": "The better evaluator-scoring action is not clearly Policy-valid: insurance covers health or weather, while the scenario gives a seat-release/change-of-plan reason."
+    },
+    {
+      "task_id": "native_airline_41",
+      "rollouts": [3],
+      "states": ["VS"],
+      "classification": "policy_paraphrase_headroom",
+      "representative_behavior": "The agent correctly enumerated the two single-passenger reservations and avoided ineligible cancellation, but assessed and transferred the cancellation branches without ever obtaining the cancellation reason.",
+      "materiality": "Compliance only; official task success remained 1.",
+      "recurrence": "cross_task_recurrence_with_native_airline_37",
+      "skill_addressable": false,
+      "reason_not_admitted": "The missing capability is direct recall of the same explicit Cancel flight clause observed in native task 37, not a distinct reusable execution procedure."
+    },
+    {
+      "task_id": "native_airline_44",
+      "rollouts": [1, 3],
+      "states": ["VF", "CF"],
+      "classification": "non_skill_ambiguous_task_evaluator_semantics",
+      "representative_behavior": "The agent treated KC18K6's connected itinerary as longer than three hours and excluded it, while the fixed evaluator expects the upgrade because each segment is at most three hours.",
+      "materiality": "KC18K6 was not upgraded, so official success failed.",
+      "recurrence": "recurrent_2_of_3",
+      "skill_addressable": false,
+      "reason_not_admitted": "The phrase 'under or equal to 3 hours (including layovers)' does not unambiguously specify per-segment rather than itinerary elapsed time; the fixed target resolves an ambiguity that the user utterance does not."
+    },
+    {
+      "task_id": "native_airline_44",
+      "rollouts": [1, 2],
+      "states": ["VF", "VF"],
+      "classification": "policy_paraphrase_headroom",
+      "representative_behavior": "The agent attempted update_reservation_flights with a travel certificate before recovering with a credit card.",
+      "materiality": "The invalid intermediate action caused Compliance violations and contributed to official action-check failure.",
+      "recurrence": "recurrent_2_of_3",
+      "skill_addressable": false,
+      "reason_not_admitted": "The Airline Policy explicitly restricts modification payment to one gift card or credit card, so this is direct Policy following rather than independent procedural headroom."
+    }
+  ],
+  "excluded_phase_a_conformance_findings": [
+    {
+      "task_id": "native_airline_42",
+      "reason_excluded": "The user reveals the decisive Dallas-to-New-York and Boston departure anchors only after the agent inventories reservations, so it is not a strict Structured/Upfront entry task.",
+      "observed_non_cs": {
+        "rollout": 2,
+        "state": "CF",
+        "behavior": "The agent failed to preserve passenger ownership and cancelled SE9KEL, a reservation for other passengers.",
+        "use_in_headroom_claim": false
+      }
+    },
+    {
+      "task_id": "native_airline_34",
+      "reason_excluded": "The user first reveals the decisive $200 all-or-nothing package budget after the agent prices the requested changes, so it is not a strict Structured/Upfront entry task.",
+      "observed_non_cs": null
+    }
+  ],
+  "admitted_historical_headroom_clusters": [],
+  "verdict": "FAIL"
+}
