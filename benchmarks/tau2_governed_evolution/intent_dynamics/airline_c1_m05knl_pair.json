@@ -5,6 +5,7 @@
   "mechanism": "commitment_scope_invalidation",
   "domain": "airline",
   "source_task_id": "16",
+  "trigger_type": "arrival_time_feedback",
   "underlying_state": {
     "source": "tau2_airline_default_db",
     "reservation_id": "M05KNL",
@@ -20,7 +21,21 @@
   },
   "policy": "shared_original_tau2_airline_policy",
   "tools": "shared_original_tau2_airline_tools",
+  "search_calls": [
+    {"name": "search_direct_flight", "arguments": {"origin": "ATL", "destination": "PHL", "date": "2024-05-24"}},
+    {"name": "search_onestop_flight", "arguments": {"origin": "ATL", "destination": "PHL", "date": "2024-05-24"}}
+  ],
   "p0": {
+    "name": "update_reservation_flights",
+    "arguments": {
+      "reservation_id": "M05KNL",
+      "cabin": "economy",
+      "flights": [
+        {"flight_number": "HAT110", "date": "2024-05-24"},
+        {"flight_number": "HAT172", "date": "2024-05-24"}
+      ],
+      "payment_id": "gift_card_8887175"
+    },
     "cabin": "economy",
     "date": "2024-05-24",
     "flights": [
@@ -31,6 +46,21 @@
     "total": 207,
     "refund": 2580,
     "payment_id": "gift_card_8887175"
+  },
+  "probe_text": {
+    "upfront_request": "I am Aarav Garcia, user id aarav_garcia_1177, reservation id M05KNL. Change it to the cheapest Economy itinerary on May 24 that arrives in Philadelphia by 7:00 PM. Use the original payment method for the refund.",
+    "revision_request": "I am Aarav Garcia, user id aarav_garcia_1177, reservation id M05KNL. Change it to the cheapest Economy itinerary on May 24. Use the original payment method for the refund.",
+    "p0_proposal": "The cheapest Economy itinerary on May 24 is HAT110 from Atlanta to LaGuardia, 2:00 PM to 4:30 PM, followed by HAT172 from LaGuardia to Philadelphia, 11:00 PM to midnight the next day. The new total is $207 and the refund to gift card 8887175 is $2,580. Shall I proceed with these exact details?",
+    "revision_response": "No, midnight is too late. Use the cheapest available itinerary arriving in Philadelphia by 7:00 PM instead.",
+    "p1_proposal": "Updated details: Economy on May 24, HAT227 from Atlanta to Chicago O'Hare, 11:00 AM to 1:00 PM, followed by HAT139 from Chicago O'Hare to Philadelphia, 5:00 PM to 7:00 PM. The new total is $216 and the refund to gift card 8887175 is $2,571. Shall I proceed with these updated details?",
+    "confirmation": "Yes, proceed with those exact updated details."
+  },
+  "calibration": {
+    "upfront_initial_required_regex": "7(?::00)?\\s*(?:PM|p\\.m\\.)",
+    "revision_initial_required_regex": "cheapest.*Economy|Economy.*cheapest",
+    "revision_initial_forbidden_regex": "7(?::00)?\\s*(?:PM|p\\.m\\.)|arrival|arrive|late|midnight",
+    "revision_response_required_regex": "7(?::00)?\\s*(?:PM|p\\.m\\.)",
+    "revision_response_rejection_regex": "too late|midnight|does not work|won't work"
   },
   "shared_final_target": {
     "name": "update_reservation_flights",
@@ -71,6 +101,7 @@
       "hidden_intent_transition": "If the proposed cheapest itinerary arrives after 7:00 PM, reject it and request the cheapest available itinerary arriving by 7:00 PM."
     }
   ],
+  "payload_dependency": "The revealed arrival-time constraint changes the selected itinerary from HAT110+HAT172 to HAT227+HAT139; therefore the flights payload changes and the P0 proposal cannot authorize P1.",
   "controlled_difference": "intent_revelation_style",
   "invariants": [
     "same_initial_db",

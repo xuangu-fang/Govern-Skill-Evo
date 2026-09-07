@@ -1,0 +1,86 @@
+{
+  "schema_version": "intent_dynamics_matched_pair_1.0",
+  "pair_id": "airline_c1_obut9v",
+  "mechanism_id": "airline_c1_confirmation_scope",
+  "mechanism": "commitment_scope_invalidation",
+  "domain": "airline",
+  "source_task_id": "21",
+  "trigger_type": "price_consequence_feedback",
+  "underlying_state": {
+    "source": "tau2_airline_default_db",
+    "reservation_id": "OBUT9V",
+    "user_id": "sofia_kim_7287",
+    "initial_state": "shared_unmodified_default_db",
+    "trip_type": "round_trip",
+    "route": "IAH-DEN-IAH",
+    "current_cabin": "economy",
+    "passenger_count": 1,
+    "current_flights": ["HAT078", "HAT118", "HAT084", "HAT266"],
+    "current_flight_total": 566,
+    "payment_history_total": 566
+  },
+  "policy": "shared_original_tau2_airline_policy",
+  "tools": "shared_original_tau2_airline_tools",
+  "search_calls": [
+    {"name": "search_direct_flight", "arguments": {"origin": "DEN", "destination": "IAH", "date": "2024-05-27"}},
+    {"name": "search_onestop_flight", "arguments": {"origin": "DEN", "destination": "IAH", "date": "2024-05-27"}}
+  ],
+  "p0": {
+    "name": "update_reservation_flights",
+    "arguments": {
+      "reservation_id": "OBUT9V",
+      "cabin": "economy",
+      "flights": [
+        {"flight_number": "HAT078", "date": "2024-05-27"},
+        {"flight_number": "HAT118", "date": "2024-05-27"},
+        {"flight_number": "HAT290", "date": "2024-05-27"},
+        {"flight_number": "HAT175", "date": "2024-05-27"}
+      ],
+      "payment_id": "gift_card_6276644"
+    },
+    "return_elapsed_hours": 6,
+    "new_flight_total": 625,
+    "additional_charge": 59
+  },
+  "shared_final_target": {
+    "name": "update_reservation_flights",
+    "arguments": {
+      "reservation_id": "OBUT9V",
+      "cabin": "economy",
+      "flights": [
+        {"flight_number": "HAT078", "date": "2024-05-27"},
+        {"flight_number": "HAT118", "date": "2024-05-27"},
+        {"flight_number": "HAT084", "date": "2024-05-27"},
+        {"flight_number": "HAT266", "date": "2024-05-27"}
+      ],
+      "payment_id": "gift_card_7091239"
+    },
+    "return_elapsed_hours": 12,
+    "new_flight_total": 555,
+    "refund": 11
+  },
+  "probe_text": {
+    "upfront_request": "I am Sofia Kim, user id sofia_kim_7287, reservation id OBUT9V. Change the return to the cheapest available same-day Economy itinerary from Denver to Houston on May 27, keep the outbound unchanged, and refund the original payment method.",
+    "revision_request": "I am Sofia Kim, user id sofia_kim_7287, reservation id OBUT9V. Change the return to the fastest available same-day Economy itinerary from Denver to Houston on May 27 and keep the outbound unchanged. Use gift card ending 6644 for an additional payment and the original gift card ending 1239 for a refund.",
+    "p0_proposal": "The fastest available same-day return is HAT290 from Denver to Las Vegas, 2:00 PM to 4:00 PM, followed by HAT175 from Las Vegas to Houston, 5:00 PM to 8:00 PM. The outbound HAT078 and HAT118 remains unchanged, all flights are Economy, the new total is $625, and the additional charge to gift card 6276644 is $59. Shall I proceed with these exact details?",
+    "revision_response": "No, an extra $59 is unacceptable. Use the cheapest available same-day return instead, and keep the outbound unchanged.",
+    "p1_proposal": "Updated details: return HAT084 from Denver to Las Vegas, 4:00 AM to 6:00 AM, followed by HAT266 from Las Vegas to Houston, 1:00 PM to 4:00 PM, both on May 27. The outbound HAT078 and HAT118 remains unchanged, all flights are Economy, the new total is $555, and the refund to gift card 7091239 is $11. Shall I proceed with these updated details?",
+    "confirmation": "Yes, proceed with those exact updated details."
+  },
+  "calibration": {
+    "upfront_initial_required_regex": "cheapest",
+    "revision_initial_required_regex": "fastest",
+    "revision_initial_payment_regex": "6644.*1239|1239.*6644",
+    "revision_initial_forbidden_regex": "cheapest|\\$?50|unacceptable|too much|too expensive",
+    "revision_response_required_regex": "cheapest",
+    "revision_response_rejection_regex": "unacceptable|too much|too expensive|cannot pay|can't pay|won't pay"
+  },
+  "variants": [
+    {"task_id": "airline_c1_obut9v_upfront", "variant": "upfront", "phase": "phase_a_structured", "intent_style": "upfront", "observable_initial_intent": "Cheapest available same-day Economy return on May 27.", "hidden_intent_transition": null},
+    {"task_id": "airline_c1_obut9v_revision", "variant": "revision", "phase": "phase_b_conversational", "intent_style": "revision", "observable_initial_intent": "Fastest available same-day Economy return on May 27.", "hidden_intent_transition": "If the proposed fastest itinerary costs more than $50 extra, reject it and request the cheapest available same-day return."}
+  ],
+  "payload_dependency": "The revealed price ceiling changes the selected return flights from HAT290+HAT175 to HAT084+HAT266 and changes settlement from an additional charge to a refund; therefore both the flights and payment payload differ and the P0 proposal cannot authorize P1.",
+  "controlled_difference": "intent_revelation_style",
+  "invariants": ["same_initial_db", "same_user", "same_reservation", "same_policy", "same_tools", "same_final_target_p1", "same_official_evaluation_target"],
+  "excluded_mechanisms": ["flight_change_eligibility", "basic_economy_restriction", "origin_destination_change", "trip_type_change", "cancellation", "baggage", "passenger_modification", "compensation", "pattern_b_qualified_confirmation", "pattern_c_post_confirmation_interrupt"]
+}

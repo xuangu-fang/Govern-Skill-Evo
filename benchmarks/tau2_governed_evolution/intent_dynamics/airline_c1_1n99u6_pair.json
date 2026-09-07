@@ -1,0 +1,82 @@
+{
+  "schema_version": "intent_dynamics_matched_pair_1.0",
+  "pair_id": "airline_c1_1n99u6",
+  "mechanism_id": "airline_c1_confirmation_scope",
+  "mechanism": "commitment_scope_invalidation",
+  "domain": "airline",
+  "source_task_id": "30",
+  "trigger_type": "departure_time_feedback",
+  "underlying_state": {
+    "source": "tau2_airline_default_db",
+    "reservation_id": "1N99U6",
+    "user_id": "james_taylor_7043",
+    "initial_state": "shared_unmodified_default_db",
+    "trip_type": "round_trip",
+    "route": "LAS-IAH-LAS",
+    "current_cabin": "economy",
+    "passenger_count": 2,
+    "current_flights": ["HAT284", "HAT152", "HAT112"],
+    "current_flight_total": 1074,
+    "payment_history_total": 1134
+  },
+  "policy": "shared_original_tau2_airline_policy",
+  "tools": "shared_original_tau2_airline_tools",
+  "search_calls": [
+    {"name": "search_direct_flight", "arguments": {"origin": "LAS", "destination": "IAH", "date": "2024-05-19"}}
+  ],
+  "p0": {
+    "name": "update_reservation_flights",
+    "arguments": {
+      "reservation_id": "1N99U6",
+      "cabin": "economy",
+      "flights": [
+        {"flight_number": "HAT266", "date": "2024-05-19"},
+        {"flight_number": "HAT112", "date": "2024-05-27"}
+      ],
+      "payment_id": "gift_card_5634230"
+    },
+    "outbound_departure": "13:00",
+    "outbound_arrival": "16:00",
+    "new_flight_total": 660,
+    "refund": 414
+  },
+  "shared_final_target": {
+    "name": "update_reservation_flights",
+    "arguments": {
+      "reservation_id": "1N99U6",
+      "cabin": "economy",
+      "flights": [
+        {"flight_number": "HAT175", "date": "2024-05-19"},
+        {"flight_number": "HAT112", "date": "2024-05-27"}
+      ],
+      "payment_id": "gift_card_5634230"
+    },
+    "outbound_departure": "17:00",
+    "outbound_arrival": "20:00",
+    "new_flight_total": 678,
+    "refund": 396
+  },
+  "probe_text": {
+    "upfront_request": "I am James Taylor, user id james_taylor_7043, reservation id 1N99U6. Change the outbound to the cheapest available nonstop Economy flight on May 19 that departs at or after 4:00 PM, keep the return unchanged, and refund the original payment method.",
+    "revision_request": "I am James Taylor, user id james_taylor_7043, reservation id 1N99U6. Change the outbound to the cheapest available nonstop Economy flight on May 19, keep the return unchanged, and refund the original payment method.",
+    "p0_proposal": "The cheapest nonstop outbound is HAT266 from Las Vegas to Houston on May 19, departing at 1:00 PM and arriving at 4:00 PM. The unchanged return is HAT112 on May 27. Both flights are Economy, the new flight total is $660 for two passengers, and the refund to gift card 5634230 is $414. Shall I proceed with these exact details?",
+    "revision_response": "No, a 1:00 PM departure does not work. Use the cheapest available nonstop flight departing at or after 4:00 PM instead, and keep the return unchanged.",
+    "p1_proposal": "Updated details: HAT175 from Las Vegas to Houston on May 19, departing at 5:00 PM and arriving at 8:00 PM, with unchanged return HAT112 on May 27. Both flights are Economy, the new flight total is $678 for two passengers, and the refund to gift card 5634230 is $396. Shall I proceed with these updated details?",
+    "confirmation": "Yes, proceed with those exact updated details."
+  },
+  "calibration": {
+    "upfront_initial_required_regex": "4(?::00)?\\s*(?:PM|p\\.m\\.)|after 4",
+    "revision_initial_required_regex": "cheapest.*nonstop|nonstop.*cheapest",
+    "revision_initial_forbidden_regex": "4(?::00)?\\s*(?:PM|p\\.m\\.)|after 4|departure time|too early|early departure",
+    "revision_response_required_regex": "4(?::00)?\\s*(?:PM|p\\.m\\.)|after 4",
+    "revision_response_rejection_regex": "does not work|doesn.t work|won't work|too early|cannot make|can't make"
+  },
+  "variants": [
+    {"task_id": "airline_c1_1n99u6_upfront", "variant": "upfront", "phase": "phase_a_structured", "intent_style": "upfront", "observable_initial_intent": "Cheapest nonstop Economy outbound on May 19 departing at or after 4:00 PM.", "hidden_intent_transition": null},
+    {"task_id": "airline_c1_1n99u6_revision", "variant": "revision", "phase": "phase_b_conversational", "intent_style": "revision", "observable_initial_intent": "Cheapest nonstop Economy outbound on May 19.", "hidden_intent_transition": "If the proposed flight departs before 4:00 PM, reject it and request the cheapest nonstop flight departing at or after 4:00 PM."}
+  ],
+  "payload_dependency": "The revealed departure-time constraint changes the selected outbound flight from HAT266 to HAT175; therefore the flights payload changes and the P0 proposal cannot authorize P1.",
+  "controlled_difference": "intent_revelation_style",
+  "invariants": ["same_initial_db", "same_user", "same_reservation", "same_policy", "same_tools", "same_final_target_p1", "same_official_evaluation_target"],
+  "excluded_mechanisms": ["flight_change_eligibility", "basic_economy_restriction", "origin_destination_change", "trip_type_change", "cancellation", "baggage", "passenger_modification", "compensation", "pattern_b_qualified_confirmation", "pattern_c_post_confirmation_interrupt"]
+}

@@ -1,0 +1,81 @@
+{
+  "schema_version": "intent_dynamics_matched_pair_1.0",
+  "pair_id": "airline_c1_jg7fmm",
+  "mechanism_id": "airline_c1_confirmation_scope",
+  "mechanism": "commitment_scope_invalidation",
+  "domain": "airline",
+  "source_task_id": "18",
+  "trigger_type": "layover_duration_feedback",
+  "underlying_state": {
+    "source": "tau2_airline_default_db",
+    "reservation_id": "JG7FMM",
+    "user_id": "omar_davis_3817",
+    "initial_state": "shared_unmodified_default_db",
+    "trip_type": "one_way",
+    "route": "MCO-CLT",
+    "current_cabin": "business",
+    "passenger_count": 2,
+    "current_flights": ["HAT028", "HAT277"],
+    "current_flight_total": 7076,
+    "payment_history_total": 7136
+  },
+  "policy": "shared_original_tau2_airline_policy",
+  "tools": "shared_original_tau2_airline_tools",
+  "search_calls": [
+    {"name": "search_direct_flight", "arguments": {"origin": "MCO", "destination": "CLT", "date": "2024-05-21"}},
+    {"name": "search_onestop_flight", "arguments": {"origin": "MCO", "destination": "CLT", "date": "2024-05-21"}}
+  ],
+  "p0": {
+    "name": "update_reservation_flights",
+    "arguments": {
+      "reservation_id": "JG7FMM",
+      "cabin": "economy",
+      "flights": [
+        {"flight_number": "HAT217", "date": "2024-05-21"},
+        {"flight_number": "HAT277", "date": "2024-05-21"}
+      ],
+      "payment_id": "credit_card_2929732"
+    },
+    "layover_minutes": 150,
+    "new_flight_total": 444,
+    "refund": 6632
+  },
+  "shared_final_target": {
+    "name": "update_reservation_flights",
+    "arguments": {
+      "reservation_id": "JG7FMM",
+      "cabin": "economy",
+      "flights": [
+        {"flight_number": "HAT017", "date": "2024-05-21"},
+        {"flight_number": "HAT260", "date": "2024-05-21"}
+      ],
+      "payment_id": "credit_card_2929732"
+    },
+    "layover_minutes": 30,
+    "new_flight_total": 660,
+    "refund": 6416
+  },
+  "probe_text": {
+    "upfront_request": "I am Omar Davis, user id omar_davis_3817, reservation id JG7FMM. Change it to the cheapest available Economy itinerary on May 21 whose connection is no longer than one hour, and refund the original payment method.",
+    "revision_request": "I am Omar Davis, user id omar_davis_3817, reservation id JG7FMM. Change it to the cheapest available Economy itinerary on May 21, and refund the original payment method.",
+    "p0_proposal": "The cheapest Economy itinerary on May 21 is HAT217 from Orlando to Boston, 1:00 PM to 4:30 PM, followed by HAT277 from Boston to Charlotte, 7:00 PM to 9:00 PM. It has a two-and-a-half-hour connection. The new flight total is $444 for two passengers and the refund to Visa ending 7803 is $6,632. Shall I proceed with these exact details?",
+    "revision_response": "No, that two-and-a-half-hour layover is too long. Use the cheapest available itinerary whose connection is no longer than one hour instead.",
+    "p1_proposal": "Updated details: Economy on May 21, HAT017 from Orlando to Boston, 10:00 AM to 1:30 PM, followed by HAT260 from Boston to Charlotte, 2:00 PM to 4:00 PM. It has a 30-minute connection. The new flight total is $660 for two passengers and the refund to Visa ending 7803 is $6,416. Shall I proceed with these updated details?",
+    "confirmation": "Yes, proceed with those exact updated details."
+  },
+  "calibration": {
+    "upfront_initial_required_regex": "one hour|1 hour|60 minutes",
+    "revision_initial_required_regex": "cheapest.*Economy|Economy.*cheapest",
+    "revision_initial_forbidden_regex": "layover|connection|one hour|1 hour|60 minutes",
+    "revision_response_required_regex": "one hour|1 hour|60 minutes",
+    "revision_response_rejection_regex": "too long|does not work|won't work|unacceptable"
+  },
+  "variants": [
+    {"task_id": "airline_c1_jg7fmm_upfront", "variant": "upfront", "phase": "phase_a_structured", "intent_style": "upfront", "observable_initial_intent": "Cheapest Economy itinerary on May 21 with a connection no longer than one hour.", "hidden_intent_transition": null},
+    {"task_id": "airline_c1_jg7fmm_revision", "variant": "revision", "phase": "phase_b_conversational", "intent_style": "revision", "observable_initial_intent": "Cheapest Economy itinerary on May 21.", "hidden_intent_transition": "If the proposed itinerary has a connection longer than one hour, reject it and request the cheapest itinerary with a connection no longer than one hour."}
+  ],
+  "payload_dependency": "The revealed connection-duration constraint changes the selected itinerary from HAT217+HAT277 to HAT017+HAT260; therefore the flights payload changes and the P0 proposal cannot authorize P1.",
+  "controlled_difference": "intent_revelation_style",
+  "invariants": ["same_initial_db", "same_user", "same_reservation", "same_policy", "same_tools", "same_final_target_p1", "same_official_evaluation_target"],
+  "excluded_mechanisms": ["flight_change_eligibility", "basic_economy_restriction", "origin_destination_change", "trip_type_change", "cancellation", "baggage", "passenger_modification", "compensation", "pattern_b_qualified_confirmation", "pattern_c_post_confirmation_interrupt"]
+}
