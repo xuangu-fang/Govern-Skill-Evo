@@ -1,0 +1,152 @@
+{
+  "schema_version": "airline_complex_upfront_candidates_1.0",
+  "benchmark_id": "airline_complex_upfront_step4",
+  "selection_status": "frozen_before_empty_skill_rollouts",
+  "selection_basis": "procedural_structure_and_static_state_only",
+  "empty_rollout_outcomes_used_for_selection": false,
+  "phase": "phase_a_complex_upfront",
+  "mechanism_probes_unchanged": true,
+  "common_invariants": {
+    "intent": "All transaction-relevant goals, constraints, scope rules, budgets, fallbacks, and payment preferences must be stated in the first user turn.",
+    "policy": "Original tau2 Airline Policy without modification.",
+    "tools": "Original tau2 Airline tools and database without modification.",
+    "skill": "Empty Skill S0 with no manual skill injection.",
+    "confirmation": "The user confirms only after the agent presents the complete current transaction and does not stop before completion is reported."
+  },
+  "calibration_seeds": [510, 511, 512],
+  "rollout_seeds": [520, 521, 522],
+  "tasks": [
+    {
+      "task_id": "airline_cu_fq8ape_bundle",
+      "source_task_id": "17",
+      "source_state": {"user_id": "omar_rossi_1241", "reservation_ids": ["FQ8APE"]},
+      "structures": ["multi_goal_completeness", "dependent_transaction_compilation", "operation_ordering", "final_reconciliation"],
+      "goals": ["upgrade FQ8APE to Economy without changing flights", "replace the sole passenger with Omar Rossi", "set checked baggage to three", "report final itinerary, passenger, baggage, and charge"],
+      "entities": ["FQ8APE", "Omar Rossi", "gift_card_8190333", "two preserved flight legs"],
+      "dependencies": ["reservation and user reads -> passenger DOB and current legs", "cabin change -> fare delta", "membership and cabin -> free baggage count", "all goals -> one complete proposal -> confirmation -> ordered writes -> reconciliation"],
+      "required_reads": ["user", "reservation", "current-leg inventory"],
+      "source_action_ids": ["17_0", "17_1", "17_2"],
+      "upfront_invariant": "Cabin, passenger, baggage count, preserved flights, payment preference, $250 package ceiling, and all-or-nothing fallback are first-turn visible.",
+      "evaluator_target": "Three exact writes copied from native task 17 plus unambiguous final-state assertions.",
+      "calibration_proposal": "For FQ8APE I will retain HAT056 EWR-IAH and HAT138 IAH-ORD on May 25, change the cabin to Economy, replace the sole passenger with Omar Rossi (DOB 1970-06-06), and set checked baggage to three. The total additional gift-card charge is $209, within the $250 ceiling; gift_card_8190333 will be used. All parts will be executed together, followed by a final reconciliation.",
+      "revision_transformability": {"transformable": true, "potential_revision_trigger": "the fourth checked bag creates an extra charge", "potential_revision_field": "total_baggages", "p0": "same bundle with four bags", "p1": "same bundle with three bags", "stale_state": ["baggage payload", "package price", "proposal", "confirmation"], "preserved_state": ["reservation read", "selected cabin", "passenger replacement", "flight legs"], "same_initial_db": true, "same_final_target": true},
+      "initial_required_regexes": ["omar_rossi_1241", "FQ8APE", "economy", "Omar Rossi|replace the sole passenger with me", "three checked bags|checked baggage to three", "gift.?card", "250", "all|none|no changes"],
+      "scenario": {
+        "reason_for_call": "You want one complete, all-or-nothing update to reservation FQ8APE: keep its current flights, upgrade to Economy, replace the sole passenger with yourself (Omar Rossi), and set checked baggage to three.",
+        "known_info": "Your name is Omar Rossi. Your user id is omar_rossi_1241. Your reservation id is FQ8APE. Use your profile DOB for the passenger update and gift_card_8190333 for any charge.",
+        "task_instructions": "In your first message, naturally state user id omar_rossi_1241, reservation FQ8APE, every requested change, that the current flight legs must remain unchanged, payment by gift card, and a $250 maximum total additional charge. State that the bundle is all-or-nothing: if every goal cannot be completed within $250, make no changes. Ask for one complete proposal and, after execution, a reconciliation of final flights, cabin, passenger, bags, and charge. Do not add or change any goal, constraint, budget, fallback, payment preference, or scope later. Do not name unknown flight details. Explicitly say yes only after the complete transaction is presented. Do not stop until completion is reported."
+      },
+      "nl_assertions": ["Reservation FQ8APE is Economy with Omar Rossi as its sole passenger and three checked bags.", "The agent reports the completed bundle and its final charge."]
+    },
+    {
+      "task_id": "airline_cu_omar_davis_portfolio",
+      "source_task_id": "18",
+      "source_state": {"user_id": "omar_davis_3817", "reservation_ids": ["JG7FMM", "2FBBAH", "X7BYG1", "EQ1G6C", "BOH180"]},
+      "structures": ["cross_entity_bookkeeping", "dependent_transaction_compilation", "final_reconciliation"],
+      "goals": ["downgrade five named business reservations to Economy", "preserve each reservation's flights, passengers, and baggage", "refund each to its original payment method", "report per-reservation and total savings"],
+      "entities": ["five reservations", "five payment paths", "eight passengers", "twelve preserved flight legs"],
+      "dependencies": ["each reservation read -> preserved complete itinerary", "per-reservation cabin delta -> per-reservation refund method", "five reconciled deltas -> total savings"],
+      "required_reads": ["user", "five reservations", "inventory for all preserved legs"],
+      "source_action_ids": ["18_0", "18_1", "18_2", "18_3", "18_4"],
+      "upfront_invariant": "All five reservation IDs, mutation scope, preservation rules, refund rule, and total-savings request are first-turn visible.",
+      "evaluator_target": "Five exact Economy writes from native task 18 and exact total-savings assertion.",
+      "calibration_proposal": "I will downgrade all five reservations to Economy while retaining each reservation's current flights, dates, passenger roster, baggage setting, trip type, origin, and destination. The refunds are: JG7FMM $6,594 to credit_card_2929732; 2FBBAH $3,925 to gift_card_3481935; X7BYG1 $5,418 to credit_card_2929732; EQ1G6C $2,452 to gift_card_6847880; and BOH180 $5,164 to credit_card_9525117. The aggregate refund is $23,553. I will execute all five updates and then reconcile every reservation.",
+      "revision_transformability": {"transformable": true, "potential_revision_trigger": "portfolio inventory reveals an additional business reservation omitted from the initial four", "potential_revision_field": "reservation set", "p0": "downgrade four named reservations", "p1": "downgrade all five, including the newly surfaced reservation", "stale_state": ["reservation action set", "aggregate refund", "proposal", "confirmation"], "preserved_state": ["reads and compiled payloads for the original four", "per-reservation passenger/baggage invariants"], "same_initial_db": true, "same_final_target": true},
+      "initial_required_regexes": ["omar_davis_3817", "JG7FMM", "2FBBAH", "X7BYG1", "EQ1G6C", "BOH180", "economy", "unchanged|keep|preserv", "original payment", "total|aggregate"],
+      "scenario": {
+        "reason_for_call": "You want to downgrade all five named business reservations to Economy as one coordinated portfolio update while preserving every flight, passenger, and baggage setting.",
+        "known_info": "Your name is Omar Davis. Your user id is omar_davis_3817. The five reservations are JG7FMM, 2FBBAH, X7BYG1, EQ1G6C, and BOH180.",
+        "task_instructions": "In your first message, state your user id and all five reservation IDs. Ask to downgrade every one to Economy, preserve each existing flight/date, passenger roster, baggage count, trip type, origin and destination, and send each refund to that reservation's original payment method. Ask the agent to present one complete five-reservation proposal with each refund and the aggregate savings, then execute all five and reconcile what changed and remained unchanged. These are the complete goals; do not add, remove, or revise any goal, constraint, reservation, or payment rule later. Explicitly confirm only a proposal covering all five. Do not stop until all five results and total savings are reported."
+      },
+      "nl_assertions": ["All five reservations JG7FMM, 2FBBAH, X7BYG1, EQ1G6C, and BOH180 are changed to Economy without changing their flights or passengers.", "The agent reports total savings of $23,553 and reconciles all five reservations."]
+    },
+    {
+      "task_id": "airline_cu_sophia_martin_conflicts",
+      "source_task_id": "42",
+      "source_state": {"user_id": "sophia_martin_4574", "reservation_ids": ["MFRB94", "PUNERT", "HSR97W", "SE9KEL", "FDZ0T5", "HTR26G", "5BGGWZ"]},
+      "structures": ["cross_entity_bookkeeping", "multi_goal_completeness", "operation_ordering", "final_reconciliation"],
+      "goals": ["inventory all seven reservations", "preserve Dallas-to-New-York arrival on May 17", "preserve Boston departure on May 22", "cancel only Sophia's conflicting reservations", "leave other passengers and unrelated dates unchanged"],
+      "entities": ["seven reservations", "Sophia Martin", "Ivan Brown", "Emma Li", "two travel anchors"],
+      "dependencies": ["all reservation reads -> passenger ownership and date map", "ownership plus anchor compatibility -> cancellation set", "cancellation set -> complete proposal -> confirmation -> two writes", "post-write inventory -> reconciliation"],
+      "required_reads": ["user", "all seven reservations"],
+      "source_action_ids": ["42_8", "42_9"],
+      "upfront_invariant": "Both travel anchors, ownership exclusion, cancellation reason, and full scope are stated before any environment feedback.",
+      "evaluator_target": "Exactly FDZ0T5 and HSR97W cancelled; all other reservations unchanged.",
+      "calibration_proposal": "The complete map shows that FDZ0T5 conflicts with the May 17 Dallas-to-New-York anchor and HSR97W conflicts with the May 22 Boston-departure anchor; both list Sophia Martin and will be cancelled for duplicate booking/change of plan. The combined refund is $5,005 to credit_card_1402274. Every other reservation, including reservations that do not include Sophia Martin and reservations on unrelated dates, will remain unchanged. I will cancel only FDZ0T5 and HSR97W, then reconcile the full portfolio.",
+      "revision_transformability": {"transformable": true, "potential_revision_trigger": "inventory reveals SE9KEL is for other passengers", "potential_revision_field": "cancellation set", "p0": "cancel all three apparent May-17/May-22 conflicts", "p1": "cancel only FDZ0T5 and HSR97W", "stale_state": ["SE9KEL action", "global cancellation set", "proposal", "confirmation"], "preserved_state": ["seven reservation reads", "FDZ0T5 and HSR97W decisions", "travel anchors"], "same_initial_db": true, "same_final_target": true},
+      "initial_required_regexes": ["sophia_martin_4574", "Dallas", "New York", "May 17", "Boston", "May 22", "other passengers|passenger roster does not include|doesn.t include me|don.t include me|not on the passenger (?:roster|list)|not (?:a |the )?passenger|isn.t mine", "mix-?up|duplicate|conflicting reservation", "cancel"],
+      "scenario": {
+        "reason_for_call": "Your assistant created conflicting reservations. Your fixed plan is to arrive in New York from Dallas on May 17 and leave Boston on May 22; you want only your own conflicting reservations cancelled.",
+        "known_info": "Your name is Sophia Martin. Your user id is sophia_martin_4574. You do not know the reservation IDs and need the agent to inspect your profile.",
+        "task_instructions": "You are the customer, not the airline agent. Your first response must directly make the customer request and must never ask the agent for their user id. In that first message, state user id sophia_martin_4574, both fixed travel anchors (Dallas to New York arrival on May 17 and departure from Boston on May 22), and that the duplicate-booking mix-up is the cancellation reason. Ask the agent to inspect every reservation, cancel only your own reservations that conflict with those anchors, and never change reservations whose passenger roster does not include you or reservations on unrelated dates. Ask for a complete keep/cancel map before confirming and a final reconciliation afterward. Do not introduce any new anchor, ownership rule, reason, goal, or constraint later. Confirm only the exact cancellation set consistent with all stated rules. Do not stop until completion is reported."
+      },
+      "nl_assertions": ["The agent cancels FDZ0T5 and HSR97W and no other reservation.", "The agent reports that the travel-anchor reservations and reservations for other passengers remain unchanged."]
+    },
+    {
+      "task_id": "airline_cu_sophia_silva_upgrades",
+      "source_task_id": "44",
+      "source_state": {"user_id": "sophia_silva_7557", "reservation_ids": ["NM1VX1", "KC18K6", "S61CZX", "H8Q05L", "WUNA5K"]},
+      "structures": ["cross_entity_bookkeeping", "dependent_transaction_compilation", "global_all_or_nothing", "final_reconciliation"],
+      "goals": ["classify all future reservations using explicit segment and elapsed-time rules", "upgrade every qualifying reservation to Business", "exclude long or past reservations", "keep aggregate charge at or below $700", "use the Visa for every write"],
+      "entities": ["five reservations", "multiple flight segments", "credit_card_4196779", "global $700 ceiling"],
+      "dependencies": ["reservation and schedule reads -> segment durations and elapsed itinerary time", "duration predicates -> eligible set", "eligible set and business prices -> aggregate charge", "budget -> all-or-nothing readiness", "ready set -> proposal -> confirmation -> writes -> reconciliation"],
+      "required_reads": ["user", "five reservations", "schedule and business-price inventory for future legs"],
+      "source_action_ids": ["44_17", "44_18"],
+      "upfront_invariant": "Per-segment rule, connected-itinerary elapsed-time rule, past-flight exclusion, budget, payment, and all-or-nothing fallback are first-turn visible.",
+      "evaluator_target": "Only NM1VX1 and H8Q05L upgraded to Business using the Visa; aggregate charge $647; no other mutation.",
+      "calibration_proposal": "Applying the stated segment-duration and connected-direction elapsed-time rules to every reservation, only NM1VX1 and H8Q05L qualify. I will upgrade NM1VX1 and H8Q05L to Business without changing their flights, passengers, or baggage, using Visa credit_card_4196779. The aggregate additional charge is $647, within the $700 ceiling. KC18K6, S61CZX, WUNA5K, and all other reservations remain unchanged. Both qualifying upgrades will be executed together, followed by a final reconciliation.",
+      "revision_transformability": {"transformable": true, "potential_revision_trigger": "schedule lookup reveals KC18K6 has a seven-hour elapsed connected itinerary", "potential_revision_field": "eligible reservation set", "p0": "upgrade NM1VX1, KC18K6, and H8Q05L based only on per-segment duration", "p1": "exclude KC18K6 and upgrade NM1VX1 plus H8Q05L", "stale_state": ["KC18K6 action", "aggregate charge", "proposal", "confirmation"], "preserved_state": ["five reservation reads", "NM1VX1 and H8Q05L payloads", "payment method"], "same_initial_db": true, "same_final_target": true},
+      "initial_required_regexes": ["sophia_silva_7557", "3 hours", "6 hours", "layover|elapsed", "700", "Visa|7238", "all|none|no changes", "business"],
+      "scenario": {
+        "reason_for_call": "You want an all-or-nothing Business upgrade of every qualifying future reservation, using explicit duration rules and a $700 aggregate ceiling.",
+        "known_info": "Your name is Sophia Silva. Your user id is sophia_silva_7557. Use Visa credit_card_4196779 ending 7238 for every upgrade.",
+        "task_instructions": "In your first message, state your user id and this complete rule: inspect every reservation; a future reservation qualifies only if every individual flight segment is at most 3 hours and, for a same-day connected direction, elapsed time from first departure through final arrival including layover is at most 6 hours. Past reservations do not qualify. Upgrade every and only qualifying reservation to Business, preserve its flights/passengers/baggage, use the Visa ending 7238, and first report every classification and the aggregate charge. State a $700 total ceiling and all-or-nothing fallback: if the complete qualifying set costs over $700 or any qualifying upgrade is unavailable, make no changes. Require a complete proposal, one explicit confirmation, and final reconciliation. Do not add or revise any rule later. Do not request cancellation. Do not stop before completion."
+      },
+      "nl_assertions": ["Only NM1VX1 and H8Q05L are upgraded to Business, for a combined additional charge of $647.", "KC18K6, S61CZX, and WUNA5K remain unchanged, and the agent reconciles the final portfolio."]
+    },
+    {
+      "task_id": "airline_cu_mohamed_silva_rebook",
+      "source_task_id": "23",
+      "source_state": {"user_id": "mohamed_silva_9265", "reservation_ids": ["K1NW8N"]},
+      "structures": ["multi_goal_completeness", "cross_entity_bookkeeping", "dependent_transaction_compilation", "global_all_or_nothing", "operation_ordering", "final_reconciliation"],
+      "goals": ["compute gift-card and certificate totals", "compile the cheapest Business replacement on the same dates", "cancel K1NW8N only after the full replacement is under budget", "book three separate one-passenger reservations", "allocate certificates/gift cards/card per passenger", "report final card charge"],
+      "entities": ["K1NW8N", "Mohamed Silva", "Raj Sanchez", "Liam Wilson", "three certificates", "two gift cards", "one Mastercard", "three new reservations"],
+      "dependencies": ["profile and reservation reads -> balances, passengers, dates", "inventory -> complete itinerary and per-passenger price", "payment allocation -> Mastercard total", "$1,300 ceiling -> commit readiness", "ready plan -> cancel old reservation -> three bookings -> reconciliation"],
+      "required_reads": ["user", "K1NW8N", "outbound and return inventory"],
+      "source_action_ids": ["23_0", "23_1", "23_2", "23_3"],
+      "upfront_invariant": "Three-reservation strategy, passenger split, payment precedence/allocation, no-bag/no-insurance rules, cancellation reason, card ceiling, and no-mutation fallback are first-turn visible.",
+      "evaluator_target": "One exact cancellation followed by three exact bookings from native task 23; Mastercard total $1,286.",
+      "calibration_proposal": "I will cancel K1NW8N for change of plan/rebooking and create three separate one-passenger Business round trips on HAT023 JFK-SFO May 26, then HAT204 SFO-SEA and HAT100 SEA-JFK May 28, with no bags and no insurance. Mohamed will use certificate_3765853 ($500), gift_card_8020792 ($198), gift_card_6136092 ($129), and $44 on credit_card_2198526. Raj will use certificate_9984806 ($250) and $621 on that Mastercard. Liam will use certificate_2765295 ($250) and $621 on that Mastercard. Gift-card balances total $327, certificate balances total $1,000, and the Mastercard total is $1,286, within the $1,300 ceiling. I will perform the cancellation and all three bookings as one all-or-nothing plan, then reconcile balances and new reservations.",
+      "revision_transformability": {"transformable": true, "potential_revision_trigger": "pricing/payment compilation reveals a single three-passenger booking cannot apply one certificate per passenger as desired", "potential_revision_field": "booking partition and payment allocation", "p0": "one three-passenger replacement reservation", "p1": "three separate one-passenger reservations", "stale_state": ["booking cardinality", "passenger-to-payment bindings", "card total", "proposal", "confirmation"], "preserved_state": ["selected itinerary", "dates", "cabin", "no-bag/no-insurance requirements", "old reservation read"], "same_initial_db": true, "same_final_target": true},
+      "initial_required_regexes": ["mohamed_silva_9265", "K1NW8N", "Mohamed", "Raj", "Liam", "three separate", "certificate", "gift.?card", "Mastercard|2198526", "1,?300", "connection|layover|via SEA", "all|none|no changes"],
+      "scenario": {
+        "reason_for_call": "You want to replace K1NW8N with three separate one-passenger Business reservations on the same dates, using a fully specified payment-allocation strategy and a global Mastercard ceiling.",
+        "known_info": "You are Mohamed Silva, user id mohamed_silva_9265. Reservation K1NW8N contains Mohamed Silva (DOB 1960-11-26), Raj Sanchez (DOB 1986-09-12), and Liam Wilson (DOB 1980-03-27). Your profile contains certificates 3765853, 9984806, 2765295, gift cards 8020792 and 6136092, and Mastercard credit_card_2198526.",
+        "task_instructions": "In your first message, state your user id, K1NW8N, and every requirement: calculate total gift-card and certificate balances; find the cheapest Business round trip from JFK to SFO on the same outbound/return dates, explicitly stating that a connecting return via SEA is acceptable; create three separate one-passenger reservations for Mohamed, Raj, and Liam; no bags and no insurance; use certificate_3765853 plus both gift cards for Mohamed, certificate_9984806 for Raj, certificate_2765295 for Liam, and Mastercard credit_card_2198526 only for each remainder. State that change of plan/rebooking is the cancellation reason. Require the agent to compile the entire plan and exact Mastercard total before any write. If total Mastercard charge exceeds $1,300 or all three bookings cannot be completed, cancel nothing and book nothing. Otherwise, after one complete confirmation, cancel K1NW8N and book all three, then reconcile balances, new reservations, and total card charge. Do not add or revise any requirement later. Do not stop before completion."
+      },
+      "nl_assertions": ["K1NW8N is cancelled and three separate Business replacement reservations are booked for Mohamed Silva, Raj Sanchez, and Liam Wilson on the selected itinerary.", "The agent reports gift-card total $327, certificate total $1,000, and Mastercard charge $1,286 in the final reconciliation."]
+    },
+    {
+      "task_id": "airline_cu_yara_garcia_bundle",
+      "source_task_id": "33",
+      "source_state": {"user_id": "yara_garcia_1905", "reservation_ids": ["HXDUBJ"]},
+      "structures": ["multi_goal_completeness", "dependent_transaction_compilation", "global_all_or_nothing", "operation_ordering", "final_reconciliation"],
+      "goals": ["replace both directions with nonstop flights on new dates", "change to Economy cabin", "enforce departure window", "add two bags", "use original gift card", "apply a package ceiling", "reconcile final state"],
+      "entities": ["HXDUBJ", "outbound leg", "return leg", "baggage", "gift_card_6941833", "$250 package ceiling"],
+      "dependencies": ["reservation read -> original route and payment", "two inventory searches -> full round-trip selection", "selected flights -> fare delta", "Gold/Economy -> baggage charge", "aggregate package cost -> commit readiness", "ready plan -> flight write -> baggage write -> reconciliation"],
+      "required_reads": ["user", "HXDUBJ", "IAH-SFO May 19 inventory", "SFO-IAH May 23 inventory"],
+      "source_action_ids": ["33_3", "33_4"],
+      "upfront_invariant": "Both dates, nonstop/time constraints, Economy cabin, bag count, payment, $250 ceiling, and all-or-nothing fallback are first-turn visible.",
+      "evaluator_target": "Exact HAT072/HAT278 Economy itinerary and two-bag write from native state, with no partial package.",
+      "calibration_proposal": "For HXDUBJ I will preserve the passenger, route, and round-trip type; use nonstop HAT072 IAH-SFO on May 19 and nonstop HAT278 SFO-IAH on May 23, with both flights departing after 8 AM and before 9 PM; change the cabin to Economy; and set checked baggage to two. This produces a $186 refund to gift_card_6941833 and satisfies the $250 all-or-nothing package ceiling. I will execute the flight and baggage updates together under this one confirmation, then reconcile the final route, passenger, trip type, cabin, bags, and refund.",
+      "revision_transformability": {"transformable": true, "potential_revision_trigger": "Business pricing reveals the package exceeds $200", "potential_revision_field": "cabin", "p0": "Business on HAT072 and HAT278 plus two bags", "p1": "Economy on the same flights plus two bags", "stale_state": ["cabin", "fare delta", "payment amount", "proposal", "confirmation"], "preserved_state": ["reservation read", "selected outbound and return", "dates", "baggage goal"], "same_initial_db": true, "same_final_target": true},
+      "initial_required_regexes": ["yara_garcia_1905", "HXDUBJ", "May 19", "May 23", "nonstop", "8", "9", "economy", "(?:2|two) (?:checked )?bags", "250", "gift card", "all|none|no changes"],
+      "scenario": {
+        "reason_for_call": "You want one all-or-nothing update to HXDUBJ: new nonstop flights in both directions, a change to Economy cabin, and two checked bags under a package ceiling.",
+        "known_info": "You are Yara Garcia. Your user id is yara_garcia_1905. Your reservation id is HXDUBJ. Use original gift card gift_card_6941833.",
+        "task_instructions": "You are the customer, not the airline agent. Your first response must directly state the complete customer request; never offer to look up the booking and never ask the agent to confirm the reservation id. In your first message, state user id yara_garcia_1905, reservation HXDUBJ, and all requirements: replace the outbound with a nonstop IAH-to-SFO flight on May 19 and the return with a nonstop SFO-to-IAH flight on May 23; both must depart after 8:00 AM and before 9:00 PM; change the cabin to Economy; add exactly two checked bags; preserve passenger, route, and trip type; use gift_card_6941833; and keep the complete package's additional charge at or below $250. State the all-or-nothing fallback: if every condition cannot be met within $250, make no changes. Require a complete proposal, one confirmation, both writes in a coherent order, and final reconciliation. Do not add or revise any requirement later. Do not claim insurance waives changes. Do not stop before completion."
+      },
+      "nl_assertions": ["HXDUBJ is updated to Economy flights HAT072 on May 19 and HAT278 on May 23 with two checked bags.", "The agent reports the completed package, charge or refund, and preserved passenger and route in the final reconciliation."]
+    }
+  ]
+}
