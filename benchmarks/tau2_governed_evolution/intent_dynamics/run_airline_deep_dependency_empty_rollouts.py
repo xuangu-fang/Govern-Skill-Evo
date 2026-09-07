@@ -24,6 +24,9 @@ from src.skill_evolution import autonomous_gse_v14_benchmark_runtime as v14
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_ARTIFACT_ROOT = PROJECT_ROOT / "artifacts/airline_deep_dependency_step4r"
+AUDIT_ID = "airline_deep_dependency_step4r"
+PHASE = "phase_a_deep_dependency_upfront"
+SOURCE_PREFIX = "deep_dependency"
 
 
 def validate_run_contract(manifest: dict[str, Any], campaign: dict[str, Any]) -> None:
@@ -73,7 +76,7 @@ def _run_one(
                 simulation.model_dump_json(indent=2) + "\n", encoding="utf-8"
             )
         evidence = v14._build_governed_evidence(
-            source_id=f"deep_dependency_{task_id}_rollout_{index:02d}",
+            source_id=f"{SOURCE_PREFIX}_{task_id}_rollout_{index:02d}",
             domain="airline",
             task=task,
             simulation=simulation,
@@ -85,13 +88,13 @@ def _run_one(
             output,
             domain="airline",
             task_id=task_id,
-            phase="phase_a_deep_dependency_upfront",
+            phase=PHASE,
             skill_version="S0",
             rollout_index=index,
             rollout_seed=seed,
             governed_evidence=evidence,
             provenance={
-                "audit_id": "airline_deep_dependency_step4r",
+                "audit_id": AUDIT_ID,
                 "source_state": spec["source_state"],
                 "raw_tau2_result_path": raw_path.as_posix(),
                 "candidate_manifest": MANIFEST_PATH.as_posix(),
