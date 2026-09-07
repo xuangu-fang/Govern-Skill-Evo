@@ -3567,15 +3567,16 @@ Selection 使用：
 
 ### 实验设置
 
-实验使用τ³官方的Airline和Retail环境、任务、工具、数据库、UserSimulator及任务评估方式。数据划分为Train、Selection和Test三部分：Train选择51个任务，其中Airline 21个、Retail 30个，固定分成3个互不重叠的batch，每个Step只使用当前batch的17个任务，每个任务执行3次独立rollout，因此每个Step产生51条训练轨迹；不同Step不重放之前的batch。Selection与Train任务不重叠，固定选择18个任务，其中Airline和Retail各9个，每个任务执行3次rollout，共54条轨迹。Test使用官方test split中的60个任务，其中Airline 20个、Retail 40个，只允许在最终评估时比较S0与最终Skill，本轮尚未运行。T
+实验使用τ³官方的Airline和Retail环境、任务、工具、数据库、UserSimulator及任务评估方式。
+数据划分为Train、Selection和Test三部分：Train选择51个任务，其中Airline 21个、Retail 30个，固定分成3个互不重叠的batch，每个Step只使用当前batch的17个任务，每个任务执行3次独立rollout，因此每个Step产生51条训练轨迹；不同Step不重放之前的batch。Selection与Train任务不重叠，固定选择18个任务，其中Airline和Retail各9个，每个任务执行3次rollout，共54条轨迹。Test使用官方test split中的60个任务，其中Airline 20个、Retail 40个。
 
-Task Success直接采用τ³官方任务reward，不再由额外模型判断。Compliance由独立且固定的policy-grounded LLM Judge根据原始domain policy、任务上下文和带有step ID的完整trajectory判断，评估Agent的实际执行过程是否违反适用Policy。只有trajectory中存在具体证据时，Judge才输出违反的Policy要求、对应证据步骤和原因；证据不足时不推断违规。
+Task Success直接采用τ³官方任务reward，不再由额外模型判断。Compliance由独立且固定的policy-grounded LLM Judge根据原始domain policy、场景和带有step ID的完整trajectory判断，评估Agent的实际执行过程是否违反适用Policy。只有trajectory中存在具体证据时，Judge才输出违反的Policy要求、对应证据步骤和原因；证据不足时不推断违规。
 
 Task Success和Compliance作为两个相互独立的评估进行组合。这四类governed experience连同trajectory证据继续交给现有Diagnosis进行因果归因，再由适合更新Skill的Diagnosis进入受限Editor。
 
 #### Compliance Judge 的判定Prompt与解析规则
 
-Judge使用固定的、与被评测Agent相互独立的policy-grounded prompt。每次调用的输入包括：
+Judge使用固定的、与被评测Agent相互独立的prompt。每次调用的输入包括：
 
 1. 原始domain policy及其`policy_template_id`；
 2. 当前任务上下文；
@@ -3615,9 +3616,9 @@ Return JSON only:
 - `policy_ids`：被明确违反的Policy的`policy_template_id`；
 - `evidence_steps`：支持合规判断或违规判断的实际action step ID。
 
-目前Compliance指标采用二值定义，Judge只有在证据充分时输出`violated`；证据不足时输出`compliant`。这表示没有发现足以证明违规的证据，并不表示Judge证明了trajectory中的每个行为都符合所有可能的Policy。
+Compliance指标采用二值定义，Judge只有在证据充分时输出`violated`；证据不足时输出`compliant`。这表示没有发现足以证明违规的证据，并不表示Judge证明了trajectory中的每个行为都符合所有可能的Policy。
 
-轨迹生成的Agent和UserSimulator使用DeepSeek-V4-Flash；Compliance Judge和每条Train trajectory对应的Diagnosis使用GPT-5.6-Luna。S0保持为不注入learned Skill的初始基准，后续Candidate和已接受Skill通过同一Agent接口注入。Diagnosis、受限Editor、Selection和二维Evolution Gate保持Day 18的方法逻辑。
+轨迹生成的Agent和UserSimulator使用DeepSeek-V4-Flash；Compliance Judge和每条Train trajectory对应的Diagnosis使用GPT-5.6-Luna。Diagnosis、受限Editor、Selection和二维Evolution Gate保持Day 18的方法逻辑。
 
 ### 三步演化结果
 
@@ -3669,13 +3670,13 @@ Candidate提高了Task Success，Compliance和CuP下降，因此拒绝Candidate�
 
 #### 分析
 
-Diagnosis分类存在过度保守和一致性不足的问题。当前每条轨迹独立完成原因判断，同一种行为问题可能因为单条轨迹中的任务结果、合规状态或上下文略有不同，分别被归为`skill_issue + update`、`execution_issue + none`或`uncertain`。Diagnosis模型无法同时利用同一任务3次rollout之间的重复现象和成功、失败对照，因此既可能把Skill缺口解释为单次执行失误，也可能因单条证据不足而拒绝更新。后续应以同一任务的3次rollout作为联合证据进行分类，在保留每条轨迹具体证据的同时，根据问题是否重复出现、已有规则是否覆盖以及成功轨迹如何避免错误，统一判断问题是否属于Skill缺口。
+Diagnosis分类存在过度保守和一致性不足的问题。当前每条轨迹独立完成原因判断，同一种行为问题可能因为单条轨迹中的任务结果、合规状态或上下文略有不同，分别被归为`skill_issue + update`、`execution_issue + none`或`uncertain`。
 
-此外，不能简单概括为“Step 3新增的两条规则有害”。对配对Selection轨迹的进一步检查表明，Step 3 Candidate新增的失败大多不是由Step 3新增的两条规则直接导致，而是原有规则未被稳定执行。
+Diagnosis模型无法同时利用同一任务3次rollout之间的重复现象和成功、失败对照，因此判断难，可能把Skill问题解释为单次执行失误，也可能因单条证据不足而不更新。可以尝试把同一任务的3次rollout作为联合证据进行分类，在保留每条轨迹具体证据的同时，根据问题是否重复出现、已有规则是否覆盖以及成功轨迹如何避免错误，统一判断问题是否属于Skill问题。
 
-因此，Step 3被拒绝不能证明两条新增规则没有价值。当前只观察Task Success、Compliance和CuP三个aggregate指标，无法区分退化究竟来自新增规则的直接副作用、规则之间的上下文干扰，还是LLM与UserSimulator交互路径的波动。
+此外，Skill被拒绝不能简单概括为新增的两条规则有害。Step 3 Candidate新增的失败大多不是由Step 3新增的两条规则直接导致，而是原有规则未被稳定执行。因此，Step 3被拒绝不能证明两条新增规则没有价值。当前只观察Selection的Task Success、Compliance和CuP三个指标，无法区分退化究竟来自新增规则的直接副作用、规则之间的上下文干扰，还是LLM与UserSimulator交互路径的波动。
 
-
+---
 
 ### 目标：τ³的Airline和Retail任务和SkillOpt机制
 
@@ -3756,22 +3757,21 @@ Step 3继续以S1为基准Skill。51条Train trajectories的四状态分布为38
 
 Evolution Gate拒绝Candidate。
 
-#### 分析
+#### Diagnosis和SkillOpt结果对比
 
 聚合学习能够综合多条成功和失败轨迹，识别反复出现的行为模式，并将其整理为覆盖面较广的操作规范。相比依赖单条轨迹判断，它能更充分地利用重复证据。
 
-#### Diagnosis和SkillOpt结果对比
+Diagnosis逐条分析轨迹并判断问题来源，更新依据更清楚，能够减少外部问题和单次执行失误对Skill的污染；但这种方式较为保守，难以利用分散在多条轨迹中的重复证据。
 
-Diagnosis逐条分析轨迹并判断问题来源，更新依据更清楚，能够减少外部问题和单次执行失误对Skill的污染；但这种方式较为保守，难以利用分散在多条轨迹中的重复证据。SkillOpt汇总成功和失败经验，更容易发现共同模式并形成完整规则，学习成本也更低；但它缺少严格的问题归因。
+SkillOpt汇总成功和失败经验，更容易发现共同模式并形成完整规则，学习成本也更低；但它缺少问题归因。
 
 ---
-
 
 ## Day 21 记录（2026-08-26）
 
 ### 目标
 
-在Day 18逐条Diagnosis Evolution的基础，不再使用独立Selection数据集的指标作为Candidate选择依据，而是在当前Evolution Batch上构造基准Skill与Candidate的同任务、同seed成对轨迹：
+在Day 20逐条Diagnosis Evolution的基础上，不再使用独立Selection数据集的指标作为Candidate选择依据，而是在当前Evolution Batch上构造基准Skill与Candidate的同任务、同seed成对轨迹：
 1. Diagnosis指出的具体Skill问题是否被Candidate修复；
 2. Candidate相对基准Skill新出现的Task或Compliance regression是否由本次Skill修改引起；
 3. Candidate是否出现大范围指标退化。
@@ -3782,12 +3782,12 @@ Diagnosis逐条分析轨迹并判断问题来源，更新依据更清楚，能�
 
 #### 数据集划分
 
-实验使用τ³ benchmark的Airline和Retail两个domain。Evolution Set全部来自官方`train` split，Holdout全部来自官方`test` split，两者不重叠。
+实验使用τ³ benchmark的Airline和Retail两个domain。Evolution Set来自官方`train` split，Test Set来自官方`test` split，两者不重叠。
 
 | 数据集 | Airline | Retail | 合计 | 用途 |
 |---|---:|---:|---:|---|
 | Evolution Set | 30 | 30 | 60 | Diagnosis、Editor和Candidate验证 |
-| Holdout | 20 | 20 | 40 | Evolution完成后比较S0与最终Skill |
+| Test | 20 | 20 | 40 | Evolution完成后比较S0与最终Skill |
 
 60个Evolution tasks被固定划分为3个互不重叠的Batch。每个Batch包含10个Airline tasks和10个Retail tasks，共20个tasks。三个Step分别只使用B1、B2和B3。
 
@@ -3844,7 +3844,7 @@ Targeted Fix只检查eligible update Diagnoses。每条Diagnosis使用对应的P
 
 #### Regression Diagnosis
 
-系统先根据Parent→Candidate four-state transition确定性构造Regression Set，只包含：
+根据Parent→Candidate four-state transition确定性构造Regression Set，只包含：
 
 ```text
 compliant_success → violating_success
@@ -3854,7 +3854,9 @@ violating_success → violating_failure
 compliant_success → violating_failure
 ```
 
-Regression Set中的每一对轨迹，Regression Diagnosis判断回归是否存在明确的：
+暂时没考虑compliant_failure → violating_success，violating_success → compliant_success
+
+Regression Set中的每一对轨迹，Regression Diagnosis判断是否存在明确的：
 
 ```text
 Skill change → Candidate behavior change → regression
@@ -3885,7 +3887,9 @@ Step 1的20条Parent trajectories分布为17条`compliant_success`、2条`violat
 - 当适用Policy已经明确解决请求，并且该请求属于Agent有权处理的范围时，应清楚拒绝并停止；不能仅因为用户持续要求、强调身份、要求主管或寻求例外就转人工，结束前还要确认没有遗留的可执行事项。
 - 解释退货后的通信、寄送、标签或退款流程时，只能陈述用户或工具已经确认的信息；对尚未确认的操作细节应明确说明不确定，不能自行推断，在给出有证据支持的流程或指出缺失信息后停止。
 
-Candidate replay后，2条Targeted Fix均为`FIXED`，说明两个目标问题都被修复。但5条负向中有1条被Regression Diagnosis判为`CHANGE_CAUSED`：新增规则要求“不要仅因用户坚持或要求主管而转人工”，但 Agent 将其过度泛化到后续提出的正式投诉请求。由于投诉流程超出了 Agent 的处理范围，本应按照系统要求转人工，Agent 却以原问题已有明确政策结论为由拒绝升级，因而造成合规退化。
+Candidate replay后，2条Targeted Fix均为`FIXED`，说明两个目标问题都被修复。
+但5条负向轨迹对中有1条被判为`CHANGE_CAUSED`。
+新增规则要求“不要仅因用户坚持或要求主管而转人工”，但 Agent 将其过度泛化到后续提出的正式投诉请求。由于投诉流程超出了 Agent 的处理范围，本应按照系统要求转人工，Agent 却以原问题已有明确政策结论为由拒绝升级，因而造成合规退化。
 
 | 指标 | Parent S0 | Candidate S1 | Delta |
 |---|---:|---:|---:|
@@ -3905,7 +3909,9 @@ Step 2的20条Parent trajectories分布为16条`compliant_success`、3条`violat
 - 解释Policy、限制或操作流程时，应区分用户或工具已经确认的事实与推测，只陈述已确认事实；现有证据无法确定用户所问结果时，应说明不确定性并选择升级或停止，而不是自行推断Policy。
 - 用户询问交易完成后的履约流程或时间，而这些信息没有得到用户或工具确认时，只提供已经确定的信息并指出缺失细节；应停止或寻求验证，不能推测物流方式、邮件内容或处理时间。
 
-Candidate replay后，3条Targeted Fix为1条`FIXED`、2条`NOT_FIXED`：一条`NOT_FIXED`是仍然声称继续编造 Policy，说明“写入 Skill”与“Agent实际遵循”之间存在差距。另一条`NOT_FIXED`是目标行为没有被触发。3条deterministic regressions均被判为`UNRELATED_VARIATION`，没有可归因于Skill change的负向。但Candidate的Task Success从19条下降到16条。
+Candidate replay后，3条Targeted Fix为1条`FIXED`、2条`NOT_FIXED`：一条`NOT_FIXED`是仍然声称继续编造 Policy，说明“写入 Skill”与“Agent实际遵循”之间存在差距。另一条`NOT_FIXED`是目标行为没有被触发。
+3条负向轨迹对均被判为`UNRELATED_VARIATION`，没有可归因于Skill change的负向。
+Candidate的Task Success从19条下降到16条。
 
 | 指标 | Parent S0 | Candidate S2 | Delta |
 |---|---:|---:|---:|
@@ -3915,7 +3921,8 @@ Candidate replay后，3条Targeted Fix为1条`FIXED`、2条`NOT_FIXED`：一条`
 
 Candidate被拒绝，下一Step继续使用S0。
 
-三条规则反复强调“无法验证时停止”，虽然负向轨迹不是Candidate Skill 直接造成，但是可能是因为整体Candidate Skill 让 Agent 更保守。所以导致Candidate的Task Success从19条下降到16条。此外，说明现在的问题是Diagnosis 把通用问题过早场景化，使 Editor 虽有合并能力却没有完成归纳。
+三条规则反复强调“无法验证时停止”，虽然负向轨迹不是Candidate Skill 直接造成，但是可能是因为整体Candidate Skill 让 Agent 更保守。所以导致Candidate的Task Success从19条下降到16条。
+此外，另外一个问题是三条Edit描述的信息基本类似，因为 Diagnosis 把通用问题过早场景化，使 Editor 虽有合并能力却没有完成归纳。
 
 #### Step 3：2条目标问题均修复，Candidate晋级为S3
 
@@ -3927,7 +3934,8 @@ Step 3的20条Parent trajectories分布为16条`compliant_success`、1条`violat
 - 添加到`Execution patterns`：当replacement transaction依赖支付限额、退款或其他条件资金时，应将可执行金额与估算金额分开计算，取得明确授权后完成获准的replacement；如果用户选择延期，则记录这一决定，并在停止前验证最终transaction或延期状态。
 
 Diagnosis现在太过具体，存在较强的任务特定风险，例如“在查询reservation”，“支付限额、退款或其他条件资金”。
-Candidate replay后，2条Targeted Fix均为`FIXED`。1条deterministic regression判为`UNRELATED_VARIATION`：Candidate在新预订中错误使用多张travel certificates，但两条新增Skill规则都没有要求或诱导这一行为，无法建立Skill change到回归的因果链。
+Candidate replay后，2条Targeted Fix均为`FIXED`。
+1条负向轨迹对判为`UNRELATED_VARIATION`：Candidate在新预订中错误使用多张travel certificates，但两条新增Skill规则都与这一行为无关。
 
 | 指标 | Parent S0 | Candidate S3 | Delta |
 |---|---:|---:|---:|
@@ -3935,11 +3943,571 @@ Candidate replay后，2条Targeted Fix均为`FIXED`。1条deterministic regressi
 | Compliance | 18/20 | 18/20 | 0 |
 | CuP | 16/20 | 18/20 | +2 |
 
-Candidate通过Targeted Fix、Regression和Aggregate三道Gate，被接受并晋级为最终Skill S3。
+Candidate通过Targeted Fix、Regression和Aggregate的Gate，被接受并晋级为最终Skill S3。
 
+### 问题
+1. Diagnosis 现在太过具体，存在任务特定风险，Editor 也无法据此统一合并相同的问题。
+2. `NOT_FIXED` 不一定说明修复失败，也可能是目标行为在 replay 中没有被触发。
+
+
+## Day 22-23 记录（2026-08-27 28）
+
+### 目标
+
+在Day 21的基础上将每个task扩展为3次独立rollout，在同一个Diagnosis中同时观察稳定行为和结果差异。优化Diagnosis、Editor和Target Fix：Diagnosis不再针对单个task编写具体流程，而是基于多条轨迹提炼已被证据支持的、最小的通用行为要求；由Editor统一合并相同问题并决定最终规则的写法和位置；Target Fix直接验证Editor最终写入的edit，并区分“已修复”“仍未修复”和“本次未触发验证场景”。
+
+### 实验设置
+
+#### 三次独立Rollout
+
+τ³ benchmark的Airline和Retail两个domain和task划分不变，每个task执行3次独立rollout：
+
+```text
+rollout_01 → seed 200
+rollout_02 → seed 201
+rollout_03 → seed 202
+```
+
+每次rollout都从相同benchmark initial state独立reset。三个seed是稳定且互不相同的确定性seed，不临时随机生成。一个Step因此包含：
+
+```text
+20 tasks × 3 rollouts = 60 Parent trajectories
+```
+```text
+1 task
+→ 3 governed experiences
+→ 1 Diagnosis
+```
+因此每个Step仍然只调用20次Diagnosis，1次Diagnosis综合三条rollout，回答四个核心问题：
+
+1. 三条rollout中有哪些稳定出现的行为，哪些行为存在差异；
+2. Task Success 或 Compliance 的差异是否是因为某些行为差异，哪些行为可能与结果变化有关；
+3. 当前问题来自 Skill 指导不足、Agent 执行问题、外部环境，还是现有证据无法确定；
+4. 如果问题与 Skill 有关，三条 rollout 是否提供了足够证据支持一个明确、可复用的 Skill 更新；如果证据不足，则不进行修改。
+
+一个task即使暴露多个现象，也最多产生1个update Diagnosis。如果存在多个问题，只选择其中最明确、最可复用的一个问题；没有足够证据时输出`none`或`uncertain`，不为了生成Candidate强制update。
+
+#### Diagnosis
+
+对 Diagnosis 的要求是：指出需要改进的行为，不规定一套完整的操作顺序。更新建议必须有明确证据支持，并应尽量采用最小、通用的规则，避免把单个任务中的偶然错误或具体流程写成过于严格的 Skill 要求。
+例如，Agent 在三次 rollout 中只有一次提前提到补偿，另外两次都等到用户明确提出后才讨论补偿：
+
+```json
+{
+  "task_behavior_summary": "三次 rollout 中，Agent 都找到了预订 M61CQM，确认航班 HAT039（2024-05-15，ATL 至 SEA）发生延误，说明系统无法提供延误原因，并处理了用户的升级请求。三次结果的主要合规差异在于：Agent 是否在用户明确提出补偿请求前主动提到补偿。",
+  "cross_rollout_analysis": {
+    "stable_behavior": "Agent 都查询了用户资料和预订信息，识别出 M61CQM 和 HAT039，检查了航班状态，说明系统无法提供延误原因，并将升级请求转交人工。",
+    "key_behavior_difference": "在 rollout 2 中，Agent 在用户提出补偿请求前，于第 30 步主动提到了补偿，违反了“只有用户明确提出补偿请求后，Agent 才可以讨论补偿”的 Policy；在 rollout 1 和 3 中，Agent 只在用户明确要求 voucher 或退款后才讨论补偿。",
+    "counterevidence": "rollout 1 和 3 表明，Agent 能够在用户明确提出请求后再讨论补偿。因此，更新应限制“何时可以讨论补偿”，而不是完全禁止讨论补偿。",
+    "support_evidence_refs": [
+      {
+        "source_id": "step_002_airline_27_rollout_02",
+        "step_ids": [30]
+      }
+    ],
+    "counterevidence_refs": [
+      {
+        "source_id": "step_002_airline_27_rollout_01",
+        "step_ids": [30, 31]
+      },
+      {
+        "source_id": "step_002_airline_27_rollout_03",
+        "step_ids": [31, 32]
+      }
+    ]
+  },
+  "root_cause": {
+    "category": "skill_issue",
+    "explanation": "Agent 不能稳定判断用户是否已经明确提出补偿请求，因此有时会在用户提出请求前主动提供补偿相关帮助。rollout 2 出现了这一问题，而另外两次则正确等待了用户的明确请求。"
+  },
+  "skill_update_relevance": "update",
+  "repair_policy_ids": [
+    "tau3:airline:do-not-proactively-offer-a-compensation-unless-the-user-explicitly-asks-for-one"
+  ],
+  "target_behavior": {
+    "problem": "在用户明确询问补偿前，就主动提到补偿可以作为一种帮助方式。",
+    "trigger_condition": "用户提出了服务问题，但还没有明确要求补偿、voucher、退款或了解补偿选项。",
+    "expected_behavior": "在用户明确提出请求前，不主动引入或提供补偿相关帮助；用户提出请求后，再根据适用的 Policy 处理。"
+  },
+  "update_recommendation": {
+    "action": "add",
+    "target_section": null,
+    "target_rule_id": null,
+    "objective": "只有在用户明确提出请求后，才讨论补偿相关内容。",
+    "description": "处理服务异常时，先判断用户是否明确提出了补偿请求。如果没有，就不要主动提到 voucher、退款、补偿或补偿选项；如果用户明确提出请求，则可以根据适用的 Policy 讨论补偿。"
+  }
+}
+```
+
+#### Editor合并Diagnosis并生成最终规则
+
+每个Step只调用一次 Editor。Editor 会同时查看基准 Skill 和本 Step 中的 update Diagnosis：
+
+1. 判断哪些 Diagnosis 其实描述的是同一个行为问题；
+2. 把相似问题合并成一条更通用的规则；
+3. 删除不必要的细节，避免规则过长或限制过强；
+4. 决定规则应该放在哪个 Skill section；
+5. 写出最终加入 Skill 的规则。
+
+例如，`diagnosis_012` 和 `diagnosis_017` 都发现了同一个问题：同一个订单有多个已确认的修改时，Agent 多次调用修改工具，违反了“每个订单只能进行一次修改”的限制。Editor将它们合并成一条规则：
+
+```json
+{
+  "canonical_edit_id": "canonical_edit_003",
+  "derived_from_diagnosis_ids": [
+    "diagnosis_012",
+    "diagnosis_017"
+  ],
+  "operation": "add",
+  "section": "Execution patterns",
+  "text": "当同一个订单有多个已确认的修改时，应将它们合并到一次允许的执行批次中，或使用一个支持合并修改的调用；不要针对同一订单依次发起多次修改调用。",
+  "reason": "合并两个关于同一订单修改边界的问题，同时保留必须合并执行这一关键要求。",
+  "source_ids": [
+    "step_001_retail_112_rollout_01",
+    "step_001_retail_112_rollout_02",
+    "step_001_retail_112_rollout_03",
+    "step_001_retail_96_rollout_01",
+    "step_001_retail_96_rollout_02",
+    "step_001_retail_96_rollout_03"
+  ],
+  "repair_policy_ids": [
+    "tau3:retail:exchange-or-modify-order-tools-can-only-be-called-once-per-order"
+  ],
+  "verification_target": {
+    "problem": "同一个订单的多个已确认修改可能被拆成多次状态修改调用。",
+    "trigger_condition": "同一个订单有多个修改请求，且用户已经确认执行。",
+    "expected_behavior": "将这些修改放入一次允许的执行批次，或使用一个支持合并修改的调用。"
+  }
+}
+```
+
+#### 按最终规则验证 Target Fix
+
+不再分别验证每条 Diagnosis，而是针对 Editor 最终真正写入 Candidate 的每条规则进行一次 Target Fix。
+
+如果一条最终规则由多条 Diagnosis 合并而来，同时查看：
+
+- 这条最终规则和这条规则预期修复的具体行为问题；
+- 支持这条规则的所有 Diagnosis；
+- 这些 Diagnosis 对应任务的 3 条 Parent 轨迹和 3 条 Candidate 回放轨迹。
+
+根据这些信息判断：
+
+> Candidate 中最终加入的这条规则，是否确实改变了目标行为？
+
+Target Fix 的三种结果：
+
+| 状态 | 含义 |
+|---|---|
+| `FIXED` | 至少有一条 Candidate 轨迹进入了目标场景，并表现出正确行为；所有已经进入目标场景的轨迹都没有再次出现原问题。 |
+| `NOT_FIXED` | 至少有一条 Candidate 轨迹进入了目标场景，并再次出现原问题。只要明确复现一次，就判定为未修复。 |
+| `NOT_EXERCISED` | 所有 Candidate 回放都没有进入目标场景，因此没有机会验证这条规则是否有效。 |
+
+
+#### 检查Regression并决定 Candidate 是否晋级
+
+Candidate 回放后，把每一条 Parent 轨迹和对应的 Candidate 轨迹配成一对，逐对检查 Candidate 是否出现了新的问题。一个 task 最多有 3 对轨迹，每一对单独判断，不把三次结果合并。
+
+只有符合预设回归条件的轨迹对才会进入 Regression Diagnosis。Regression Diagnosis 要判断：
+
+> 这次 Candidate 出现的问题，是否可以明确归因于新加入的 Skill 规则？
+
+如果能判断“Skill 修改 → Agent 行为变化 → 结果变差”，即Candidate 的结果变差，并且能找到一个由新 Skill 合理诱导出来的行为变化，而这个行为变化又直接导致了结果退化，结果为 `CHANGE_CAUSED`；如果更可能是模型、用户模拟器、工具或环境的自然波动，结果为 `UNRELATED_VARIATION`。只要有一对轨迹被明确判定为 `CHANGE_CAUSED`，Candidate 就不能晋级。
+
+Evolution Gate 会从三个方面检查 Candidate：
+
+1. **目标问题是否修复**：每条最终写入的 edit 都有一个 Target Fix 结果，并且必须是 `FIXED`。出现 `NOT_FIXED` 时，Candidate 直接因目标问题未修复而被拒绝；出现 `NOT_EXERCISED` 时，说明没有获得验证机会，也不能直接通过。
+2. **是否引入可归因的回归**：Regression Diagnosis 中不能出现 `CHANGE_CAUSED`。
+3. **整体表现是否严重下降**：在全部 60 条轨迹上比较 Parent 和 Candidate 的 Task Success、Compliance 和 CuP。每项指标最多只能下降 0.15，不能出现大范围退化。
+
+只有同时满足以上三点，Candidate 才能晋级。
+
+
+### 三步演化结果
+
+完整执行 3 个连续演化 Step，结果依次为 `REJECT`、`REJECT` 和 `REJECT`。三个 Candidate 均未通过 Evolution Gate，三个 Step 的 Parent 始终为 S0，最终仍保留空 Skill S0。
+
+#### Step 1：部分目标问题修复，但仍有两条规则未修复
+
+Step 1 以 S0 为基准，使用 `batch_1` 的 20 个 tasks，每个 task 执行 3 次 rollout，共生成 60 条 Parent trajectories。四状态分布为 48 条 `compliant_success`、5 条 `violating_success`、7 条 `compliant_failure` 和 0 条 `violating_failure`。
+
+6 条 eligible update Diagnosis 进入 Editor，生成 4 条 `add` canonical edits：
+
+- 当用户要求汇总多个金额时，应按照用户实际询问的金额口径和相关数据计算；如果存在其他金额口径，也要明确区分。
+- 状态变更工具返回结果后，应以最新结果中的字段为准，不能继续使用已经过时的估算值。
+- 同一个订单有多个已确认修改时，应将修改合并到一次允许的执行批次中，或使用支持合并的调用，不能依次提交多次修改。
+- 总结操作结果或后续流程时，只能陈述用户或工具已经提供的信息；对于没有证据支持的流程、时间和配送细节，应说明未知。
+
+Candidate replay 后，4 条 Target Fix 中有 2 条 `FIXED`、2 条 `NOT_FIXED`：
+
+- 金额口径和操作结果汇报规则被修复；
+- 多次修改同一订单的问题仍然出现；
+- 汇总航班费用的问题也仍然出现，Candidate 在两次 rollout 中仍将 payment history 总额 `$708` 当成相关航班的总价，而相关航班价格实际合计为 `$477`。
+
+Regression Set 中有 2 对轨迹，均被判定为 `UNRELATED_VARIATION`，没有发现由 Skill 修改明确造成的回归。Aggregate 结果如下：
+
+| 指标 | Parent S0 | Candidate S1 | Delta |
+|---|---:|---:|---:|
+| Task Success | 53/60 | 55/60 | +2/60 |
+| Compliance | 55/60 | 58/60 | +3/60 |
+| CuP | 48/60 | 53/60 | +5/60 |
+
+虽然 Candidate 的三项总体指标均有所提升，但由于存在 2 条 `NOT_FIXED`，Target Fix 未通过，Candidate 被拒绝，下一 Step 继续使用 S0。
+
+#### Step 2：部分目标问题修复，但仍有两条规则未修复
+
+Step 2 继续以 S0 为基准，使用 `batch_2` 的 20 个 tasks，每个 task 执行 3 次 rollout，共生成 60 条 Parent trajectories。四状态分布为 46 条 `compliant_success`、5 条 `violating_success`、8 条 `compliant_failure` 和 1 条 `violating_failure`。
+
+6 条 eligible update Diagnosis 进入 Editor，生成 6 条 `add` canonical edits：
+
+- 执行状态变更工具调用前，确认所有必填参数已经提供，并且与用户确认的请求一致；如果缺少参数，应补齐后再重试。
+- 介绍或预订航班前，只使用工具明确返回的信息；如果航班不可用或信息冲突，应重新检查或选择有证据支持的替代方案。
+- 用户询问服务异常但没有主动要求补偿时，不要主动引入补偿、voucher 或退款；只有用户明确提出后，才根据 Policy 讨论。
+- 使用指定支付方式承担价差前，确认其余额足以覆盖价差；余额不足时，不得使用该方式执行，并应说明限制。
+- 说明订单状态、影响或后续进展时，只能陈述用户或工具已经确认的事实；无法确认时应说明未知，不能自行推断。
+- 用户明确确认已经确定的操作方案后，应执行每项已确认操作，验证结果并汇报最终状态。
+
+Candidate replay 后，6 条 Target Fix 中有 4 条 `FIXED`、2 条 `NOT_FIXED`：
+
+- 必填参数、航班信息、补偿时机和确认后执行规则被修复；
+- 礼品卡余额不足时仍然执行订单修改的问题仍然出现；
+- 订单状态和后续进展的无依据推断也仍然出现。
+
+Regression Set 中有 8 对轨迹，全部判定为 `UNRELATED_VARIATION`，没有发现由 Skill 修改明确造成的回归。Aggregate 结果如下：
+
+| 指标 | Parent S0 | Candidate S2 | Delta |
+|---|---:|---:|---:|
+| Task Success | 51/60 | 53/60 | +2/60 |
+| Compliance | 54/60 | 50/60 | -4/60 |
+| CuP | 46/60 | 45/60 | -1/60 |
+
+Task Success 提高了 2 条，但 Compliance 下降 4 条、CuP 下降 1 条，且存在 2 条 `NOT_FIXED`。Target Fix 未通过，Candidate 被拒绝，下一 Step 继续使用 S0。
+
+#### Step 3：部分目标问题修复，同时出现可归因回归
+
+Step 3 继续以 S0 为基准，使用 `batch_3` 的 20 个 tasks，每个 task 执行 3 次 rollout，共生成 60 条 Parent trajectories。四状态分布为 50 条 `compliant_success`、6 条 `violating_success`、4 条 `compliant_failure` 和 0 条 `violating_failure`。
+
+7 条 eligible update Diagnosis 进入 Editor，生成 6 条 `add` canonical edits：
+
+- 比较或重新排序多个结果时，保留所有符合条件的选项，单独识别真正的最低价；除非用户明确选择更贵的方案，否则不能用更贵的方案替代最低价方案。
+- 汇报选项、属性、价格、可用性或操作细节时，只使用用户或工具明确提供的信息；不能把不同记录中的属性和价格拼接起来，也不能自行推断未知信息。
+- 用户提出取消请求但没有提供取消原因时，应先询问并记录原因，再判断或汇报取消结果；如果还有其他可以独立处理的请求，应继续处理。
+- 状态变更工具返回结果与用户请求或已有证据冲突时，应暂停确认，只汇报已支持的字段，并核实或说明有争议的完成信息仍未解决。
+- 执行数据库变更前，先说明具体操作和对象，取得针对这些细节的明确确认以及继续执行的明确同意，然后再调用工具。
+- 如果用户请求超出当前工具或操作能力，应转人工处理，不能只提供外部转介或 workaround；仍在能力范围内的请求不应无故升级。
+
+Candidate replay 后，6 条 Target Fix 中有 4 条 `FIXED`、2 条 `NOT_FIXED`：
+
+- 最低价比较、取消原因确认、冲突结果处理和数据库变更前确认规则被修复；
+- 将不同记录中的信息错误拼接或使用无依据细节的问题仍然出现；
+- 对超出能力范围的请求，Candidate 在一次 rollout 中仍然没有发起人工转接。
+
+Regression Set 中有 7 对轨迹，其中 6 对判定为 `UNRELATED_VARIATION`，1 对判定为 `CHANGE_CAUSED`。该回归发生在一个订单处理任务中：新增的“数据库变更前必须获得针对全部细节的明确确认”规则使 Agent 在用户已经确认操作和支付方式后再次重复确认，最终没有执行操作，导致任务从成功退化为失败。
+
+Aggregate 结果如下：
+
+| 指标 | Parent S0 | Candidate S3 | Delta |
+|---|---:|---:|---:|
+| Task Success | 56/60 | 56/60 | 0/60 |
+| Compliance | 54/60 | 54/60 | 0/60 |
+| CuP | 50/60 | 50/60 | 0/60 |
+
+Candidate 同时存在 2 条 `NOT_FIXED` 和 1 条 `CHANGE_CAUSED` 回归，因此 Target Fix 和 Regression 两项均未通过，Candidate 被拒绝。由于三个 Step 的 Candidate 均未晋级，最终仍保留 S0。
+
+
+### 问题
+通过 Parent/Candidate Replay、Target Fix 和 Regression Diagnosis 判断 Skill 修改是否有效，实际运行发现 Candidate Skill 仍存在问题。
+
+#### 1. Editor 存在过度抽象和过度合并
+
+上一版为了避免从单条任务中过拟合具体场景，要求 Editor 删除 task ID、固定金额、具体 reservation 等偶然信息，并尽量将相似 Diagnosis 合并。
+
+实际运行发现这种约束矫枉过正：
+
+- 部分规则删除了真正决定行为的条件；
+- 不同问题虽然属于同一主题，但触发条件和修复方式并不相同，却被合并为一条宽泛原则；
+- Candidate Skill 中虽然存在相关规则，但规则过于抽象，Agent 无法据此稳定执行正确行为。
+
+因此出现以下情况：
+
+- 虽然 Diagnosis 找到了真实问题，Editor 生成了看似更通用的规则，但是部分 edit 同时删除了必要的判别条件和验证步骤，或者把主题相同、修复机制不同的 Diagnosis 合并成一条大原则，导致这个规则不能修复原来的错误，`Target Fix = NOT_FIXED`；
+- 或者为了防止确认不足，Candidate Skill 将要求写得过严，使 Agent 增加不必要的交互，使任务从成功退化为失败，导致 `CHANGE_CAUSED`。
+
+说明 Skill 修改不能简单追求“更泛化、更通用”，而应保留真正决定行为的机制。
+
+#### 2. 单纯根据 CS / VS / CF / VF 的结果差异推断原因并不可靠
+
+最初将同一 task 的 3 次 rollout 一起分析，希望利用：
+
+- `CS` = 成功且合规
+- `VS` = 成功但违规
+- `CF` = 失败但合规
+- `VF` = 失败且违规
+
+之间的差异寻找 Skill 问题。但实际情况可能是 Diagnosis 过度相信四状态标签，一次结果就可能进一步生成错误的 Skill update。例如 Compliance Judge 判断失误、LLM 波动。如果 Diagnosis 过度相信四状态标签，就可能进一步生成错误的 Skill update。
+
+> Success / Compliance label 可以帮助定位值得检查的 trajectory，但不能直接作为行为归因证据。
+
+例如：
+
+- Rollout 1：CS
+- Rollout 2：CS
+- Rollout 3：VS
+
+如果只看结果，很容易得到“第三条轨迹导致了违规”。但可能第三条轨迹是 Compliance Judge 判断失误、LLM 波动导致的。
+
+#### 3. Compliance Judge 会产生语义误判
+
+使用 LLM Compliance Judge 根据 Policy 和 trajectory 判断是否违规。实际运行发现 Judge 会犯错，会把错误信号继续传播成错误 Skill update。
+
+#### 4. FIX 太严格
+
+单条轨迹设置硬性指标不合理，后续尝试实现分布变化。
+
+## Day 24-26 记录（2026-08-31 09-01 09-02）
+
+### 目标
+优化 Diagnosis、Editor 与 Selection。Diagnosis 重新设计多 rollout 的证据分析方式，结合实际行为差异、Policy 与最终结果定位可修复机制；Editor 生成更有针对性、证据支撑更充分的 Skill 修改。Selection 则通过 Parent/Candidate matched replay 比较 Success × Compliance 联合分布变化，并结合目标行为修复与回归情况决定 Candidate 的接受或拒绝。
+
+### 实验设置
+
+#### Diagnosis
+
+Diagnosis 对同一 task 的 3 次 rollout 进行分析。输入包括当前 Parent Skill、task 信息、原始 Policy、可用 Tool，以及 3 次完整 rollout。
+
+这一版不再直接根据 Success / Failure 或 Compliance / Violation 的结果状态反推 Skill 应如何修改，而是先分析 Agent 的实际行为，再逐步判断该行为是否真正构成需要修改 Skill 的问题。结果标签和环境返回仅作为后续证据，不能直接构成行为问题本身。
+
+具体流程如下。
+
+1. 首先分析 Agent 在 3 次 rollout 中实际执行了什么，包括条件检查、工具选择、参数选择、执行顺序、重试、继续或停止操作，以及明确表达的内容。
+2. 结合当前 task、Policy 和 Tool，判断问题发生的决策点是否存在合法且实际可执行的正确做法：
+
+   - `feasible`：存在能够满足 task、符合 Policy、由 Tool 支持且当时可以实际执行的正确行为；
+   - `infeasible`：不存在同时满足上述条件的正确行为，说明问题无法通过增加 Skill 规则解决；
+   - `uncertain`：现有信息不足以确定当时是否存在正确可行的行为。
+
+3. 在 3 次 rollout 中提出一个具体候选行为问题，并收集支持该判断的轨迹证据。
+4. 使用全部 rollout 主动寻找反例：检查相同条件下是否出现不同结果；被认为有问题的行为是否在其他 rollout 中仍能完成任务或保持合规；不同 rollout 是否实际上处于不同条件；以及相应的正确行为机会是否真实存在。若初步判断被其他轨迹直接推翻，则不能保留该问题。
+
+综合支持证据和反例后，Diagnosis 为候选行为问题给出以下最终行为证据状态：
+
+- `contrastive_support`：不同 rollout 中出现不同 Agent 行为，且这种行为差异支持一个具体问题，并未被其他 rollout 的反例推翻；
+- `recurrent_support`：多个 rollout 在相同关键条件下重复出现同一种错误决策，并且当时存在 Policy 允许、Tool 支持的正确替代行为；
+- `conflicting`：某个具体问题存在真实支持证据，但同时存在无法解释的反例，暂时无法确认其成立；
+- `insufficient`：经多次 rollout 对照和反例检查后，仍无法稳定支持一个具体行为问题。
+
+随后检查当前 Parent Skill 是否已经对该行为问题提供正确、充分的指导：
+
+- `missing`：当前 Skill 没有相关指导；
+- `incorrect`：已有规则本身提供了错误指导；
+- `underspecified`：已有规则方向基本正确，但缺少会实际影响 Agent 决策的关键条件、执行顺序或停止条件；
+- `already_covered`：当前 Skill 已明确给出正确且可执行的指导，但 Agent 没有遵守；
+- `not_applicable`：该行为问题与 Skill 本身没有直接关系。
+
+Diagnosis 还会分别判断已发现行为问题与 Task Success、Compliance 两个结果维度的关系。两个维度独立判断，各自取值为：
+
+- `supports`：现有 rollout 支持该行为问题与该结果维度存在关系；
+- `contradicts`：现有结果证据与提出的行为问题相矛盾；
+- `insufficient`：现有 rollout 不足以判断该行为是否影响该结果维度；
+- `not_applicable`：该行为问题与该结果维度没有直接关系。
+
+LLM 输出后由程序统一校验和决策。程序先检查引用的轨迹证据、Policy 证据和 Skill Rule ID 是否真实存在，避免模型引用不存在的步骤、Policy 或规则。随后基于 LLM 的语义判断生成最终决策：
+
+- 若不存在合法可行的正确行为，归为外部问题，不修改 Skill；
+- 若行为证据为 `insufficient`，认为没有足够证据支持修改；
+- 若行为证据为 `conflicting`，保留为不确定，不修改 Skill；
+- 若当前 Skill 已明确给出正确指导，归为 Agent 执行问题，不增加重复规则；
+- 若问题与 Skill 无直接关系，不进行修改；
+- 只有行为证据为 `contrastive_support` 或 `recurrent_support`、正确行为确实可行、当前 Skill 为 `missing`、`incorrect` 或 `underspecified`，且 Task Success 或 Compliance 至少一个维度为 `supports` 时，才允许产生 Skill 更新。
+
+满足更新条件后，程序继续自动确定更新方式：
+
+- 仅 Task Success 为 `supports`：更新目标为 Task Success；
+- 仅 Compliance 为 `supports`：更新目标为 Compliance；
+- 两个维度均为 `supports`：同时针对两个维度更新；
+- `missing`：自动生成新增规则操作；
+- `incorrect` / `underspecified`：根据对应已有 Rule 和 Diagnosis 给出的修改意图，确定修改或删除原规则。
+
+完整流程为：
+
+```text
+同一 task 的 3 次 rollout
+        ↓
+分析实际 Agent 行为
+        ↓
+Task × Policy × Tool：是否存在合法可行的正确行为
+        ↓
+提出候选行为问题
+        ↓
+收集跨 rollout 的支持证据，并使用全部 rollout 主动寻找反例
+        ↓
+最终行为证据判断：contrastive_support / recurrent_support /
+conflicting / insufficient
+        ↓
+检查当前 Parent Skill 是否已有正确指导
+        ↓
+分别判断与 Task Success / Compliance 的关系
+        ↓
+描述期望的正确行为
+        ↓
+LLM Diagnosis 结束
+        ↓
+程序校验证据与规则引用，并统一生成问题归因、更新维度和修改方式
+        ↓
+Update / No Update
+```
+Diagnosis 在以下条件同时满足时进入 Editor：
+
+```text
+Supported Evidence ∧ Feasible ∧ Skill Weakness ∧ Outcome Support
+```
+
+其中：
+
+- **Supported Evidence**：`contrastive_support` 或 `recurrent_support`；
+- **Feasible**：`feasible`；
+- **Skill Weakness**：`missing`、`incorrect` 或 `underspecified`；
+- **Outcome Support**：Task Success 或 Compliance 至少一个为 `supports`。
+
+任一条件不满足，均判定为No Update，不进入 Editor。
+
+#### Editor：保留关键行为条件的受限编辑
+
+v14 重新限制 Editor 的职责：不再重新判断 Diagnosis 是否成立，只负责将 Diagnosis 转换为 Skill 修改。
+
+核心原则是：
+
+> 删除只与当前样本有关的信息，但保留所有会改变 Agent 行为选择的条件。
+
+具体包括：
+
+- 触发条件：规则在什么情况下适用；
+- 决策条件：哪些条件决定 Agent 应采取不同操作；
+- 处理方式：满足条件后应该采取什么行为；
+- 停止条件：什么情况下不能继续执行；
+- 用户控制条件：需要用户选择、确认或授权的内容不能由 Agent 自行决定。
+
+规则简化只删除没有必要保留的样本细节和无证据约束，而不能删除已经被 Diagnosis 支持的关键决策条件。
+
+对于多个 Diagnosis，只有当其触发条件和决策边界相互兼容、处理方式一致，并且合并后不会扩大或改变任何来源 Diagnosis 的行为要求时，才允许合并；仅主题相似不能作为合并依据。
+
+每个最终 Skill 修改同时生成一个 `verification_target`：
+
+```text
+problem
++ trigger_condition
++ expected_behavior
+```
+
+用于后续 Parent / Candidate matched replay 中检查 Skill 修改实际造成的行为变化。
+
+#### 4. Selection：基于联合分布变化的 Gate
+
+为降低单次 rollout 波动对 Selection 的影响，Gate 不直接根据一次总体结果决定是否接受 Candidate，而是采用自助采样法评估 Candidate 相比 Parent 的分布变化是否稳定。
+
+固定 Monitor 包含 20 个 task，其中 Airline 和 Retail 各 10 个，每个 task 进行 3 次 matched rollout，共 60 个 Parent / Candidate matched pair。
+
+以 task 为采样单位，并分别在 Airline 和 Retail 内进行有放回采样。每次重新采样 10 个 Airline task 和 10 个 Retail task，保留每个 task 对应的 3 次 rollout，并计算该次采样下的：
+
+```text
+ΔS, ΔC
+```
+
+其中分别表示 Candidate 相比 Parent 的 Task Success 和 Compliance 变化。
+
+对于每一次采样结果，若满足：
+
+```text
+(ΔS > 0 ∧ ΔC ≥ −1) ∨ (ΔC > 0 ∧ ΔS ≥ −1)
+```
+
+则将该次采样记为通过。即至少一个维度得到提升，同时允许另一个维度最多下降 1 个 matched rollout。
+
+重复采样 10,000 次后，统计通过出现的比例：
+
+```text
+P_positive = Pareto-positive 次数 / 10,000
+```
+
+最终 Gate 为：
+
+```text
+P_positive ≥ 0.80  → ACCEPT Candidate
+P_positive < 0.80  → RETAIN Parent
+```
+
+因此，Selection 判断的不是某一次观测结果是否提升，而是Candidate 在不同 task 重采样下是否有足够稳定的概率使 Success × Compliance 联合分布向更优方向移动。
+
+### 三步演化结果
+
+完整执行 3 个连续演化 Step，Selection 结果依次为 `RETAIN`、`RETAIN` 和 `RETAIN`。三个 Candidate 都没有达到 Gate 要求的 `P_positive ≥ 0.80`，三个 Step 的 Parent 始终为 S0，最终仍保留空 Skill S0。
+
+每个 Step 使用对应 batch 的 20 个 tasks 生成 Diagnosis 和 Candidate；Selection 则在固定 Monitor 的 20 个 tasks 上进行，每个 task 执行 3 次 Parent / Candidate matched rollout，共比较 60 对轨迹。
+
+#### Step 1：Success 和 Compliance 均下降，Candidate 保留
+
+Step 1 以 S0 为基准，使用 `batch_1` 生成 6 条最终 Skill 规则（其中与零售操作确认有关的多个 Diagnosis 被合并为同一条规则）：
+
+1. 在判断航班是否满足“由航司取消”这一取消资格条件时，必须先对预订中的每个航段调用 `get_flight_status`；只能依据工具返回的实际状态告知用户航班是否被取消。
+2. 当用户希望使用多张旅行凭证付款时，每个预订最多只能使用一张旅行凭证；若用户要求使用多张，应说明该限制，并选择一张凭证（优先选择用户明确偏好的凭证），余额使用账户中允许的其他支付方式支付。
+3. 当同一笔待处理零售订单同时需要修改收货地址和商品选项时，必须先调用修改地址的工具；只有地址修改成功后才能修改商品。地址修改失败时，不得继续修改商品，需先向用户说明问题。
+4. 在向用户确认舱位升级前，票价差额应计算为同一航班新票价之和减去预订中原票价之和，不得将保险费或其他非票价费用计入，并向用户展示准确的差额。
+5. 在退货、换货、取消待处理订单、修改待处理订单的商品、地址或支付方式，以及修改用户地址前，必须列出操作详情并获得用户明确的肯定确认（如“是”）；确认含糊时必须再次询问。修改商品或换货前，还必须提醒用户确认是否已列出全部需要修改或换货的商品。
+6. 当用户请求超出当前工具或 Policy 可处理范围，且不存在其他可解决的请求时，必须调用 `transfer_to_human_agents` 转人工，并告知用户正在转接人工客服。
+
+固定 Monitor 回放中，Parent S0 的四状态分布为 48 条 CS、4 条 CF、6 条 VS 和 2 条 VF；Candidate 的分布为 45 条 CS、6 条 CF、6 条 VS 和 3 条 VF。Candidate 相比 Parent 的 Task Success 下降 3/60，Compliance 下降 1/60，CuP 从 48/60 降至 45/60。
+
+对 20 个 task 重抽样 10,000 次后，满足 Pareto-positive 条件的采样为 1,598 次，`P_positive = 0.1598`，低于 0.80 门槛。因此 Gate 判定为 `RETAIN`，下一 Step 继续使用 S0。
+
+#### Step 2：Compliance 有所提升，但 Success 下降且稳定性不足
+
+Step 2 继续以 S0 为基准，使用 `batch_2` 生成 4 条 Skill 规则：
+
+1. 当用户要求选择“最快”的返程或改签航班，而搜索结果包含多条中转行程时，必须以最早起飞时间至最晚到达时间的完整时长（包括中转等待）计算每条行程的总耗时，并将总耗时最短的行程作为最快方案向用户推荐。
+2. 当用户要求将待处理零售订单中的商品改为特定选项值，且商品详情中存在多个满足该值的变体时，应比较这些变体与当前商品的其他属性，优先推荐保留属性最多的变体，并说明保留了哪些属性；只有用户要求时才列出其他候选项，随后再请求确认。
+3. 当用户请求取消航班预订时，在查询预订详情或航班状态之前，必须先询问取消原因，并等待用户明确回复“计划变化”“航司取消航班”或其他有效原因；如未获得有效原因，应继续询问。
+4. 当用户仅请求取消旅行保险而不取消航班时，不得提供用户或工具未明确支持的信息、流程或主观建议；应说明现有工具无法单独处理保险取消，并询问用户是否需要转人工。用户同意后，调用 `transfer_to_human_agents`。
+
+固定 Monitor 回放中，Parent S0 的四状态分布仍为 48 条 CS、4 条 CF、6 条 VS 和 2 条 VF；Candidate 的分布为 47 条 CS、7 条 CF、5 条 VS 和 1 条 VF。Candidate 相比 Parent 的 Task Success 下降 2/60，Compliance 提升 2/60，CuP 从 48/60 降至 47/60。
+
+对 20 个 task 重抽样 10,000 次后，满足 Pareto-positive 条件的采样为 3,405 次，`P_positive = 0.3405`，仍低于 0.80 门槛。因此 Gate 判定为 `RETAIN`，下一 Step 继续使用 S0。
+
+#### Step 3：观测到 Compliance 提升，但未达到稳定晋级门槛
+
+Step 3 继续以 S0 为基准，使用 `batch_3` 生成 3 条 Skill 规则：
+
+1. 在零售场景描述商品或转述用户、工具提供的事实时，只能使用用户消息或工具输出中明确存在的信息；不得编造、推断或拼接其他属性，也不得加入主观评价、推荐或价值判断。
+2. 调用 `book_reservation` 构造 `payment_methods` 时，最多只能包含一张旅行凭证；若存在多张旅行凭证，应选择最合适的一张（例如面额最大者），其他允许的支付方式维持不变。
+3. 判断预订是否因航司取消航班而满足取消条件时，必须先对预订中的每个航段调用 `get_flight_status`，且只能依据返回状态判断；任一航段被航司取消即可满足该条件，全部航段均未取消则不满足，不得自行假设航班状态。
+
+固定 Monitor 回放中，Parent S0 的四状态分布仍为 48 条 CS、4 条 CF、6 条 VS 和 2 条 VF；Candidate 的分布为 50 条 CS、5 条 CF、4 条 VS 和 1 条 VF。Candidate 相比 Parent 的 Task Success 保持不变，Compliance 提升 3/60，CuP 从 48/60 提升至 50/60。
+
+虽然一次观测中 Compliance 和 CuP 均有提升，但对 20 个 task 重抽样 10,000 次后，满足 Pareto-positive 条件的采样为 6,272 次，`P_positive = 0.6272`，仍未达到 0.80 门槛。因此 Gate 判定为 `RETAIN`，最终保留 S0。
+
+### 问题
+
+当前 benchmark 中，大多数任务在 Parent Skill 下已经能够达到 Success + Compliance。即使某条 Skill 修改确实修复了局部问题，其带来的整体收益也可能不足以抵消 rollout 的随机波动，或对原本正确行为造成的轻微扰动。因此，Candidate 在单次观测中即使呈现局部改善，也较难在分布层面的 Selection Gate 中达到稳定晋级所需的阈值。
+一个Skill自进化得到的 Skill 级别的规则，在独立任务中重复出现得太少。例如某条 Skill 只影响一个 task，Skill自进化很难发挥优势。
+
+
+## Day 27 记录（2026-09-03）
+
+### 目标
 
 
 ---
+
+### 思考
+1、框架：发现问题→生成候选→验证是否修复 + 有无副作用→晋级 / 保留
+看起来感觉每个模块都是为了解决实验里遇到的问题，从而不断加模块。感觉太工程，整体框架感觉创新性不足。
+2、目前还没有合规违规的创新设计，合规违规部分考虑的少。
+3、数据集目前大部分都是合规成功，还需要尝试调整比例。
+4、Regression Set还比较简单，只保留绝对的负向对，没有引入合规成功到违规失败，违规成功到合规失败
+5、还需要确保泛化性。
+
+---
+
+
 
 ### 笔记
 1、更复杂的bench，调研，适合我们的idea，自己
@@ -3973,3 +4541,11 @@ skillopt太复杂，不好判断哪部分有问题
 4、对比轨迹进行诊断
 5、现在数据集成功合规轨迹太多了
 6、利用失败Skill
+
+
+
+抽象具体的skill需要判读，adapetive，有些问题具体，有些问题抽象
+分开，抽象的东西分开，high level ，再添加具体的，10个抽象的原则，10个specif具体的，
+
+概率分布，走一步都是带噪声的，每一步不可能都是准的，取均值，均值相对上一轮的均值有进步，带噪抽样，找到去除噪声的信息，分布转换
+跑更多的step
