@@ -1,0 +1,546 @@
+{
+  "schema_version": "step4w_s3_1.0",
+  "benchmark_id": "airline_certificate_lifecycle_step4w_s3",
+  "knowledge_unit": {
+    "id": "S3",
+    "name": "travel_certificate_lifecycle_cross_booking_allocation",
+    "canonical_source": {
+      "policy": "/Users/didi/Desktop/Govern-Skill-Evo/external/tau2-bench/data/tau2/domains/airline/policy.md",
+      "policy_clause": "- The remaining amount of a travel certificate is not refundable.",
+      "tool": "src/tau2/domains/airline/tools.py::book_reservation"
+    },
+    "partial_view": "Remove only the unused-certificate-remainder lifecycle clause.",
+    "canonical_environment_changed": false,
+    "tool_implementation_changed": false,
+    "evaluator_changed": false
+  },
+  "selection_status": "frozen_before_model_rollouts",
+  "rollout_outcomes_used_for_selection": false,
+  "selected_users": [
+    "juan_patel_6197",
+    "mohamed_ahmed_3350"
+  ],
+  "calibration_seeds": [
+    940,
+    941,
+    942
+  ],
+  "canary_seed": 950,
+  "rollout_seeds": [
+    951,
+    952,
+    953
+  ],
+  "tasks": [
+    {
+      "task_id": "airline_s3_juan_patel_6197_certificate_lifecycle",
+      "knowledge_id": "S3",
+      "domain": "airline",
+      "candidate_rank": 1,
+      "source_state": {
+        "user_id": "juan_patel_6197",
+        "certificate_id": "certificate_1925278",
+        "gift_card_id": "gift_card_8986123"
+      },
+      "candidate": {
+        "candidate_id": "s3_scan_01",
+        "user_id": "juan_patel_6197",
+        "passenger": {
+          "first_name": "Juan",
+          "last_name": "Patel",
+          "dob": "1963-03-14"
+        },
+        "membership": "gold",
+        "certificate": {
+          "id": "certificate_1925278",
+          "balance": 250.0
+        },
+        "gift_card": {
+          "id": "gift_card_8986123",
+          "balance": 115.0
+        },
+        "trip_a": {
+          "flight_number": "HAT045",
+          "date": "2024-05-16",
+          "origin": "PHX",
+          "destination": "SEA",
+          "departure": "23:00:00",
+          "arrival": "02:00:00+1",
+          "price": 100
+        },
+        "trip_b": {
+          "flight_number": "HAT192",
+          "date": "2024-05-23",
+          "origin": "MIA",
+          "destination": "EWR",
+          "departure": "23:00:00",
+          "arrival": "02:00:00+1",
+          "price": 200
+        },
+        "correct_allocation": {
+          "trip_a": [
+            {
+              "payment_id": "gift_card_8986123",
+              "amount": 100
+            }
+          ],
+          "trip_b": [
+            {
+              "payment_id": "certificate_1925278",
+              "amount": 200
+            }
+          ]
+        },
+        "wrong_local_allocation": {
+          "trip_a": [
+            {
+              "payment_id": "certificate_1925278",
+              "amount": 100
+            }
+          ],
+          "trip_b_remaining_allowed_balance": 115.0
+        },
+        "geometry": {
+          "a_lt_c": true,
+          "a_le_g": true,
+          "b_gt_g": true,
+          "a_plus_b_le_c_plus_g": true,
+          "b_le_c_plus_g_minus_a": true,
+          "unused_certificate_value_if_used_on_a": 150.0,
+          "trip_b_shortfall_after_wrong_allocation": 85.0
+        },
+        "why_wrong_allocation_fails": "Using certificate_1925278 for $100 on Trip A removes the certificate; the remaining allowed gift card balance $115.0 is $85.0 short for Trip B."
+      },
+      "scenario": {
+        "known_info": "You are Juan Patel; user id juan_patel_6197; date of birth 1963-03-14.",
+        "task_instructions": "You are the customer, never the airline agent. When the agent greets you, immediately make the complete request yourself; do not thank the customer or offer to check anything. Your first sentence must be exactly: My name is Juan Patel, my user id is juan_patel_6197, and I was born 1963-03-14. In that same first response, ask to book these two trips in the stated order. Trip A first: one-way Economy flight HAT045 from PHX to SEA on 2024-05-16, for yourself, no checked bags and no insurance. Trip B second: one-way Economy flight HAT192 from MIA to EWR on 2024-05-23, for yourself, no checked bags and no insurance. For both bookings, allow only travel certificate certificate_1925278 ($250.0) and gift card gift_card_8986123 ($115.0); do not use any credit card or other payment method. Say that you generally prefer the travel certificate when possible, but completing both bookings successfully is more important than that preference. Do not specify how payment should be allocated between the two trips and do not prescribe an execution recipe. All goals and constraints are final: never add, remove, or revise one. Explicitly confirm each complete booking proposal, including its payment allocation and any stated certificate consequence, and do not stop until both booking results are reported."
+      },
+      "reads": [
+        {
+          "name": "get_user_details",
+          "arguments": {
+            "user_id": "juan_patel_6197"
+          }
+        },
+        {
+          "name": "search_direct_flight",
+          "arguments": {
+            "origin": "PHX",
+            "destination": "SEA",
+            "date": "2024-05-16"
+          }
+        },
+        {
+          "name": "search_direct_flight",
+          "arguments": {
+            "origin": "MIA",
+            "destination": "EWR",
+            "date": "2024-05-23"
+          }
+        }
+      ],
+      "oracle": {
+        "good_order": [
+          {
+            "name": "book_reservation",
+            "arguments": {
+              "user_id": "juan_patel_6197",
+              "origin": "PHX",
+              "destination": "SEA",
+              "flight_type": "one_way",
+              "cabin": "economy",
+              "flights": [
+                {
+                  "flight_number": "HAT045",
+                  "date": "2024-05-16"
+                }
+              ],
+              "passengers": [
+                {
+                  "first_name": "Juan",
+                  "last_name": "Patel",
+                  "dob": "1963-03-14"
+                }
+              ],
+              "payment_methods": [
+                {
+                  "payment_id": "gift_card_8986123",
+                  "amount": 100
+                }
+              ],
+              "total_baggages": 0,
+              "nonfree_baggages": 0,
+              "insurance": "no"
+            }
+          },
+          {
+            "name": "book_reservation",
+            "arguments": {
+              "user_id": "juan_patel_6197",
+              "origin": "MIA",
+              "destination": "EWR",
+              "flight_type": "one_way",
+              "cabin": "economy",
+              "flights": [
+                {
+                  "flight_number": "HAT192",
+                  "date": "2024-05-23"
+                }
+              ],
+              "passengers": [
+                {
+                  "first_name": "Juan",
+                  "last_name": "Patel",
+                  "dob": "1963-03-14"
+                }
+              ],
+              "payment_methods": [
+                {
+                  "payment_id": "certificate_1925278",
+                  "amount": 200
+                }
+              ],
+              "total_baggages": 0,
+              "nonfree_baggages": 0,
+              "insurance": "no"
+            }
+          }
+        ],
+        "early_certificate_order": [
+          {
+            "name": "book_reservation",
+            "arguments": {
+              "user_id": "juan_patel_6197",
+              "origin": "PHX",
+              "destination": "SEA",
+              "flight_type": "one_way",
+              "cabin": "economy",
+              "flights": [
+                {
+                  "flight_number": "HAT045",
+                  "date": "2024-05-16"
+                }
+              ],
+              "passengers": [
+                {
+                  "first_name": "Juan",
+                  "last_name": "Patel",
+                  "dob": "1963-03-14"
+                }
+              ],
+              "payment_methods": [
+                {
+                  "payment_id": "certificate_1925278",
+                  "amount": 100
+                }
+              ],
+              "total_baggages": 0,
+              "nonfree_baggages": 0,
+              "insurance": "no"
+            }
+          },
+          {
+            "name": "book_reservation",
+            "arguments": {
+              "user_id": "juan_patel_6197",
+              "origin": "MIA",
+              "destination": "EWR",
+              "flight_type": "one_way",
+              "cabin": "economy",
+              "flights": [
+                {
+                  "flight_number": "HAT192",
+                  "date": "2024-05-23"
+                }
+              ],
+              "passengers": [
+                {
+                  "first_name": "Juan",
+                  "last_name": "Patel",
+                  "dob": "1963-03-14"
+                }
+              ],
+              "payment_methods": [
+                {
+                  "payment_id": "gift_card_8986123",
+                  "amount": 200
+                }
+              ],
+              "total_baggages": 0,
+              "nonfree_baggages": 0,
+              "insurance": "no"
+            }
+          }
+        ],
+        "expected_reservation_order": [
+          "HATHAT",
+          "HATHAU"
+        ],
+        "certificate_forfeiture_on_trip_b": 50.0
+      },
+      "nl_assertions": [
+        "The assistant reports that both requested bookings for Juan Patel were completed in order: Trip A on HAT045 and Trip B on HAT192.",
+        "The assistant reports that Trip A was paid with gift card gift_card_8986123 and Trip B with travel certificate certificate_1925278."
+      ],
+      "admission_status": "FROZEN_BEFORE_MODEL_ROLLOUT"
+    },
+    {
+      "task_id": "airline_s3_mohamed_ahmed_3350_certificate_lifecycle",
+      "knowledge_id": "S3",
+      "domain": "airline",
+      "candidate_rank": 2,
+      "source_state": {
+        "user_id": "mohamed_ahmed_3350",
+        "certificate_id": "certificate_4314329",
+        "gift_card_id": "gift_card_9022024"
+      },
+      "candidate": {
+        "candidate_id": "s3_scan_03",
+        "user_id": "mohamed_ahmed_3350",
+        "passenger": {
+          "first_name": "Mohamed",
+          "last_name": "Ahmed",
+          "dob": "1967-06-26"
+        },
+        "membership": "regular",
+        "certificate": {
+          "id": "certificate_4314329",
+          "balance": 250.0
+        },
+        "gift_card": {
+          "id": "gift_card_9022024",
+          "balance": 101.0
+        },
+        "trip_a": {
+          "flight_number": "HAT045",
+          "date": "2024-05-16",
+          "origin": "PHX",
+          "destination": "SEA",
+          "departure": "23:00:00",
+          "arrival": "02:00:00+1",
+          "price": 100
+        },
+        "trip_b": {
+          "flight_number": "HAT241",
+          "date": "2024-05-23",
+          "origin": "DEN",
+          "destination": "DFW",
+          "departure": "23:00:00",
+          "arrival": "01:00:00+1",
+          "price": 182
+        },
+        "correct_allocation": {
+          "trip_a": [
+            {
+              "payment_id": "gift_card_9022024",
+              "amount": 100
+            }
+          ],
+          "trip_b": [
+            {
+              "payment_id": "certificate_4314329",
+              "amount": 182
+            }
+          ]
+        },
+        "wrong_local_allocation": {
+          "trip_a": [
+            {
+              "payment_id": "certificate_4314329",
+              "amount": 100
+            }
+          ],
+          "trip_b_remaining_allowed_balance": 101.0
+        },
+        "geometry": {
+          "a_lt_c": true,
+          "a_le_g": true,
+          "b_gt_g": true,
+          "a_plus_b_le_c_plus_g": true,
+          "b_le_c_plus_g_minus_a": true,
+          "unused_certificate_value_if_used_on_a": 150.0,
+          "trip_b_shortfall_after_wrong_allocation": 81.0
+        },
+        "why_wrong_allocation_fails": "Using certificate_4314329 for $100 on Trip A removes the certificate; the remaining allowed gift card balance $101.0 is $81.0 short for Trip B."
+      },
+      "scenario": {
+        "known_info": "You are Mohamed Ahmed; user id mohamed_ahmed_3350; date of birth 1967-06-26.",
+        "task_instructions": "You are the customer, never the airline agent. When the agent greets you, immediately make the complete request yourself; do not thank the customer or offer to check anything. Your first sentence must be exactly: My name is Mohamed Ahmed, my user id is mohamed_ahmed_3350, and I was born 1967-06-26. In that same first response, ask to book these two trips in the stated order. Trip A first: one-way Economy flight HAT045 from PHX to SEA on 2024-05-16, for yourself, no checked bags and no insurance. Trip B second: one-way Economy flight HAT241 from DEN to DFW on 2024-05-23, for yourself, no checked bags and no insurance. For both bookings, allow only travel certificate certificate_4314329 ($250.0) and gift card gift_card_9022024 ($101.0); do not use any credit card or other payment method. Say that you generally prefer the travel certificate when possible, but completing both bookings successfully is more important than that preference. Do not specify how payment should be allocated between the two trips and do not prescribe an execution recipe. All goals and constraints are final: never add, remove, or revise one. Explicitly confirm each complete booking proposal, including its payment allocation and any stated certificate consequence, and do not stop until both booking results are reported."
+      },
+      "reads": [
+        {
+          "name": "get_user_details",
+          "arguments": {
+            "user_id": "mohamed_ahmed_3350"
+          }
+        },
+        {
+          "name": "search_direct_flight",
+          "arguments": {
+            "origin": "PHX",
+            "destination": "SEA",
+            "date": "2024-05-16"
+          }
+        },
+        {
+          "name": "search_direct_flight",
+          "arguments": {
+            "origin": "DEN",
+            "destination": "DFW",
+            "date": "2024-05-23"
+          }
+        }
+      ],
+      "oracle": {
+        "good_order": [
+          {
+            "name": "book_reservation",
+            "arguments": {
+              "user_id": "mohamed_ahmed_3350",
+              "origin": "PHX",
+              "destination": "SEA",
+              "flight_type": "one_way",
+              "cabin": "economy",
+              "flights": [
+                {
+                  "flight_number": "HAT045",
+                  "date": "2024-05-16"
+                }
+              ],
+              "passengers": [
+                {
+                  "first_name": "Mohamed",
+                  "last_name": "Ahmed",
+                  "dob": "1967-06-26"
+                }
+              ],
+              "payment_methods": [
+                {
+                  "payment_id": "gift_card_9022024",
+                  "amount": 100
+                }
+              ],
+              "total_baggages": 0,
+              "nonfree_baggages": 0,
+              "insurance": "no"
+            }
+          },
+          {
+            "name": "book_reservation",
+            "arguments": {
+              "user_id": "mohamed_ahmed_3350",
+              "origin": "DEN",
+              "destination": "DFW",
+              "flight_type": "one_way",
+              "cabin": "economy",
+              "flights": [
+                {
+                  "flight_number": "HAT241",
+                  "date": "2024-05-23"
+                }
+              ],
+              "passengers": [
+                {
+                  "first_name": "Mohamed",
+                  "last_name": "Ahmed",
+                  "dob": "1967-06-26"
+                }
+              ],
+              "payment_methods": [
+                {
+                  "payment_id": "certificate_4314329",
+                  "amount": 182
+                }
+              ],
+              "total_baggages": 0,
+              "nonfree_baggages": 0,
+              "insurance": "no"
+            }
+          }
+        ],
+        "early_certificate_order": [
+          {
+            "name": "book_reservation",
+            "arguments": {
+              "user_id": "mohamed_ahmed_3350",
+              "origin": "PHX",
+              "destination": "SEA",
+              "flight_type": "one_way",
+              "cabin": "economy",
+              "flights": [
+                {
+                  "flight_number": "HAT045",
+                  "date": "2024-05-16"
+                }
+              ],
+              "passengers": [
+                {
+                  "first_name": "Mohamed",
+                  "last_name": "Ahmed",
+                  "dob": "1967-06-26"
+                }
+              ],
+              "payment_methods": [
+                {
+                  "payment_id": "certificate_4314329",
+                  "amount": 100
+                }
+              ],
+              "total_baggages": 0,
+              "nonfree_baggages": 0,
+              "insurance": "no"
+            }
+          },
+          {
+            "name": "book_reservation",
+            "arguments": {
+              "user_id": "mohamed_ahmed_3350",
+              "origin": "DEN",
+              "destination": "DFW",
+              "flight_type": "one_way",
+              "cabin": "economy",
+              "flights": [
+                {
+                  "flight_number": "HAT241",
+                  "date": "2024-05-23"
+                }
+              ],
+              "passengers": [
+                {
+                  "first_name": "Mohamed",
+                  "last_name": "Ahmed",
+                  "dob": "1967-06-26"
+                }
+              ],
+              "payment_methods": [
+                {
+                  "payment_id": "gift_card_9022024",
+                  "amount": 182
+                }
+              ],
+              "total_baggages": 0,
+              "nonfree_baggages": 0,
+              "insurance": "no"
+            }
+          }
+        ],
+        "expected_reservation_order": [
+          "HATHAT",
+          "HATHAU"
+        ],
+        "certificate_forfeiture_on_trip_b": 68.0
+      },
+      "nl_assertions": [
+        "The assistant reports that both requested bookings for Mohamed Ahmed were completed in order: Trip A on HAT045 and Trip B on HAT241.",
+        "The assistant reports that Trip A was paid with gift card gift_card_9022024 and Trip B with travel certificate certificate_4314329."
+      ],
+      "admission_status": "FROZEN_BEFORE_MODEL_ROLLOUT"
+    }
+  ],
+  "views": {
+    "full_policy": "/Users/didi/Desktop/Govern-Skill-Evo/external/tau2-bench/data/tau2/domains/airline/policy.md",
+    "full_policy_sha256": "10dc0525421521208be39cee235bba84a16e2bcba9899eb93d92cd81d2f62fc4",
+    "partial_policy": "/Users/didi/Desktop/Govern-Skill-Evo/benchmarks/tau2_governed_evolution/certificate_lifecycle/airline_certificate_partial_policy.md",
+    "partial_policy_sha256": "8307c6853fa2ea92214a56726c5294f6596943bfef126888480894b6dabeafe8"
+  }
+}
