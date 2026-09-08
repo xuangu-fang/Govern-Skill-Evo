@@ -4817,3 +4817,13 @@ S3 Certificate Lifecycle 不重跑，实验事实保持：canonical Full+Empty 1
 S5 Cardinality Propagation：M66QVW 旧轨迹审计确认 2/3 rollout 正确读取 old/new fare，却遗漏两名 passenger multiplier，将 $34/person 直接与 $50 reservation threshold 比较；第三条正确得到 $68。新构造的 K67C4W（三人，$48/person，total $144，threshold $80）和 GJLSXX（两人，$72/person，total $144，threshold $100）均通过 oracle、evaluator 与 UserSimulator cleanliness，但 canonical Empty rollout 均为 3/3 CS，没有新增 recurrence。按轻量规则，M66QVW 单一 clean state 的 2/3 重复 evidence 足以使 S5 `ADMIT`，Skill-addressability 为 `PLAUSIBLE`，不是 `ADMIT_STRONG`。
 
 当前 Phase-A Success candidate pool：S1 ADMIT、S2 ADMIT、S3 ADMIT、S5 ADMIT，共 4 个 distinct families。停止于 `STOP_AFTER_S5`，未进入 S4、Policy-hidden、Diagnosis、Editor、Skill 或 Phase B。
+
+---
+
+## 2026-09-08 — Step 4W-S5-R Unscaffolded Replication
+
+确认首轮 K67C4W / GJLSXX prompt 将 `old fare/person`、`new fare/person`、`passenger count`、`total additional charge` 等 evaluator attribution fields 写进了用户要求，形成了直接的 cardinality reasoning scaffold。S5-R 保持 reservation、target flight、threshold、fallback、DB、Policy、Tools、evaluator、Base 配置和 seeds 971–973 不变，只移除该 checklist；新 prompt 未泄漏 passenger count、per-person calculation 或正确 $144 total，两个 task 的 Phase-A stability 与 UserSimulator sanity 均通过。
+
+Canonical Empty 结果仍为 K67C4W 3/3 CS、GJLSXX 3/3 CS，总计 6/6 Success、6/6 Compliance、0/6 clean cardinality failures。所有轨迹均自主读取乘客列表并正确聚合到 $144，无错误 write。因此 `S5-R = REPLICATION_NEGATIVE`：simple unscaffolded cardinality propagation 对当前 Base 稳健；M66QVW 的 2/3 failure 保持有效，但 S5 scope 收窄为 `CARDINALITY_PROPAGATION_UNDER_DEEP_TRANSACTION_RECONSTRUCTION`，construction status 继续为 `ADMIT`，不升级 `ADMIT_STRONG`。
+
+新增 Phase-A construction rule：`NO_EVALUATION_TO_REASONING_LEAKAGE`。行为归因所需字段应尽量从 DB、tool output 和 trajectory 离线提取；如果把这些字段写入用户 prompt 会分解被测 reasoning path，则禁止暴露。Phase-A Success pool 仍为 S1/S2/S3/S5 四个 families。停止于 `STOP_SUCCESS_SIDE_CONSTRUCTION`。

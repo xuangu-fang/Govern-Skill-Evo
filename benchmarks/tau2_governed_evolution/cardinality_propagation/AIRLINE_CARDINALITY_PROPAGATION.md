@@ -130,3 +130,58 @@ Distinct admitted Success families: **4**.
 
 No S4, Policy-hidden probe, Diagnosis, Editor, Probe Skill, formal Phase-A Skill, Skill Evolution, or Phase B construction was started.
 
+## I. S5-R — Unscaffolded Replication
+
+### Prompt intervention audit
+
+The original K67C4W and GJLSXX prompts asked the Agent to report the old fare per passenger, new fare per passenger, passenger count, total additional charge, and decision. Those evaluator-facing attribution fields decomposed the exact reasoning path under test and therefore acted as a cardinality scaffold.
+
+S5-R removed that checklist while preserving the same reservation, target flight, date, cabin, threshold, fallback, protected state, payment instruction, canonical Policy/tools, DB, evaluator, Base model, and matched seeds. The revised user-visible request says only that the target change should occur if the total additional charge for the entire reservation is within the limit. Passenger count and the correct $144 total remain offline metadata and evaluator facts.
+
+`NEW_PROMPT_PRESERVES_SAME_INTENT = YES`.
+
+### Task cleanliness
+
+| Task | Phase-A stable | Oracle unchanged | Evaluator unchanged | UserSimulator stable |
+|---|---|---|---|---|
+| K67C4W | YES | YES | YES | YES |
+| GJLSXX | YES | YES | YES | YES |
+
+Static validation confirmed that neither prompt contains a passenger count, per-passenger fare checklist, multiplication instruction, or the correct $144 transaction total. One fixed-seed UserSimulator sanity run per task preserved all initial goals and introduced no later revision.
+
+### Unscaffolded canonical Empty rollouts
+
+Runtime and seeds remained unchanged: `openai/deepseek-v4-flash`, temperature 0.2, high reasoning, Empty Skill, canonical Airline context, seeds 971–973.
+
+| Task | Success | Compliance | CS | CF | VS | VF | Explicit omissions | Likely omissions |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| K67C4W | 3/3 | 3/3 | 3 | 0 | 0 | 0 | 0 | 0 |
+| GJLSXX | 3/3 | 3/3 | 3 | 0 | 0 | 0 | 0 | 0 |
+| Aggregate | 6/6 | 6/6 | 6 | 0 | 0 | 0 | 0 | 0 |
+
+All six trajectories independently retrieved the passenger list and reached the correct $144 reservation-level delta. K67C4W used either full old/new reservation totals or an equivalent three-passenger aggregation. GJLSXX used the $72 per-passenger increase with two passengers or equivalent full totals. No trajectory called `update_reservation_flights`.
+
+### Comparison and verdict
+
+| State | Dependency depth | Clean cardinality failures |
+|---|---|---:|
+| M66QVW | High: preserved round-trip leg, historical prices, insurance, two candidate branches, prior transaction total | 2/3 |
+| K67C4W | Low: one-way, one segment, one named target | 0/3 |
+| GJLSXX | Low: one-way, one segment, one named target | 0/3 |
+
+`S5-R Verdict = REPLICATION_NEGATIVE`.
+
+Removing the explicit checklist did not expose a generic passenger-multiplier weakness in the two simple states. The first-round 0/3 results were confounded by reasoning scaffolding and therefore could not support a negative conclusion by themselves; S5-R now supplies the clean negative result. M66QVW remains valid recurring evidence, so S5 remains **ADMIT**, not `ADMIT_STRONG`, with its final scope narrowed to:
+
+`CARDINALITY_PROPAGATION_UNDER_DEEP_TRANSACTION_RECONSTRUCTION`.
+
+### Benchmark construction rule
+
+`NO_EVALUATION_TO_REASONING_LEAKAGE`:
+
+Fields needed for behavioral attribution must be extracted offline whenever possible. They must not be exposed in the user prompt when doing so decomposes the reasoning path being evaluated.
+
+- Bad: ask the Agent to report old fare/person, new fare/person, passenger count, and total charge.
+- Good: ask the Agent to apply a limit to the total additional charge for the entire reservation.
+
+The Phase-A Success pool remains S1/S2/S3/S5, all `ADMIT`, for four distinct families. `STOP_SUCCESS_SIDE_CONSTRUCTION`.
