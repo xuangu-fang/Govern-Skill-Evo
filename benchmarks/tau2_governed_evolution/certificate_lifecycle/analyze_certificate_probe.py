@@ -191,12 +191,20 @@ def analyze(root: Path) -> dict[str, Any]:
         "net_success_degradation": full["success"] - partial["success"],
         "skill_learning_gate": "FAIL",
         "skill_recoverability": "NOT_TESTED",
-        "candidate_classification": "FULL_INFO_FAILURE",
-        "s3_headroom": "NOT_SUPPORTED",
+        "mechanism_source": "UNDER_SPECIFIED_ENVIRONMENT_SEMANTICS",
+        "canonical_empty_headroom": "SUPPORTED",
+        "ablation_headroom": "NOT_SUPPORTED",
+        "ablation_sensitivity": "NOT_ESTABLISHED",
+        "phase_a_definition": "PASS",
+        "task_evaluator_clean": "PASS",
+        "skill_addressability": "HIGH",
+        "phase_a_construction_verdict": "ADMIT",
         "reason": (
             "Full+Empty failed in five of six rollouts through the same certificate-lifecycle "
             "misallocation seen under Partial+Empty. Full and Partial each succeeded once, "
-            "so the required stable Full baseline and causal ablation effect are absent."
+            "so the required stable Full baseline and causal ablation effect are absent. "
+            "Separately, those five recurring canonical-context failures across two clean "
+            "states are admitted as under-specified-operational-semantics benchmark headroom."
         ),
         "rows": rows,
     }

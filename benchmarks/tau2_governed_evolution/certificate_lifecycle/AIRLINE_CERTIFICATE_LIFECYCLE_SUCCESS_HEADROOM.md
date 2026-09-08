@@ -142,9 +142,9 @@ Full-trajectory reasoning provides direct evidence of the ambiguity: agents repe
 
 The user-specified gate required S3 to be supported by clean Full→Partial degradation across two states before invoking Diagnosis or Editor. That prerequisite was not met, so exposing failure trajectories to a learner would not answer the intended ablation question.
 
-## 9. Verdict
+## 9. Ablation Verdict
 
-`S3 Certificate Lifecycle Headroom = NOT_SUPPORTED` for the intended operational-knowledge ablation.
+`S3 Full→Partial Ablation Headroom = NOT_SUPPORTED`.
 
 Reason:
 
@@ -154,17 +154,27 @@ Reason:
 4. The nominal Full clause does not unambiguously expose the actual destructive transition implemented by the tool.
 5. Therefore Full versus Partial does not isolate certificate-lifecycle knowledge visibility.
 
-This result does reveal a separate full-information signal: cross-booking certificate allocation fails in both independent states. That observation is not admitted as S3 partial-knowledge headroom and is not expanded in this bounded step.
+## 10. Phase-A Construction Reclassification
 
-Can S3 become a Phase-A Success family under the current Full/Partial definition: **NO**.
+The ablation result is not the Phase-A task-admission result. Under the revised construction standard, the canonical-context evidence is sufficient:
 
-## 10. Phase-A Success Families After S3
+- Phase-A definition: PASS.
+- Task / evaluator clean: PASS.
+- Canonical Empty Success: 1/6.
+- Recurring lifecycle failures: 5/6.
+- Independent affected states: 2.
+- Mechanism type: `UNDER_SPECIFIED_OPERATIONAL_SEMANTICS`.
+- Skill-addressability: HIGH / plausible from historical procedural experience.
+- Ablation sensitivity: NOT_ESTABLISHED.
+- Phase-A Construction Verdict: **ADMIT**.
+
+The canonical Policy says only that the remaining certificate amount is not refundable, while the backend deletes the entire certificate payment object after first use. The agent's reasonable but incorrect reusable-balance model creates material recurring Success headroom. Full→Partial degradation and Skill recovery remain separate, unestablished evidence dimensions.
+
+## 11. Phase-A Success Families After S3
 
 - S1 Retail Payment-History Dependency: SUPPORTED.
 - S2 Transaction Baseline Binding: SUPPORTED.
-- S3 Airline Certificate Lifecycle: NOT_SUPPORTED as an ablation family (`FULL_INFO_FAILURE` signal retained separately).
-- Distinct admitted Success mechanism count: 2.
+- S3 Airline Certificate Lifecycle: ADMIT as an under-specified-environment-semantics family; Full→Partial sensitivity remains NOT_ESTABLISHED.
+- Distinct admitted Success mechanism count: 3.
 
-Recommended next step: `STOP_AFTER_S3`.
-
-No S4, S5, policy-hidden probe, formal Phase-A Skill, Diagnosis, Editor, or Skill Evolution was started.
+At the original S3 stopping point, no later benchmark or Skill stage was started. The subsequent S5 construction reclassified S3 without rerunning it; S3's ablation and rollout facts remain unchanged.

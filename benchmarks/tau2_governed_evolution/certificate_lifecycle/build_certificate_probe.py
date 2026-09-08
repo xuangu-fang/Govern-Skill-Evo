@@ -167,6 +167,10 @@ def build() -> dict:
         "knowledge_unit": {
             "id": "S3",
             "name": "travel_certificate_lifecycle_cross_booking_allocation",
+            "mechanism_source": "UNDER_SPECIFIED_ENVIRONMENT_SEMANTICS",
+            "phase_a_construction_verdict": "ADMIT",
+            "skill_addressability": "HIGH",
+            "ablation_sensitivity": "NOT_ESTABLISHED",
             "canonical_source": {
                 "policy": str(AIRLINE_POLICY),
                 "policy_clause": HIDDEN_CLAUSE.strip(),

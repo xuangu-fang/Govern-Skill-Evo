@@ -4805,3 +4805,15 @@ skillopt太复杂，不好判断哪部分有问题
 
 隐藏policy
 原始版本进化到复杂的版本
+
+---
+
+## 2026-09-08 — Step 4W-S5 Phase-A Construction
+
+Phase-A benchmark construction 与 Skill evaluation 正式分离。Task admission 只要求 Complete-Upfront / Stable、task 与 evaluator clean、canonical Empty 下存在重复且有意义的 Base headroom、并且 failure plausibly Skill-addressable；Full→Partial degradation、Skill recovery、held-out generalization 与 bootstrap significance 留待完整 Phase A 建成后统一验证。
+
+S3 Certificate Lifecycle 不重跑，实验事实保持：canonical Full+Empty 1/6 Success，5/6 lifecycle failures，覆盖两个 independent states。其 Full→Partial ablation sensitivity 仍为 NOT_ESTABLISHED，但 backend 首次使用即删除 certificate 的语义强于 Agent-visible Policy 的“remaining amount is not refundable”，因此 mechanism source 改为 `UNDER_SPECIFIED_ENVIRONMENT_SEMANTICS`，Phase-A construction verdict 改为 `ADMIT`。
+
+S5 Cardinality Propagation：M66QVW 旧轨迹审计确认 2/3 rollout 正确读取 old/new fare，却遗漏两名 passenger multiplier，将 $34/person 直接与 $50 reservation threshold 比较；第三条正确得到 $68。新构造的 K67C4W（三人，$48/person，total $144，threshold $80）和 GJLSXX（两人，$72/person，total $144，threshold $100）均通过 oracle、evaluator 与 UserSimulator cleanliness，但 canonical Empty rollout 均为 3/3 CS，没有新增 recurrence。按轻量规则，M66QVW 单一 clean state 的 2/3 重复 evidence 足以使 S5 `ADMIT`，Skill-addressability 为 `PLAUSIBLE`，不是 `ADMIT_STRONG`。
+
+当前 Phase-A Success candidate pool：S1 ADMIT、S2 ADMIT、S3 ADMIT、S5 ADMIT，共 4 个 distinct families。停止于 `STOP_AFTER_S5`，未进入 S4、Policy-hidden、Diagnosis、Editor、Skill 或 Phase B。
