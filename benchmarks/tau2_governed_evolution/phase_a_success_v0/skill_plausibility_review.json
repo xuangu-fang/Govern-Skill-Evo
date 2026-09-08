@@ -1,0 +1,63 @@
+{
+  "review_type": "lightweight_skill_plausibility_not_skill_generation",
+  "reviewer_model": "openai/deepseek-v4-pro",
+  "hidden_implementation_source_supplied": false,
+  "families": {
+    "S1_PAYMENT_HISTORY_DEPENDENCY": {
+      "model": "openai/deepseek-v4-pro",
+      "temperature": 0,
+      "evidence_artifact": "artifacts/phase_a_success_v0/rollouts/retail_pa_v1b_w8557584_items_address_payment_seed_980_rollout_01.json",
+      "evidence_origin": "current_v0",
+      "review": {
+        "SKILL_ADDRESSABILITY": "HIGH",
+        "REUSABLE_MECHANISM": "The error occurs because modifying items adds refund/payment transactions, violating the 'exactly one payment' rule for subsequent payment method changes. The fix is to reorder tool calls: change the whole-order payment method before modifying items on a pending order.",
+        "EXAMPLE_SKILL_CONCEPT": "When handling a pending order request that involves both item modifications and payment method changes, always process the payment method change first to prevent the payment history from becoming multi-entry and blocking the update.",
+        "TASK_SPECIFIC_ONLY": "NO",
+        "RATIONALE": "The failure stems from a tool-invocation ordering constraint not stated in policy but learnable from system behavior. A Skill encoding the dependency would prevent the error across many agents and similar multi-change scenarios."
+      },
+      "raw_response": "{\n  \"SKILL_ADDRESSABILITY\": \"HIGH\",\n  \"REUSABLE_MECHANISM\": \"The error occurs because modifying items adds refund/payment transactions, violating the 'exactly one payment' rule for subsequent payment method changes. The fix is to reorder tool calls: change the whole-order payment method before modifying items on a pending order.\",\n  \"EXAMPLE_SKILL_CONCEPT\": \"When handling a pending order request that involves both item modifications and payment method changes, always process the payment method change first to prevent the payment history from becoming multi-entry and blocking the update.\",\n  \"TASK_SPECIFIC_ONLY\": \"NO\",\n  \"RATIONALE\": \"The failure stems from a tool-invocation ordering constraint not stated in policy but learnable from system behavior. A Skill encoding the dependency would prevent the error across many agents and similar multi-change scenarios.\"\n}"
+    },
+    "S2_TRANSACTION_BASELINE_BINDING": {
+      "model": "openai/deepseek-v4-pro",
+      "temperature": 0,
+      "evidence_artifact": "artifacts/phase_a_success_v0/rollouts/airline_dd_fq8ape_cabin_baggage_budget_seed_980_rollout_01.json",
+      "evidence_origin": "current_v0",
+      "review": {
+        "SKILL_ADDRESSABILITY": "HIGH",
+        "REUSABLE_MECHANISM": "The cabin change policy explicitly states that the user pays the difference between new and original fares. A skill can enforce that any cost calculation for cabin upgrades first nets the original fare against the new fare before adding other applicable charges like baggage fees.",
+        "EXAMPLE_SKILL_CONCEPT": "CabinUpgradeNetPriceCalculator",
+        "TASK_SPECIFIC_ONLY": "NO",
+        "RATIONALE": "The agent failed by comparing gross new cabin fares to the user's threshold, ignoring the net payment rule from the policy. This is a general procedural oversight that a reusable skill can prevent by codifying the rule for any future cabin-change scenario."
+      },
+      "raw_response": "{\n  \"SKILL_ADDRESSABILITY\": \"HIGH\",\n  \"REUSABLE_MECHANISM\": \"The cabin change policy explicitly states that the user pays the difference between new and original fares. A skill can enforce that any cost calculation for cabin upgrades first nets the original fare against the new fare before adding other applicable charges like baggage fees.\",\n  \"EXAMPLE_SKILL_CONCEPT\": \"CabinUpgradeNetPriceCalculator\",\n  \"TASK_SPECIFIC_ONLY\": \"NO\",\n  \"RATIONALE\": \"The agent failed by comparing gross new cabin fares to the user's threshold, ignoring the net payment rule from the policy. This is a general procedural oversight that a reusable skill can prevent by codifying the rule for any future cabin-change scenario.\"\n}"
+    },
+    "S3_CERTIFICATE_LIFECYCLE": {
+      "model": "openai/deepseek-v4-pro",
+      "temperature": 0,
+      "evidence_artifact": "artifacts/phase_a_success_v0/rollouts/airline_s3_juan_patel_6197_certificate_lifecycle_seed_980_rollout_01.json",
+      "evidence_origin": "current_v0",
+      "review": {
+        "SKILL_ADDRESSABILITY": "PLAUSIBLE",
+        "REUSABLE_MECHANISM": "The failure stems from an operational misunderstanding: travel certificates are treated as single-use and any remaining balance after a partial payment is forfeited, and cancellation may not restore the certificate. A reusable tip could remind agents to verify the reusability and partial-payment rules of each payment method before constructing multi‑booking payment plans.",
+        "EXAMPLE_SKILL_CONCEPT": "When a travel certificate is used for partial payment, the remaining balance is permanently unavailable. Never base a payment plan on reusing a certificate’s leftover amount across multiple bookings.",
+        "TASK_SPECIFIC_ONLY": "NO",
+        "RATIONALE": "The agent's plan assumed the certificate could be split across two bookings, then relied on its restoration after cancellation—both assumptions violated the certificate's operational characteristics. A reusable operational skill warning that certificates are single-use and forfeit remaining balance would have prevented the impossible plan and the subsequent dead end."
+      },
+      "raw_response": "{\n  \"SKILL_ADDRESSABILITY\": \"PLAUSIBLE\",\n  \"REUSABLE_MECHANISM\": \"The failure stems from an operational misunderstanding: travel certificates are treated as single-use and any remaining balance after a partial payment is forfeited, and cancellation may not restore the certificate. A reusable tip could remind agents to verify the reusability and partial-payment rules of each payment method before constructing multi‑booking payment plans.\",\n  \"EXAMPLE_SKILL_CONCEPT\": \"When a travel certificate is used for partial payment, the remaining balance is permanently unavailable. Never base a payment plan on reusing a certificate’s leftover amount across multiple bookings.\",\n  \"TASK_SPECIFIC_ONLY\": \"NO\",\n  \"RATIONALE\": \"The agent's plan assumed the certificate could be split across two bookings, then relied on its restoration after cancellation—both assumptions violated the certificate's operational characteristics. A reusable operational skill warning that certificates are single-use and forfeit remaining balance would have prevented the impossible plan and the subsequent dead end.\"\n}"
+    },
+    "S5_DEEP_TRANSACTION_CARDINALITY": {
+      "model": "openai/deepseek-v4-pro",
+      "temperature": 0,
+      "evidence_artifact": "artifacts/partial_knowledge_headroom_step4w/full_empty/airline_pa_o3a_m66qvw_preserved_pricing_rollout_01.json",
+      "evidence_origin": "prior_admission_evidence",
+      "review": {
+        "SKILL_ADDRESSABILITY": "HIGH",
+        "REUSABLE_MECHANISM": "Before initiating a transaction that requires payment, verify that the provided payment method has sufficient balance or funds to cover the charge. Halt the operation and ask the user for an alternative if the balance is insufficient.",
+        "EXAMPLE_SKILL_CONCEPT": "Pre-transaction payment sufficiency check",
+        "TASK_SPECIFIC_ONLY": "NO",
+        "RATIONALE": "The agent called update_reservation_flights with a gift card balance of $0, leading to a preventable failure. A reusable pre-validation step would catch such mismatches across many booking and modification scenarios."
+      },
+      "raw_response": "{\n  \"SKILL_ADDRESSABILITY\": \"HIGH\",\n  \"REUSABLE_MECHANISM\": \"Before initiating a transaction that requires payment, verify that the provided payment method has sufficient balance or funds to cover the charge. Halt the operation and ask the user for an alternative if the balance is insufficient.\",\n  \"EXAMPLE_SKILL_CONCEPT\": \"Pre-transaction payment sufficiency check\",\n  \"TASK_SPECIFIC_ONLY\": \"NO\",\n  \"RATIONALE\": \"The agent called update_reservation_flights with a gift card balance of $0, leading to a preventable failure. A reusable pre-validation step would catch such mismatches across many booking and modification scenarios.\"\n}"
+    }
+  }
+}

@@ -4827,3 +4827,17 @@ S5 Cardinality Propagation：M66QVW 旧轨迹审计确认 2/3 rollout 正确读�
 Canonical Empty 结果仍为 K67C4W 3/3 CS、GJLSXX 3/3 CS，总计 6/6 Success、6/6 Compliance、0/6 clean cardinality failures。所有轨迹均自主读取乘客列表并正确聚合到 $144，无错误 write。因此 `S5-R = REPLICATION_NEGATIVE`：simple unscaffolded cardinality propagation 对当前 Base 稳健；M66QVW 的 2/3 failure 保持有效，但 S5 scope 收窄为 `CARDINALITY_PROPAGATION_UNDER_DEEP_TRANSACTION_RECONSTRUCTION`，construction status 继续为 `ADMIT`，不升级 `ADMIT_STRONG`。
 
 新增 Phase-A construction rule：`NO_EVALUATION_TO_REASONING_LEAKAGE`。行为归因所需字段应尽量从 DB、tool output 和 trajectory 离线提取；如果把这些字段写入用户 prompt 会分解被测 reasoning path，则禁止暴露。Phase-A Success pool 仍为 S1/S2/S3/S5 四个 families。停止于 `STOP_SUCCESS_SIDE_CONSTRUCTION`。
+
+---
+
+## 2026-09-08 — Phase-A Success-side v0 Calibration
+
+将已 admitted 的 S1/S2/S3/S5 与两个 partial-context positive controls、四个 ordinary clean tasks 冻结为 13-task mixed calibration pool；每 task 使用 Empty Skill 跑 seeds 980–982，共 39 rollouts。S1 保留预注册 Partial Operational context，S2/S3/S5 与 ordinary tasks 使用 canonical context。所有任务均通过 Complete-Upfront / Stable-Intent metadata 与 materialization 检查。一次 Compliance Judge `policy clause not found` 基础设施错误仅按相同 task/seed 重跑，未改变 workload。
+
+结果：Success 28/39（71.8%），Compliance 27/39（69.2%）；CS/CF/VS/VF = 23/4/5/7。5/13 tasks 至少有一次 Success failure。11 个 Success failures 全部可归因于预注册机制：S1 4、S2 2、S3 5；S5 在本次 seeds 下 3/3 CS，但保留此前 M66QVW 2/3 evidence。最大 family failure share 为 S3 的 45.5%，未超过 concentration-risk 主导线。
+
+Protected good cases 为 18/18 Success、15/18 CS：ordinary clean 12/12 CS；两个 partial controls 都是 3/3 Success，其中 V2-like 为 3/3 VS，主要因为 canonical Judge 要求明确提醒用户确认已列出全部待修改商品。该现象记录为后续 Compliance-side diagnostic，不在 Success calibration 中修复。
+
+独立 `openai/deepseek-v4-pro` 轻量 reviewer 对 S1/S2/S3 分别给出 HIGH/HIGH/PLAUSIBLE Skill-addressability，均判断非 task-specific。S5 prior failure 被评为一般意义上的 HIGH addressability，但 reviewer 将其解释为 payment-sufficiency，而没有独立确认 cardinality attribution；因此保留该分歧。当前 11 个 v0 attributable failures 均来自 reviewer 判为 HIGH/PLAUSIBLE 的 S1/S2/S3，qualitative skill-addressable failure fraction 为 100%。
+
+最终 `SUCCESS_SIDE_V0_READINESS = READY_FOR_COMPLIANCE`：Success 明显低于 ceiling，至少三个独立 family 在 frozen v0 中产生可解释 headroom，largest-family share 45.5%，同时保留 100% good-case Success 与 100% ordinary-clean CS。下一步建议 `DESIGN_PHASE_A_COMPLIANCE_MECHANISMS`，但本步骤已严格停止，未启动 Diagnosis、Editor、Skill、Policy-hidden probe 或 Phase B。
