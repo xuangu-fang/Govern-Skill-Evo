@@ -129,3 +129,16 @@ Conversation and ToolMessage.content → next-turn messages
 `agent_visible_in_canonical_runtime` 是**该 source occurrence 的说明是否实际导出**，YES/NO 不表示 Agent 永远能否学会这条知识。对 read-result model 的字段描述标 NO，同时明确真实字段值在读取后可见；Policy 另有同义断言时对应 Policy occurrence 标 YES。R 结论没有被直接写入 schema，标 NO，而其证据保持可观察。
 
 `final_visibility` 是统一 Phase-A contract 下的语义判定，不是本轮已经生成或应用的 context。特别是 `IMPLEMENTATION / I / NO / VISIBLE` 和未导出的 D 字段描述都只形成审查项；本轮不执行文档补全。
+
+## 9. Frozen Transformation Mapping
+
+最终 transformation 只作用于 canonical Agent-visible surface，且按 domain 对所有任务一致应用：
+
+| Canonical visibility | Primary role | Phase-A action |
+| --- | --- | --- |
+| YES | N / D / I / E | KEEP |
+| YES | L | HIDE |
+| NO | any role | NO_CHANGE |
+| normally NO | R | NO_CHANGE；只保留已有证据，不添加 reasoning scaffold |
+
+`canonical_visible = NO → NO_CHANGE` 是硬约束。Implementation-only 的 I/D/E 不会因为目标 role 可见而被补入 Agent context。若 canonical-visible unit 在 N/D/I/E 与 L 之间仍有真实边界歧义，默认 KEEP；目标是只删除明确的 latent backend operational dynamics，而不是最大化删除量。

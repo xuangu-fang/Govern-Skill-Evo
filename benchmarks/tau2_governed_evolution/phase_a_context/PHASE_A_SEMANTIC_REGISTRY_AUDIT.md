@@ -1,8 +1,8 @@
 # Phase-A Static Semantic Registry Audit
 
-`STATIC_SEMANTIC_REGISTRY_VERDICT: READY_FOR_HUMAN_REVIEW`
+`STATIC_SEMANTIC_REGISTRY_VERDICT: HUMAN_REVIEW_COMPLETE`
 
-本轮仅完成 taxonomy、两个 domain 的 semantic registry 与静态审计报告。未进行 rollout、Agent/UserSimulator 调用、evaluator、measurement、Diagnosis/Editor、Skill 工作、task construction/selection、context generation 或 Policy/tool-description rewriting。未使用任务内容、trajectory 或 outcome 作为分类证据。此 verdict 不是 context freeze，也不是后续执行授权。
+初始静态审计完成后，Step B 只复核了 canonical-visible L 候选，并按人工确认边界修正 Retail cancellation refund 与 price-difference parameter purpose。没有重新审计全部 units。未进行 rollout、Agent/UserSimulator 调用、evaluator、measurement、Diagnosis/Editor、Skill 工作或 task construction/selection；未使用任务内容、trajectory 或 outcome 作为分类证据。最终 transformation 及验证另见 `PHASE_A_CONTEXT_TRANSFORMATION_REVIEW.md` 与 `unified/PHASE_A_UNIFIED_CONTEXT_REPORT.md`。
 
 ## 1. Source authority and actual runtime surface
 
@@ -51,19 +51,19 @@ Registry 保留 source occurrences：同一规则在 Policy 和 schema 中出现
 | Domain | Total | N | D | I | E | L | R |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | Airline | 418 | 94 | 91 | 174 | 7 | 46 | 6 |
-| Retail | 413 | 92 | 87 | 175 | 16 | 39 | 4 |
+| Retail | 414 | 93 | 87 | 177 | 18 | 35 | 4 |
 
 L tag counts 是多标签计数，不能相加解释为 L unit 数量。
 
 | Domain | L1 | L2 | L3 | L4 | L5 | L6 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | Airline | 9 | 1 | 13 | 8 | 10 | 20 |
-| Retail | 20 | 7 | 9 | 5 | 2 | 5 |
+| Retail | 16 | 7 | 9 | 5 | 2 | 5 |
 
 | Domain | VISIBLE | LATENT | DERIVED | Canonical exported YES | Canonical occurrence NO |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Airline | 366 | 46 | 6 | 298 | 120 |
-| Retail | 370 | 39 | 4 | 305 | 108 |
+| Retail | 375 | 35 | 4 | 306 | 108 |
 
 ### Source coverage
 
@@ -93,7 +93,7 @@ L tag counts 是多标签计数，不能相加解释为 L unit 数量。
 | airline | `update_reservation_passengers` | 2 | 17 |
 | airline | `get_flight_status` | 2 | 8 |
 | retail | `calculate` | 1 | 5 |
-| retail | `cancel_pending_order` | 2 | 17 |
+| retail | `cancel_pending_order` | 2 | 18 |
 | retail | `exchange_delivered_order_items` | 4 | 25 |
 | retail | `find_user_id_by_name_zip` | 3 | 12 |
 | retail | `find_user_id_by_email` | 1 | 5 |
@@ -250,7 +250,7 @@ L tag counts 是多标签计数，不能相加解释为 L unit 数量。
 | RET_POLICY_GENERIC_002 — Exchange tools can be called only once per order. | POLICY · Generic action rules | N | — | YES | VISIBLE | Permission, prohibition or required governance remains explicit under C3, independently of API enforcement. |
 | RET_POLICY_GENERIC_003 — Modify order tools can be called only once per order. | POLICY · Generic action rules | N | — | YES | VISIBLE | Permission, prohibition or required governance remains explicit under C3, independently of API enforcement. |
 | RET_POLICY_GENERIC_004 — Collect all items to change before the exchange or modification call. | POLICY · Generic action rules | N | — | YES | VISIBLE | Permission, prohibition or required governance remains explicit under C3, independently of API enforcement. |
-| RET_POLICY_CANCEL_REFUND_001 — Cancellation refunds the order total. | POLICY · Cancel pending order | L | L1 | YES | LATENT | Backend operational dynamics are not explicitly documented under C7; actual results and errors remain observable under C8. Refund routing/timing entitlements remain N. This unit concerns the automatic financial secondary effect of cancellation. |
+| RET_POLICY_CANCEL_REFUND_001 — Cancellation refunds the order total. | POLICY · Cancel pending order | E | — | YES | VISIBLE | Cancellation has multiple explicit user-facing primary effects; the refund promise is part of the action meaning. Human-review correction A. |
 | RET_POLICY_PAYMENT_001 — Choose a single replacement payment method. | POLICY · Modify pending order / Modify payment | N | — | YES | VISIBLE | Permission, prohibition or required governance remains explicit under C3, independently of API enforcement. |
 | RET_POLICY_PAYMENT_002 — Replacement payment method must differ from the original. | POLICY · Modify pending order / Modify payment | N | — | YES | VISIBLE | Permission, prohibition or required governance remains explicit under C3, independently of API enforcement. |
 | RET_POLICY_PAYMENT_003 — A replacement gift card must cover the total order amount. | POLICY · Modify pending order / Modify payment | N | — | YES | VISIBLE | Permission, prohibition or required governance remains explicit under C3, independently of API enforcement. |
@@ -282,8 +282,9 @@ L tag counts 是多标签计数，不能相加解释为 L unit 数量。
 | RET_TOOL_MODIFY_PENDING_ORDER_ITEMS_ONCE_001 — This operation may be invoked only once per order. | TOOL_SCHEMA · modify_pending_order_items / description | I | — | YES | VISIBLE | Tool purpose, payload or current direct invocation semantics are protected by C5. Explicit invocation cardinality is protected by C5, even though backend state transitions help enforce it. Policy counterpart is N. |
 | RET_TOOL_RETURN_DELIVERED_ORDER_ITEMS_DUPLICATES_001 — item_ids may contain duplicate IDs representing multiple item occurrences. | TOOL_SCHEMA · return_delivered_order_items / parameters.item_ids | I | — | YES | VISIBLE | Tool purpose, payload or current direct invocation semantics are protected by C5. |
 | RET_TOOL_EXCHANGE_RETURN_ONCE_001 — For a delivered order, return or exchange may be done only once by the agent. | TOOL_SCHEMA · exchange_delivered_order_items / description | I | — | YES | VISIBLE | Tool purpose, payload or current direct invocation semantics are protected by C5. |
-| RET_TOOL_CANCEL_DETAILS_003 — Cancellation refunds the payment. | TOOL_SCHEMA · cancel_pending_order / description | L | L1 | YES | LATENT | Backend operational dynamics are not explicitly documented under C7; actual results and errors remain observable under C8. |
-| RET_TOOL_CANCEL_DETAILS_004 — Gift-card cancellation refund increases user gift-card balance immediately. | TOOL_SCHEMA · cancel_pending_order / description | L | L1, L3 | YES | LATENT | Backend operational dynamics are not explicitly documented under C7; actual results and errors remain observable under C8. |
+| RET_TOOL_CANCEL_DETAILS_003 — Cancellation refunds the payment. | TOOL_SCHEMA · cancel_pending_order / description | E | — | YES | VISIBLE | User-facing refund is an explicit primary effect. Human-review correction A. |
+| RET_TOOL_CANCEL_DETAILS_004 — Cancellation refund updates the user's gift-card profile balance. | TOOL_SCHEMA · cancel_pending_order / description | L | L1, L3 | YES | LATENT | Backend balance-update mechanism is hidden; refund promise and timing are separate KEEP units. |
+| RET_TOOL_CANCEL_DETAILS_007 — Gift-card cancellation refunds are immediate. | TOOL_SCHEMA · cancel_pending_order / description | N | — | YES | VISIBLE | Promised refund timing is user-facing entitlement semantics. Human-review correction A. |
 | RET_IMPL_DIRECT__GET_USER_001 — Current lookup requires that user id exists. | IMPLEMENTATION · _get_user | I | — | NO | VISIBLE | Tool purpose, payload or current direct invocation semantics are protected by C5. |
 | RET_IMPL_DIRECT__GET_ORDER_001 — Current lookup requires that order id exists. | IMPLEMENTATION · _get_order | I | — | NO | VISIBLE | Tool purpose, payload or current direct invocation semantics are protected by C5. |
 | RET_IMPL_DIRECT__GET_PRODUCT_001 — Current lookup requires that product id exists. | IMPLEMENTATION · _get_product | I | — | NO | VISIBLE | Tool purpose, payload or current direct invocation semantics are protected by C5. |
@@ -330,8 +331,8 @@ L tag counts 是多标签计数，不能相加解释为 L unit 数量。
 | RET_TOOL_ITEM_MULTIPLICITY_001 — Count requested item occurrences and bind each replacement to its corresponding old occurrence. | TOOL_SCHEMA · get_order_details,modify_pending_order_items / read-result transaction representation | R | — | NO | DERIVED | Conclusion requires binding, aggregation or inference over available evidence; C9 protects inputs without supplying the answer. |
 | RET_TOOL_ORDER_AGGREGATION_001 — Aggregate applicable per-item values over requested occurrences for one order. | TOOL_SCHEMA · get_order_details,get_product_details / read-result transaction representation | R | — | NO | DERIVED | Conclusion requires binding, aggregation or inference over available evidence; C9 protects inputs without supplying the answer. |
 | RET_TOOL_HISTORY_RECONCILIATION_001 — Reconcile observed payment/refund entries and profile balances for the intended transaction. | TOOL_SCHEMA · get_order_details,get_user_details / read-result transaction representation | R | — | NO | DERIVED | Conclusion requires binding, aggregation or inference over available evidence; C9 protects inputs without supplying the answer. |
-| RET_TOOL_EXCHANGE_DELIVERED_ORDER_ITEMS_PRICE_DIFFERENCE_001 — Selected payment method settles the item price difference as payment or refund. | TOOL_SCHEMA · exchange_delivered_order_items / parameters.payment_method_id | L | L1 | YES | LATENT | Backend operational dynamics are not explicitly documented under C7; actual results and errors remain observable under C8. |
-| RET_TOOL_MODIFY_PENDING_ORDER_ITEMS_PRICE_DIFFERENCE_001 — Selected payment method settles the item price difference as payment or refund. | TOOL_SCHEMA · modify_pending_order_items / parameters.payment_method_id | L | L1 | YES | LATENT | Backend operational dynamics are not explicitly documented under C7; actual results and errors remain observable under C8. |
+| RET_TOOL_EXCHANGE_DELIVERED_ORDER_ITEMS_PRICE_DIFFERENCE_001 — Selected payment method settles the item price difference as payment or refund. | TOOL_SCHEMA · exchange_delivered_order_items / parameters.payment_method_id | I | — | YES | VISIBLE | Direct parameter purpose is protected tool-interface semantics. Human-review correction B. |
+| RET_TOOL_MODIFY_PENDING_ORDER_ITEMS_PRICE_DIFFERENCE_001 — Selected payment method settles the item price difference as payment or refund. | TOOL_SCHEMA · modify_pending_order_items / parameters.payment_method_id | I | — | YES | VISIBLE | Direct parameter purpose is protected tool-interface semantics. Human-review correction B. |
 | RET_IMPL_ITEM_HISTORY_BEFORE_MUTATION_001 — Payment history and gift-card balance mutate before the sequential item replacement loop completes, without a rollback wrapper in the function. | IMPLEMENTATION · modify_pending_order_items | L | L1 | NO | LATENT | Backend operational dynamics are not explicitly documented under C7; actual results and errors remain observable under C8. |
 | RET_IMPL_PAYMENT_REFUND_BEFORE_LOOKUP_001 — History append and new gift-card debit occur before the old payment method is looked up for refund, without a function-local rollback. | IMPLEMENTATION · modify_pending_order_payment | L | L1 | NO | LATENT | Backend operational dynamics are not explicitly documented under C7; actual results and errors remain observable under C8. |
 | RET_IMPL_CANCEL_GIFT_BEFORE_COMMIT_001 — Gift-card balances update during history iteration before order status and refund history are finalized. | IMPLEMENTATION · cancel_pending_order | L | L1 | NO | LATENT | Backend operational dynamics are not explicitly documented under C7; actual results and errors remain observable under C8. |
@@ -354,7 +355,7 @@ L tag counts 是多标签计数，不能相加解释为 L unit 数量。
 | Status transition | L1 / LATENT | Policy 文本 `pending (items modifed)`；代码 `pending (item modified)`。 |
 | Future modification invalidation | L2 / LATENT | Canonical broad consequence；API 地址仍可改，payment 因 history 失效，items 因 exact status 失效，三者不能混为一个 predicate。 |
 | Future cancellation invalidation | L2 / LATENT | cancel 检查 exact pending；具体当前 eligibility 仍 N/I 可见。 |
-| Payment/refund effect | L1 / LATENT | secondary settlement；支付方式参数含义、差额支付责任仍 I/N。 |
+| Price-difference payment/refund meaning | I/N / VISIBLE | `payment_method_id` 用于支付或接收差额，直接解释参数和业务责任；具体 ledger/balance mutation 另列 L1/L3。 |
 | Gift-card balance mutation | L1/L3 / LATENT | 减 signed delta 并 round；负值补回余额。 |
 | Payment-history mutation | L1 / LATENT | 始终追加，包括 zero delta 的 refund entry。 |
 | Assignment behavior | L1 / LATENT | mutation loop 的 variant 来自前一循环最后一次迭代；不是 Agent 已知 interface。 |
@@ -398,7 +399,7 @@ Update 的 payment_id Args 包含 certificate 示例，但 `_payment_for_update`
 
 ## 5. CANONICAL_VISIBLE_TO_PHASE_A_LATENT
 
-以下是按本 taxonomy 判定的公开说明候选，不执行 removal，不估计其效果。重复来源单独列出，以防只处理 Policy 却遗漏 schema。
+以下是 Step B 人工复核后的最终公开 HIDE list。重复来源单独列出，以防只处理 Policy 却遗漏 schema。实际 transformation 见独立 review 与 unified report。
 
 ### Airline
 
@@ -408,16 +409,12 @@ Update 的 payment_id Args 包含 certificate 示例，但 `_payment_for_update`
 
 ### Retail
 
-- `RET_POLICY_CANCEL_REFUND_001` — Cancellation refunds the order total. (L/L1)
 - `RET_POLICY_MODIFY_ITEMS_STATUS_001` — Item modification changes status to pending (items modifed). (L/L1)
 - `RET_POLICY_MODIFY_ITEMS_FUTURE_MODIFY_001` — After items modification the agent cannot modify the order anymore. (L/L2)
 - `RET_POLICY_MODIFY_ITEMS_FUTURE_CANCEL_001` — After items modification the agent cannot cancel the order anymore. (L/L2)
-- `RET_TOOL_CANCEL_DETAILS_003` — Cancellation refunds the payment. (L/L1)
-- `RET_TOOL_CANCEL_DETAILS_004` — Gift-card cancellation refund increases user gift-card balance immediately. (L/L1,L3)
-- `RET_TOOL_EXCHANGE_DELIVERED_ORDER_ITEMS_PRICE_DIFFERENCE_001` — Selected payment method settles the item price difference as payment or refund. (L/L1)
-- `RET_TOOL_MODIFY_PENDING_ORDER_ITEMS_PRICE_DIFFERENCE_001` — Selected payment method settles the item price difference as payment or refund. (L/L1)
+- `RET_TOOL_CANCEL_DETAILS_004` — Cancellation refund updates the user's gift-card profile balance. (L/L1,L3)
 
-这不授权删除包含这些断言的整句。特别是 payment_method_id 的参数 meaning、允许 payment/refund 的规范和 single-call constraint 都必须分别保留。任何实际 transformation 仍需人工审查。
+Human review 将 `RET_POLICY_CANCEL_REFUND_001` 与 `RET_TOOL_CANCEL_DETAILS_003` 改为 E/KEEP，将两个 price-difference `payment_method_id` units 改为 I/KEEP，并把 gift-card refund timing 拆为 `RET_TOOL_CANCEL_DETAILS_007`（N/KEEP）。包含 KEEP 与 HIDE 的混合句只能局部改写；single-call、确认、退款承诺/时效和参数 meaning 均保留。
 
 ## 6. ALREADY_LATENT_IN_CANONICAL
 
@@ -547,9 +544,9 @@ Update 的 payment_id Args 包含 certificate 示例，但 `_payment_for_update`
 | Retail future no-modification statement 与 address API substring pending | 保留 normative restrictions；canonical future consequence 记录 L2；实际地址可接受该状态记录 L2/L6，不能虚报所有 API 均关闭。 |
 | Policy `pending (items modifed)` vs implementation `pending (item modified)` | 分别保留证据，准确状态值可观察；不改源。 |
 | Retail payment description 使用 item-price-difference 文案 | 标记描述与 purpose/body 不一致；payment ID interface 仍 I；实际金额从历史支付取得单列 L4。 |
-| Retail exchange price-difference method wording vs no immediate settlement | 文案表达的 secondary settlement 单独列 L1；实现只记录请求、检查余额但不扣款，单列 L3。保留其真实行为，不替换工具结果。 |
+| Retail exchange price-difference method wording vs no immediate settlement | Canonical 参数 meaning 按 I/KEEP；实现只记录请求、检查余额但不扣款仍单列 implementation-only L3/NO_CHANGE，不向 context 补写差异。 |
 | Retail final validation variant reused during item mutation | 静态记录 L1，未运行、测量或修复。不能假装 requested variant 的所有字段都按承诺正确更新。 |
-| Retail cancellation iterates all payment history including refunds | L1/L4；没有净额化和 transaction_type 过滤。不是简单“退款等于当前订单总价”的实现。 |
+| Retail cancellation refund promise vs ledger implementation | “取消会退款”是 E/KEEP；refund destination/timing 是 N/KEEP；遍历 history、balance update 与 historical amount law 分别为 L1/L3/L4。 |
 | Airline retained-price matching includes unchanged cabin | Broad Policy assertion 与 exact implementation predicate 分开；cabin change 不能无条件假设保留历史价格。 |
 | Airline cancellation ledger vs profile balances / seats | cancellation primary effect E；refund entitlement N；具体未恢复余额/座位 L3/L5。 |
 | Airline Policy says flight time local, returned field names/descriptions use EST | 两种 source assertions 均保留并标差异；不静默修正时区。 |
@@ -609,10 +606,10 @@ Update 的 payment_id Args 包含 certificate 示例，但 `_payment_for_update`
 
 **Q5. Are there additional canonical-visible operational semantics that would become LATENT under the same taxonomy, even though no current benchmark task was designed around them?**
 
-静态发现的额外 canonical-visible 候选包括 Retail cancellation 自动退款及 schema 明示的 gift-card balance replenishment、Retail item/exchange 参数描述中的 secondary price-difference settlement，以及 Airline Policy 中 flight-change/cancellation 的 API non-enforcement 说明。完整清单见 CANONICAL_VISIBLE_TO_PHASE_A_LATENT。
+Human review 后，canonical-visible HIDE 集合为：Airline retained-segment historical pricing 与 flight-change/cancellation API non-enforcement；Retail item-mutation status/future invalidation 与 cancellation gift-card profile balance update mechanism。Cancellation refund promise 和 price-difference parameter purpose 已按 E/I 保守 KEEP。完整清单见 CANONICAL_VISIBLE_TO_PHASE_A_LATENT。
 
 本轮刻意没有查看 task construction 或 selection 内容，所以不能独立断言“现有任务没有覆盖这些现象”；该子句的事实状态未核实。这里列出的仅是从所有 canonical sources 一致分类得到的 static findings，没有设计、建议或选择任务。Refund/payment 的规范承诺与 interface meaning 仍保留，不能整句删除。
 
-`STATIC_SEMANTIC_REGISTRY_VERDICT: READY_FOR_HUMAN_REVIEW`
+`STATIC_SEMANTIC_REGISTRY_VERDICT: HUMAN_REVIEW_COMPLETE`
 
-到此停止。未生成 unified context，未启动后续实验或审计；registry 等待人工审查。
+Step B 到此完成。Unified context 已在独立 artifact 中生成并完成静态验证；未启动任何 behavioral experiment 或 Success-side v1。
