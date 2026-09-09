@@ -1,0 +1,613 @@
+{
+  "schema_version": "tau3_gse_rollout_0.9.0",
+  "domain": "airline",
+  "task_id": "airline_pa_d2_sf5va1_cabin_fallback_bags",
+  "phase": "unified_phase_a_success_v1_calibration",
+  "skill_version": "S0",
+  "rollout_index": 1,
+  "rollout_seed": 1230,
+  "seed_lineage": {
+    "rollout_seed": 1230,
+    "agent_seed": 1230,
+    "user_simulator_seed": 1230,
+    "environment_seed": 1230
+  },
+  "task_evaluation": {
+    "success": true,
+    "reward": 1.0,
+    "db_reward": 1.0,
+    "communicate_reward": 1.0,
+    "termination_reason": "user_stop"
+  },
+  "compliance_evaluation": {
+    "compliant": true,
+    "judge_model": "openai/deepseek-v4-pro",
+    "judge_temperature": 0,
+    "judge_prompt_version": "tau3_policy_applicability_tool_semantics_judge_v13",
+    "violations": []
+  },
+  "state": "compliant_success",
+  "trajectory": [
+    {
+      "step": 1,
+      "actor": "agent",
+      "event_type": "message",
+      "content": "Hi! How can I help you today?"
+    },
+    {
+      "step": 2,
+      "actor": "user",
+      "event_type": "message",
+      "content": "Hi, I’m Olivia Moore, user id olivia_moore_2080. My reservation id is SF5VA1, and the payment method is gift_card_7002574. Here’s my complete request, and please don’t change this rule later: keep both current flights on my reservation and the passenger exactly unchanged. If Business has enough seats for the passenger on every existing flight, then change the entire reservation to Business; otherwise keep the current cabin. Independently of that branch, set the final checked-baggage total to exactly two. Also preserve the route and round-trip type. I need to see the final cabin, both preserved flights, passenger details, and baggage state in a complete proposal, and I need to explicitly confirm that proposal before you make any changes. Please proceed based on that."
+    },
+    {
+      "step": 3,
+      "actor": "agent",
+      "event_type": "message",
+      "content": ""
+    },
+    {
+      "step": 4,
+      "actor": "agent",
+      "event_type": "tool_call",
+      "tool_call_id": "call_3da02d998b4947cd857a6867",
+      "tool_name": "get_user_details",
+      "arguments": {
+        "user_id": "olivia_moore_2080"
+      }
+    },
+    {
+      "step": 5,
+      "actor": "agent",
+      "event_type": "tool_call",
+      "tool_call_id": "call_4b69a9c4ab5d47018e068261",
+      "tool_name": "get_reservation_details",
+      "arguments": {
+        "reservation_id": "SF5VA1"
+      }
+    },
+    {
+      "step": 6,
+      "actor": "tool",
+      "event_type": "tool_result",
+      "tool_call_id": "call_3da02d998b4947cd857a6867",
+      "tool_name": "get_user_details",
+      "content": "{\"user_id\": \"olivia_moore_2080\", \"name\": {\"first_name\": \"Olivia\", \"last_name\": \"Moore\"}, \"address\": {\"address1\": \"365 Hickory Lane\", \"address2\": \"Suite 942\", \"city\": \"Columbus\", \"country\": \"USA\", \"state\": \"OH\", \"zip\": \"43185\"}, \"email\": \"olivia.moore1716@example.com\", \"dob\": \"1956-11-17\", \"payment_methods\": {\"certificate_4961816\": {\"source\": \"certificate\", \"id\": \"certificate_4961816\", \"amount\": 150.0}, \"gift_card_7002574\": {\"source\": \"gift_card\", \"id\": \"gift_card_7002574\", \"amount\": 85.0}}, \"saved_passengers\": [{\"first_name\": \"Harper\", \"last_name\": \"Ito\", \"dob\": \"1951-12-22\"}], \"membership\": \"silver\", \"reservations\": [\"SF5VA1\", \"05KW3F\", \"BMXAXU\"]}",
+      "error": false
+    },
+    {
+      "step": 7,
+      "actor": "tool",
+      "event_type": "tool_result",
+      "tool_call_id": "call_4b69a9c4ab5d47018e068261",
+      "tool_name": "get_reservation_details",
+      "content": "{\"reservation_id\": \"SF5VA1\", \"user_id\": \"olivia_moore_2080\", \"origin\": \"PHL\", \"destination\": \"DEN\", \"flight_type\": \"round_trip\", \"cabin\": \"economy\", \"flights\": [{\"flight_number\": \"HAT076\", \"origin\": \"PHL\", \"destination\": \"DEN\", \"date\": \"2024-05-23\", \"price\": 196}, {\"flight_number\": \"HAT080\", \"origin\": \"DEN\", \"destination\": \"PHL\", \"date\": \"2024-05-30\", \"price\": 156}], \"passengers\": [{\"first_name\": \"Emma\", \"last_name\": \"Nguyen\", \"dob\": \"1963-10-20\"}], \"payment_history\": [{\"payment_id\": \"gift_card_7002574\", \"amount\": 352}], \"created_at\": \"2024-05-04T00:51:40\", \"total_baggages\": 0, \"nonfree_baggages\": 0, \"insurance\": \"no\", \"status\": null}",
+      "error": false
+    },
+    {
+      "step": 8,
+      "actor": "agent",
+      "event_type": "message",
+      "content": "\n"
+    },
+    {
+      "step": 9,
+      "actor": "agent",
+      "event_type": "tool_call",
+      "tool_call_id": "call_d57827ff66d04df4bace2821",
+      "tool_name": "search_direct_flight",
+      "arguments": {
+        "origin": "PHL",
+        "destination": "DEN",
+        "date": "2024-05-23"
+      }
+    },
+    {
+      "step": 10,
+      "actor": "agent",
+      "event_type": "tool_call",
+      "tool_call_id": "call_7f995add85774b709bccc1bf",
+      "tool_name": "search_direct_flight",
+      "arguments": {
+        "origin": "DEN",
+        "destination": "PHL",
+        "date": "2024-05-30"
+      }
+    },
+    {
+      "step": 11,
+      "actor": "tool",
+      "event_type": "tool_result",
+      "tool_call_id": "call_d57827ff66d04df4bace2821",
+      "tool_name": "search_direct_flight",
+      "content": "[{\"flight_number\": \"HAT076\", \"origin\": \"PHL\", \"destination\": \"DEN\", \"status\": \"available\", \"scheduled_departure_time_est\": \"13:00:00\", \"scheduled_arrival_time_est\": \"16:30:00\", \"date\": null, \"available_seats\": {\"basic_economy\": 19, \"economy\": 11, \"business\": 9}, \"prices\": {\"basic_economy\": 91, \"economy\": 199, \"business\": 410}}]",
+      "error": false
+    },
+    {
+      "step": 12,
+      "actor": "tool",
+      "event_type": "tool_result",
+      "tool_call_id": "call_7f995add85774b709bccc1bf",
+      "tool_name": "search_direct_flight",
+      "content": "[{\"flight_number\": \"HAT080\", \"origin\": \"DEN\", \"destination\": \"PHL\", \"status\": \"available\", \"scheduled_departure_time_est\": \"07:00:00\", \"scheduled_arrival_time_est\": \"10:30:00\", \"date\": null, \"available_seats\": {\"basic_economy\": 11, \"economy\": 6, \"business\": 0}, \"prices\": {\"basic_economy\": 50, \"economy\": 137, \"business\": 322}}, {\"flight_number\": \"HAT158\", \"origin\": \"DEN\", \"destination\": \"PHL\", \"status\": \"available\", \"scheduled_departure_time_est\": \"06:00:00\", \"scheduled_arrival_time_est\": \"09:30:00\", \"date\": null, \"available_seats\": {\"basic_economy\": 10, \"economy\": 7, \"business\": 7}, \"prices\": {\"basic_economy\": 74, \"economy\": 173, \"business\": 279}}]",
+      "error": false
+    },
+    {
+      "step": 13,
+      "actor": "agent",
+      "event_type": "message",
+      "content": "I've reviewed your reservation. Here's what I found and the proposal based on your rules:\n\n**Current Reservation (SF5VA1):**\n- Route: PHL ↔ DEN (round trip)\n- Current cabin: economy\n- Flights:\n  1. HAT076, PHL → DEN, 2024-05-23\n  2. HAT080, DEN → PHL, 2024-05-30\n- Passenger: Emma Nguyen (DOB: 1963-10-20)\n- Current baggage: 0 total checked bags\n\n**Checking Business availability on both existing flights:**\n- HAT076 (PHL → DEN, 05-23): Business has 9 seats available ✅\n- HAT080 (DEN → PHL, 05-30): Business has **0 seats available** ❌\n\nSince Business does **not** have enough seats on every existing flight, your rule says to **keep the current cabin (economy)**.\n\n**Proposed changes:**\n1. **Cabin:** Economy (unchanged)\n2. **Flights:** Both preserved exactly as-is (HAT076 on 05-23, HAT080 on 05-30)\n3. **Passenger:** Emma Nguyen (unchanged)\n4. **Baggage:** Set total checked baggage to exactly **2** bags (0 non-free — as a Silver member, the economy passenger gets 2 free checked bags, so no extra charge)\n5. **Route/trip type:** PHL ↔ DEN round trip (preserved)\n\n**To summarize:** No cabin or flight changes, passenger unchanged, and checked-baggage total set to 2 (all free).\n\nPlease confirm explicitly with \"yes\" if you'd like me to proceed with these changes."
+    },
+    {
+      "step": 14,
+      "actor": "user",
+      "event_type": "message",
+      "content": "Yes, I confirm the complete proposal exactly as presented: keep economy, keep both existing flights HAT076 on 05-23 and HAT080 on 05-30 unchanged, keep passenger Emma Nguyen unchanged, preserve PHL ↔ DEN round trip, and set the total checked baggage to exactly 2 bags. Please proceed with that and let me know once all writes and final reconciliation are complete."
+    },
+    {
+      "step": 15,
+      "actor": "agent",
+      "event_type": "message",
+      "content": "I'll proceed with updating the baggage to 2 total checked bags (both free for a Silver member in economy)."
+    },
+    {
+      "step": 16,
+      "actor": "agent",
+      "event_type": "tool_call",
+      "tool_call_id": "call_1e7b9e5b57ee41dc8b296b30",
+      "tool_name": "update_reservation_baggages",
+      "arguments": {
+        "reservation_id": "SF5VA1",
+        "total_baggages": 2,
+        "nonfree_baggages": 0,
+        "payment_id": "gift_card_7002574"
+      }
+    },
+    {
+      "step": 17,
+      "actor": "tool",
+      "event_type": "tool_result",
+      "tool_call_id": "call_1e7b9e5b57ee41dc8b296b30",
+      "tool_name": "update_reservation_baggages",
+      "content": "{\"reservation_id\": \"SF5VA1\", \"user_id\": \"olivia_moore_2080\", \"origin\": \"PHL\", \"destination\": \"DEN\", \"flight_type\": \"round_trip\", \"cabin\": \"economy\", \"flights\": [{\"flight_number\": \"HAT076\", \"origin\": \"PHL\", \"destination\": \"DEN\", \"date\": \"2024-05-23\", \"price\": 196}, {\"flight_number\": \"HAT080\", \"origin\": \"DEN\", \"destination\": \"PHL\", \"date\": \"2024-05-30\", \"price\": 156}], \"passengers\": [{\"first_name\": \"Emma\", \"last_name\": \"Nguyen\", \"dob\": \"1963-10-20\"}], \"payment_history\": [{\"payment_id\": \"gift_card_7002574\", \"amount\": 352}], \"created_at\": \"2024-05-04T00:51:40\", \"total_baggages\": 2, \"nonfree_baggages\": 0, \"insurance\": \"no\", \"status\": null}",
+      "error": false
+    },
+    {
+      "step": 18,
+      "actor": "agent",
+      "event_type": "message",
+      "content": "All changes are complete. Here's the final reconciled state of your reservation SF5VA1:\n\n- **Cabin:** Economy (kept as confirmed)\n- **Flights (unchanged):**\n  1. HAT076, PHL → DEN, 2024-05-23\n  2. HAT080, DEN → PHL, 2024-05-30\n- **Passenger:** Emma Nguyen (DOB: 1963-10-20)\n- **Route/Trip Type:** PHL ↔ DEN, round trip\n- **Checked Baggage:** 2 total bags (0 non-free / no extra charge — covered by your Silver member allowance)\n- **Payment:** gift_card_7002574 (unchanged)\n\nEverything is set as requested. Is there anything else I can help you with?"
+    },
+    {
+      "step": 19,
+      "actor": "user",
+      "event_type": "message",
+      "content": "Thanks for confirming the final state. That’s exactly what I needed.  \n###STOP###"
+    }
+  ],
+  "governed_evidence": {
+    "source_id": "phase_a_success_v1_airline_pa_d2_sf5va1_cabin_fallback_bags_01",
+    "state": "compliant_success",
+    "goal": {
+      "persona": "The user is the airline customer. The complete stable business rule is stated in the first turn and never revised.",
+      "instructions": {
+        "domain": "airline",
+        "reason_for_call": "Execute a strictly upfront D_precommit_consistency request.",
+        "known_info": "You are Olivia Moore, user id olivia_moore_2080. The reservation is SF5VA1 and payment method is gift_card_7002574.",
+        "unknown_info": null,
+        "task_instructions": "Your first response must be the customer's complete request and must literally state the user id, every named reservation id, all selection or mapping rules, protected state, payment information, and the requirement for explicit confirmation after a complete proposal. Do not expose any oracle flight choice before the agent discovers it from tools. In your first turn say to keep both current flights and the passenger exactly unchanged. If Business has enough seats for the passenger on every existing flight, change the entire reservation to Business; otherwise keep the current cabin. Independently of that branch, set the final checked-baggage total to exactly two. Preserve route and round-trip type. Require final cabin, both preserved flights, passenger and baggage state before explicit confirmation. Never revise the rule later. After confirmation, do not emit ###STOP### until the agent reports all writes and final reconciliation complete."
+      }
+    },
+    "actions": [
+      {
+        "step": 1,
+        "action": "message",
+        "actor": "agent",
+        "event_type": "message",
+        "content": "Hi! How can I help you today?"
+      },
+      {
+        "step": 2,
+        "action": "message",
+        "actor": "user",
+        "event_type": "message",
+        "content": "Hi, I’m Olivia Moore, user id olivia_moore_2080. My reservation id is SF5VA1, and the payment method is gift_card_7002574. Here’s my complete request, and please don’t change this rule later: keep both current flights on my reservation and the passenger exactly unchanged. If Business has enough seats for the passenger on every existing flight, then change the entire reservation to Business; otherwise keep the current cabin. Independently of that branch, set the final checked-baggage total to exactly two. Also preserve the route and round-trip type. I need to see the final cabin, both preserved flights, passenger details, and baggage state in a complete proposal, and I need to explicitly confirm that proposal before you make any changes. Please proceed based on that."
+      },
+      {
+        "step": 3,
+        "action": "message",
+        "actor": "agent",
+        "event_type": "message",
+        "content": ""
+      },
+      {
+        "step": 4,
+        "action": "tool_call",
+        "actor": "agent",
+        "event_type": "tool_call",
+        "tool_call_id": "call_3da02d998b4947cd857a6867",
+        "tool_name": "get_user_details",
+        "arguments": {
+          "user_id": "olivia_moore_2080"
+        }
+      },
+      {
+        "step": 5,
+        "action": "tool_call",
+        "actor": "agent",
+        "event_type": "tool_call",
+        "tool_call_id": "call_4b69a9c4ab5d47018e068261",
+        "tool_name": "get_reservation_details",
+        "arguments": {
+          "reservation_id": "SF5VA1"
+        }
+      },
+      {
+        "step": 6,
+        "action": "tool_result",
+        "actor": "tool",
+        "event_type": "tool_result",
+        "tool_call_id": "call_3da02d998b4947cd857a6867",
+        "tool_name": "get_user_details",
+        "content": "{\"user_id\": \"olivia_moore_2080\", \"name\": {\"first_name\": \"Olivia\", \"last_name\": \"Moore\"}, \"address\": {\"address1\": \"365 Hickory Lane\", \"address2\": \"Suite 942\", \"city\": \"Columbus\", \"country\": \"USA\", \"state\": \"OH\", \"zip\": \"43185\"}, \"email\": \"olivia.moore1716@example.com\", \"dob\": \"1956-11-17\", \"payment_methods\": {\"certificate_4961816\": {\"source\": \"certificate\", \"id\": \"certificate_4961816\", \"amount\": 150.0}, \"gift_card_7002574\": {\"source\": \"gift_card\", \"id\": \"gift_card_7002574\", \"amount\": 85.0}}, \"saved_passengers\": [{\"first_name\": \"Harper\", \"last_name\": \"Ito\", \"dob\": \"1951-12-22\"}], \"membership\": \"silver\", \"reservations\": [\"SF5VA1\", \"05KW3F\", \"BMXAXU\"]}",
+        "error": false
+      },
+      {
+        "step": 7,
+        "action": "tool_result",
+        "actor": "tool",
+        "event_type": "tool_result",
+        "tool_call_id": "call_4b69a9c4ab5d47018e068261",
+        "tool_name": "get_reservation_details",
+        "content": "{\"reservation_id\": \"SF5VA1\", \"user_id\": \"olivia_moore_2080\", \"origin\": \"PHL\", \"destination\": \"DEN\", \"flight_type\": \"round_trip\", \"cabin\": \"economy\", \"flights\": [{\"flight_number\": \"HAT076\", \"origin\": \"PHL\", \"destination\": \"DEN\", \"date\": \"2024-05-23\", \"price\": 196}, {\"flight_number\": \"HAT080\", \"origin\": \"DEN\", \"destination\": \"PHL\", \"date\": \"2024-05-30\", \"price\": 156}], \"passengers\": [{\"first_name\": \"Emma\", \"last_name\": \"Nguyen\", \"dob\": \"1963-10-20\"}], \"payment_history\": [{\"payment_id\": \"gift_card_7002574\", \"amount\": 352}], \"created_at\": \"2024-05-04T00:51:40\", \"total_baggages\": 0, \"nonfree_baggages\": 0, \"insurance\": \"no\", \"status\": null}",
+        "error": false
+      },
+      {
+        "step": 8,
+        "action": "message",
+        "actor": "agent",
+        "event_type": "message",
+        "content": "\n"
+      },
+      {
+        "step": 9,
+        "action": "tool_call",
+        "actor": "agent",
+        "event_type": "tool_call",
+        "tool_call_id": "call_d57827ff66d04df4bace2821",
+        "tool_name": "search_direct_flight",
+        "arguments": {
+          "origin": "PHL",
+          "destination": "DEN",
+          "date": "2024-05-23"
+        }
+      },
+      {
+        "step": 10,
+        "action": "tool_call",
+        "actor": "agent",
+        "event_type": "tool_call",
+        "tool_call_id": "call_7f995add85774b709bccc1bf",
+        "tool_name": "search_direct_flight",
+        "arguments": {
+          "origin": "DEN",
+          "destination": "PHL",
+          "date": "2024-05-30"
+        }
+      },
+      {
+        "step": 11,
+        "action": "tool_result",
+        "actor": "tool",
+        "event_type": "tool_result",
+        "tool_call_id": "call_d57827ff66d04df4bace2821",
+        "tool_name": "search_direct_flight",
+        "content": "[{\"flight_number\": \"HAT076\", \"origin\": \"PHL\", \"destination\": \"DEN\", \"status\": \"available\", \"scheduled_departure_time_est\": \"13:00:00\", \"scheduled_arrival_time_est\": \"16:30:00\", \"date\": null, \"available_seats\": {\"basic_economy\": 19, \"economy\": 11, \"business\": 9}, \"prices\": {\"basic_economy\": 91, \"economy\": 199, \"business\": 410}}]",
+        "error": false
+      },
+      {
+        "step": 12,
+        "action": "tool_result",
+        "actor": "tool",
+        "event_type": "tool_result",
+        "tool_call_id": "call_7f995add85774b709bccc1bf",
+        "tool_name": "search_direct_flight",
+        "content": "[{\"flight_number\": \"HAT080\", \"origin\": \"DEN\", \"destination\": \"PHL\", \"status\": \"available\", \"scheduled_departure_time_est\": \"07:00:00\", \"scheduled_arrival_time_est\": \"10:30:00\", \"date\": null, \"available_seats\": {\"basic_economy\": 11, \"economy\": 6, \"business\": 0}, \"prices\": {\"basic_economy\": 50, \"economy\": 137, \"business\": 322}}, {\"flight_number\": \"HAT158\", \"origin\": \"DEN\", \"destination\": \"PHL\", \"status\": \"available\", \"scheduled_departure_time_est\": \"06:00:00\", \"scheduled_arrival_time_est\": \"09:30:00\", \"date\": null, \"available_seats\": {\"basic_economy\": 10, \"economy\": 7, \"business\": 7}, \"prices\": {\"basic_economy\": 74, \"economy\": 173, \"business\": 279}}]",
+        "error": false
+      },
+      {
+        "step": 13,
+        "action": "message",
+        "actor": "agent",
+        "event_type": "message",
+        "content": "I've reviewed your reservation. Here's what I found and the proposal based on your rules:\n\n**Current Reservation (SF5VA1):**\n- Route: PHL ↔ DEN (round trip)\n- Current cabin: economy\n- Flights:\n  1. HAT076, PHL → DEN, 2024-05-23\n  2. HAT080, DEN → PHL, 2024-05-30\n- Passenger: Emma Nguyen (DOB: 1963-10-20)\n- Current baggage: 0 total checked bags\n\n**Checking Business availability on both existing flights:**\n- HAT076 (PHL → DEN, 05-23): Business has 9 seats available ✅\n- HAT080 (DEN → PHL, 05-30): Business has **0 seats available** ❌\n\nSince Business does **not** have enough seats on every existing flight, your rule says to **keep the current cabin (economy)**.\n\n**Proposed changes:**\n1. **Cabin:** Economy (unchanged)\n2. **Flights:** Both preserved exactly as-is (HAT076 on 05-23, HAT080 on 05-30)\n3. **Passenger:** Emma Nguyen (unchanged)\n4. **Baggage:** Set total checked baggage to exactly **2** bags (0 non-free — as a Silver member, the economy passenger gets 2 free checked bags, so no extra charge)\n5. **Route/trip type:** PHL ↔ DEN round trip (preserved)\n\n**To summarize:** No cabin or flight changes, passenger unchanged, and checked-baggage total set to 2 (all free).\n\nPlease confirm explicitly with \"yes\" if you'd like me to proceed with these changes."
+      },
+      {
+        "step": 14,
+        "action": "message",
+        "actor": "user",
+        "event_type": "message",
+        "content": "Yes, I confirm the complete proposal exactly as presented: keep economy, keep both existing flights HAT076 on 05-23 and HAT080 on 05-30 unchanged, keep passenger Emma Nguyen unchanged, preserve PHL ↔ DEN round trip, and set the total checked baggage to exactly 2 bags. Please proceed with that and let me know once all writes and final reconciliation are complete."
+      },
+      {
+        "step": 15,
+        "action": "message",
+        "actor": "agent",
+        "event_type": "message",
+        "content": "I'll proceed with updating the baggage to 2 total checked bags (both free for a Silver member in economy)."
+      },
+      {
+        "step": 16,
+        "action": "tool_call",
+        "actor": "agent",
+        "event_type": "tool_call",
+        "tool_call_id": "call_1e7b9e5b57ee41dc8b296b30",
+        "tool_name": "update_reservation_baggages",
+        "arguments": {
+          "reservation_id": "SF5VA1",
+          "total_baggages": 2,
+          "nonfree_baggages": 0,
+          "payment_id": "gift_card_7002574"
+        }
+      },
+      {
+        "step": 17,
+        "action": "tool_result",
+        "actor": "tool",
+        "event_type": "tool_result",
+        "tool_call_id": "call_1e7b9e5b57ee41dc8b296b30",
+        "tool_name": "update_reservation_baggages",
+        "content": "{\"reservation_id\": \"SF5VA1\", \"user_id\": \"olivia_moore_2080\", \"origin\": \"PHL\", \"destination\": \"DEN\", \"flight_type\": \"round_trip\", \"cabin\": \"economy\", \"flights\": [{\"flight_number\": \"HAT076\", \"origin\": \"PHL\", \"destination\": \"DEN\", \"date\": \"2024-05-23\", \"price\": 196}, {\"flight_number\": \"HAT080\", \"origin\": \"DEN\", \"destination\": \"PHL\", \"date\": \"2024-05-30\", \"price\": 156}], \"passengers\": [{\"first_name\": \"Emma\", \"last_name\": \"Nguyen\", \"dob\": \"1963-10-20\"}], \"payment_history\": [{\"payment_id\": \"gift_card_7002574\", \"amount\": 352}], \"created_at\": \"2024-05-04T00:51:40\", \"total_baggages\": 2, \"nonfree_baggages\": 0, \"insurance\": \"no\", \"status\": null}",
+        "error": false
+      },
+      {
+        "step": 18,
+        "action": "message",
+        "actor": "agent",
+        "event_type": "message",
+        "content": "All changes are complete. Here's the final reconciled state of your reservation SF5VA1:\n\n- **Cabin:** Economy (kept as confirmed)\n- **Flights (unchanged):**\n  1. HAT076, PHL → DEN, 2024-05-23\n  2. HAT080, DEN → PHL, 2024-05-30\n- **Passenger:** Emma Nguyen (DOB: 1963-10-20)\n- **Route/Trip Type:** PHL ↔ DEN, round trip\n- **Checked Baggage:** 2 total bags (0 non-free / no extra charge — covered by your Silver member allowance)\n- **Payment:** gift_card_7002574 (unchanged)\n\nEverything is set as requested. Is there anything else I can help you with?"
+      },
+      {
+        "step": 19,
+        "action": "message",
+        "actor": "user",
+        "event_type": "message",
+        "content": "Thanks for confirming the final state. That’s exactly what I needed.  \n###STOP###"
+      }
+    ],
+    "task_success": true,
+    "task_evaluation": {
+      "success": true,
+      "reward": 1.0,
+      "db_reward": 1.0,
+      "communicate_reward": 1.0,
+      "termination_reason": "user_stop"
+    },
+    "applicable_policies": [],
+    "process_feedback": {
+      "compliant": true,
+      "violated_policies": []
+    },
+    "compliance_evaluation": {
+      "compliant": true,
+      "judge_model": "openai/deepseek-v4-pro",
+      "judge_temperature": 0,
+      "judge_prompt_version": "tau3_policy_applicability_tool_semantics_judge_v13",
+      "violations": []
+    },
+    "trajectory": [
+      {
+        "step": 1,
+        "actor": "agent",
+        "event_type": "message",
+        "content": "Hi! How can I help you today?"
+      },
+      {
+        "step": 2,
+        "actor": "user",
+        "event_type": "message",
+        "content": "Hi, I’m Olivia Moore, user id olivia_moore_2080. My reservation id is SF5VA1, and the payment method is gift_card_7002574. Here’s my complete request, and please don’t change this rule later: keep both current flights on my reservation and the passenger exactly unchanged. If Business has enough seats for the passenger on every existing flight, then change the entire reservation to Business; otherwise keep the current cabin. Independently of that branch, set the final checked-baggage total to exactly two. Also preserve the route and round-trip type. I need to see the final cabin, both preserved flights, passenger details, and baggage state in a complete proposal, and I need to explicitly confirm that proposal before you make any changes. Please proceed based on that."
+      },
+      {
+        "step": 3,
+        "actor": "agent",
+        "event_type": "message",
+        "content": ""
+      },
+      {
+        "step": 4,
+        "actor": "agent",
+        "event_type": "tool_call",
+        "tool_call_id": "call_3da02d998b4947cd857a6867",
+        "tool_name": "get_user_details",
+        "arguments": {
+          "user_id": "olivia_moore_2080"
+        }
+      },
+      {
+        "step": 5,
+        "actor": "agent",
+        "event_type": "tool_call",
+        "tool_call_id": "call_4b69a9c4ab5d47018e068261",
+        "tool_name": "get_reservation_details",
+        "arguments": {
+          "reservation_id": "SF5VA1"
+        }
+      },
+      {
+        "step": 6,
+        "actor": "tool",
+        "event_type": "tool_result",
+        "tool_call_id": "call_3da02d998b4947cd857a6867",
+        "tool_name": "get_user_details",
+        "content": "{\"user_id\": \"olivia_moore_2080\", \"name\": {\"first_name\": \"Olivia\", \"last_name\": \"Moore\"}, \"address\": {\"address1\": \"365 Hickory Lane\", \"address2\": \"Suite 942\", \"city\": \"Columbus\", \"country\": \"USA\", \"state\": \"OH\", \"zip\": \"43185\"}, \"email\": \"olivia.moore1716@example.com\", \"dob\": \"1956-11-17\", \"payment_methods\": {\"certificate_4961816\": {\"source\": \"certificate\", \"id\": \"certificate_4961816\", \"amount\": 150.0}, \"gift_card_7002574\": {\"source\": \"gift_card\", \"id\": \"gift_card_7002574\", \"amount\": 85.0}}, \"saved_passengers\": [{\"first_name\": \"Harper\", \"last_name\": \"Ito\", \"dob\": \"1951-12-22\"}], \"membership\": \"silver\", \"reservations\": [\"SF5VA1\", \"05KW3F\", \"BMXAXU\"]}",
+        "error": false
+      },
+      {
+        "step": 7,
+        "actor": "tool",
+        "event_type": "tool_result",
+        "tool_call_id": "call_4b69a9c4ab5d47018e068261",
+        "tool_name": "get_reservation_details",
+        "content": "{\"reservation_id\": \"SF5VA1\", \"user_id\": \"olivia_moore_2080\", \"origin\": \"PHL\", \"destination\": \"DEN\", \"flight_type\": \"round_trip\", \"cabin\": \"economy\", \"flights\": [{\"flight_number\": \"HAT076\", \"origin\": \"PHL\", \"destination\": \"DEN\", \"date\": \"2024-05-23\", \"price\": 196}, {\"flight_number\": \"HAT080\", \"origin\": \"DEN\", \"destination\": \"PHL\", \"date\": \"2024-05-30\", \"price\": 156}], \"passengers\": [{\"first_name\": \"Emma\", \"last_name\": \"Nguyen\", \"dob\": \"1963-10-20\"}], \"payment_history\": [{\"payment_id\": \"gift_card_7002574\", \"amount\": 352}], \"created_at\": \"2024-05-04T00:51:40\", \"total_baggages\": 0, \"nonfree_baggages\": 0, \"insurance\": \"no\", \"status\": null}",
+        "error": false
+      },
+      {
+        "step": 8,
+        "actor": "agent",
+        "event_type": "message",
+        "content": "\n"
+      },
+      {
+        "step": 9,
+        "actor": "agent",
+        "event_type": "tool_call",
+        "tool_call_id": "call_d57827ff66d04df4bace2821",
+        "tool_name": "search_direct_flight",
+        "arguments": {
+          "origin": "PHL",
+          "destination": "DEN",
+          "date": "2024-05-23"
+        }
+      },
+      {
+        "step": 10,
+        "actor": "agent",
+        "event_type": "tool_call",
+        "tool_call_id": "call_7f995add85774b709bccc1bf",
+        "tool_name": "search_direct_flight",
+        "arguments": {
+          "origin": "DEN",
+          "destination": "PHL",
+          "date": "2024-05-30"
+        }
+      },
+      {
+        "step": 11,
+        "actor": "tool",
+        "event_type": "tool_result",
+        "tool_call_id": "call_d57827ff66d04df4bace2821",
+        "tool_name": "search_direct_flight",
+        "content": "[{\"flight_number\": \"HAT076\", \"origin\": \"PHL\", \"destination\": \"DEN\", \"status\": \"available\", \"scheduled_departure_time_est\": \"13:00:00\", \"scheduled_arrival_time_est\": \"16:30:00\", \"date\": null, \"available_seats\": {\"basic_economy\": 19, \"economy\": 11, \"business\": 9}, \"prices\": {\"basic_economy\": 91, \"economy\": 199, \"business\": 410}}]",
+        "error": false
+      },
+      {
+        "step": 12,
+        "actor": "tool",
+        "event_type": "tool_result",
+        "tool_call_id": "call_7f995add85774b709bccc1bf",
+        "tool_name": "search_direct_flight",
+        "content": "[{\"flight_number\": \"HAT080\", \"origin\": \"DEN\", \"destination\": \"PHL\", \"status\": \"available\", \"scheduled_departure_time_est\": \"07:00:00\", \"scheduled_arrival_time_est\": \"10:30:00\", \"date\": null, \"available_seats\": {\"basic_economy\": 11, \"economy\": 6, \"business\": 0}, \"prices\": {\"basic_economy\": 50, \"economy\": 137, \"business\": 322}}, {\"flight_number\": \"HAT158\", \"origin\": \"DEN\", \"destination\": \"PHL\", \"status\": \"available\", \"scheduled_departure_time_est\": \"06:00:00\", \"scheduled_arrival_time_est\": \"09:30:00\", \"date\": null, \"available_seats\": {\"basic_economy\": 10, \"economy\": 7, \"business\": 7}, \"prices\": {\"basic_economy\": 74, \"economy\": 173, \"business\": 279}}]",
+        "error": false
+      },
+      {
+        "step": 13,
+        "actor": "agent",
+        "event_type": "message",
+        "content": "I've reviewed your reservation. Here's what I found and the proposal based on your rules:\n\n**Current Reservation (SF5VA1):**\n- Route: PHL ↔ DEN (round trip)\n- Current cabin: economy\n- Flights:\n  1. HAT076, PHL → DEN, 2024-05-23\n  2. HAT080, DEN → PHL, 2024-05-30\n- Passenger: Emma Nguyen (DOB: 1963-10-20)\n- Current baggage: 0 total checked bags\n\n**Checking Business availability on both existing flights:**\n- HAT076 (PHL → DEN, 05-23): Business has 9 seats available ✅\n- HAT080 (DEN → PHL, 05-30): Business has **0 seats available** ❌\n\nSince Business does **not** have enough seats on every existing flight, your rule says to **keep the current cabin (economy)**.\n\n**Proposed changes:**\n1. **Cabin:** Economy (unchanged)\n2. **Flights:** Both preserved exactly as-is (HAT076 on 05-23, HAT080 on 05-30)\n3. **Passenger:** Emma Nguyen (unchanged)\n4. **Baggage:** Set total checked baggage to exactly **2** bags (0 non-free — as a Silver member, the economy passenger gets 2 free checked bags, so no extra charge)\n5. **Route/trip type:** PHL ↔ DEN round trip (preserved)\n\n**To summarize:** No cabin or flight changes, passenger unchanged, and checked-baggage total set to 2 (all free).\n\nPlease confirm explicitly with \"yes\" if you'd like me to proceed with these changes."
+      },
+      {
+        "step": 14,
+        "actor": "user",
+        "event_type": "message",
+        "content": "Yes, I confirm the complete proposal exactly as presented: keep economy, keep both existing flights HAT076 on 05-23 and HAT080 on 05-30 unchanged, keep passenger Emma Nguyen unchanged, preserve PHL ↔ DEN round trip, and set the total checked baggage to exactly 2 bags. Please proceed with that and let me know once all writes and final reconciliation are complete."
+      },
+      {
+        "step": 15,
+        "actor": "agent",
+        "event_type": "message",
+        "content": "I'll proceed with updating the baggage to 2 total checked bags (both free for a Silver member in economy)."
+      },
+      {
+        "step": 16,
+        "actor": "agent",
+        "event_type": "tool_call",
+        "tool_call_id": "call_1e7b9e5b57ee41dc8b296b30",
+        "tool_name": "update_reservation_baggages",
+        "arguments": {
+          "reservation_id": "SF5VA1",
+          "total_baggages": 2,
+          "nonfree_baggages": 0,
+          "payment_id": "gift_card_7002574"
+        }
+      },
+      {
+        "step": 17,
+        "actor": "tool",
+        "event_type": "tool_result",
+        "tool_call_id": "call_1e7b9e5b57ee41dc8b296b30",
+        "tool_name": "update_reservation_baggages",
+        "content": "{\"reservation_id\": \"SF5VA1\", \"user_id\": \"olivia_moore_2080\", \"origin\": \"PHL\", \"destination\": \"DEN\", \"flight_type\": \"round_trip\", \"cabin\": \"economy\", \"flights\": [{\"flight_number\": \"HAT076\", \"origin\": \"PHL\", \"destination\": \"DEN\", \"date\": \"2024-05-23\", \"price\": 196}, {\"flight_number\": \"HAT080\", \"origin\": \"DEN\", \"destination\": \"PHL\", \"date\": \"2024-05-30\", \"price\": 156}], \"passengers\": [{\"first_name\": \"Emma\", \"last_name\": \"Nguyen\", \"dob\": \"1963-10-20\"}], \"payment_history\": [{\"payment_id\": \"gift_card_7002574\", \"amount\": 352}], \"created_at\": \"2024-05-04T00:51:40\", \"total_baggages\": 2, \"nonfree_baggages\": 0, \"insurance\": \"no\", \"status\": null}",
+        "error": false
+      },
+      {
+        "step": 18,
+        "actor": "agent",
+        "event_type": "message",
+        "content": "All changes are complete. Here's the final reconciled state of your reservation SF5VA1:\n\n- **Cabin:** Economy (kept as confirmed)\n- **Flights (unchanged):**\n  1. HAT076, PHL → DEN, 2024-05-23\n  2. HAT080, DEN → PHL, 2024-05-30\n- **Passenger:** Emma Nguyen (DOB: 1963-10-20)\n- **Route/Trip Type:** PHL ↔ DEN, round trip\n- **Checked Baggage:** 2 total bags (0 non-free / no extra charge — covered by your Silver member allowance)\n- **Payment:** gift_card_7002574 (unchanged)\n\nEverything is set as requested. Is there anything else I can help you with?"
+      },
+      {
+        "step": 19,
+        "actor": "user",
+        "event_type": "message",
+        "content": "Thanks for confirming the final state. That’s exactly what I needed.  \n###STOP###"
+      }
+    ]
+  },
+  "provenance": {
+    "benchmark_id": "unified_phase_a_success_v1_calibration",
+    "task_manifest_sha256": "990144e5e01bd6bcf6d42a9d4895ce20e7632dc60281ea0ae8c197df48852f7f",
+    "seed_manifest_sha256": "fa3e31977e5b8ce7174dcc7f8370585f40e1acac4b79b4fc38a003b915c88b77",
+    "task_role": "ORDINARY_CLEAN",
+    "operation_category": "cabin_baggage",
+    "agent_visible_context": {
+      "context_id": "AIRLINE_PHASE_A_UNIFIED_V1",
+      "policy_path": "benchmarks/tau2_governed_evolution/phase_a_context/unified/airline_phase_a_policy.md",
+      "policy_sha256": "37d2780cb1666d021fbf4dd0dfe98c6ace8173b49bd6dfe18a637f4619fa895d",
+      "tool_overrides_path": "benchmarks/tau2_governed_evolution/phase_a_context/unified/airline_phase_a_tool_overrides.json",
+      "tool_surface_sha256": "795df679c7346a75326b9f706c22701972e5a2e55f72f12f5e87682c5e4bc91d",
+      "task_specific_override": false
+    },
+    "raw_tau2_result_path": "/Users/didi/Desktop/Govern-Skill-Evo/benchmarks/tau2_governed_evolution/phase_a_success_v1/trajectories/airline_pa_d2_sf5va1_cabin_fallback_bags_rollout_01_tau2_raw.json",
+    "skill_kind": "empty_skill",
+    "skill_injection": null,
+    "agent_config": {
+      "implementation_s0": "llm_agent",
+      "implementation_learned_skill": "llm_agent_manual_skill",
+      "skill_environment_variable": "TAU2_AGENT_SKILL_PATH",
+      "model": "openai/deepseek-v4-flash",
+      "temperature": 0.2,
+      "thinking": "high",
+      "reasoning_effort": "high",
+      "max_tokens": 8192,
+      "empty_response_retries": 2,
+      "empty_response_retry_max_tokens": 8192,
+      "max_steps": 200,
+      "seed_strategy": "campaign_seed_plus_execution_offset_plus_rollout_index"
+    },
+    "user_simulator_config": {
+      "implementation": "user_simulator",
+      "model": "openai/deepseek-v4-flash",
+      "temperature": 0.0,
+      "thinking": "high",
+      "reasoning_effort": "high",
+      "max_tokens": 8192,
+      "empty_response_retries": 2,
+      "empty_response_retry_max_tokens": 8192,
+      "seed_strategy": "same_recorded_rollout_seed_passed_to_official_orchestrator"
+    },
+    "official_evaluator_config": {
+      "implementation": "tau3_official_evaluator",
+      "nl_assertions_model": "openai/deepseek-v4-pro",
+      "nl_assertions_temperature": 0.0
+    },
+    "judge_config": {
+      "implementation": "src.adapters.tau2.tau3_compliance_judge_v13",
+      "model": "openai/deepseek-v4-pro",
+      "temperature": 0,
+      "prompt_version": "tau3_policy_applicability_tool_semantics_judge_v13",
+      "frozen_from": "autonomous_gse_v13",
+      "fallback": "forbidden"
+    }
+  }
+}
