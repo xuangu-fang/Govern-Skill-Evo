@@ -1,0 +1,126 @@
+{
+  "schema_version": "phase_a_latent_phenomena_1.0",
+  "audit_kind": "STATIC_LATENT_SEMANTIC_EXPOSURE",
+  "outcome_evidence_used": false,
+  "classification_scale": {
+    "NOT_EXPOSED": "The task does not enter the latent dynamic or the relevant action/resource is absent.",
+    "EXPOSED_NONCRITICAL": "The dynamic occurs, but task success does not depend on handling its downstream consequence.",
+    "EXPOSED_CRITICAL": "A reasonable completion path requires handling the latent dependency; ignoring it can change the evaluator-required outcome."
+  },
+  "phenomena": [
+    {
+      "phenomenon_id": "P1",
+      "name": "Retail Item-Mutation Transition Dependency",
+      "domain": "retail",
+      "tags": ["L1", "L2"],
+      "success_relevance": "HIGH",
+      "semantic_chain": "modify_pending_order_items appends a settlement entry and changes order status; a later payment replacement requires exactly one payment entry, while later cancellation requires status exactly pending.",
+      "registry_ids": [
+        "RET_POLICY_MODIFY_ITEMS_STATUS_001",
+        "RET_POLICY_MODIFY_ITEMS_FUTURE_MODIFY_001",
+        "RET_POLICY_MODIFY_ITEMS_FUTURE_CANCEL_001",
+        "RET_IMPL_ITEM_HISTORY_001",
+        "RET_IMPL_ITEM_PAYMENT_FUTURE_001"
+      ],
+      "backend_evidence": [
+        "external/tau2-bench/src/tau2/domains/retail/tools.py:480",
+        "external/tau2-bench/src/tau2/domains/retail/tools.py:521",
+        "external/tau2-bench/src/tau2/domains/retail/tools.py:540",
+        "external/tau2-bench/src/tau2/domains/retail/tools.py:574"
+      ]
+    },
+    {
+      "phenomenon_id": "P2",
+      "name": "Airline Preserved-Segment Historical Valuation",
+      "domain": "airline",
+      "tags": ["L4"],
+      "success_relevance": "HIGH",
+      "semantic_chain": "A segment with matching flight number/date and unchanged cabin retains its stored reservation price instead of the current catalog price; the retained basis can change a transaction threshold or branch.",
+      "registry_ids": [
+        "AIR_POLICY_FLIGHT_HISTORY_001",
+        "AIR_IMPL_UPDATE_HISTORY_MATCH_001",
+        "AIR_IMPL_UPDATE_CURRENT_PRICE_001"
+      ],
+      "backend_evidence": [
+        "external/tau2-bench/src/tau2/domains/airline/tools.py:628",
+        "external/tau2-bench/src/tau2/domains/airline/tools.py:638",
+        "external/tau2-bench/src/tau2/domains/airline/tools.py:664"
+      ]
+    },
+    {
+      "phenomenon_id": "P3",
+      "name": "Retail Cancellation Refund Resource State",
+      "domain": "retail",
+      "tags": ["L1", "L3"],
+      "success_relevance": "HIGH",
+      "semantic_chain": "Cancelling a gift-card-funded pending order credits the profile gift-card balance; a later transaction can depend on the replenished resource.",
+      "registry_ids": [
+        "RET_TOOL_CANCEL_DETAILS_004",
+        "RET_IMPL_CANCEL_GIFT_BEFORE_COMMIT_001",
+        "RET_IMPL_SHARED_GIFTS_001"
+      ],
+      "backend_evidence": [
+        "external/tau2-bench/src/tau2/domains/retail/tools.py:184",
+        "external/tau2-bench/src/tau2/domains/retail/tools.py:196",
+        "external/tau2-bench/src/tau2/domains/retail/tools.py:203"
+      ]
+    },
+    {
+      "phenomenon_id": "P4",
+      "name": "Airline Certificate Lifecycle and Cross-Transaction Coupling",
+      "domain": "airline",
+      "tags": ["L3", "L5"],
+      "success_relevance": "HIGH",
+      "semantic_chain": "A successful booking removes the entire certificate from the user's payment methods regardless of allocated amount; a later booking cannot reuse any nominal remainder.",
+      "registry_ids": [
+        "AIR_IMPL_CERTIFICATE_DELETE_001",
+        "AIR_IMPL_CERTIFICATE_REMAINDER_001",
+        "AIR_IMPL_CERTIFICATE_REUSE_001"
+      ],
+      "backend_evidence": [
+        "external/tau2-bench/src/tau2/domains/airline/tools.py:284",
+        "external/tau2-bench/src/tau2/domains/airline/tools.py:303",
+        "external/tau2-bench/src/tau2/domains/airline/tools.py:310"
+      ]
+    },
+    {
+      "phenomenon_id": "P5",
+      "name": "Airline Flight-Change Settlement Baseline",
+      "domain": "airline",
+      "tags": ["L4"],
+      "success_relevance": "HIGH",
+      "semantic_chain": "Flight-update settlement prices the complete submitted itinerary using historical/current segment rules, multiplies by stored passenger count, and subtracts the stored old flight-segment total; branch thresholds can depend on this delta rather than gross replacement fare or total payment history.",
+      "registry_ids": [
+        "AIR_IMPL_UPDATE_OLD_BASELINE_001",
+        "AIR_IMPL_UPDATE_NEW_AGGREGATION_001",
+        "AIR_IMPL_UPDATE_HISTORY_001",
+        "AIR_IMPL_UPDATE_GIFT_001"
+      ],
+      "backend_evidence": [
+        "external/tau2-bench/src/tau2/domains/airline/tools.py:638",
+        "external/tau2-bench/src/tau2/domains/airline/tools.py:672",
+        "external/tau2-bench/src/tau2/domains/airline/tools.py:675",
+        "external/tau2-bench/src/tau2/domains/airline/tools.py:681"
+      ],
+      "addition_reason": "This phenomenon was added from the reviewed registry and backend formula because three frozen task specifications branch on the flight-change transaction delta. No rollout outcome was consulted."
+    },
+    {
+      "phenomenon_id": "P6",
+      "name": "Airline Flight-Change and Cancellation Non-Enforcement",
+      "domain": "airline",
+      "tags": ["L6"],
+      "success_relevance": "LOW",
+      "coverage_override": "COMPLIANCE_PRIMARY",
+      "semantic_chain": "Mutation APIs omit enforcement of stated eligibility rules. This affects policy compliance interpretation more directly than successful completion of eligible frozen tasks.",
+      "registry_ids": [
+        "AIR_POLICY_FLIGHT_ENFORCEMENT_001",
+        "AIR_POLICY_CANCEL_ENFORCEMENT_001",
+        "AIR_IMPL_FLIGHT_NONENFORCEMENT_001"
+      ],
+      "backend_evidence": [
+        "external/tau2-bench/src/tau2/domains/airline/tools.py:339",
+        "external/tau2-bench/src/tau2/domains/airline/tools.py:592"
+      ]
+    }
+  ]
+}
