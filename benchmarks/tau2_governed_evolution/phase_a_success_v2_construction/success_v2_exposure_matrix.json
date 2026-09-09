@@ -1,0 +1,581 @@
+{
+  "schema_version": "phase_a_success_v2_exposure_matrix_1.0",
+  "parent_exposure_matrix": "benchmarks/tau2_governed_evolution/phase_a_exposure_audit/task_exposure_matrix.json",
+  "task_manifest": "benchmarks/tau2_governed_evolution/phase_a_success_v2_construction/success_v2_task_manifest.json",
+  "task_manifest_sha256": "e72421812c6b6cd6a6143d584d8ef8aea2fba2049947547a20ffaefdb08d2e5c",
+  "task_count": 27,
+  "outcome_evidence_used": false,
+  "matrix": [
+    {
+      "task_id": "retail_pa_v1b_w8557584_items_address_payment",
+      "role": "KNOWN_ANCHOR",
+      "state_id": "retail:#W8557584",
+      "exposures": {
+        "P1": "EXPOSED_CRITICAL",
+        "P2": "NOT_EXPOSED",
+        "P3": "NOT_EXPOSED",
+        "P4": "NOT_EXPOSED",
+        "P5": "NOT_EXPOSED",
+        "P6": "NOT_EXPOSED"
+      },
+      "critical_evidence": {
+        "P1": {
+          "required_operation_or_decision": "Replace whole-order payment and modify two items on the same pending order.",
+          "state_before": "#W8557584 is pending with exactly one payment entry.",
+          "hidden_transition": "Item modification appends a price-difference entry and changes status to pending (item modified).",
+          "downstream_dependency": "Payment replacement requires exactly one payment entry; evaluator requires payment, items, and address final state.",
+          "success_impact": "Executing items before payment can make the required payment replacement fail, so operation ordering changes final task success."
+        }
+      }
+    },
+    {
+      "task_id": "retail_pa_o1a_w6779827_items_payment",
+      "role": "KNOWN_ANCHOR",
+      "state_id": "retail:#W6779827",
+      "exposures": {
+        "P1": "EXPOSED_CRITICAL",
+        "P2": "NOT_EXPOSED",
+        "P3": "NOT_EXPOSED",
+        "P4": "NOT_EXPOSED",
+        "P5": "NOT_EXPOSED",
+        "P6": "NOT_EXPOSED"
+      },
+      "critical_evidence": {
+        "P1": {
+          "required_operation_or_decision": "Modify the Dumbbell Set and replace the whole-order gift-card payment.",
+          "state_before": "#W6779827 is pending with one original payment.",
+          "hidden_transition": "Item modification appends settlement history.",
+          "downstream_dependency": "The later payment tool rejects history lengths other than one; both writes are evaluator-required.",
+          "success_impact": "Ignoring the item-to-history dependency can prevent the required whole-order payment change."
+        }
+      }
+    },
+    {
+      "task_id": "airline_dd_fq8ape_cabin_baggage_budget",
+      "role": "KNOWN_ANCHOR",
+      "state_id": "airline:FQ8APE",
+      "exposures": {
+        "P1": "NOT_EXPOSED",
+        "P2": "NOT_EXPOSED",
+        "P3": "NOT_EXPOSED",
+        "P4": "NOT_EXPOSED",
+        "P5": "EXPOSED_CRITICAL",
+        "P6": "EXPOSED_NONCRITICAL"
+      },
+      "critical_evidence": {
+        "P5": {
+          "required_operation_or_decision": "Choose Business if its complete update delta is at most $250, otherwise test Economy against the same threshold.",
+          "state_before": "FQ8APE is Basic Economy; stored flight prices are $71 + $60 = $131 for one passenger.",
+          "hidden_transition": "update_reservation_flights subtracts the stored old flight baseline from the selected complete-itinerary value.",
+          "downstream_dependency": "The branch depends on the transaction delta; the specified Economy branch is $340 - $131 = $209.",
+          "success_impact": "Comparing gross replacement fare instead of the settlement delta can select no mutation instead of the evaluator-required Economy update."
+        }
+      }
+    },
+    {
+      "task_id": "airline_dd_hxdubj_multistage_propagation",
+      "role": "KNOWN_ANCHOR",
+      "state_id": "airline:HXDUBJ",
+      "exposures": {
+        "P1": "NOT_EXPOSED",
+        "P2": "NOT_EXPOSED",
+        "P3": "NOT_EXPOSED",
+        "P4": "NOT_EXPOSED",
+        "P5": "EXPOSED_CRITICAL",
+        "P6": "EXPOSED_NONCRITICAL"
+      },
+      "critical_evidence": {
+        "P5": {
+          "required_operation_or_decision": "Test Business delta, fall back to Economy, then choose baggage from the resulting refund threshold.",
+          "state_before": "HXDUBJ has stored flight prices $177 + $146 + $180 = $503.",
+          "hidden_transition": "The update settlement subtracts the stored $503 flight baseline from the selected itinerary value.",
+          "downstream_dependency": "The resulting charge/refund determines both cabin fallback and the two-bag versus one-bag branch.",
+          "success_impact": "Using gross fare or total payment history rather than the flight baseline can change multiple evaluator-required branches."
+        }
+      }
+    },
+    {
+      "task_id": "airline_s3_juan_patel_6197_certificate_lifecycle",
+      "role": "KNOWN_ANCHOR",
+      "state_id": "airline:juan_patel_6197:certificate_1925278",
+      "exposures": {
+        "P1": "NOT_EXPOSED",
+        "P2": "NOT_EXPOSED",
+        "P3": "NOT_EXPOSED",
+        "P4": "EXPOSED_CRITICAL",
+        "P5": "NOT_EXPOSED",
+        "P6": "NOT_EXPOSED"
+      },
+      "critical_evidence": {
+        "P4": {
+          "required_operation_or_decision": "Allocate a $250 certificate and $115 gift card across two sequential bookings costing $100 and $200.",
+          "state_before": "Both stored-value resources are present before Trip A.",
+          "hidden_transition": "Any successful certificate use removes certificate_1925278 entirely, including unused nominal value.",
+          "downstream_dependency": "Trip B needs a $200 resource after Trip A; the gift card alone cannot fund it.",
+          "success_impact": "Using the certificate on the cheaper first trip makes the second evaluator-required booking infeasible."
+        }
+      }
+    },
+    {
+      "task_id": "airline_s3_mohamed_ahmed_3350_certificate_lifecycle",
+      "role": "KNOWN_ANCHOR",
+      "state_id": "airline:mohamed_ahmed_3350:certificate_4314329",
+      "exposures": {
+        "P1": "NOT_EXPOSED",
+        "P2": "NOT_EXPOSED",
+        "P3": "NOT_EXPOSED",
+        "P4": "EXPOSED_CRITICAL",
+        "P5": "NOT_EXPOSED",
+        "P6": "NOT_EXPOSED"
+      },
+      "critical_evidence": {
+        "P4": {
+          "required_operation_or_decision": "Allocate a $250 certificate and $101 gift card across sequential $100 and $182 bookings.",
+          "state_before": "certificate_4314329 and gift_card_9022024 are both initially available.",
+          "hidden_transition": "First certificate use removes the entire certificate rather than retaining its remainder.",
+          "downstream_dependency": "The second trip needs $182, exceeding the gift card's remaining capacity.",
+          "success_impact": "Certificate allocation to Trip A can prevent completion of required Trip B; reserving it for Trip B preserves feasibility."
+        }
+      }
+    },
+    {
+      "task_id": "airline_pa_o3a_m66qvw_preserved_pricing",
+      "role": "KNOWN_ANCHOR",
+      "state_id": "airline:M66QVW",
+      "exposures": {
+        "P1": "NOT_EXPOSED",
+        "P2": "EXPOSED_CRITICAL",
+        "P3": "NOT_EXPOSED",
+        "P4": "NOT_EXPOSED",
+        "P5": "EXPOSED_CRITICAL",
+        "P6": "EXPOSED_NONCRITICAL"
+      },
+      "critical_evidence": {
+        "P2": {
+          "required_operation_or_decision": "Keep outbound HAT007 and choose return HAT281 only if its transaction charge is at most $50.",
+          "state_before": "M66QVW is Economy and stores HAT007 at $183 plus old return HAT102 at $166.",
+          "hidden_transition": "Matching Economy HAT007 retains its stored $183 price rather than being repriced from current catalog state.",
+          "downstream_dependency": "The kept-segment basis contributes to the computed HAT281 charge and HAT178 refund.",
+          "success_impact": "Repricing the kept outbound can cross the $50 threshold and select the wrong evaluator-required return."
+        },
+        "P5": {
+          "required_operation_or_decision": "Compare complete flight-change settlement for HAT281 to $50 and otherwise use HAT178.",
+          "state_before": "Stored old flight baseline is $349 for one passenger.",
+          "hidden_transition": "The complete new itinerary value is reduced by the stored old flight baseline.",
+          "downstream_dependency": "The static specification expects a $68 HAT281 charge and an $80 HAT178 refund.",
+          "success_impact": "A different baseline changes the threshold branch and final required flight."
+        }
+      }
+    },
+    {
+      "task_id": "retail_pa_v2_w9318778_payment_items_address",
+      "role": "PROTECTED_GOOD_CASE",
+      "state_id": "retail:#W9318778",
+      "exposures": {
+        "P1": "EXPOSED_CRITICAL",
+        "P2": "NOT_EXPOSED",
+        "P3": "NOT_EXPOSED",
+        "P4": "NOT_EXPOSED",
+        "P5": "NOT_EXPOSED",
+        "P6": "NOT_EXPOSED"
+      },
+      "critical_evidence": {
+        "P1": {
+          "required_operation_or_decision": "Replace whole-order payment, modify two Air Purifiers, and update address.",
+          "state_before": "#W9318778 is pending with one original payment.",
+          "hidden_transition": "Item modification appends settlement history and changes status.",
+          "downstream_dependency": "Whole-order payment replacement requires one-entry history; all three mutations are evaluator-required.",
+          "success_impact": "The payment operation must precede item settlement; ignoring the dependency can leave the required payment unchanged."
+        }
+      }
+    },
+    {
+      "task_id": "retail_pa_r4a_w5918442_one_shot_cameras",
+      "role": "PROTECTED_GOOD_CASE",
+      "state_id": "retail:#W5918442",
+      "exposures": {
+        "P1": "EXPOSED_NONCRITICAL",
+        "P2": "NOT_EXPOSED",
+        "P3": "NOT_EXPOSED",
+        "P4": "NOT_EXPOSED",
+        "P5": "NOT_EXPOSED",
+        "P6": "NOT_EXPOSED"
+      },
+      "noncritical_reason": {
+        "P1": "The item mutation changes history/status, but no later payment modification, cancellation, or same-order mutation is required."
+      }
+    },
+    {
+      "task_id": "airline_pa_b2_1n99u6_lexicographic_return",
+      "role": "ORDINARY_CLEAN",
+      "state_id": "airline:1N99U6",
+      "exposures": {
+        "P1": "NOT_EXPOSED",
+        "P2": "EXPOSED_NONCRITICAL",
+        "P3": "NOT_EXPOSED",
+        "P4": "NOT_EXPOSED",
+        "P5": "EXPOSED_NONCRITICAL",
+        "P6": "EXPOSED_NONCRITICAL"
+      },
+      "noncritical_reason": {
+        "P2": "The same-cabin outbound is preserved at historical price, but it is constant across return candidates and no evaluator-required price threshold depends on it.",
+        "P5": "A settlement delta is produced, but the required return is selected by time and candidate fare ordering, not an update-delta threshold.",
+        "P6": "The task invokes flight update on a compliant state; non-enforcement knowledge is not needed for Success."
+      }
+    },
+    {
+      "task_id": "airline_pa_d2_sf5va1_cabin_fallback_bags",
+      "role": "ORDINARY_CLEAN",
+      "state_id": "airline:SF5VA1",
+      "exposures": {
+        "P1": "NOT_EXPOSED",
+        "P2": "NOT_EXPOSED",
+        "P3": "NOT_EXPOSED",
+        "P4": "NOT_EXPOSED",
+        "P5": "NOT_EXPOSED",
+        "P6": "NOT_EXPOSED"
+      }
+    },
+    {
+      "task_id": "airline_pa_e1_raj_mixed_operations",
+      "role": "ORDINARY_CLEAN",
+      "state_id": "airline:raj_kovacs_8102:O8IHB3,I4ZX6J,L5CCL5",
+      "exposures": {
+        "P1": "NOT_EXPOSED",
+        "P2": "NOT_EXPOSED",
+        "P3": "NOT_EXPOSED",
+        "P4": "NOT_EXPOSED",
+        "P5": "NOT_EXPOSED",
+        "P6": "EXPOSED_NONCRITICAL"
+      },
+      "noncritical_reason": {
+        "P6": "Cancellation non-enforcement exists at the API surface, but the specified Business cancellation is eligible and no Success branch depends on bypassing eligibility."
+      }
+    },
+    {
+      "task_id": "airline_pa_e2_fatima_distinct_operations",
+      "role": "ORDINARY_CLEAN",
+      "state_id": "airline:fatima_taylor_8297:RVEZA8,IGDD1Q,NQD9KO",
+      "exposures": {
+        "P1": "NOT_EXPOSED",
+        "P2": "NOT_EXPOSED",
+        "P3": "NOT_EXPOSED",
+        "P4": "NOT_EXPOSED",
+        "P5": "EXPOSED_NONCRITICAL",
+        "P6": "EXPOSED_NONCRITICAL"
+      },
+      "noncritical_reason": {
+        "P5": "IGDD1Q has a fixed Basic-Economy-to-Economy update with no valuation-dependent branch.",
+        "P6": "The task invokes cancellation and flight update under stated eligibility; backend non-enforcement is not Success-critical."
+      }
+    },
+    {
+      "task_id": "retail_pa_o1b_w8327915_items_payment",
+      "role": "KNOWN_ANCHOR",
+      "state_id": "retail:#W8327915",
+      "exposures": {
+        "P1": "EXPOSED_CRITICAL",
+        "P2": "NOT_EXPOSED",
+        "P3": "NOT_EXPOSED",
+        "P4": "NOT_EXPOSED",
+        "P5": "NOT_EXPOSED",
+        "P6": "NOT_EXPOSED"
+      },
+      "critical_evidence": {
+        "P1": {
+          "required_operation_or_decision": "Modify Headphones and replace whole-order gift-card payment.",
+          "state_before": "#W8327915 is pending with one original payment.",
+          "hidden_transition": "Item modification appends a second settlement record.",
+          "downstream_dependency": "Payment replacement rejects anything other than exactly one payment-history entry.",
+          "success_impact": "Items-first ordering can prevent one of the two evaluator-required final mutations."
+        }
+      }
+    },
+    {
+      "task_id": "retail_pa_r2a_w8557584_item_delta_scope",
+      "role": "ORDINARY_CLEAN",
+      "state_id": "retail:#W8557584",
+      "exposures": {
+        "P1": "EXPOSED_NONCRITICAL",
+        "P2": "NOT_EXPOSED",
+        "P3": "NOT_EXPOSED",
+        "P4": "NOT_EXPOSED",
+        "P5": "NOT_EXPOSED",
+        "P6": "NOT_EXPOSED"
+      },
+      "noncritical_reason": {
+        "P1": "The same W8557584 item transition occurs, but this task explicitly preserves whole-order payment and has no downstream same-order action."
+      }
+    },
+    {
+      "task_id": "retail_pa_r2b_w9318778_order_address_scope",
+      "role": "ORDINARY_CLEAN",
+      "state_id": "retail:#W9318778",
+      "exposures": {
+        "P1": "NOT_EXPOSED",
+        "P2": "NOT_EXPOSED",
+        "P3": "NOT_EXPOSED",
+        "P4": "NOT_EXPOSED",
+        "P5": "NOT_EXPOSED",
+        "P6": "NOT_EXPOSED"
+      }
+    },
+    {
+      "task_id": "retail_pa_r4b_w9132840_one_shot_helmets",
+      "role": "PROTECTED_GOOD_CASE",
+      "state_id": "retail:#W9132840",
+      "exposures": {
+        "P1": "EXPOSED_NONCRITICAL",
+        "P2": "NOT_EXPOSED",
+        "P3": "NOT_EXPOSED",
+        "P4": "NOT_EXPOSED",
+        "P5": "NOT_EXPOSED",
+        "P6": "NOT_EXPOSED"
+      },
+      "noncritical_reason": {
+        "P1": "The item transition occurs, but no downstream operation depends on post-mutation status or history."
+      }
+    },
+    {
+      "task_id": "airline_pa_a1a_dkgiih_business_seat_bottleneck",
+      "role": "ORDINARY_CLEAN",
+      "state_id": "airline:DKGIIH",
+      "exposures": {
+        "P1": "NOT_EXPOSED",
+        "P2": "EXPOSED_NONCRITICAL",
+        "P3": "NOT_EXPOSED",
+        "P4": "NOT_EXPOSED",
+        "P5": "EXPOSED_NONCRITICAL",
+        "P6": "EXPOSED_NONCRITICAL"
+      },
+      "noncritical_reason": {
+        "P2": "The unchanged Business return retains stored prices, but the outbound choice is governed by seats, elapsed time, and candidate fare; the kept return is constant.",
+        "P5": "The backend computes a delta, but no evaluator-required branch uses a delta threshold.",
+        "P6": "The eligible flight update does not depend on knowledge that the API omits policy enforcement."
+      }
+    },
+    {
+      "task_id": "airline_pa_a2a_6zqnos_fixed_8accrd_buffer",
+      "role": "ORDINARY_CLEAN",
+      "state_id": "airline:6ZQNOS|8ACCRD",
+      "exposures": {
+        "P1": "NOT_EXPOSED",
+        "P2": "NOT_EXPOSED",
+        "P3": "NOT_EXPOSED",
+        "P4": "NOT_EXPOSED",
+        "P5": "EXPOSED_NONCRITICAL",
+        "P6": "EXPOSED_NONCRITICAL"
+      },
+      "noncritical_reason": {
+        "P5": "The fixed Economy flight update settles a delta, but selection depends on a cross-reservation time cutoff, not valuation.",
+        "P6": "Non-enforcement does not alter the eligible required update."
+      }
+    },
+    {
+      "task_id": "airline_pa_a2b_9niyyj_fixed_eoj7hm_buffer",
+      "role": "ORDINARY_CLEAN",
+      "state_id": "airline:9NIYYJ|EOJ7HM",
+      "exposures": {
+        "P1": "NOT_EXPOSED",
+        "P2": "NOT_EXPOSED",
+        "P3": "NOT_EXPOSED",
+        "P4": "NOT_EXPOSED",
+        "P5": "EXPOSED_NONCRITICAL",
+        "P6": "EXPOSED_NONCRITICAL"
+      },
+      "noncritical_reason": {
+        "P5": "The Business update settlement occurs, but the selected flight is determined by time and fare tie-breaks rather than the old baseline.",
+        "P6": "Backend non-enforcement is not needed to complete the eligible task."
+      }
+    },
+    {
+      "task_id": "16",
+      "role": "ORDINARY_CLEAN",
+      "state_id": "retail:fatima_johnson_7581:#W5199551,#W8665881,#W9389413",
+      "exposures": {
+        "P1": "NOT_EXPOSED",
+        "P2": "NOT_EXPOSED",
+        "P3": "NOT_EXPOSED",
+        "P4": "NOT_EXPOSED",
+        "P5": "NOT_EXPOSED",
+        "P6": "NOT_EXPOSED"
+      },
+      "not_exposed_reason": {
+        "P3": "Both cancelled orders are funded by paypal_5364164, and the later return also refunds to PayPal; no gift-card profile resource is mutated or reused."
+      }
+    },
+    {
+      "task_id": "17",
+      "role": "ORDINARY_CLEAN",
+      "state_id": "retail:#W8665881",
+      "exposures": {
+        "P1": "NOT_EXPOSED",
+        "P2": "NOT_EXPOSED",
+        "P3": "NOT_EXPOSED",
+        "P4": "NOT_EXPOSED",
+        "P5": "NOT_EXPOSED",
+        "P6": "NOT_EXPOSED"
+      }
+    },
+    {
+      "task_id": "53",
+      "role": "ORDINARY_CLEAN",
+      "state_id": "retail:#W3916020",
+      "exposures": {
+        "P1": "NOT_EXPOSED",
+        "P2": "NOT_EXPOSED",
+        "P3": "NOT_EXPOSED",
+        "P4": "NOT_EXPOSED",
+        "P5": "NOT_EXPOSED",
+        "P6": "NOT_EXPOSED"
+      }
+    },
+    {
+      "task_id": "75",
+      "role": "ORDINARY_CLEAN",
+      "state_id": "retail:#W6908222",
+      "exposures": {
+        "P1": "NOT_EXPOSED",
+        "P2": "NOT_EXPOSED",
+        "P3": "NOT_EXPOSED",
+        "P4": "NOT_EXPOSED",
+        "P5": "NOT_EXPOSED",
+        "P6": "NOT_EXPOSED"
+      }
+    },
+    {
+      "task_id": "airline_pa_v2_5hk4lr_preserved_segment_valuation",
+      "role": "EXPOSURE_COMPLETION",
+      "state_id": "airline:5HK4LR",
+      "exposures": {
+        "P1": "NOT_EXPOSED",
+        "P2": "EXPOSED_CRITICAL",
+        "P3": "NOT_EXPOSED",
+        "P4": "NOT_EXPOSED",
+        "P5": "EXPOSED_CRITICAL",
+        "P6": "EXPOSED_NONCRITICAL"
+      },
+      "critical_evidence": {
+        "P2": {
+          "required_operation_or_decision": "Keep HAT115 and replace HAT288 with available HAT062 on May 28 when the total additional charge is no more than $100.",
+          "state_before": "5HK4LR has two Economy passengers; preserved HAT115 is stored at $128 per passenger but its current catalog fare is $194; old return HAT288 is stored at $154.",
+          "hidden_transition": "The matching preserved HAT115 contributes its stored $128 fare; HAT062 contributes its current $172 fare.",
+          "downstream_dependency": "Submit the entire two-segment reservation [HAT115, HAT062] in Economy using credit_card_9469188 after confirmation.",
+          "success_impact": "Historical preservation yields a $36 charge (qualifies); repricing HAT115 yields $168 (does not qualify), changing mutation versus no-mutation final state."
+        }
+      }
+    },
+    {
+      "task_id": "retail_pa_v2_w9892465_cancel_funds_w1242543",
+      "role": "EXPOSURE_COMPLETION",
+      "state_id": "retail:ava_nguyen_6646:#W9892465->#W1242543:gift_card_1994993",
+      "exposures": {
+        "P1": "NOT_EXPOSED",
+        "P2": "NOT_EXPOSED",
+        "P3": "EXPOSED_CRITICAL",
+        "P4": "NOT_EXPOSED",
+        "P5": "NOT_EXPOSED",
+        "P6": "NOT_EXPOSED"
+      },
+      "critical_evidence": {
+        "P3": {
+          "required_operation_or_decision": "Cancel #W9892465 and make gift_card_1994993 the whole-order payment method for #W1242543.",
+          "state_before": "gift_card_1994993 has $78.0; cancelling gift-card-funded #W9892465 refunds $370.38; changing #W1242543's payment requires $184.13.",
+          "hidden_transition": "Cancellation credits $370.38 to the shared profile gift-card resource before the downstream payment replacement.",
+          "downstream_dependency": "After a complete confirmation, cancel #W9892465, then change #W1242543's payment to gift_card_1994993.",
+          "success_impact": "The initial $78.0 balance is below $184.13, while the post-cancellation balance $448.38 covers it; ignoring the replenishment or reversing the writes makes the downstream required mutation fail."
+        }
+      }
+    },
+    {
+      "task_id": "retail_pa_v2_w5432440_cancel_funds_w9432206",
+      "role": "EXPOSURE_COMPLETION",
+      "state_id": "retail:emma_martin_6993:#W5432440->#W9432206:gift_card_4129829",
+      "exposures": {
+        "P1": "NOT_EXPOSED",
+        "P2": "NOT_EXPOSED",
+        "P3": "EXPOSED_CRITICAL",
+        "P4": "NOT_EXPOSED",
+        "P5": "NOT_EXPOSED",
+        "P6": "NOT_EXPOSED"
+      },
+      "critical_evidence": {
+        "P3": {
+          "required_operation_or_decision": "Cancel #W5432440 and make gift_card_4129829 the whole-order payment method for #W9432206.",
+          "state_before": "gift_card_4129829 has $57.0; cancelling gift-card-funded #W5432440 refunds $1856.45; changing #W9432206's payment requires $377.97.",
+          "hidden_transition": "Cancellation credits $1856.45 to the shared profile gift-card resource before the downstream payment replacement.",
+          "downstream_dependency": "After a complete confirmation, cancel #W5432440, then change #W9432206's payment to gift_card_4129829.",
+          "success_impact": "The initial $57.0 balance is below $377.97, while the post-cancellation balance $1913.45 covers it; ignoring the replenishment or reversing the writes makes the downstream required mutation fail."
+        }
+      }
+    }
+  ],
+  "phenomenon_summary": [
+    {
+      "phenomenon_id": "P1",
+      "critical_tasks": 4,
+      "noncritical_tasks": 3,
+      "independent_critical_states": 4,
+      "coverage_status": "WELL_COVERED"
+    },
+    {
+      "phenomenon_id": "P2",
+      "critical_tasks": 2,
+      "noncritical_tasks": 2,
+      "independent_critical_states": 2,
+      "coverage_status": "WELL_COVERED"
+    },
+    {
+      "phenomenon_id": "P3",
+      "critical_tasks": 2,
+      "noncritical_tasks": 0,
+      "independent_critical_states": 2,
+      "coverage_status": "WELL_COVERED"
+    },
+    {
+      "phenomenon_id": "P4",
+      "critical_tasks": 2,
+      "noncritical_tasks": 0,
+      "independent_critical_states": 2,
+      "coverage_status": "WELL_COVERED"
+    },
+    {
+      "phenomenon_id": "P5",
+      "critical_tasks": 4,
+      "noncritical_tasks": 5,
+      "independent_critical_states": 4,
+      "coverage_status": "WELL_COVERED"
+    },
+    {
+      "phenomenon_id": "P6",
+      "critical_tasks": 0,
+      "noncritical_tasks": 11,
+      "independent_critical_states": 0,
+      "coverage_status": "COMPLIANCE_PRIMARY"
+    }
+  ],
+  "role_summary": [
+    {
+      "task_role": "KNOWN_ANCHOR",
+      "tasks": 8,
+      "tasks_with_any_critical_exposure": 8
+    },
+    {
+      "task_role": "PROTECTED_GOOD_CASE",
+      "tasks": 3,
+      "tasks_with_any_critical_exposure": 1
+    },
+    {
+      "task_role": "ORDINARY_CLEAN",
+      "tasks": 13,
+      "tasks_with_any_critical_exposure": 0
+    },
+    {
+      "task_role": "EXPOSURE_COMPLETION",
+      "tasks": 3,
+      "tasks_with_any_critical_exposure": 3
+    }
+  ],
+  "completion_target_met": true,
+  "verdict": "COVERAGE_SUFFICIENT"
+}
