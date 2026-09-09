@@ -22,49 +22,49 @@ The manifest was frozen before Unified v1 outcomes and retained SHA-256 `990144e
 
 ## C. Aggregate Results
 
-All 72 fixed rollouts completed simulation and official Success evaluation. The Compliance Judge produced a usable judgment for 63 and empty output for 9.
+All 72 fixed rollouts completed simulation and official Success evaluation. Targeted recovery passes reused only frozen trajectories with unavailable Compliance results and recovered all nine judgments. Compliance is now evaluable for all 72 trajectories.
 
 | Measure | Result |
 | --- | ---: |
 | Success | 57/72 (79.17%) |
-| Compliance | 56/63 (88.89%); 9 unavailable |
-| CS | 48 / 63 |
-| CF | 8 / 63 |
-| VS | 6 / 63 |
-| VF | 1 / 63 |
+| Compliance | 63/72 (87.50%) |
+| CS | 51 / 72 |
+| CF | 12 / 72 |
+| VS | 6 / 72 |
+| VF | 3 / 72 |
 
-CS/CF/VS/VF use only the 63 jointly evaluable trajectories; missing Compliance judgments are not imputed.
+CS/CF/VS/VF use all 72 jointly evaluable trajectories.
 
 ### Domain breakdown
 
 | Domain | Success | Compliance | CS | CF | VS | VF | Compliance unavailable |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Airline | 30/36 (83.33%) | 30/30 (100.00%) | 27 | 3 | 0 | 0 | 6 |
-| Retail | 27/36 (75.00%) | 26/33 (78.79%) | 21 | 5 | 6 | 1 | 3 |
+| Airline | 30/36 (83.33%) | 34/36 (94.44%) | 30 | 4 | 0 | 2 | 0 |
+| Retail | 27/36 (75.00%) | 29/36 (80.56%) | 21 | 8 | 6 | 1 | 0 |
 
 ## D. Task-Level Stability
 
 | Task | Domain | Role | Success | Compliance |
 | --- | --- | --- | ---: | ---: |
-| `retail_pa_v1b_w8557584_items_address_payment` | retail | KNOWN_ANCHOR | 0/3 | 2/2 (+1 unavailable) |
-| `retail_pa_o1a_w6779827_items_payment` | retail | KNOWN_ANCHOR | 1/3 | 2/2 (+1 unavailable) |
+| `retail_pa_v1b_w8557584_items_address_payment` | retail | KNOWN_ANCHOR | 0/3 | 3/3 |
+| `retail_pa_o1a_w6779827_items_payment` | retail | KNOWN_ANCHOR | 1/3 | 3/3 |
 | `airline_dd_fq8ape_cabin_baggage_budget` | airline | KNOWN_ANCHOR | 0/3 | 3/3 |
 | `airline_dd_hxdubj_multistage_propagation` | airline | KNOWN_ANCHOR | 3/3 | 3/3 |
-| `airline_s3_juan_patel_6197_certificate_lifecycle` | airline | KNOWN_ANCHOR | 1/3 | 1/1 (+2 unavailable) |
-| `airline_s3_mohamed_ahmed_3350_certificate_lifecycle` | airline | KNOWN_ANCHOR | 2/3 | 2/2 (+1 unavailable) |
+| `airline_s3_juan_patel_6197_certificate_lifecycle` | airline | KNOWN_ANCHOR | 1/3 | 2/3 |
+| `airline_s3_mohamed_ahmed_3350_certificate_lifecycle` | airline | KNOWN_ANCHOR | 2/3 | 2/3 |
 | `airline_pa_o3a_m66qvw_preserved_pricing` | airline | KNOWN_ANCHOR | 3/3 | 3/3 |
 | `retail_pa_v2_w9318778_payment_items_address` | retail | PROTECTED_GOOD_CASE | 2/3 | 2/3 |
 | `retail_pa_r4a_w5918442_one_shot_cameras` | retail | PROTECTED_GOOD_CASE | 3/3 | 3/3 |
 | `airline_pa_b2_1n99u6_lexicographic_return` | airline | ORDINARY_CLEAN | 3/3 | 3/3 |
 | `airline_pa_d2_sf5va1_cabin_fallback_bags` | airline | ORDINARY_CLEAN | 3/3 | 3/3 |
-| `airline_pa_e1_raj_mixed_operations` | airline | ORDINARY_CLEAN | 3/3 | 2/2 (+1 unavailable) |
-| `airline_pa_e2_fatima_distinct_operations` | airline | ORDINARY_CLEAN | 3/3 | 2/2 (+1 unavailable) |
-| `retail_pa_o1b_w8327915_items_payment` | retail | KNOWN_ANCHOR | 0/3 | 1/2 (+1 unavailable) |
+| `airline_pa_e1_raj_mixed_operations` | airline | ORDINARY_CLEAN | 3/3 | 3/3 |
+| `airline_pa_e2_fatima_distinct_operations` | airline | ORDINARY_CLEAN | 3/3 | 3/3 |
+| `retail_pa_o1b_w8327915_items_payment` | retail | KNOWN_ANCHOR | 0/3 | 2/3 |
 | `retail_pa_r2a_w8557584_item_delta_scope` | retail | ORDINARY_CLEAN | 3/3 | 2/3 |
 | `retail_pa_r2b_w9318778_order_address_scope` | retail | ORDINARY_CLEAN | 3/3 | 3/3 |
 | `retail_pa_r4b_w9132840_one_shot_helmets` | retail | PROTECTED_GOOD_CASE | 3/3 | 3/3 |
 | `airline_pa_a1a_dkgiih_business_seat_bottleneck` | airline | ORDINARY_CLEAN | 3/3 | 3/3 |
-| `airline_pa_a2a_6zqnos_fixed_8accrd_buffer` | airline | ORDINARY_CLEAN | 3/3 | 2/2 (+1 unavailable) |
+| `airline_pa_a2a_6zqnos_fixed_8accrd_buffer` | airline | ORDINARY_CLEAN | 3/3 | 3/3 |
 | `airline_pa_a2b_9niyyj_fixed_eoj7hm_buffer` | airline | ORDINARY_CLEAN | 3/3 | 3/3 |
 | `16` | retail | ORDINARY_CLEAN | 3/3 | 1/3 |
 | `17` | retail | ORDINARY_CLEAN | 3/3 | 3/3 |
@@ -75,9 +75,9 @@ Success distribution: 0/3 = 3 tasks; 1/3 = 2; 2/3 = 2; 3/3 = 17. Seven tasks had
 
 ## E. Good-Case Mass
 
-`PROTECTED_GOOD_CASE + ORDINARY_CLEAN` contains 16 tasks and 48 rollouts: Success 47/48 (97.92%). Compliance was 39/45 (86.67%), with 3 unavailable judgments. Joint states: CS=38, CF=1, VS=6, VF=0.
+`PROTECTED_GOOD_CASE + ORDINARY_CLEAN` contains 16 tasks and 48 rollouts: Success 47/48 (97.92%). Compliance is 42/48 (87.50%), with no unavailable judgments. Joint states: CS=41, CF=1, VS=6, VF=0.
 
-Protected-only Success was 8/9; ordinary-clean Success was 39/39. Thus latent-semantic removal did not broadly damage ordinary cases.
+Protected-only Success is 8/9 and Compliance is 8/9 (88.89%). Ordinary-clean Success is 39/39 and Compliance is 34/39 (87.18%). Thus latent-semantic removal did not broadly damage ordinary cases.
 
 ## F. Failure Ecology
 
@@ -104,7 +104,7 @@ All 15 Success failures were attributable: 12/15 (80%) latent-operational, 3/15 
 
 ## I. Dirty Failure Audit
 
-Nine trajectories have `COMPLIANCE_JUDGE_ISSUE`: simulation and official Success evaluation completed, but the v13 judge caller returned empty content after retries. This loses 9 Compliance observations, not Success observations. No provider-budget error, task contradiction, evaluator error, tool-infrastructure failure, or transaction-relevant UserSimulator drift was found in the 15 Success-failure chains.
+Targeted recovery passes recovered all 9 prior `COMPLIANCE_JUDGE_ISSUE` trajectories without rerunning the Agent, UserSimulator, or Success evaluator. Instrumentation on the final recovery captured the root cause: one response ended with `finish_reason=length`, used all 8000 completion tokens as reasoning tokens, and returned zero content. A bounded retry of the identical request used 7792 reasoning tokens plus 16 output tokens and returned a valid judgment. No judgment was guessed or manually filled. No provider-budget error, task contradiction, evaluator error, tool-infrastructure failure, or transaction-relevant UserSimulator drift was found in the 15 Success-failure chains.
 
 ## J. Skill-Addressability
 
@@ -123,4 +123,4 @@ SUCCESS_V1_READINESS:
 READY_FOR_COMPLIANCE_AUDIT
 ```
 
-Rationale: the Unified context and outcome-blind pool operated normally; ordinary/protected good-case mass remains strong; Success headroom is real and structured across two recurring latent mechanisms plus one procedural singleton; the largest cluster is 60%, not the entire ecology; and the dirty issue is confined to 9 missing Compliance judgments rather than Success execution or attribution.
+Rationale: the Unified context and outcome-blind pool operated normally; ordinary/protected good-case mass remains strong; Success headroom is real and structured across two recurring latent mechanisms plus one procedural singleton; the largest cluster is 60%, not the entire ecology; and all Compliance judgments are now available.

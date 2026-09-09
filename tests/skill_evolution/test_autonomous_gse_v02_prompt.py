@@ -169,7 +169,7 @@ def test_injected_learner_call_receives_frozen_model_parameters() -> None:
     assert len(observed) == 1
     assert observed[0][0] == LEARNER_MODEL
     assert REASONING_EFFORT == "low"
-    assert MAX_COMPLETION_TOKENS == 8000
+    assert MAX_COMPLETION_TOKENS == 12000
 
 
 def test_prompt_learner_integrates_with_bounded_edit_operator() -> None:
@@ -249,6 +249,6 @@ def test_manifest_points_to_the_unified_prompt_and_parameters() -> None:
     assert learner["model"] == LEARNER_MODEL
     assert learner["parameters"] == {
         "reasoning_effort": REASONING_EFFORT,
-        "max_completion_tokens": MAX_COMPLETION_TOKENS,
+        "max_completion_tokens": 8000,
         "temperature": None,
     }

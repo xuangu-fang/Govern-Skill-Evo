@@ -21,6 +21,7 @@ from dotenv import load_dotenv
 
 from src.learners.stwebagentbench.generate_skill import (
     BENCHMARK_ROOT,
+    MAX_COMPLETION_TOKENS,
     call_learner,
     save_json_atomic,
     save_text_atomic,
@@ -437,7 +438,7 @@ def main() -> int:
         "input_available": input_path.is_file(),
         "learner_model": args.model,
         "reasoning_effort": "low",
-        "max_completion_tokens": 8000,
+        "max_completion_tokens": MAX_COMPLETION_TOKENS,
         "edit_bound": {
             "maximum_total": MAX_EDITS,
             "maximum_add": MAX_ADDS,
