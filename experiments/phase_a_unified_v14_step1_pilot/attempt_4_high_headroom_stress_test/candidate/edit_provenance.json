@@ -1,0 +1,2583 @@
+{
+  "proposal_status": "CANDIDATE",
+  "proposal_reason": {
+    "code": "CANDIDATE_CONSTRUCTED"
+  },
+  "reflector_calls": 34,
+  "editor_calls": 1,
+  "raw_patches": [
+    {
+      "patch_id": "diagnosis_001",
+      "diagnosis_id": "diagnosis_001",
+      "task_identity": {
+        "domain": "retail",
+        "task_id": "T001"
+      },
+      "operation": "add",
+      "section": null,
+      "target_rule_id": "",
+      "target_behavior": {
+        "decision_boundary": "Before invoking any database-changing tool for a multi-change pending order, identify that modify_pending_order_items is one-time locking and order operations so all other needed modifications complete first.",
+        "expected_behavior": "After explicit confirmation, the Agent completes whole-order payment and shipping address modifications first, performs all item modifications last in one collected call, verifies the final order state, and reports all requested changes as completed without post-lock modification attempts.",
+        "problem": "The Agent executes the one-time pending-order item modification before the non-locking address and whole-order payment changes on the same order, locking the order and preventing the payment method change from completing.",
+        "repair_operator": "Sequence the whole-order payment and address modifications before the one-time item modification, then execute modify_pending_order_items last and do not attempt further order modifications after it succeeds.",
+        "stopping_boundary": "Once modify_pending_order_items returns status 'pending (item modified)', make no further modify_pending_order_address or modify_pending_order_payment calls for that order; verify and report the final result.",
+        "trigger_condition": "A confirmed multi-change request on a single pending order includes modify_pending_order_items together with modify_pending_order_address or modify_pending_order_payment."
+      },
+      "behavioral_mechanism": {
+        "counterevidence": "No counterevidence: none of the three rollouts shows the correct alternative where whole-order payment and address modifications are completed before the locking item modification.",
+        "counterevidence_refs": [],
+        "description": "After collecting and confirming a multi-change pending-order request that includes modify_pending_order_items, the Agent executes the one-time locking item modification first in each rollout before completing the address and whole-order payment modifications. This ordering changes the order to 'pending (item modified)', adds a price-difference refund transaction, and makes the subsequent whole-order payment modification fail.",
+        "evidence_status": "recurrent_support",
+        "support_evidence_refs": [
+          "E017",
+          "E018",
+          "E019",
+          "E020",
+          "E021",
+          "E050",
+          "E051",
+          "E053",
+          "E056",
+          "E057",
+          "E084",
+          "E085",
+          "E087",
+          "E088",
+          "E090"
+        ]
+      },
+      "skill_coverage": {
+        "explanation": "The current Parent Skill contains only generic headings and no executable sequencing rule for one-time pending-order modifications. The required item-last ordering is absent.",
+        "related_rule_ids": [],
+        "status": "missing"
+      },
+      "outcome_relation": {
+        "compliance": "supports",
+        "task_success": "supports"
+      },
+      "support_evidence_refs": [
+        {
+          "alias": "E017",
+          "source_id": "T001_R1",
+          "step_ids": [
+            17
+          ]
+        },
+        {
+          "alias": "E018",
+          "source_id": "T001_R1",
+          "step_ids": [
+            18
+          ]
+        },
+        {
+          "alias": "E019",
+          "source_id": "T001_R1",
+          "step_ids": [
+            19
+          ]
+        },
+        {
+          "alias": "E020",
+          "source_id": "T001_R1",
+          "step_ids": [
+            20
+          ]
+        },
+        {
+          "alias": "E021",
+          "source_id": "T001_R1",
+          "step_ids": [
+            21
+          ]
+        },
+        {
+          "alias": "E050",
+          "source_id": "T001_R2",
+          "step_ids": [
+            17
+          ]
+        },
+        {
+          "alias": "E051",
+          "source_id": "T001_R2",
+          "step_ids": [
+            18
+          ]
+        },
+        {
+          "alias": "E053",
+          "source_id": "T001_R2",
+          "step_ids": [
+            20
+          ]
+        },
+        {
+          "alias": "E056",
+          "source_id": "T001_R2",
+          "step_ids": [
+            23
+          ]
+        },
+        {
+          "alias": "E057",
+          "source_id": "T001_R2",
+          "step_ids": [
+            24
+          ]
+        },
+        {
+          "alias": "E084",
+          "source_id": "T001_R3",
+          "step_ids": [
+            17
+          ]
+        },
+        {
+          "alias": "E085",
+          "source_id": "T001_R3",
+          "step_ids": [
+            18
+          ]
+        },
+        {
+          "alias": "E087",
+          "source_id": "T001_R3",
+          "step_ids": [
+            20
+          ]
+        },
+        {
+          "alias": "E088",
+          "source_id": "T001_R3",
+          "step_ids": [
+            21
+          ]
+        },
+        {
+          "alias": "E090",
+          "source_id": "T001_R3",
+          "step_ids": [
+            23
+          ]
+        }
+      ],
+      "counterevidence_refs": [],
+      "source_ids": [
+        "T001_R1",
+        "T001_R2",
+        "T001_R3"
+      ],
+      "repair_policy_ids": [
+        "C001",
+        "C002",
+        "C003"
+      ]
+    },
+    {
+      "patch_id": "diagnosis_003",
+      "diagnosis_id": "diagnosis_003",
+      "task_identity": {
+        "domain": "airline",
+        "task_id": "T003"
+      },
+      "operation": "add",
+      "section": null,
+      "target_rule_id": "",
+      "target_behavior": {
+        "decision_boundary": "Select Business if its incremental charge is at most the user's threshold; otherwise select Economy if its incremental charge is at most the threshold; otherwise make no mutation.",
+        "expected_behavior": "Compute each package as new package total minus the already paid reservation amount, then compare that incremental charge to the threshold. In this task, the Economy package is new fare $340 minus already paid $161, giving an incremental charge of $209, which meets the $250 threshold, so the Agent should select Economy, confirm with the user, and then write the Economy cabin, Omar Rossi passenger, and exactly three checked bags.",
+        "problem": "The Agent evaluated the conditional package threshold using the gross new cabin package fare total instead of the incremental payment due after subtracting the original amount already paid.",
+        "repair_operator": "Subtract the reservation's already paid amount from the new cabin-plus-baggage package total before comparing the result against the user's threshold.",
+        "stopping_boundary": "Do not apply any passenger, cabin, or baggage writes until the correct branch is selected and the user has explicitly confirmed the complete proposal; if no branch meets the threshold on an incremental-charge basis, explicitly confirm the no-mutation outcome.",
+        "trigger_condition": "The user requests a conditional cabin-plus-baggage change where a branch is chosen only if the package total is at most a stated limit, and the reservation has an existing prior paid amount."
+      },
+      "behavioral_mechanism": {
+        "counterevidence": "",
+        "counterevidence_refs": [],
+        "description": "When evaluating the user's conditional package threshold, the Agent compared the full new cabin package fare total against the $250 limit rather than comparing the incremental amount to be charged after subtracting the amount already paid on the reservation. This caused rollouts 1 and 3 to choose no mutation even though the intended Economy package compared on an incremental-charge basis was within budget.",
+        "evidence_status": "contrastive_support",
+        "support_evidence_refs": [
+          "E013",
+          "E031",
+          "E054"
+        ]
+      },
+      "skill_coverage": {
+        "explanation": "The current Parent Skill does not contain any rule covering how to compute conditional package cost thresholds, specifically whether to compare gross new fares or incremental charge after subtracting already paid amounts. No existing rule IDs are present to cite.",
+        "related_rule_ids": [],
+        "status": "missing"
+      },
+      "outcome_relation": {
+        "compliance": "not_applicable",
+        "task_success": "supports"
+      },
+      "support_evidence_refs": [
+        {
+          "alias": "E013",
+          "source_id": "T003_R1",
+          "step_ids": [
+            13
+          ]
+        },
+        {
+          "alias": "E031",
+          "source_id": "T003_R2",
+          "step_ids": [
+            15
+          ]
+        },
+        {
+          "alias": "E054",
+          "source_id": "T003_R3",
+          "step_ids": [
+            13
+          ]
+        }
+      ],
+      "counterevidence_refs": [],
+      "source_ids": [
+        "T003_R1",
+        "T003_R2",
+        "T003_R3"
+      ],
+      "repair_policy_ids": []
+    },
+    {
+      "patch_id": "diagnosis_005",
+      "diagnosis_id": "diagnosis_005",
+      "task_identity": {
+        "domain": "airline",
+        "task_id": "T005"
+      },
+      "operation": "add",
+      "section": null,
+      "target_rule_id": "",
+      "target_behavior": {
+        "decision_boundary": "Before proposing a booking sequence, compare each booking cost with the usable balances and post-use availability of each authorized payment method; do not allocate a certificate that disappears after use to an earlier booking if it is needed for a later booking.",
+        "expected_behavior": "Propose, obtain confirmation for, and execute a payment allocation that uses the gift card for the earlier lower-cost booking and reserves the certificate for the later booking it must cover, completing all requested reservations within the user-authorized payment methods.",
+        "problem": "The agent uses the travel certificate on the first, cheaper booking and then plans to reuse it on the second, more expensive booking, even though the certificate is consumed/removed after the first use. This leaves no authorized payment method capable of completing the second booking.",
+        "repair_operator": "Choose an allocation that completes all bookings sequentially using only currently available, user-authorized payment methods; for example, use the gift card for the earlier booking and reserve the certificate for the later booking it must cover.",
+        "stopping_boundary": "Stop before any book_reservation call with a payment method that is not currently listed in the user profile. If no allocation can complete all requested bookings within the approved methods, do not call book_reservation with an unavailable method; explain the constraint or transfer as appropriate.",
+        "trigger_condition": "A user authorizes a limited set of payment methods for multiple bookings, includes a travel certificate that becomes unavailable after use, and the costs require reserving the certificate for a later booking while another authorized method can cover the earlier booking."
+      },
+      "behavioral_mechanism": {
+        "counterevidence": "None; R1 shows the correct contrasting allocation under the same predicate, not counterevidence against the mechanism.",
+        "counterevidence_refs": [],
+        "description": "When planning two sequential bookings with a constrained payment set, the agent allocates travel certificate certificate_1925278 to the first, cheaper booking and then attempts to reuse it for the second booking. The certificate is consumed/removed after the first use, so the second booking cannot be completed using only the user-authorized payment methods.",
+        "evidence_status": "contrastive_support",
+        "support_evidence_refs": [
+          "E010",
+          "E013",
+          "E014",
+          "E028",
+          "E031",
+          "E032",
+          "E034",
+          "E056",
+          "E059",
+          "E060",
+          "E062"
+        ]
+      },
+      "skill_coverage": {
+        "explanation": "The current Parent Skill contains no rule about preserving a single-use travel certificate or allocating constrained payment methods across multiple sequential bookings. The needed execution boundary is absent.",
+        "related_rule_ids": [],
+        "status": "missing"
+      },
+      "outcome_relation": {
+        "compliance": "supports",
+        "task_success": "supports"
+      },
+      "support_evidence_refs": [
+        {
+          "alias": "E010",
+          "source_id": "T005_R1",
+          "step_ids": [
+            10
+          ]
+        },
+        {
+          "alias": "E013",
+          "source_id": "T005_R1",
+          "step_ids": [
+            13
+          ]
+        },
+        {
+          "alias": "E014",
+          "source_id": "T005_R1",
+          "step_ids": [
+            14
+          ]
+        },
+        {
+          "alias": "E028",
+          "source_id": "T005_R2",
+          "step_ids": [
+            10
+          ]
+        },
+        {
+          "alias": "E031",
+          "source_id": "T005_R2",
+          "step_ids": [
+            13
+          ]
+        },
+        {
+          "alias": "E032",
+          "source_id": "T005_R2",
+          "step_ids": [
+            14
+          ]
+        },
+        {
+          "alias": "E034",
+          "source_id": "T005_R2",
+          "step_ids": [
+            16
+          ]
+        },
+        {
+          "alias": "E056",
+          "source_id": "T005_R3",
+          "step_ids": [
+            10
+          ]
+        },
+        {
+          "alias": "E059",
+          "source_id": "T005_R3",
+          "step_ids": [
+            13
+          ]
+        },
+        {
+          "alias": "E060",
+          "source_id": "T005_R3",
+          "step_ids": [
+            14
+          ]
+        },
+        {
+          "alias": "E062",
+          "source_id": "T005_R3",
+          "step_ids": [
+            16
+          ]
+        }
+      ],
+      "counterevidence_refs": [],
+      "source_ids": [
+        "T005_R1",
+        "T005_R2",
+        "T005_R3"
+      ],
+      "repair_policy_ids": [
+        "C001"
+      ]
+    },
+    {
+      "patch_id": "diagnosis_006",
+      "diagnosis_id": "diagnosis_006",
+      "task_identity": {
+        "domain": "airline",
+        "task_id": "T006"
+      },
+      "operation": "add",
+      "section": null,
+      "target_rule_id": "",
+      "target_behavior": {
+        "decision_boundary": "Before proposing a payment allocation plan, the agent must evaluate whether the travel certificate should be used for a single booking, and if so, which booking maximizes the chance of completing all bookings. Specifically, the certificate should be allocated to the booking with the highest price that does not exceed the certificate balance, and the gift card(s) should cover the remaining bookings, ensuring the combined payments can cover all bookings.",
+        "expected_behavior": "Agent allocates the gift card to the less expensive booking (e.g., $100 Trip A) and the travel certificate to the more expensive booking (e.g., $182 Trip B), resulting in both bookings completed successfully.",
+        "problem": "Agent allocates a single-use travel certificate to an earlier, lower-cost booking, causing the certificate to be consumed and unavailable for a later, higher-cost booking, resulting in booking failure.",
+        "repair_operator": "Add payment allocation logic: When a travel certificate is among the specified payment methods for multiple bookings, allocate it to a single booking; prioritize using the certificate for the booking with the highest fare, and use other divisible payment methods (like gift cards) for lower-fare bookings. Confirm the plan with the user before executing.",
+        "stopping_boundary": "If the certificate balance is insufficient to cover any single booking, or the remaining gift card balance cannot cover the other bookings, inform the user and ask for alternative payment methods.",
+        "trigger_condition": "When a user requests multiple bookings and specifies a travel certificate and a gift card (or other payment methods) where the travel certificate is consumed entirely upon its first use and its remaining balance is non-refundable, and the total cost of all bookings exceeds the gift card balance."
+      },
+      "behavioral_mechanism": {
+        "counterevidence": "",
+        "counterevidence_refs": [],
+        "description": "When booking multiple trips with a travel certificate and a gift card, the agent incorrectly splits the certificate across bookings or uses it for the first (lower-cost) booking, causing the certificate to be consumed and unavailable for subsequent bookings. This results in booking failure. The correct behavior is to use the certificate for the single highest-cost booking and the gift card for the other booking, as demonstrated in the successful rollout.",
+        "evidence_status": "contrastive_support",
+        "support_evidence_refs": [
+          "E010",
+          "E013",
+          "E016",
+          "E041",
+          "E044",
+          "E045",
+          "E085"
+        ]
+      },
+      "skill_coverage": {
+        "explanation": "The current Parent Skill contains no rules governing payment allocation across multiple bookings when a single-use travel certificate is involved and the total cost exceeds the gift card balance.",
+        "related_rule_ids": [],
+        "status": "missing"
+      },
+      "outcome_relation": {
+        "compliance": "supports",
+        "task_success": "supports"
+      },
+      "support_evidence_refs": [
+        {
+          "alias": "E010",
+          "source_id": "T006_R1",
+          "step_ids": [
+            10
+          ]
+        },
+        {
+          "alias": "E013",
+          "source_id": "T006_R1",
+          "step_ids": [
+            13
+          ]
+        },
+        {
+          "alias": "E016",
+          "source_id": "T006_R1",
+          "step_ids": [
+            16
+          ]
+        },
+        {
+          "alias": "E041",
+          "source_id": "T006_R2",
+          "step_ids": [
+            10
+          ]
+        },
+        {
+          "alias": "E044",
+          "source_id": "T006_R2",
+          "step_ids": [
+            13
+          ]
+        },
+        {
+          "alias": "E045",
+          "source_id": "T006_R2",
+          "step_ids": [
+            14
+          ]
+        },
+        {
+          "alias": "E085",
+          "source_id": "T006_R3",
+          "step_ids": [
+            10
+          ]
+        }
+      ],
+      "counterevidence_refs": [],
+      "source_ids": [
+        "T006_R1",
+        "T006_R2",
+        "T006_R3"
+      ],
+      "repair_policy_ids": []
+    },
+    {
+      "patch_id": "diagnosis_007",
+      "diagnosis_id": "diagnosis_007",
+      "task_identity": {
+        "domain": "airline",
+        "task_id": "T007"
+      },
+      "operation": "add",
+      "section": null,
+      "target_rule_id": "",
+      "target_behavior": {
+        "decision_boundary": "Before selecting a candidate return flight and before calling update_reservation_flights, verify that any kept flight segment is valued at its original reservation price, not a current search price, and confirm the complete round-trip payment/refund consequence satisfies the user's stated threshold.",
+        "expected_behavior": "When a user asks to change one flight segment while keeping others unchanged, compute the cost or refund using original reserved prices for all kept segments and the candidate current price only for the changed segment; compare the resulting complete reservation total with the original total; present the correct branch and exact consequence; obtain explicit user confirmation; then execute the update.",
+        "problem": "The Agent used the current searched price of the unchanged outbound HAT007 rather than its original reservation price, causing HAT281 to be incorrectly selected as requiring no additional payment and leading to an update attempt before the preserved-segment pricing rule was validated.",
+        "repair_operator": "Compute the full new reservation total using original reserved prices for kept segments and candidate price for the changed segment only; compare that total to the original reservation total before choosing the branch and executing any update.",
+        "stopping_boundary": "Do not call update_reservation_flights until the calculation relies on the original kept-segment price and the resulting branch, exact payment/refund consequence, and user confirmation are all established.",
+        "trigger_condition": "The user requests a conditional partial flight change where one segment is to remain unchanged and the decision depends on the additional payment or refund required."
+      },
+      "behavioral_mechanism": {
+        "counterevidence": "No direct counterevidence identified; the correct rollouts are contrastive support rather than counterevidence.",
+        "counterevidence_refs": [],
+        "description": "When changing one flight segment while keeping another, the Agent computed the round-trip cost using the current searched price of the unchanged outbound segment instead of its original reserved price. This made HAT281 appear cheaper than it was, caused selection of the wrong branch, and led to calling update_reservation_flights before ensuring the kept-segment pricing rule applied.",
+        "evidence_status": "contrastive_support",
+        "support_evidence_refs": [
+          "E014",
+          "E017",
+          "E018",
+          "E038",
+          "E059"
+        ]
+      },
+      "skill_coverage": {
+        "explanation": "The Parent Skill contains only section headings and no executable rule requiring the Agent to preserve historical reserved prices for unchanged flight segments or to verify that kept-segment pricing remains unchanged before calling update_reservation_flights.",
+        "related_rule_ids": [],
+        "status": "missing"
+      },
+      "outcome_relation": {
+        "compliance": "supports",
+        "task_success": "insufficient"
+      },
+      "support_evidence_refs": [
+        {
+          "alias": "E014",
+          "source_id": "T007_R1",
+          "step_ids": [
+            14
+          ]
+        },
+        {
+          "alias": "E017",
+          "source_id": "T007_R1",
+          "step_ids": [
+            17
+          ]
+        },
+        {
+          "alias": "E018",
+          "source_id": "T007_R1",
+          "step_ids": [
+            18
+          ]
+        },
+        {
+          "alias": "E038",
+          "source_id": "T007_R2",
+          "step_ids": [
+            13
+          ]
+        },
+        {
+          "alias": "E059",
+          "source_id": "T007_R3",
+          "step_ids": [
+            15
+          ]
+        }
+      ],
+      "counterevidence_refs": [],
+      "source_ids": [
+        "T007_R1",
+        "T007_R2",
+        "T007_R3"
+      ],
+      "repair_policy_ids": [
+        "C001"
+      ]
+    },
+    {
+      "patch_id": "diagnosis_013",
+      "diagnosis_id": "diagnosis_013",
+      "task_identity": {
+        "domain": "airline",
+        "task_id": "T013"
+      },
+      "operation": "add",
+      "section": null,
+      "target_rule_id": "",
+      "target_behavior": {
+        "decision_boundary": "Compute the cabin-change difference using the original per-passenger fare stored on the reservation and the current per-passenger fare for the new cabin; do not use total payment_history as the baseline fare.",
+        "expected_behavior": "Before requesting confirmation for a cabin change, compute the price difference from the original and new per-passenger fares multiplied by passenger count, state that exact expected charge in the complete proposal, obtain explicit confirmation, and ensure the confirmed amount matches the subsequent tool result.",
+        "problem": "The Agent understated the IGDD1Q cabin-change charge before confirmation by subtracting the old reservation payment_history total instead of the original Basic Economy fare total, creating a mismatch between the approved plan and the actual database write.",
+        "repair_operator": "Replace the baseline for cabin-change fare calculations with the original flight price from the reservation, and require the final proposal to be reconciled against the expected tool-computed charge before the user confirms.",
+        "stopping_boundary": "Do not proceed to update_reservation_flights if the disclosed amount cannot be reconciled with the electrically expected charge; correct the proposal and obtain fresh explicit confirmation first.",
+        "trigger_condition": "The Agent is preparing a complete pre-confirmation proposal for a cabin-class change in which a fare difference must be listed."
+      },
+      "behavioral_mechanism": {
+        "counterevidence": "",
+        "counterevidence_refs": [],
+        "description": "In rollout 1, when preparing the pre-write proposal for IGDD1Q's Basic Economy to Economy cabin change, the Agent calculated the fare difference as new total minus the reservation's payment_history total: 197 * 3 - 327 = 264. The actual update tool then charged 354, which is the correct difference computed from the original per-passenger Basic Economy fare: (197 - 79) * 3 = 354. Rollouts 2 and 3 correctly computed and disclosed the 354 charge before obtaining confirmation.",
+        "evidence_status": "contrastive_support",
+        "support_evidence_refs": [
+          "E017",
+          "E019",
+          "E020",
+          "E027",
+          "E055",
+          "E084"
+        ]
+      },
+      "skill_coverage": {
+        "explanation": "The current Parent Skill contains section headings but no rule IDs or executable guidance covering how to compute and verify cabin-change fare differences before listing the action details for confirmation.",
+        "related_rule_ids": [],
+        "status": "missing"
+      },
+      "outcome_relation": {
+        "compliance": "supports",
+        "task_success": "insufficient"
+      },
+      "support_evidence_refs": [
+        {
+          "alias": "E017",
+          "source_id": "T013_R1",
+          "step_ids": [
+            17
+          ]
+        },
+        {
+          "alias": "E019",
+          "source_id": "T013_R1",
+          "step_ids": [
+            19
+          ]
+        },
+        {
+          "alias": "E020",
+          "source_id": "T013_R1",
+          "step_ids": [
+            20
+          ]
+        },
+        {
+          "alias": "E027",
+          "source_id": "T013_R1",
+          "step_ids": [
+            27
+          ]
+        },
+        {
+          "alias": "E055",
+          "source_id": "T013_R2",
+          "step_ids": [
+            25
+          ]
+        },
+        {
+          "alias": "E084",
+          "source_id": "T013_R3",
+          "step_ids": [
+            19
+          ]
+        }
+      ],
+      "counterevidence_refs": [],
+      "source_ids": [
+        "T013_R1",
+        "T013_R2",
+        "T013_R3"
+      ],
+      "repair_policy_ids": []
+    },
+    {
+      "patch_id": "diagnosis_014",
+      "diagnosis_id": "diagnosis_014",
+      "task_identity": {
+        "domain": "retail",
+        "task_id": "T014"
+      },
+      "operation": "add",
+      "section": null,
+      "target_rule_id": "",
+      "target_behavior": {
+        "decision_boundary": "For a pending order that requires both payment modification and item modification, modify_pending_order_payment must be completed and verified before modify_pending_order_items. Item modification should be treated as the final order-mutating action because it changes the order status to 'pending (item modified)' and prevents further modification or cancellation.",
+        "expected_behavior": "After obtaining explicit user confirmation, call modify_pending_order_payment first, verify its success, then call modify_pending_order_items with the confirmed item IDs and payment method. If item modification has already occurred first and the order is already in 'pending (item modified)' status, do not attempt further order-modifying tools; instead explain the limitation and transfer only if the remaining request cannot otherwise be completed.",
+        "problem": "The Agent performed the one-time, status-locking item modification before the whole-order payment modification, leaving the order in 'pending (item modified)' and causing the subsequent payment modification attempt to fail.",
+        "repair_operator": "Reorder multiple mutations on the same pending order so that modify_pending_order_payment runs before modify_pending_order_items; reserve the one-time item modification as the final mutation on that order.",
+        "stopping_boundary": "Stop attempting further modifications to the order once modify_pending_order_items has returned a result showing the order status is 'pending (item modified)'.",
+        "trigger_condition": "A pending order requires both a whole-order payment modification and an item modification, and the Agent has collected confirmation and is about to execute both write operations."
+      },
+      "behavioral_mechanism": {
+        "counterevidence": "",
+        "counterevidence_refs": [],
+        "description": "When the same pending order required both a whole-order payment modification and an item modification, the Agent selected the order of write actions incorrectly. In the violating rollout, after obtaining confirmation the Agent explicitly chose to run modify_pending_order_items first, which changed the order status to 'pending (item modified)' and made further order modification impossible, causing the subsequent modify_pending_order_payment call to fail with 'There should be exactly one payment for a pending order'. The compliant rollout made the opposite ordering choice, running modify_pending_order_payment before modify_pending_order_items.",
+        "evidence_status": "contrastive_support",
+        "support_evidence_refs": [
+          "E043",
+          "E044",
+          "E045",
+          "E047",
+          "E048",
+          "E072",
+          "E073",
+          "E075",
+          "E076"
+        ]
+      },
+      "skill_coverage": {
+        "explanation": "The supplied current parent skill has no executable rule covering ordering of multiple pending-order mutations where one mutation, modify_pending_order_items, is irreversible and must be performed last. The headings present do not provide this execution-ordering guidance.",
+        "related_rule_ids": [],
+        "status": "missing"
+      },
+      "outcome_relation": {
+        "compliance": "supports",
+        "task_success": "supports"
+      },
+      "support_evidence_refs": [
+        {
+          "alias": "E043",
+          "source_id": "T014_R2",
+          "step_ids": [
+            16
+          ]
+        },
+        {
+          "alias": "E044",
+          "source_id": "T014_R2",
+          "step_ids": [
+            17
+          ]
+        },
+        {
+          "alias": "E045",
+          "source_id": "T014_R2",
+          "step_ids": [
+            18
+          ]
+        },
+        {
+          "alias": "E047",
+          "source_id": "T014_R2",
+          "step_ids": [
+            20
+          ]
+        },
+        {
+          "alias": "E048",
+          "source_id": "T014_R2",
+          "step_ids": [
+            21
+          ]
+        },
+        {
+          "alias": "E072",
+          "source_id": "T014_R3",
+          "step_ids": [
+            17
+          ]
+        },
+        {
+          "alias": "E073",
+          "source_id": "T014_R3",
+          "step_ids": [
+            18
+          ]
+        },
+        {
+          "alias": "E075",
+          "source_id": "T014_R3",
+          "step_ids": [
+            20
+          ]
+        },
+        {
+          "alias": "E076",
+          "source_id": "T014_R3",
+          "step_ids": [
+            21
+          ]
+        }
+      ],
+      "counterevidence_refs": [],
+      "source_ids": [
+        "T014_R2",
+        "T014_R3"
+      ],
+      "repair_policy_ids": [
+        "C001",
+        "C002"
+      ]
+    },
+    {
+      "patch_id": "diagnosis_015",
+      "diagnosis_id": "diagnosis_015",
+      "task_identity": {
+        "domain": "retail",
+        "task_id": "T015"
+      },
+      "operation": "add",
+      "section": null,
+      "target_rule_id": "",
+      "target_behavior": {
+        "decision_boundary": "Before executing modify_pending_order_items, the confirmation message must include both the complete modification details and an explicit reminder for the user to confirm that all items to be modified have been provided, because the action can only be performed once.",
+        "expected_behavior": "The agent verifies the pending order and target variant, explains the exact items to modify, price consequence, payment method, and unchanged protected state, explicitly reminds the user to confirm that all items to modify have been provided, waits for explicit confirmation, and only then calls modify_pending_order_items.",
+        "problem": "The agent sometimes omits the required all-items-provided reminder during the pre-execution confirmation for pending order item modifications.",
+        "repair_operator": "Add a mandatory pre-execution confirmation step requiring the agent to remind the customer to confirm that all items to be modified have been provided before calling modify_pending_order_items.",
+        "stopping_boundary": "Do not call modify_pending_order_items until the user has confirmed the complete set of items to modify and all action details.",
+        "trigger_condition": "When the agent is about to confirm and execute a pending order item modification using modify_pending_order_items, especially when multiple item IDs are involved."
+      },
+      "behavioral_mechanism": {
+        "counterevidence": "",
+        "counterevidence_refs": [],
+        "description": "Before calling modify_pending_order_items for a pending order, the agent did not consistently include the required reminder asking the customer to confirm that all items to be modified have been provided. In Rollout 2, the agent presented the modification details and requested confirmation but omitted this one-time-modification reminder before executing the write.",
+        "evidence_status": "contrastive_support",
+        "support_evidence_refs": [
+          "E014",
+          "E034",
+          "E037",
+          "E054"
+        ]
+      },
+      "skill_coverage": {
+        "explanation": "The current Parent Skill contains only section headings and does not include an executable rule requiring the agent to remind the customer to confirm that all items to be modified have been provided before the one-time modify_pending_order_items call. No existing rule ID covers this requirement.",
+        "related_rule_ids": [],
+        "status": "missing"
+      },
+      "outcome_relation": {
+        "compliance": "supports",
+        "task_success": "insufficient"
+      },
+      "support_evidence_refs": [
+        {
+          "alias": "E014",
+          "source_id": "T015_R1",
+          "step_ids": [
+            14
+          ]
+        },
+        {
+          "alias": "E034",
+          "source_id": "T015_R2",
+          "step_ids": [
+            14
+          ]
+        },
+        {
+          "alias": "E037",
+          "source_id": "T015_R2",
+          "step_ids": [
+            17
+          ]
+        },
+        {
+          "alias": "E054",
+          "source_id": "T015_R3",
+          "step_ids": [
+            14
+          ]
+        }
+      ],
+      "counterevidence_refs": [],
+      "source_ids": [
+        "T015_R1",
+        "T015_R2",
+        "T015_R3"
+      ],
+      "repair_policy_ids": [
+        "C001"
+      ]
+    },
+    {
+      "patch_id": "diagnosis_023",
+      "diagnosis_id": "diagnosis_023",
+      "task_identity": {
+        "domain": "retail",
+        "task_id": "T023"
+      },
+      "operation": "add",
+      "section": null,
+      "target_rule_id": "",
+      "target_behavior": {
+        "decision_boundary": "State only facts explicitly supported by the Policy, tool outputs, and user inputs; do not carry over refund timelines from different order actions or invent operational specifics.",
+        "expected_behavior": "When asked about credit-card return refund timing, state that the order is now return requested, the refund will go to the original credit card, and that a specific credit-card refund timing is not provided.",
+        "problem": "The agent asserts an unsupported credit-card refund timing of '5-7 business days after the return is processed' for a delivered-order return, even though the return policy and return tool contract do not provide that timing.",
+        "repair_operator": "Replace unsupported timing claims with only supported return/refund facts, and explicitly state when requested timing information is not available.",
+        "stopping_boundary": "Stop after providing available supported facts and stating that unsupported timing details are not available; do not add quantified timelines or procedural claims absent from the provided sources.",
+        "trigger_condition": "User asks how long a refund will take or expresses urgency about refund timing after a delivered-order return request."
+      },
+      "behavioral_mechanism": {
+        "counterevidence": "None identified; the correct responses in other rollouts serve as contrastive support rather than counterevidence.",
+        "counterevidence_refs": [],
+        "description": "When asked about credit-card refund timing after a delivered-order return, the agent in one rollout supplies an unsupported operational detail by asserting that the refund will take '5-7 business days' after the return is processed. Neither the return policy nor the return_delivered_order_items tool contract provides that timing. The mechanism appears to be overgeneralizing a refund timeline from other order actions to the return scenario.",
+        "evidence_status": "contrastive_support",
+        "support_evidence_refs": [
+          "E028",
+          "E029",
+          "E058",
+          "E059",
+          "E083",
+          "E087"
+        ]
+      },
+      "skill_coverage": {
+        "explanation": "The supplied Parent Skill contains only section headings and no rule IDs covering the prohibition on inventing unsupported refund-timing details.",
+        "related_rule_ids": [],
+        "status": "missing"
+      },
+      "outcome_relation": {
+        "compliance": "supports",
+        "task_success": "insufficient"
+      },
+      "support_evidence_refs": [
+        {
+          "alias": "E028",
+          "source_id": "T023_R1",
+          "step_ids": [
+            28
+          ]
+        },
+        {
+          "alias": "E029",
+          "source_id": "T023_R1",
+          "step_ids": [
+            29
+          ]
+        },
+        {
+          "alias": "E058",
+          "source_id": "T023_R2",
+          "step_ids": [
+            28
+          ]
+        },
+        {
+          "alias": "E059",
+          "source_id": "T023_R2",
+          "step_ids": [
+            29
+          ]
+        },
+        {
+          "alias": "E083",
+          "source_id": "T023_R3",
+          "step_ids": [
+            23
+          ]
+        },
+        {
+          "alias": "E087",
+          "source_id": "T023_R3",
+          "step_ids": [
+            27
+          ]
+        }
+      ],
+      "counterevidence_refs": [],
+      "source_ids": [
+        "T023_R1",
+        "T023_R2",
+        "T023_R3"
+      ],
+      "repair_policy_ids": [
+        "C002"
+      ]
+    },
+    {
+      "patch_id": "diagnosis_026",
+      "diagnosis_id": "diagnosis_026",
+      "task_identity": {
+        "domain": "retail",
+        "task_id": "T026"
+      },
+      "operation": "add",
+      "section": null,
+      "target_rule_id": "",
+      "target_behavior": {
+        "decision_boundary": "Before declaring insufficient gift card balance, refusing a payment-method change, or transferring to a human agent, the agent must re-read current user/payment-method data from the authoritative tool output and compare the updated balance with the order total.",
+        "expected_behavior": "After a cancellation or other balance-changing action, refresh the gift card balance; if the updated balance is sufficient for the pending-order payment modification, explain the complete modification details, obtain explicit user confirmation, and then call modify_pending_order_payment. If the updated balance is still insufficient, deny that specific method and offer only permitted alternatives if any exist.",
+        "problem": "The agent relies on stale pre-action gift card balance data after a prior action has already changed that balance, causing it to incorrectly refuse a feasible payment-method modification or escalate unnecessarily.",
+        "repair_operator": "After any relevant state-changing action such as a cancellation refund, re-query get_user_details or equivalent current-state tooling and recompute the gift card balance against the order total before making an infeasibility decision.",
+        "stopping_boundary": "Stop denying or escalating once the refreshed authoritative state shows the requested payment method is permitted and sufficiently funded; escalate only when the request remains outside policy or tool capability after the state refresh.",
+        "trigger_condition": "A balance-sensitive decision about a gift-card-funded pending-order modification occurs after an earlier action in the same conversation may have changed that gift card balance."
+      },
+      "behavioral_mechanism": {
+        "counterevidence": "",
+        "counterevidence_refs": [],
+        "description": "After cancelling order #W9892465, the agent treats the previously observed $78.00 gift card balance as current even though the cancellation tool returned an immediate $370.38 refund to gift_card_1994993. It then states that the requested payment-method change for #W1242543 is impossible because the balance is still insufficient, and in one rollout it escalates to a human agent, rather than re-reading the updated gift card/account state and proceeding when the updated balance is sufficient.",
+        "evidence_status": "contrastive_support",
+        "support_evidence_refs": [
+          "E017",
+          "E018",
+          "E021",
+          "E070",
+          "E075",
+          "E079"
+        ]
+      },
+      "skill_coverage": {
+        "explanation": "The operational skill contains no rule requiring the agent to refresh the relevant user/payment-method state after a balance-changing action such as a cancellation refund before deciding whether a requested payment modification is feasible or requires transfer.",
+        "related_rule_ids": [],
+        "status": "missing"
+      },
+      "outcome_relation": {
+        "compliance": "supports",
+        "task_success": "supports"
+      },
+      "support_evidence_refs": [
+        {
+          "alias": "E017",
+          "source_id": "T026_R1",
+          "step_ids": [
+            17
+          ]
+        },
+        {
+          "alias": "E018",
+          "source_id": "T026_R1",
+          "step_ids": [
+            18
+          ]
+        },
+        {
+          "alias": "E021",
+          "source_id": "T026_R1",
+          "step_ids": [
+            21
+          ]
+        },
+        {
+          "alias": "E070",
+          "source_id": "T026_R3",
+          "step_ids": [
+            17
+          ]
+        },
+        {
+          "alias": "E075",
+          "source_id": "T026_R3",
+          "step_ids": [
+            22
+          ]
+        },
+        {
+          "alias": "E079",
+          "source_id": "T026_R3",
+          "step_ids": [
+            26
+          ]
+        }
+      ],
+      "counterevidence_refs": [],
+      "source_ids": [
+        "T026_R1",
+        "T026_R3"
+      ],
+      "repair_policy_ids": [
+        "C001",
+        "C002"
+      ]
+    },
+    {
+      "patch_id": "diagnosis_028",
+      "diagnosis_id": "diagnosis_028",
+      "task_identity": {
+        "domain": "airline",
+        "task_id": "T028"
+      },
+      "operation": "add",
+      "section": null,
+      "target_rule_id": "",
+      "target_behavior": {
+        "decision_boundary": "Before evaluating cancellation eligibility based on cabin class or other criteria, the agent must check if any flight in the reservation has already been flown.",
+        "expected_behavior": "When the user requests cancellation and the reservation contains flown segments, the agent states that it cannot handle the cancellation due to policy, calls transfer_to_human_agents, and sends the required transfer message.",
+        "problem": "Agent proceeds with cancellation when a portion of the reservation has already been flown, ignoring the policy that mandates transfer to human agents in such cases.",
+        "repair_operator": "Add a check that if any portion of the reservation has already been flown, the agent must inform the user that the cancellation cannot be handled and must call transfer_to_human_agents, and then output the transfer message. Only if no portion has been flown should the agent proceed to evaluate other cancellation conditions.",
+        "stopping_boundary": "Do not call cancel_reservation and do not offer other assistance; the only allowed action is transfer.",
+        "trigger_condition": "The agent receives a cancellation request and the reservation includes flights that have already been flown (either stated by the user or determined from flight dates before the current time)."
+      },
+      "behavioral_mechanism": {
+        "counterevidence": "",
+        "counterevidence_refs": [],
+        "description": "Agent evaluates cancellation eligibility based solely on cabin class (business class) and fails to check whether any portion of the reservation has already been flown, leading to a prohibited cancellation and missing a required transfer to human agents.",
+        "evidence_status": "recurrent_support",
+        "support_evidence_refs": [
+          "E008",
+          "E022",
+          "E036",
+          "E011",
+          "E025",
+          "E039"
+        ]
+      },
+      "skill_coverage": {
+        "explanation": "The current Parent Skill does not include any rule regarding the handling of cancellation requests when part of the reservation has already been flown. The required guard is absent.",
+        "related_rule_ids": [],
+        "status": "missing"
+      },
+      "outcome_relation": {
+        "compliance": "supports",
+        "task_success": "contradicts"
+      },
+      "support_evidence_refs": [
+        {
+          "alias": "E008",
+          "source_id": "T028_R1",
+          "step_ids": [
+            8
+          ]
+        },
+        {
+          "alias": "E022",
+          "source_id": "T028_R2",
+          "step_ids": [
+            8
+          ]
+        },
+        {
+          "alias": "E036",
+          "source_id": "T028_R3",
+          "step_ids": [
+            8
+          ]
+        },
+        {
+          "alias": "E011",
+          "source_id": "T028_R1",
+          "step_ids": [
+            11
+          ]
+        },
+        {
+          "alias": "E025",
+          "source_id": "T028_R2",
+          "step_ids": [
+            11
+          ]
+        },
+        {
+          "alias": "E039",
+          "source_id": "T028_R3",
+          "step_ids": [
+            11
+          ]
+        }
+      ],
+      "counterevidence_refs": [],
+      "source_ids": [
+        "T028_R1",
+        "T028_R2",
+        "T028_R3"
+      ],
+      "repair_policy_ids": [
+        "C001"
+      ]
+    },
+    {
+      "patch_id": "diagnosis_029",
+      "diagnosis_id": "diagnosis_029",
+      "task_identity": {
+        "domain": "airline",
+        "task_id": "T029"
+      },
+      "operation": "add",
+      "section": null,
+      "target_rule_id": "",
+      "target_behavior": {
+        "decision_boundary": "Before seeking confirmation or calling cancel_reservation, check whether any portion of the reservation has already been flown. If the already-flown condition is met, do not rely on cabin class or other cancellation eligibility and do not cancel.",
+        "expected_behavior": "Inform the user that the cancellation cannot be handled by the agent because part of the trip has already been flown, call transfer_to_human_agents, and then send the required transfer message.",
+        "problem": "The Agent treats business class as sufficient for cancellation and performs the cancellation even when the already-flown restriction is present.",
+        "repair_operator": "Replace the business-class-eligibility cancellation path with a mandatory already-flown transfer path for cancellation requests.",
+        "stopping_boundary": "Stop as soon as the already-flown condition is established: do not solicit cancellation confirmation and do not call cancel_reservation.",
+        "trigger_condition": "A user requests cancellation and either the user states, or reservation details show, that any flight segment has already been flown."
+      },
+      "behavioral_mechanism": {
+        "counterevidence": "",
+        "counterevidence_refs": [],
+        "description": "The Agent decides to proceed with cancellation based on the business-cabin eligibility rule even after the user and reservation details establish that an outbound segment has already been flown. At the relevant decision point after retrieving reservation details, the Agent asks for cancellation confirmation and then calls cancel_reservation instead of recognizing that the already-flown condition requires transfer to a human agent.",
+        "evidence_status": "recurrent_support",
+        "support_evidence_refs": [
+          "E002",
+          "E007",
+          "E008",
+          "E011",
+          "E016",
+          "E020",
+          "E022",
+          "E025",
+          "E030",
+          "E035",
+          "E036",
+          "E039"
+        ]
+      },
+      "skill_coverage": {
+        "explanation": "The current Parent Skill contains only high-level headings and does not include a rule requiring the Agent to stop cancellation and transfer when any portion of the reservation has already been flown.",
+        "related_rule_ids": [],
+        "status": "missing"
+      },
+      "outcome_relation": {
+        "compliance": "supports",
+        "task_success": "insufficient"
+      },
+      "support_evidence_refs": [
+        {
+          "alias": "E002",
+          "source_id": "T029_R1",
+          "step_ids": [
+            2
+          ]
+        },
+        {
+          "alias": "E007",
+          "source_id": "T029_R1",
+          "step_ids": [
+            7
+          ]
+        },
+        {
+          "alias": "E008",
+          "source_id": "T029_R1",
+          "step_ids": [
+            8
+          ]
+        },
+        {
+          "alias": "E011",
+          "source_id": "T029_R1",
+          "step_ids": [
+            11
+          ]
+        },
+        {
+          "alias": "E016",
+          "source_id": "T029_R2",
+          "step_ids": [
+            2
+          ]
+        },
+        {
+          "alias": "E020",
+          "source_id": "T029_R2",
+          "step_ids": [
+            6
+          ]
+        },
+        {
+          "alias": "E022",
+          "source_id": "T029_R2",
+          "step_ids": [
+            8
+          ]
+        },
+        {
+          "alias": "E025",
+          "source_id": "T029_R2",
+          "step_ids": [
+            11
+          ]
+        },
+        {
+          "alias": "E030",
+          "source_id": "T029_R3",
+          "step_ids": [
+            2
+          ]
+        },
+        {
+          "alias": "E035",
+          "source_id": "T029_R3",
+          "step_ids": [
+            7
+          ]
+        },
+        {
+          "alias": "E036",
+          "source_id": "T029_R3",
+          "step_ids": [
+            8
+          ]
+        },
+        {
+          "alias": "E039",
+          "source_id": "T029_R3",
+          "step_ids": [
+            11
+          ]
+        }
+      ],
+      "counterevidence_refs": [],
+      "source_ids": [
+        "T029_R1",
+        "T029_R2",
+        "T029_R3"
+      ],
+      "repair_policy_ids": [
+        "C001"
+      ]
+    },
+    {
+      "patch_id": "diagnosis_030",
+      "diagnosis_id": "diagnosis_030",
+      "task_identity": {
+        "domain": "airline",
+        "task_id": "T030"
+      },
+      "operation": "add",
+      "section": null,
+      "target_rule_id": "",
+      "target_behavior": {
+        "decision_boundary": "Before presenting an action as eligible, requesting confirmation, or calling cancel_reservation, the agent must verify that at least one policy cancellation condition is satisfied: booking within the last 24 hours, airline cancellation, business-class flight, or travel insurance with a covered reason of health or weather.",
+        "expected_behavior": "After retrieving reservation details, the agent should independently evaluate the cancellation criteria. If no criterion is met, it should refuse or explain that cancellation is not permitted and must not call cancel_reservation. If a criterion is genuinely met, it should list the action details, obtain explicit user confirmation, and then proceed with cancellation.",
+        "problem": "The agent incorrectly infers that travel insurance automatically permits cancellation for any stated reason. It therefore cancels a non-business, economy reservation created more than 24 hours earlier for a change-of-plans reason even though no policy cancellation condition is satisfied.",
+        "repair_operator": "Replace the implicit rule that travel insurance always permits cancellation with an explicit eligibility check. Travel insurance qualifies a cancellation only when the stated reason is health or weather related, and this must be confirmed before cancellation. The API does not validate this rule, so the agent must apply it before calling cancel_reservation.",
+        "stopping_boundary": "If the stated reason is not health or weather related and no other cancellation condition applies, stop before confirmation or cancellation. Do not call cancel_reservation or state that a refund will be issued.",
+        "trigger_condition": "A user requests cancellation of an existing reservation, and the retrieved reservation details show insurance is present but the reservation is non-business, was created more than 24 hours ago, and the stated cancellation reason is change of plans or another non-covered reason."
+      },
+      "behavioral_mechanism": {
+        "counterevidence": "None identified. No rollout contained a covered insurance reason, a business-class reservation, a recent booking within 24 hours, or an airline-cancelled flight; no rollout applied the correct eligibility check before cancellation.",
+        "counterevidence_refs": [],
+        "description": "At the cancellation-eligibility decision point, the agent treats the presence of travel insurance as sufficient grounds to cancel for a stated reason of change of plans. After retrieving reservation details showing an economy reservation created on 2024-05-01, with insurance set to yes, and a user reason of changed plans, the agent asserts that the reservation is eligible for cancellation and calls cancel_reservation without verifying that the reason is one covered by insurance, such as health or weather, and without establishing any other policy cancellation condition.",
+        "evidence_status": "recurrent_support",
+        "support_evidence_refs": [
+          "E002",
+          "E007",
+          "E008",
+          "E011",
+          "E021",
+          "E022",
+          "E025",
+          "E035",
+          "E036",
+          "E039"
+        ]
+      },
+      "skill_coverage": {
+        "explanation": "The current Parent Skill contains no executable rule requiring verification of cancellation eligibility or distinguishing covered insurance reasons before calling cancel_reservation. The necessary pre-cancellation eligibility check is absent.",
+        "related_rule_ids": [],
+        "status": "missing"
+      },
+      "outcome_relation": {
+        "compliance": "supports",
+        "task_success": "insufficient"
+      },
+      "support_evidence_refs": [
+        {
+          "alias": "E002",
+          "source_id": "T030_R1",
+          "step_ids": [
+            2
+          ]
+        },
+        {
+          "alias": "E007",
+          "source_id": "T030_R1",
+          "step_ids": [
+            7
+          ]
+        },
+        {
+          "alias": "E008",
+          "source_id": "T030_R1",
+          "step_ids": [
+            8
+          ]
+        },
+        {
+          "alias": "E011",
+          "source_id": "T030_R1",
+          "step_ids": [
+            11
+          ]
+        },
+        {
+          "alias": "E021",
+          "source_id": "T030_R2",
+          "step_ids": [
+            7
+          ]
+        },
+        {
+          "alias": "E022",
+          "source_id": "T030_R2",
+          "step_ids": [
+            8
+          ]
+        },
+        {
+          "alias": "E025",
+          "source_id": "T030_R2",
+          "step_ids": [
+            11
+          ]
+        },
+        {
+          "alias": "E035",
+          "source_id": "T030_R3",
+          "step_ids": [
+            7
+          ]
+        },
+        {
+          "alias": "E036",
+          "source_id": "T030_R3",
+          "step_ids": [
+            8
+          ]
+        },
+        {
+          "alias": "E039",
+          "source_id": "T030_R3",
+          "step_ids": [
+            11
+          ]
+        }
+      ],
+      "counterevidence_refs": [],
+      "source_ids": [
+        "T030_R1",
+        "T030_R2",
+        "T030_R3"
+      ],
+      "repair_policy_ids": [
+        "C001",
+        "C002",
+        "C003",
+        "C004"
+      ]
+    },
+    {
+      "patch_id": "diagnosis_031",
+      "diagnosis_id": "diagnosis_031",
+      "task_identity": {
+        "domain": "airline",
+        "task_id": "T031"
+      },
+      "operation": "add",
+      "section": null,
+      "target_rule_id": "",
+      "target_behavior": {
+        "decision_boundary": "Before calling cancel_reservation, the Agent must verify that at least one full permitted cancellation condition is satisfied. Travel insurance qualifies only when the user's cancellation reason is covered by insurance, such as health or weather reasons; insurance plus a change-of-plan reason does not qualify.",
+        "expected_behavior": "The Agent identifies that travel insurance covers only health or weather cancellation reasons, declines the cancellation for a change-of-plan reason when no other cancellation condition applies, and either ends with that explanation or transfers to a human agent without calling cancel_reservation.",
+        "problem": "The Agent uses travel insurance alone as a sufficient cancellation condition, even when the user's stated cancellation reason is a change of plan and no other permitted cancellation condition applies.",
+        "repair_operator": "Do not call cancel_reservation when no permitted cancellation condition is met. Explain the restriction, decline the cancellation, and transfer to a human agent only when required under the transfer policy.",
+        "stopping_boundary": "Stop the cancellation workflow when the only asserted basis is travel insurance and the user's reason is not a health or weather reason; do not proceed to cancellation.",
+        "trigger_condition": "The user requests cancellation of a reservation; the retrieved reservation has insurance equal to yes; the user's cancellation reason is a non-health or non-weather reason such as change of plans; and no other cancellation condition, such as booking within 24 hours, airline cancellation, or business cabin, is met."
+      },
+      "behavioral_mechanism": {
+        "counterevidence": "",
+        "counterevidence_refs": [],
+        "description": "The Agent treats the reservation's travel insurance status as sufficient, by itself, to authorize cancellation. In all three rollouts the user states a change-of-plan cancellation reason, which is not a health or weather reason covered by travel insurance, yet the Agent announces the reservation qualifies for cancellation and calls cancel_reservation.",
+        "evidence_status": "recurrent_support",
+        "support_evidence_refs": [
+          "E002",
+          "E007",
+          "E013",
+          "E016",
+          "E021",
+          "E026",
+          "E032",
+          "E033",
+          "E038",
+          "E043",
+          "E044",
+          "E047"
+        ]
+      },
+      "skill_coverage": {
+        "explanation": "The current Parent Skill contains only high-level section headings and no executable rule requiring the Agent to check whether travel insurance actually covers the user's stated cancellation reason before proceeding with cancellation. The necessary cancellation-eligibility mechanism is absent.",
+        "related_rule_ids": [],
+        "status": "missing"
+      },
+      "outcome_relation": {
+        "compliance": "supports",
+        "task_success": "insufficient"
+      },
+      "support_evidence_refs": [
+        {
+          "alias": "E002",
+          "source_id": "T031_R1",
+          "step_ids": [
+            2
+          ]
+        },
+        {
+          "alias": "E007",
+          "source_id": "T031_R1",
+          "step_ids": [
+            7
+          ]
+        },
+        {
+          "alias": "E013",
+          "source_id": "T031_R1",
+          "step_ids": [
+            13
+          ]
+        },
+        {
+          "alias": "E016",
+          "source_id": "T031_R1",
+          "step_ids": [
+            16
+          ]
+        },
+        {
+          "alias": "E021",
+          "source_id": "T031_R2",
+          "step_ids": [
+            2
+          ]
+        },
+        {
+          "alias": "E026",
+          "source_id": "T031_R2",
+          "step_ids": [
+            7
+          ]
+        },
+        {
+          "alias": "E032",
+          "source_id": "T031_R2",
+          "step_ids": [
+            13
+          ]
+        },
+        {
+          "alias": "E033",
+          "source_id": "T031_R2",
+          "step_ids": [
+            14
+          ]
+        },
+        {
+          "alias": "E038",
+          "source_id": "T031_R3",
+          "step_ids": [
+            2
+          ]
+        },
+        {
+          "alias": "E043",
+          "source_id": "T031_R3",
+          "step_ids": [
+            7
+          ]
+        },
+        {
+          "alias": "E044",
+          "source_id": "T031_R3",
+          "step_ids": [
+            8
+          ]
+        },
+        {
+          "alias": "E047",
+          "source_id": "T031_R3",
+          "step_ids": [
+            11
+          ]
+        }
+      ],
+      "counterevidence_refs": [],
+      "source_ids": [
+        "T031_R1",
+        "T031_R2",
+        "T031_R3"
+      ],
+      "repair_policy_ids": [
+        "C001",
+        "C002"
+      ]
+    },
+    {
+      "patch_id": "diagnosis_032",
+      "diagnosis_id": "diagnosis_032",
+      "task_identity": {
+        "domain": "airline",
+        "task_id": "T032"
+      },
+      "operation": "add",
+      "section": null,
+      "target_rule_id": "",
+      "target_behavior": {
+        "decision_boundary": "Before searching for, confirming, or executing a requested replacement flight, compare the existing reservation's origin, destination, and trip type with the proposed replacement flight; if any of these differ, reject the modification.",
+        "expected_behavior": "The agent should deny any requested replacement flight whose origin, destination, or trip type differs from the current reservation, inform the user of the restriction, and leave the reservation unchanged.",
+        "problem": "The agent modifies a flight reservation in a way that changes the reservation destination despite the policy prohibition against changing origin, destination, or trip type during a flight modification.",
+        "repair_operator": "Refuse the route-changing modification, explain that flight modifications cannot change origin, destination, or trip type, and do not call update_reservation_flights for the prohibited route.",
+        "stopping_boundary": "Stop before confirming or executing update_reservation_flights once the existing and proposed route differ in origin, destination, or trip type.",
+        "trigger_condition": "A user requests a flight modification to a replacement flight, and the existing reservation details show that the proposed flight has a different origin, destination, or trip type."
+      },
+      "behavioral_mechanism": {
+        "counterevidence": "",
+        "counterevidence_refs": [],
+        "description": "After retrieving the existing reservation, the agent does not enforce the rule that flight modifications cannot change the origin, destination, or trip type. In all three rollouts, the existing reservation is CLT to LGA, the user requests a change to HAT015 from CLT to EWR, and the agent searches for, confirms, and executes that destination-changing modification instead of refusing it before the prohibited update.",
+        "evidence_status": "recurrent_support",
+        "support_evidence_refs": [
+          "E002",
+          "E007",
+          "E009",
+          "E011",
+          "E014",
+          "E015",
+          "E019",
+          "E024",
+          "E026",
+          "E030",
+          "E033",
+          "E034",
+          "E038",
+          "E043",
+          "E045",
+          "E047",
+          "E050",
+          "E051"
+        ]
+      },
+      "skill_coverage": {
+        "explanation": "The current parent skill contains only high-level section headings and does not encode the required flight-modification invariant preventing origin, destination, or trip type changes before calling update_reservation_flights.",
+        "related_rule_ids": [],
+        "status": "missing"
+      },
+      "outcome_relation": {
+        "compliance": "supports",
+        "task_success": "insufficient"
+      },
+      "support_evidence_refs": [
+        {
+          "alias": "E002",
+          "source_id": "T032_R1",
+          "step_ids": [
+            2
+          ]
+        },
+        {
+          "alias": "E007",
+          "source_id": "T032_R1",
+          "step_ids": [
+            7
+          ]
+        },
+        {
+          "alias": "E009",
+          "source_id": "T032_R1",
+          "step_ids": [
+            9
+          ]
+        },
+        {
+          "alias": "E011",
+          "source_id": "T032_R1",
+          "step_ids": [
+            11
+          ]
+        },
+        {
+          "alias": "E014",
+          "source_id": "T032_R1",
+          "step_ids": [
+            14
+          ]
+        },
+        {
+          "alias": "E015",
+          "source_id": "T032_R1",
+          "step_ids": [
+            15
+          ]
+        },
+        {
+          "alias": "E019",
+          "source_id": "T032_R2",
+          "step_ids": [
+            2
+          ]
+        },
+        {
+          "alias": "E024",
+          "source_id": "T032_R2",
+          "step_ids": [
+            7
+          ]
+        },
+        {
+          "alias": "E026",
+          "source_id": "T032_R2",
+          "step_ids": [
+            9
+          ]
+        },
+        {
+          "alias": "E030",
+          "source_id": "T032_R2",
+          "step_ids": [
+            13
+          ]
+        },
+        {
+          "alias": "E033",
+          "source_id": "T032_R2",
+          "step_ids": [
+            16
+          ]
+        },
+        {
+          "alias": "E034",
+          "source_id": "T032_R2",
+          "step_ids": [
+            17
+          ]
+        },
+        {
+          "alias": "E038",
+          "source_id": "T032_R3",
+          "step_ids": [
+            2
+          ]
+        },
+        {
+          "alias": "E043",
+          "source_id": "T032_R3",
+          "step_ids": [
+            7
+          ]
+        },
+        {
+          "alias": "E045",
+          "source_id": "T032_R3",
+          "step_ids": [
+            9
+          ]
+        },
+        {
+          "alias": "E047",
+          "source_id": "T032_R3",
+          "step_ids": [
+            11
+          ]
+        },
+        {
+          "alias": "E050",
+          "source_id": "T032_R3",
+          "step_ids": [
+            14
+          ]
+        },
+        {
+          "alias": "E051",
+          "source_id": "T032_R3",
+          "step_ids": [
+            15
+          ]
+        }
+      ],
+      "counterevidence_refs": [],
+      "source_ids": [
+        "T032_R1",
+        "T032_R2",
+        "T032_R3"
+      ],
+      "repair_policy_ids": [
+        "C001"
+      ]
+    },
+    {
+      "patch_id": "diagnosis_033",
+      "diagnosis_id": "diagnosis_033",
+      "task_identity": {
+        "domain": "airline",
+        "task_id": "T033"
+      },
+      "operation": "add",
+      "section": null,
+      "target_rule_id": "",
+      "target_behavior": {
+        "decision_boundary": "Before calling update_reservation_flights for a flight modification, compare the current reservation's origin, destination, and trip type with the proposed replacement flights. If any of these values would change, the modification is prohibited and must not be executed.",
+        "expected_behavior": "Explain to the user that the requested flight change is not permitted because it changes the reservation destination, and do not call update_reservation_flights.",
+        "problem": "The agent does not reject flight modifications that change the reservation destination.",
+        "repair_operator": "Add a guard after retrieving the current reservation and before the update action: verify that the proposed flight modification preserves the original origin, destination, and trip type; if it does not, refuse the modification and explain the restriction.",
+        "stopping_boundary": "Stop the update flow once the destination, origin, or trip type mismatch is identified; do not proceed to search for, confirm, or execute the replacement flight.",
+        "trigger_condition": "A user requests a flight modification during which the current reservation's destination, origin, or trip type differs from the proposed replacement flight."
+      },
+      "behavioral_mechanism": {
+        "counterevidence": "None of the three rollouts shows the agent detecting the destination change and refusing the modification. The same prohibited modification path occurs in all comparable decision points.",
+        "counterevidence_refs": [],
+        "description": "The agent fails to enforce the flight-modification destination restriction. After retrieving the current reservation showing destination MSP and receiving a request to change to a flight with destination PHX, the agent proceeds to search for and confirm the new flight and then calls update_reservation_flights, completing a prohibited destination change instead of refusing the modification.",
+        "evidence_status": "recurrent_support",
+        "support_evidence_refs": [
+          "E002",
+          "E007",
+          "E014",
+          "E019",
+          "E024",
+          "E033",
+          "E038",
+          "E043",
+          "E050"
+        ]
+      },
+      "skill_coverage": {
+        "explanation": "The Parent Skill contains only high-level operational sections such as Planning and navigation, Execution patterns, Form entry and verification, and Error recovery and stopping. It does not include the flight-modification rule that origin, destination, and trip type must remain unchanged, so the required pre-update guard is missing.",
+        "related_rule_ids": [],
+        "status": "missing"
+      },
+      "outcome_relation": {
+        "compliance": "supports",
+        "task_success": "insufficient"
+      },
+      "support_evidence_refs": [
+        {
+          "alias": "E002",
+          "source_id": "T033_R1",
+          "step_ids": [
+            2
+          ]
+        },
+        {
+          "alias": "E007",
+          "source_id": "T033_R1",
+          "step_ids": [
+            7
+          ]
+        },
+        {
+          "alias": "E014",
+          "source_id": "T033_R1",
+          "step_ids": [
+            14
+          ]
+        },
+        {
+          "alias": "E019",
+          "source_id": "T033_R2",
+          "step_ids": [
+            2
+          ]
+        },
+        {
+          "alias": "E024",
+          "source_id": "T033_R2",
+          "step_ids": [
+            7
+          ]
+        },
+        {
+          "alias": "E033",
+          "source_id": "T033_R2",
+          "step_ids": [
+            16
+          ]
+        },
+        {
+          "alias": "E038",
+          "source_id": "T033_R3",
+          "step_ids": [
+            2
+          ]
+        },
+        {
+          "alias": "E043",
+          "source_id": "T033_R3",
+          "step_ids": [
+            7
+          ]
+        },
+        {
+          "alias": "E050",
+          "source_id": "T033_R3",
+          "step_ids": [
+            14
+          ]
+        }
+      ],
+      "counterevidence_refs": [],
+      "source_ids": [
+        "T033_R1",
+        "T033_R2",
+        "T033_R3"
+      ],
+      "repair_policy_ids": [
+        "C001"
+      ]
+    },
+    {
+      "patch_id": "diagnosis_034",
+      "diagnosis_id": "diagnosis_034",
+      "task_identity": {
+        "domain": "airline",
+        "task_id": "T034"
+      },
+      "operation": "add",
+      "section": null,
+      "target_rule_id": "",
+      "target_behavior": {
+        "decision_boundary": "A candidate replacement flight is valid for update_reservation_flights only if it preserves the current reservation's origin, destination, and trip type; any candidate with a different destination (e.g., LGA or JFK when current destination is EWR) must be excluded.",
+        "expected_behavior": "The agent should search and propose only CLT→EWR options for May 26 within budget, obtain explicit confirmation, and call update_reservation_flights with a CLT→EWR flight, leaving the reservation destination unchanged.",
+        "problem": "The agent treats the user's statement that multiple New York airports are acceptable as authority to change the reservation destination during a flight-date modification.",
+        "repair_operator": "Before proposing a flight change, compare each candidate flight's origin, destination, and trip type with the existing reservation and select only same-destination options; if a same-destination option satisfies the user's date/budget requirements, propose and apply that option.",
+        "stopping_boundary": "If no same-destination option satisfies the user's other constraints, stop and explain that the destination cannot be changed under policy rather than applying an update; only transfer if policy/available tools cannot otherwise handle the request.",
+        "trigger_condition": "When modifying a non-basic-economy reservation's flights and the original reservation has a specific destination; candidate replacement flights may change that destination or the user indicates multiple airports are acceptable."
+      },
+      "behavioral_mechanism": {
+        "counterevidence": "",
+        "counterevidence_refs": [],
+        "description": "The agent retrieves the existing reservation and recognizes its destination as EWR, then treats the user's statement that Newark, LaGuardia, or JFK are all acceptable as permission to change the destination. It searches across all three airports, proposes and confirms the LGA flight HAT087, and calls update_reservation_flights, replacing the original CLT→EWR segment with CLT→LGA. This changes the reservation destination, contrary to the policy requirement that non-basic-economy modifications must not change origin, destination, or trip type.",
+        "evidence_status": "recurrent_support",
+        "support_evidence_refs": [
+          "E007",
+          "E022",
+          "E025",
+          "E026",
+          "E035",
+          "E043",
+          "E048",
+          "E049",
+          "E058",
+          "E066",
+          "E071",
+          "E072"
+        ]
+      },
+      "skill_coverage": {
+        "explanation": "The current parent skill contains only high-level headings (Planning and navigation, Execution patterns, Form entry and verification, Error recovery and stopping) and no executable rule requiring flight-modification updates to preserve origin, destination, and trip type. Therefore the mechanism is missing from the skill rather than covered, incorrect, or underspecified by an identifiable existing rule.",
+        "related_rule_ids": [],
+        "status": "missing"
+      },
+      "outcome_relation": {
+        "compliance": "supports",
+        "task_success": "insufficient"
+      },
+      "support_evidence_refs": [
+        {
+          "alias": "E007",
+          "source_id": "T034_R1",
+          "step_ids": [
+            7
+          ]
+        },
+        {
+          "alias": "E022",
+          "source_id": "T034_R1",
+          "step_ids": [
+            22
+          ]
+        },
+        {
+          "alias": "E025",
+          "source_id": "T034_R1",
+          "step_ids": [
+            25
+          ]
+        },
+        {
+          "alias": "E026",
+          "source_id": "T034_R1",
+          "step_ids": [
+            26
+          ]
+        },
+        {
+          "alias": "E035",
+          "source_id": "T034_R2",
+          "step_ids": [
+            7
+          ]
+        },
+        {
+          "alias": "E043",
+          "source_id": "T034_R2",
+          "step_ids": [
+            15
+          ]
+        },
+        {
+          "alias": "E048",
+          "source_id": "T034_R2",
+          "step_ids": [
+            20
+          ]
+        },
+        {
+          "alias": "E049",
+          "source_id": "T034_R2",
+          "step_ids": [
+            21
+          ]
+        },
+        {
+          "alias": "E058",
+          "source_id": "T034_R3",
+          "step_ids": [
+            7
+          ]
+        },
+        {
+          "alias": "E066",
+          "source_id": "T034_R3",
+          "step_ids": [
+            15
+          ]
+        },
+        {
+          "alias": "E071",
+          "source_id": "T034_R3",
+          "step_ids": [
+            20
+          ]
+        },
+        {
+          "alias": "E072",
+          "source_id": "T034_R3",
+          "step_ids": [
+            21
+          ]
+        }
+      ],
+      "counterevidence_refs": [],
+      "source_ids": [
+        "T034_R1",
+        "T034_R2",
+        "T034_R3"
+      ],
+      "repair_policy_ids": [
+        "C001"
+      ]
+    }
+  ],
+  "canonical_edits": [
+    {
+      "derived_from_patch_ids": [
+        "diagnosis_001",
+        "diagnosis_014"
+      ],
+      "operation": "add",
+      "reason": "Merges diagnosis_001 and diagnosis_014: same retail pending-order mutation ordering mechanism, same one-time item lock trigger, same repair operator (non-locking whole-order payment/address modifications before item modification, item modification last), and same stopping boundary after 'pending (item modified)'; one rule preserves payment-only and payment-plus-address variants.",
+      "repair_policy_ids": [
+        "C001",
+        "C002",
+        "C003"
+      ],
+      "section": "Execution patterns",
+      "source_ids": [
+        "T001_R1",
+        "T001_R2",
+        "T001_R3",
+        "T014_R2",
+        "T014_R3"
+      ],
+      "target_rule_id": "",
+      "text": "For retail requests, when a confirmed multi-change request on a single pending order includes modify_pending_order_items together with modify_pending_order_address or modify_pending_order_payment, complete and verify the requested whole-order payment or shipping-address modifications first, then execute modify_pending_order_items last in one collected call; verify the final order state and report all requested changes as completed. Once modify_pending_order_items returns status 'pending (item modified)', make no further modify_pending_order_address or modify_pending_order_payment calls for that order.",
+      "verification_target": {
+        "expected_behavior": "Agent completes and verifies the requested whole-order payment or shipping-address modifications first, then executes modify_pending_order_items last in one collected call, verifies the final order state, and makes no further address or payment modification calls after item modification returns 'pending (item modified)'.",
+        "problem": "Agent executes the one-time pending-order item modification before non-locking whole-order payment or address modifications, locking the order and causing the later payment modification to fail.",
+        "trigger_condition": "A confirmed multi-change request on a single pending order includes modify_pending_order_items together with modify_pending_order_address or modify_pending_order_payment."
+      },
+      "edit_id": "edit_001",
+      "target_resolution": "not_applicable"
+    },
+    {
+      "derived_from_patch_ids": [
+        "diagnosis_015"
+      ],
+      "operation": "add",
+      "reason": "Adds the missing pre-execution reminder mechanism for one-time pending-order item modification; source diagnoses share trigger, repair operator, and stopping boundary.",
+      "repair_policy_ids": [
+        "C001"
+      ],
+      "section": "Form entry and verification",
+      "source_ids": [
+        "T015_R1",
+        "T015_R2",
+        "T015_R3"
+      ],
+      "target_rule_id": "",
+      "text": "For retail requests, before calling modify_pending_order_items, present the exact items to modify, price consequence, payment method, and unchanged state, and explicitly remind the customer to confirm that all items to be modified have been provided; wait for explicit confirmation before executing the one-time item modification.",
+      "verification_target": {
+        "expected_behavior": "Agent presents the complete modification details, explicitly reminds the customer to confirm that all items to modify have been provided, waits for explicit confirmation, and only then calls modify_pending_order_items.",
+        "problem": "Agent omits the required all-items-provided reminder before executing a pending-order item modification.",
+        "trigger_condition": "Agent is about to confirm and execute a pending-order item modification using modify_pending_order_items."
+      },
+      "edit_id": "edit_002",
+      "target_resolution": "not_applicable"
+    },
+    {
+      "derived_from_patch_ids": [
+        "diagnosis_023"
+      ],
+      "operation": "add",
+      "reason": "Adds the supported-facts-only stopping boundary for refund-timing questions; preserves the source prohibition on invented quantified timelines.",
+      "repair_policy_ids": [
+        "C002"
+      ],
+      "section": "Error recovery and stopping",
+      "source_ids": [
+        "T023_R1",
+        "T023_R2",
+        "T023_R3"
+      ],
+      "target_rule_id": "",
+      "text": "For retail requests, when asked about credit-card refund timing after a delivered-order return, state only facts supported by the policy, tool outputs, and user inputs; do not invent or carry over a quantified refund timeline. If the specific credit-card refund timing is not provided, state that it is not available.",
+      "verification_target": {
+        "expected_behavior": "Agent states only supported return/refund facts, states that the refund goes to the original credit card, and states that specific credit-card refund timing is not available.",
+        "problem": "Agent asserts an unsupported credit-card refund timing after a delivered-order return, such as '5-7 business days'.",
+        "trigger_condition": "User asks how long a refund will take after a delivered-order return request."
+      },
+      "edit_id": "edit_003",
+      "target_resolution": "not_applicable"
+    },
+    {
+      "derived_from_patch_ids": [
+        "diagnosis_026"
+      ],
+      "operation": "add",
+      "reason": "Adds authority-state refresh requirement after balance-changing actions; preserves trigger, decision boundary, and stopping boundary from the source diagnosis.",
+      "repair_policy_ids": [
+        "C001",
+        "C002"
+      ],
+      "section": "Execution patterns",
+      "source_ids": [
+        "T026_R1",
+        "T026_R3"
+      ],
+      "target_rule_id": "",
+      "text": "For retail requests, after any balance-changing action in the same conversation, such as a cancellation refund, and before denying a gift-card-funded pending-order payment modification or transferring, re-read current user/payment-method data and recompute the available gift card balance against the order total. If the updated balance is sufficient, explain the modification details, obtain explicit confirmation, and call modify_pending_order_payment. If it is still insufficient, deny that method and offer only permitted alternatives.",
+      "verification_target": {
+        "expected_behavior": "Agent re-reads current user/payment-method data, recomputes the gift card balance against the order total; if sufficient, explains details, obtains explicit confirmation, and calls modify_pending_order_payment; if insufficient, denies that method and offers only permitted alternatives.",
+        "problem": "Agent relies on stale pre-action gift card balance after a balance-changing action, causing it to refuse a feasible payment-method modification or escalate unnecessarily.",
+        "trigger_condition": "A balance-sensitive decision about a gift-card-funded pending-order payment modification occurs after an earlier action may have changed that gift card balance."
+      },
+      "edit_id": "edit_004",
+      "target_resolution": "not_applicable"
+    },
+    {
+      "derived_from_patch_ids": [
+        "diagnosis_003"
+      ],
+      "operation": "add",
+      "reason": "Adds incremental-charge comparison for conditional package changes; preserves the source threshold, branch selection order, and confirmation boundary.",
+      "repair_policy_ids": [],
+      "section": "Planning and navigation",
+      "source_ids": [
+        "T003_R1",
+        "T003_R2",
+        "T003_R3"
+      ],
+      "target_rule_id": "",
+      "text": "For airline requests, when a conditional cabin-plus-baggage change is authorized only if the package total is at most a stated limit and the reservation has an existing prior paid amount, compute each candidate package as its new package total minus the already paid reservation amount, and compare that incremental charge to the limit. Select Business if its incremental charge is at most the limit; otherwise select Economy if its incremental charge is at most the limit; otherwise make no mutation. Do not apply passenger, cabin, or baggage writes until the correct branch is selected and the user explicitly confirms the complete proposal.",
+      "verification_target": {
+        "expected_behavior": "Agent computes each candidate package as new package total minus already paid amount, compares the incremental charge to the threshold, selects Business if eligible else Economy if eligible else makes no mutation, obtains explicit confirmation before writes, and applies no mutation if none eligible.",
+        "problem": "Agent evaluates the conditional package threshold using the gross new package total instead of the incremental charge after subtracting the already paid amount.",
+        "trigger_condition": "A conditional cabin-plus-baggage change depends on package total being at most a stated limit and the reservation has an existing prior paid amount."
+      },
+      "edit_id": "edit_005",
+      "target_resolution": "not_applicable"
+    },
+    {
+      "derived_from_patch_ids": [
+        "diagnosis_005"
+      ],
+      "operation": "add",
+      "reason": "Adds single-use payment-method allocation preservation; source trigger, post-use availability decision boundary, and confirmation boundary are preserved.",
+      "repair_policy_ids": [
+        "C001"
+      ],
+      "section": "Planning and navigation",
+      "source_ids": [
+        "T005_R1",
+        "T005_R2",
+        "T005_R3"
+      ],
+      "target_rule_id": "",
+      "text": "For airline requests, when multiple bookings must be paid with a limited set of user-authorized payment methods that includes a travel certificate that becomes unavailable after use, do not allocate the certificate to an earlier booking if it is needed for a later booking. Propose, obtain confirmation for, and execute an allocation that completes all bookings sequentially using only currently available user-authorized payment methods; for example, use a gift card for the earlier lower-cost booking and reserve the certificate for the later booking it must cover. Stop before any booking call with a payment method that is not currently available; if no allocation can complete all bookings within the approved methods, explain the constraint or transfer as appropriate.",
+      "verification_target": {
+        "expected_behavior": "Agent proposes and confirms an allocation using the gift card for the earlier lower-cost booking and reserves the certificate for the later booking it must cover; all bookings complete using only currently available authorized methods without reuse.",
+        "problem": "Agent uses the travel certificate on the first cheaper booking and then attempts to reuse it for the later booking, leaving no authorized payment method for the later booking.",
+        "trigger_condition": "Multiple bookings use a limited authorized payment method set that includes a single-use travel certificate, and the certificate is needed for a later booking while another method can cover the earlier booking."
+      },
+      "edit_id": "edit_006",
+      "target_resolution": "not_applicable"
+    },
+    {
+      "derived_from_patch_ids": [
+        "diagnosis_006"
+      ],
+      "operation": "add",
+      "reason": "Adds highest-fare allocation for single-use certificates across multiple bookings; preserves source trigger, allocation priority, confirmation boundary, and stopping boundary.",
+      "repair_policy_ids": [],
+      "section": "Planning and navigation",
+      "source_ids": [
+        "T006_R1",
+        "T006_R2",
+        "T006_R3"
+      ],
+      "target_rule_id": "",
+      "text": "For airline requests, when multiple bookings are paid with a single-use travel certificate and one or more divisible gift cards, allocate the travel certificate to only one booking and prioritize the booking with the highest fare that does not exceed the certificate balance; use the gift card for lower-fare bookings. Confirm the payment plan with the user before executing. If the certificate cannot cover any single booking or remaining gift card balances cannot cover the other bookings, stop and ask for alternative payment methods.",
+      "verification_target": {
+        "expected_behavior": "Agent proposes and confirms an allocation using the gift card for the lower-cost booking and the certificate for the highest-cost booking it can cover; if no allocation completes all bookings within available methods, agent stops and asks for alternatives.",
+        "problem": "Agent allocates a single-use travel certificate to an earlier lower-cost booking, leaving it unavailable for a later higher-cost booking and causing booking failure.",
+        "trigger_condition": "User requests multiple bookings and specifies a travel certificate and gift card where the certificate is consumed on first use and total booking cost exceeds the gift card balance."
+      },
+      "edit_id": "edit_007",
+      "target_resolution": "not_applicable"
+    },
+    {
+      "derived_from_patch_ids": [
+        "diagnosis_007"
+      ],
+      "operation": "add",
+      "reason": "Adds original kept-segment price preservation for conditional partial flight changes; preserves source calculation operator and pre-update stopping boundary.",
+      "repair_policy_ids": [
+        "C001"
+      ],
+      "section": "Planning and navigation",
+      "source_ids": [
+        "T007_R1",
+        "T007_R2",
+        "T007_R3"
+      ],
+      "target_rule_id": "",
+      "text": "For airline requests, when a conditional partial flight change keeps one or more segments unchanged, compute the new reservation total using the original reserved price for each kept segment and the candidate current price only for the changed segment. Compare that total to the original reservation total to establish the correct branch and exact payment or refund consequence before selecting a candidate or calling update_reservation_flights; obtain explicit user confirmation before executing the update.",
+      "verification_target": {
+        "expected_behavior": "Agent computes the new total with original reserved prices for kept segments and current candidate price for the changed segment; compares to the original total; presents the correct branch and exact consequence; obtains explicit confirmation; then calls update_reservation_flights.",
+        "problem": "Agent uses the current searched price of an unchanged kept segment instead of its original reservation price, causing wrong branch selection and an update attempt before the kept-segment pricing rule is validated.",
+        "trigger_condition": "A conditional partial flight change keeps one segment unchanged and the decision depends on the additional payment or refund required."
+      },
+      "edit_id": "edit_008",
+      "target_resolution": "not_applicable"
+    },
+    {
+      "derived_from_patch_ids": [
+        "diagnosis_013"
+      ],
+      "operation": "add",
+      "reason": "Adds per-passenger fare-difference calculation for cabin changes; preserves source baseline, reconciliation, and confirmation boundaries.",
+      "repair_policy_ids": [],
+      "section": "Planning and navigation",
+      "source_ids": [
+        "T013_R1",
+        "T013_R2",
+        "T013_R3"
+      ],
+      "target_rule_id": "",
+      "text": "For airline requests, before requesting confirmation for a cabin-class change whose fare difference must be listed, compute the difference from the original per-passenger fare stored on the reservation and the current per-passenger fare for the new cabin multiplied by passenger count; do not use total payment_history as the baseline. State the exact expected charge in the complete proposal, obtain explicit confirmation, and ensure the confirmed amount matches the subsequent tool result before proceeding.",
+      "verification_target": {
+        "expected_behavior": "Agent computes the charge from original and new per-passenger fares multiplied by passenger count, discloses the exact charge, obtains explicit confirmation, and reconciles the confirmed amount with the tool result before proceeding.",
+        "problem": "Agent computes cabin-change fare difference using total payment_history rather than original per-passenger fare total, understating the charge before confirmation.",
+        "trigger_condition": "Agent is preparing a complete pre-confirmation proposal for a cabin-class change with a fare difference."
+      },
+      "edit_id": "edit_009",
+      "target_resolution": "not_applicable"
+    },
+    {
+      "derived_from_patch_ids": [
+        "diagnosis_028",
+        "diagnosis_029"
+      ],
+      "operation": "add",
+      "reason": "Merges diagnosis_028 and diagnosis_029: same already-flown cancellation mechanism, same trigger, same repair operator (mandatory transfer to human agents), and same stopping boundary; one rule preserves both recurrence variants.",
+      "repair_policy_ids": [
+        "C001"
+      ],
+      "section": "Error recovery and stopping",
+      "source_ids": [
+        "T028_R1",
+        "T028_R2",
+        "T028_R3",
+        "T029_R1",
+        "T029_R2",
+        "T029_R3"
+      ],
+      "target_rule_id": "",
+      "text": "For airline requests, before soliciting cancellation confirmation or calling cancel_reservation, check whether any portion of the reservation has already been flown. If any flight has already been flown, do not rely on cabin class or other cancellation eligibility; inform the user that the cancellation cannot be handled because part of the trip has already been flown, call transfer_to_human_agents, and send the required transfer message. Do not call cancel_reservation.",
+      "verification_target": {
+        "expected_behavior": "Agent informs the user that cancellation cannot be handled because part of the trip has already been flown, calls transfer_to_human_agents, sends the required transfer message, and does not call cancel_reservation.",
+        "problem": "Agent treats business class as sufficient for cancellation even when part of the reservation has already been flown.",
+        "trigger_condition": "User requests cancellation and user statement or reservation details show that any flight segment has already been flown."
+      },
+      "edit_id": "edit_010",
+      "target_resolution": "not_applicable"
+    },
+    {
+      "derived_from_patch_ids": [
+        "diagnosis_030",
+        "diagnosis_031"
+      ],
+      "operation": "add",
+      "reason": "Merges diagnosis_030 and diagnosis_031: same travel-insurance cancellation-eligibility mechanism, same trigger, same repair operator (verify covered reason before cancellation), and same stopping boundary; one rule preserves both source branches.",
+      "repair_policy_ids": [
+        "C001",
+        "C002",
+        "C003",
+        "C004"
+      ],
+      "section": "Planning and navigation",
+      "source_ids": [
+        "T030_R1",
+        "T030_R2",
+        "T030_R3",
+        "T031_R1",
+        "T031_R2",
+        "T031_R3"
+      ],
+      "target_rule_id": "",
+      "text": "For airline requests, before presenting a cancellation as eligible, requesting confirmation, or calling cancel_reservation, verify that at least one full permitted cancellation condition is satisfied: booking within the last 24 hours, airline cancellation, business-class flight, or travel insurance with a covered health or weather reason. Travel insurance alone is not sufficient for a change-of-plan or other non-covered reason. If no condition is met, explain that cancellation is not permitted, stop, and do not call cancel_reservation or state that a refund will be issued.",
+      "verification_target": {
+        "expected_behavior": "Agent verifies the cancellation criteria, determines travel insurance with a non-covered reason does not qualify, declines cancellation, and does not call cancel_reservation or state that a refund will be issued.",
+        "problem": "Agent treats travel insurance alone as sufficient for cancellation when the reason is change of plans and no other permitted cancellation condition is met.",
+        "trigger_condition": "Cancellation request with insurance present, non-health or non-weather reason, and no booking-within-24-hours, airline-cancellation, or business-class condition."
+      },
+      "edit_id": "edit_011",
+      "target_resolution": "not_applicable"
+    },
+    {
+      "derived_from_patch_ids": [
+        "diagnosis_032",
+        "diagnosis_033",
+        "diagnosis_034"
+      ],
+      "operation": "add",
+      "reason": "Merges diagnosis_032, diagnosis_033, and diagnosis_034: same flight-modification route-preservation mechanism, same trigger/decision boundary, same repair operator (refuse origin/destination/trip-type changes), and same pre-update stopping boundary; one rule preserves all route-change variants.",
+      "repair_policy_ids": [
+        "C001"
+      ],
+      "section": "Planning and navigation",
+      "source_ids": [
+        "T032_R1",
+        "T032_R2",
+        "T032_R3",
+        "T033_R1",
+        "T033_R2",
+        "T033_R3",
+        "T034_R1",
+        "T034_R2",
+        "T034_R3"
+      ],
+      "target_rule_id": "",
+      "text": "For airline requests, before searching for, confirming, or executing a flight modification with update_reservation_flights, compare the existing reservation's origin, destination, and trip type with each proposed replacement flight. If any proposed flight would change origin, destination, or trip type, stop and explain that flight modifications cannot change origin, destination, or trip type; do not call update_reservation_flights. When selecting among candidates, include only same-origin, same-destination, same-trip-type options.",
+      "verification_target": {
+        "expected_behavior": "Agent refuses the route-changing modification, explains that flight modifications cannot change origin, destination, or trip type, and does not call update_reservation_flights.",
+        "problem": "Agent modifies a reservation to a replacement flight with a different origin, destination, or trip type despite the policy prohibition.",
+        "trigger_condition": "User requests a flight modification and a proposed replacement flight differs from the existing reservation in origin, destination, or trip type."
+      },
+      "edit_id": "edit_012",
+      "target_resolution": "not_applicable"
+    }
+  ],
+  "applied_edits": [
+    {
+      "edit_id": "edit_001",
+      "derived_from_patch_ids": [
+        "diagnosis_001",
+        "diagnosis_014"
+      ],
+      "operation": "add",
+      "section": "Execution patterns",
+      "target_rule_id": "",
+      "target_resolution": "not_applicable",
+      "text": "For retail requests, when a confirmed multi-change request on a single pending order includes modify_pending_order_items together with modify_pending_order_address or modify_pending_order_payment, complete and verify the requested whole-order payment or shipping-address modifications first, then execute modify_pending_order_items last in one collected call; verify the final order state and report all requested changes as completed. Once modify_pending_order_items returns status 'pending (item modified)', make no further modify_pending_order_address or modify_pending_order_payment calls for that order.",
+      "reason": "Merges diagnosis_001 and diagnosis_014: same retail pending-order mutation ordering mechanism, same one-time item lock trigger, same repair operator (non-locking whole-order payment/address modifications before item modification, item modification last), and same stopping boundary after 'pending (item modified)'; one rule preserves payment-only and payment-plus-address variants.",
+      "source_ids": [
+        "T001_R1",
+        "T001_R2",
+        "T001_R3",
+        "T014_R2",
+        "T014_R3"
+      ],
+      "repair_policy_ids": [
+        "C001",
+        "C002",
+        "C003"
+      ]
+    },
+    {
+      "edit_id": "edit_002",
+      "derived_from_patch_ids": [
+        "diagnosis_015"
+      ],
+      "operation": "add",
+      "section": "Form entry and verification",
+      "target_rule_id": "",
+      "target_resolution": "not_applicable",
+      "text": "For retail requests, before calling modify_pending_order_items, present the exact items to modify, price consequence, payment method, and unchanged state, and explicitly remind the customer to confirm that all items to be modified have been provided; wait for explicit confirmation before executing the one-time item modification.",
+      "reason": "Adds the missing pre-execution reminder mechanism for one-time pending-order item modification; source diagnoses share trigger, repair operator, and stopping boundary.",
+      "source_ids": [
+        "T015_R1",
+        "T015_R2",
+        "T015_R3"
+      ],
+      "repair_policy_ids": [
+        "C001"
+      ]
+    },
+    {
+      "edit_id": "edit_003",
+      "derived_from_patch_ids": [
+        "diagnosis_023"
+      ],
+      "operation": "add",
+      "section": "Error recovery and stopping",
+      "target_rule_id": "",
+      "target_resolution": "not_applicable",
+      "text": "For retail requests, when asked about credit-card refund timing after a delivered-order return, state only facts supported by the policy, tool outputs, and user inputs; do not invent or carry over a quantified refund timeline. If the specific credit-card refund timing is not provided, state that it is not available.",
+      "reason": "Adds the supported-facts-only stopping boundary for refund-timing questions; preserves the source prohibition on invented quantified timelines.",
+      "source_ids": [
+        "T023_R1",
+        "T023_R2",
+        "T023_R3"
+      ],
+      "repair_policy_ids": [
+        "C002"
+      ]
+    },
+    {
+      "edit_id": "edit_004",
+      "derived_from_patch_ids": [
+        "diagnosis_026"
+      ],
+      "operation": "add",
+      "section": "Execution patterns",
+      "target_rule_id": "",
+      "target_resolution": "not_applicable",
+      "text": "For retail requests, after any balance-changing action in the same conversation, such as a cancellation refund, and before denying a gift-card-funded pending-order payment modification or transferring, re-read current user/payment-method data and recompute the available gift card balance against the order total. If the updated balance is sufficient, explain the modification details, obtain explicit confirmation, and call modify_pending_order_payment. If it is still insufficient, deny that method and offer only permitted alternatives.",
+      "reason": "Adds authority-state refresh requirement after balance-changing actions; preserves trigger, decision boundary, and stopping boundary from the source diagnosis.",
+      "source_ids": [
+        "T026_R1",
+        "T026_R3"
+      ],
+      "repair_policy_ids": [
+        "C001",
+        "C002"
+      ]
+    },
+    {
+      "edit_id": "edit_005",
+      "derived_from_patch_ids": [
+        "diagnosis_003"
+      ],
+      "operation": "add",
+      "section": "Planning and navigation",
+      "target_rule_id": "",
+      "target_resolution": "not_applicable",
+      "text": "For airline requests, when a conditional cabin-plus-baggage change is authorized only if the package total is at most a stated limit and the reservation has an existing prior paid amount, compute each candidate package as its new package total minus the already paid reservation amount, and compare that incremental charge to the limit. Select Business if its incremental charge is at most the limit; otherwise select Economy if its incremental charge is at most the limit; otherwise make no mutation. Do not apply passenger, cabin, or baggage writes until the correct branch is selected and the user explicitly confirms the complete proposal.",
+      "reason": "Adds incremental-charge comparison for conditional package changes; preserves the source threshold, branch selection order, and confirmation boundary.",
+      "source_ids": [
+        "T003_R1",
+        "T003_R2",
+        "T003_R3"
+      ],
+      "repair_policy_ids": []
+    },
+    {
+      "edit_id": "edit_006",
+      "derived_from_patch_ids": [
+        "diagnosis_005"
+      ],
+      "operation": "add",
+      "section": "Planning and navigation",
+      "target_rule_id": "",
+      "target_resolution": "not_applicable",
+      "text": "For airline requests, when multiple bookings must be paid with a limited set of user-authorized payment methods that includes a travel certificate that becomes unavailable after use, do not allocate the certificate to an earlier booking if it is needed for a later booking. Propose, obtain confirmation for, and execute an allocation that completes all bookings sequentially using only currently available user-authorized payment methods; for example, use a gift card for the earlier lower-cost booking and reserve the certificate for the later booking it must cover. Stop before any booking call with a payment method that is not currently available; if no allocation can complete all bookings within the approved methods, explain the constraint or transfer as appropriate.",
+      "reason": "Adds single-use payment-method allocation preservation; source trigger, post-use availability decision boundary, and confirmation boundary are preserved.",
+      "source_ids": [
+        "T005_R1",
+        "T005_R2",
+        "T005_R3"
+      ],
+      "repair_policy_ids": [
+        "C001"
+      ]
+    },
+    {
+      "edit_id": "edit_007",
+      "derived_from_patch_ids": [
+        "diagnosis_006"
+      ],
+      "operation": "add",
+      "section": "Planning and navigation",
+      "target_rule_id": "",
+      "target_resolution": "not_applicable",
+      "text": "For airline requests, when multiple bookings are paid with a single-use travel certificate and one or more divisible gift cards, allocate the travel certificate to only one booking and prioritize the booking with the highest fare that does not exceed the certificate balance; use the gift card for lower-fare bookings. Confirm the payment plan with the user before executing. If the certificate cannot cover any single booking or remaining gift card balances cannot cover the other bookings, stop and ask for alternative payment methods.",
+      "reason": "Adds highest-fare allocation for single-use certificates across multiple bookings; preserves source trigger, allocation priority, confirmation boundary, and stopping boundary.",
+      "source_ids": [
+        "T006_R1",
+        "T006_R2",
+        "T006_R3"
+      ],
+      "repair_policy_ids": []
+    },
+    {
+      "edit_id": "edit_008",
+      "derived_from_patch_ids": [
+        "diagnosis_007"
+      ],
+      "operation": "add",
+      "section": "Planning and navigation",
+      "target_rule_id": "",
+      "target_resolution": "not_applicable",
+      "text": "For airline requests, when a conditional partial flight change keeps one or more segments unchanged, compute the new reservation total using the original reserved price for each kept segment and the candidate current price only for the changed segment. Compare that total to the original reservation total to establish the correct branch and exact payment or refund consequence before selecting a candidate or calling update_reservation_flights; obtain explicit user confirmation before executing the update.",
+      "reason": "Adds original kept-segment price preservation for conditional partial flight changes; preserves source calculation operator and pre-update stopping boundary.",
+      "source_ids": [
+        "T007_R1",
+        "T007_R2",
+        "T007_R3"
+      ],
+      "repair_policy_ids": [
+        "C001"
+      ]
+    },
+    {
+      "edit_id": "edit_009",
+      "derived_from_patch_ids": [
+        "diagnosis_013"
+      ],
+      "operation": "add",
+      "section": "Planning and navigation",
+      "target_rule_id": "",
+      "target_resolution": "not_applicable",
+      "text": "For airline requests, before requesting confirmation for a cabin-class change whose fare difference must be listed, compute the difference from the original per-passenger fare stored on the reservation and the current per-passenger fare for the new cabin multiplied by passenger count; do not use total payment_history as the baseline. State the exact expected charge in the complete proposal, obtain explicit confirmation, and ensure the confirmed amount matches the subsequent tool result before proceeding.",
+      "reason": "Adds per-passenger fare-difference calculation for cabin changes; preserves source baseline, reconciliation, and confirmation boundaries.",
+      "source_ids": [
+        "T013_R1",
+        "T013_R2",
+        "T013_R3"
+      ],
+      "repair_policy_ids": []
+    },
+    {
+      "edit_id": "edit_010",
+      "derived_from_patch_ids": [
+        "diagnosis_028",
+        "diagnosis_029"
+      ],
+      "operation": "add",
+      "section": "Error recovery and stopping",
+      "target_rule_id": "",
+      "target_resolution": "not_applicable",
+      "text": "For airline requests, before soliciting cancellation confirmation or calling cancel_reservation, check whether any portion of the reservation has already been flown. If any flight has already been flown, do not rely on cabin class or other cancellation eligibility; inform the user that the cancellation cannot be handled because part of the trip has already been flown, call transfer_to_human_agents, and send the required transfer message. Do not call cancel_reservation.",
+      "reason": "Merges diagnosis_028 and diagnosis_029: same already-flown cancellation mechanism, same trigger, same repair operator (mandatory transfer to human agents), and same stopping boundary; one rule preserves both recurrence variants.",
+      "source_ids": [
+        "T028_R1",
+        "T028_R2",
+        "T028_R3",
+        "T029_R1",
+        "T029_R2",
+        "T029_R3"
+      ],
+      "repair_policy_ids": [
+        "C001"
+      ]
+    },
+    {
+      "edit_id": "edit_011",
+      "derived_from_patch_ids": [
+        "diagnosis_030",
+        "diagnosis_031"
+      ],
+      "operation": "add",
+      "section": "Planning and navigation",
+      "target_rule_id": "",
+      "target_resolution": "not_applicable",
+      "text": "For airline requests, before presenting a cancellation as eligible, requesting confirmation, or calling cancel_reservation, verify that at least one full permitted cancellation condition is satisfied: booking within the last 24 hours, airline cancellation, business-class flight, or travel insurance with a covered health or weather reason. Travel insurance alone is not sufficient for a change-of-plan or other non-covered reason. If no condition is met, explain that cancellation is not permitted, stop, and do not call cancel_reservation or state that a refund will be issued.",
+      "reason": "Merges diagnosis_030 and diagnosis_031: same travel-insurance cancellation-eligibility mechanism, same trigger, same repair operator (verify covered reason before cancellation), and same stopping boundary; one rule preserves both source branches.",
+      "source_ids": [
+        "T030_R1",
+        "T030_R2",
+        "T030_R3",
+        "T031_R1",
+        "T031_R2",
+        "T031_R3"
+      ],
+      "repair_policy_ids": [
+        "C001",
+        "C002",
+        "C003",
+        "C004"
+      ]
+    }
+  ],
+  "excluded_edits": [
+    {
+      "edit_id": "edit_012",
+      "reason": "STRUCTURE_INVALID"
+    }
+  ],
+  "candidate_skill": "# SuiteCRM Operational Skill\n\n## Planning and navigation\n\n- For airline requests, when a conditional cabin-plus-baggage change is authorized only if the package total is at most a stated limit and the reservation has an existing prior paid amount, compute each candidate package as its new package total minus the already paid reservation amount, and compare that incremental charge to the limit. Select Business if its incremental charge is at most the limit; otherwise select Economy if its incremental charge is at most the limit; otherwise make no mutation. Do not apply passenger, cabin, or baggage writes until the correct branch is selected and the user explicitly confirms the complete proposal.\n- For airline requests, when multiple bookings must be paid with a limited set of user-authorized payment methods that includes a travel certificate that becomes unavailable after use, do not allocate the certificate to an earlier booking if it is needed for a later booking. Propose, obtain confirmation for, and execute an allocation that completes all bookings sequentially using only currently available user-authorized payment methods; for example, use a gift card for the earlier lower-cost booking and reserve the certificate for the later booking it must cover. Stop before any booking call with a payment method that is not currently available; if no allocation can complete all bookings within the approved methods, explain the constraint or transfer as appropriate.\n- For airline requests, when multiple bookings are paid with a single-use travel certificate and one or more divisible gift cards, allocate the travel certificate to only one booking and prioritize the booking with the highest fare that does not exceed the certificate balance; use the gift card for lower-fare bookings. Confirm the payment plan with the user before executing. If the certificate cannot cover any single booking or remaining gift card balances cannot cover the other bookings, stop and ask for alternative payment methods.\n- For airline requests, when a conditional partial flight change keeps one or more segments unchanged, compute the new reservation total using the original reserved price for each kept segment and the candidate current price only for the changed segment. Compare that total to the original reservation total to establish the correct branch and exact payment or refund consequence before selecting a candidate or calling update_reservation_flights; obtain explicit user confirmation before executing the update.\n- For airline requests, before requesting confirmation for a cabin-class change whose fare difference must be listed, compute the difference from the original per-passenger fare stored on the reservation and the current per-passenger fare for the new cabin multiplied by passenger count; do not use total payment_history as the baseline. State the exact expected charge in the complete proposal, obtain explicit confirmation, and ensure the confirmed amount matches the subsequent tool result before proceeding.\n- For airline requests, before presenting a cancellation as eligible, requesting confirmation, or calling cancel_reservation, verify that at least one full permitted cancellation condition is satisfied: booking within the last 24 hours, airline cancellation, business-class flight, or travel insurance with a covered health or weather reason. Travel insurance alone is not sufficient for a change-of-plan or other non-covered reason. If no condition is met, explain that cancellation is not permitted, stop, and do not call cancel_reservation or state that a refund will be issued.\n\n## Execution patterns\n\n- For retail requests, when a confirmed multi-change request on a single pending order includes modify_pending_order_items together with modify_pending_order_address or modify_pending_order_payment, complete and verify the requested whole-order payment or shipping-address modifications first, then execute modify_pending_order_items last in one collected call; verify the final order state and report all requested changes as completed. Once modify_pending_order_items returns status 'pending (item modified)', make no further modify_pending_order_address or modify_pending_order_payment calls for that order.\n- For retail requests, after any balance-changing action in the same conversation, such as a cancellation refund, and before denying a gift-card-funded pending-order payment modification or transferring, re-read current user/payment-method data and recompute the available gift card balance against the order total. If the updated balance is sufficient, explain the modification details, obtain explicit confirmation, and call modify_pending_order_payment. If it is still insufficient, deny that method and offer only permitted alternatives.\n\n## Form entry and verification\n\n- For retail requests, before calling modify_pending_order_items, present the exact items to modify, price consequence, payment method, and unchanged state, and explicitly remind the customer to confirm that all items to be modified have been provided; wait for explicit confirmation before executing the one-time item modification.\n\n## Error recovery and stopping\n\n- For retail requests, when asked about credit-card refund timing after a delivered-order return, state only facts supported by the policy, tool outputs, and user inputs; do not invent or carry over a quantified refund timeline. If the specific credit-card refund timing is not provided, state that it is not available.\n- For airline requests, before soliciting cancellation confirmation or calling cancel_reservation, check whether any portion of the reservation has already been flown. If any flight has already been flown, do not rely on cabin class or other cancellation eligibility; inform the user that the cancellation cannot be handled because part of the trip has already been flown, call transfer_to_human_agents, and send the required transfer message. Do not call cancel_reservation.\n",
+  "provenance_status": "VERIFIED",
+  "provenance_audit": {
+    "status": "VERIFIED",
+    "verified_edits": 11,
+    "unverified_edits": 0,
+    "issues": []
+  }
+}

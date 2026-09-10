@@ -1,12 +1,12 @@
 """Closed-loop Unified Step-1 pilot; v14 learner components remain unchanged."""
-import argparse,copy,dataclasses,json
+import argparse,copy,dataclasses,json,os
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor,as_completed
 ROOT=Path(__file__).resolve().parents[2]
 SUITE=ROOT/'benchmarks/tau2_governed_evolution/phase_a_final_unified_benchmark_v1'
 CAL=SUITE/'calibration'
 PILOT_ROOT=ROOT/'experiments/phase_a_unified_v14_step1_pilot'
-OUT=PILOT_ROOT/'attempt_3_clean_adapter'
+OUT=Path(os.environ.get('V14_UNIFIED_PILOT_OUT',PILOT_ROOT/'attempt_3_clean_adapter'))
 from dotenv import load_dotenv
 load_dotenv(ROOT/'.env',override=True)
 from src.skill_evolution.diagnosis_v14 import call_diagnosis,DiagnosisResponse
