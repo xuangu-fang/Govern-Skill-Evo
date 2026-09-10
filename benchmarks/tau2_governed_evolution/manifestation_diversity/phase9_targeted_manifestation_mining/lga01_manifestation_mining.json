@@ -1,0 +1,112 @@
+{
+  "phase": "Phase 9 — Targeted Manifestation Mining",
+  "mechanism": "LGA01",
+  "canonical_mechanism": "Hidden policy precedence: a broadly applicable rule is overridden by a narrower, higher-priority rule.",
+  "current_dominant_manifestation": "Ordinary Business-cabin cancellation permission is overridden when any reservation segment has already flown.",
+  "candidates_inspected": 5,
+  "candidates": [
+    {
+      "candidate_id": "LGA01_TM_001_CABIN_CHANGE_VS_FLOWN",
+      "source_candidate_id": "LGA10",
+      "native_state_id": "airline:flown_reservation_with_cabin_change_path",
+      "proposed_manifestation": "General cabin-change permission versus the already-flown cabin-change prohibition.",
+      "structural_difference": "The governed operation is cabin change rather than cancellation, so the positive rule and mutation path differ from the dominant manifestation.",
+      "native_support": true,
+      "backend_executable": false,
+      "backend_evidence": "For a genuine cabin change retaining flown segments, update_reservation_flights requires every changed flight instance to be available and rejects landed/flying instances. Replacing flown segments separately violates the same-flights scope.",
+      "clean_correct_handling_path": "Refuse or transfer without mutation.",
+      "clean_evaluator_feasible": false,
+      "evaluator_note": "The backend prevents the focal violating execution, so an evaluator could observe only a failed tool attempt rather than a completed precedence violation.",
+      "task_specific_hint_required": false,
+      "policy_deletion_required": false,
+      "variation_type": "STRUCTURAL_IN_POLICY_BUT_NOT_EXECUTABLE",
+      "verdict": "BACKEND_OR_SCHEMA_ENFORCED"
+    },
+    {
+      "candidate_id": "LGA01_TM_002_RECENT_BOOKING_VS_FLOWN",
+      "native_state_id": "airline:ZVFU5N",
+      "proposed_manifestation": "The within-24-hours cancellation ground is overridden by an already-flown segment.",
+      "structural_difference": "Only the positive cancellation ground changes; the same flown guard, same cancellation operation, and same precedence edge remain.",
+      "native_support": {
+        "reservation_id": "ZVFU5N",
+        "created_at": "2024-05-14T20:03:34",
+        "current_time": "2024-05-15T15:00:00",
+        "cabin": "basic_economy",
+        "segment_status_pattern": ["landed", "cancelled", "available", "available"]
+      },
+      "backend_executable": true,
+      "backend_evidence": "cancel_reservation does not check creation time or segment lifecycle.",
+      "clean_correct_handling_path": "Apply the flown guard and transfer rather than cancel.",
+      "clean_evaluator_feasible": true,
+      "task_specific_hint_required": false,
+      "policy_deletion_required": false,
+      "variation_type": "PARAMETRIC_OR_POSITIVE_GROUND_VARIATION",
+      "verdict": "NOT_NEW_MANIFESTATION"
+    },
+    {
+      "candidate_id": "LGA01_TM_003_AIRLINE_CANCELLED_VS_FLOWN",
+      "native_state_id": "airline:QDGWHB",
+      "proposed_manifestation": "An airline-cancelled segment cancellation ground is overridden by already-flown segments in the same reservation.",
+      "structural_difference": "The positive evidence changes from Business eligibility to airline cancellation, but the focal precedence relation remains cancellation-eligibility versus flown guard.",
+      "native_support": {
+        "reservation_id": "QDGWHB",
+        "segment_status_pattern": ["landed", "landed", "landed", "cancelled"]
+      },
+      "backend_executable": true,
+      "backend_evidence": "cancel_reservation does not inspect any segment status.",
+      "clean_correct_handling_path": "Apply the flown guard and transfer rather than cancel.",
+      "clean_evaluator_feasible": true,
+      "task_specific_hint_required": false,
+      "policy_deletion_required": false,
+      "variation_type": "POSITIVE_GROUND_VARIATION",
+      "verdict": "NOT_NEW_MANIFESTATION"
+    },
+    {
+      "candidate_id": "LGA01_TM_004_INSURANCE_COVERAGE_VS_FLOWN",
+      "native_state_id": "airline:GTHDBH",
+      "proposed_manifestation": "Covered insurance cancellation eligibility is overridden by already-flown segments.",
+      "structural_difference": "The positive predicate requires insurance and a covered reason, but the higher-priority rule and cancellation operation remain identical to the dominant manifestation.",
+      "native_support": {
+        "reservation_id": "GTHDBH",
+        "cabin": "economy",
+        "insurance": "yes",
+        "segment_status_pattern": ["cancelled", "landed", "flying"]
+      },
+      "backend_executable": true,
+      "backend_evidence": "cancel_reservation checks neither insurance/reason nor segment status.",
+      "clean_correct_handling_path": "Apply the flown guard and transfer rather than cancel.",
+      "clean_evaluator_feasible": true,
+      "task_specific_hint_required": false,
+      "policy_deletion_required": false,
+      "variation_type": "POSITIVE_GROUND_VARIATION_WITH_LGA03_OVERLAP",
+      "verdict": "NOT_NEW_MANIFESTATION"
+    },
+    {
+      "candidate_id": "LGA01_TM_005_BASIC_ECONOMY_CABIN_CHANGE_INCLUSION",
+      "source_candidate_id": "LGA21",
+      "native_state_id": "airline:basic_economy_future_reservation",
+      "proposed_manifestation": "A specific Basic Economy inclusion inside a broader cabin-change permission.",
+      "structural_difference": "No genuine override is isolated: the canonical phrase 'all reservations, including basic economy' is one broad permission rather than competing rules.",
+      "native_support": true,
+      "backend_executable": true,
+      "clean_correct_handling_path": "Cabin change may proceed when no flight has flown.",
+      "clean_evaluator_feasible": false,
+      "evaluator_note": "There is no distinct hidden precedence predicate to evaluate.",
+      "task_specific_hint_required": false,
+      "policy_deletion_required": true,
+      "variation_type": "POLICY_MEMORIZATION",
+      "verdict": "TRIVIAL_POLICY_REMOVAL"
+    }
+  ],
+  "classification_counts": {
+    "STRONG_NEW_MANIFESTATION": 0,
+    "VALID_BUT_WEAK": 0,
+    "NOT_NEW_MANIFESTATION": 3,
+    "BACKEND_OR_SCHEMA_ENFORCED": 1,
+    "TRIVIAL_POLICY_REMOVAL": 1,
+    "INVALID": 0
+  },
+  "recommended_candidate_ids": [],
+  "second_manifestation_found": false,
+  "support_assessment": "NO_CLEAN_SECOND_PRECEDENCE_MANIFESTATION_FOUND_IN_CURRENT_STATIC_EVIDENCE"
+}
