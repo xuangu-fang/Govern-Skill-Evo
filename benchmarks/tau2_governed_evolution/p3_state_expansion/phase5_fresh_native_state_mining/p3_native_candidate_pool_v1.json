@@ -1,0 +1,861 @@
+{
+  "schema_version": "1.0",
+  "pool_id": "P3_NATIVE_CANDIDATE_POOL_V1",
+  "benchmark_id": "PHASE_A_UNIFIED_BENCHMARK_STATE_EXPANDED_V1",
+  "canonical_P3_definition": "cancellation refund resource rebound / mutation-induced resource refresh dependency",
+  "admission_basis": "static structural P3 validity only; no Base outcomes",
+  "execution": {
+    "phase5_complete": true,
+    "model_calls": 0,
+    "rollouts": 0,
+    "judge_calls": 0,
+    "backend_mutation_calls": 0,
+    "benchmark_modifications": 0,
+    "task_prompts_written": 0,
+    "evaluators_implemented": 0,
+    "calibration": false,
+    "skill_evolution": false,
+    "gate": false,
+    "train_monitor_split": false,
+    "counter_scope": "本实验的模型/评测调用；静态阅读、标准库 JSON/算术及报告生成。"
+  },
+  "status": "CANDIDATE_ONLY_NOT_MATERIALIZED",
+  "candidates": [
+    {
+      "candidate_id": "P3_NATIVE_001",
+      "state_id": "retail:liam_lopez_7019:#W2000719->#W7555783:gift_card_8483518",
+      "user_id": "liam_lopez_7019",
+      "source_order": "#W2000719",
+      "downstream_order": "#W7555783",
+      "resource_id": "gift_card_8483518",
+      "upstream_mutation": "取消 pending 源订单 #W2000719，将原礼品卡付款 193.79 退回 gift_card_8483518。",
+      "resource_changed": {
+        "kind": "gift_card.balance",
+        "before": 21.0,
+        "credit": 193.79,
+        "after_upstream_derived": 214.79,
+        "downstream_cost": 29.26,
+        "after_downstream_derived": 185.53,
+        "values_are": "静态算术推导，不是运行后 state"
+      },
+      "downstream_dependency": "#W7555783 的一个商品升级至原生可用同产品 variant，用礼品卡支付差价 29.26。 原生门槛 21.00 < 29.26 <= 214.79，可支付集合因 mutation 改变。",
+      "P3_MANIFESTATION_TYPE": "CANCEL_REFUND_TO_GIFTCARD -> PENDING_ITEM_UPGRADE",
+      "independent": true,
+      "independence_basis": "原生不同用户、gift card、源/目标订单；不与两个现有 P3 或其余本轮候选共享用户/资源/订单。商品 catalog 共用不视为交易 state 重复。",
+      "correct_path_exists": true,
+      "correct_path": [
+        "按现有 policy 验证用户身份；读取源订单、目标订单及用户礼品卡；商品变更需读取原生产品 variants。",
+        "取得源操作的用户确认；取消需合法取消原因，商品变更需确认完整变更集合。",
+        "取消 pending 源订单 #W2000719，将原礼品卡付款 193.79 退回 gift_card_8483518。",
+        "通过 get_user_details 获取最新余额；也可由已成功 mutation 的真实结果与 backend 规则正确更新资源认知，Success 不强制某个读取调用。",
+        "依据最新余额核对目标费用，取得目标操作确认；执行目标操作。"
+      ],
+      "evaluator_feasible": true,
+      "success_evaluator_feasibility": {
+        "source_goal": "cancelled 并有对应 gift-card refund",
+        "downstream_goal": "目标指定商品/价格更新、status=pending (item modified)、新增 gift-card 差价 payment",
+        "expected_gift_card_final_balance": 185.53,
+        "preserved_fields": "未选择的商品、地址、其他订单及其他礼品卡余额保持不变；允许 backend 规定的 payment_history 扩展。",
+        "scope": "仅未来 outcome evaluator 的可行性描述；未实现 evaluator。确认、身份验证、强制刷新调用不混入 Success。若要评价刷新行为，需另行定义过程度量；正确状态推理可成功。"
+      },
+      "task_specific_hint_required": false,
+      "hint_note": "未来需明确普通用户意图（取消/保留源订单、所需商品配置、选择现有付款资源）；无需透露刷新步骤、隐藏余额门槛或解法。尚未生成任何 task prompt。",
+      "same_manifestation_as_existing": false,
+      "diversity_vs_existing": "HIGH：下游为商品差价支付；upstream 仍为 cancellation。",
+      "stale_state_failure_mode": "继续用 21.00 判断，会错误认为 29.26 不可支付，拒绝/转人工/放弃目标或选错付款方式；真实更新后余额 214.79 足够。此为结构风险，不是已观察 Base 失败。",
+      "verdict": "STRONG_P3_CANDIDATE",
+      "recommended_for_next_realization": true,
+      "native_witness": {
+        "upstream": {
+          "kind": "CANCEL_REFUND_TO_GIFTCARD",
+          "credit": 193.79
+        },
+        "downstream": {
+          "kind": "PENDING_ITEM_UPGRADE",
+          "cost": 29.26,
+          "item_change": {
+            "old_item": "7617930199",
+            "new_item": "1689914594",
+            "product_id": "4768869376",
+            "old_price": 285.94,
+            "new_price": 315.2,
+            "delta": 29.26,
+            "new_variant": {
+              "item_id": "1689914594",
+              "options": {
+                "color": "red",
+                "battery life": "10 hours",
+                "water resistance": "no"
+              },
+              "available": true,
+              "price": 315.2
+            }
+          }
+        }
+      },
+      "native_evidence": {
+        "user_id": "liam_lopez_7019",
+        "source_order": {
+          "order_id": "#W2000719",
+          "user_id": "liam_lopez_7019",
+          "status": "pending",
+          "items": [
+            {
+              "name": "Pet Bed",
+              "product_id": "2747247837",
+              "item_id": "4537595158",
+              "price": 193.79,
+              "options": {
+                "size": "small",
+                "material": "fleece",
+                "color": "brown"
+              }
+            }
+          ],
+          "payment_history": [
+            {
+              "transaction_type": "payment",
+              "amount": 193.79,
+              "payment_method_id": "gift_card_8483518"
+            }
+          ]
+        },
+        "downstream_order": {
+          "order_id": "#W7555783",
+          "user_id": "liam_lopez_7019",
+          "status": "pending",
+          "items": [
+            {
+              "name": "Portable Charger",
+              "product_id": "6942297802",
+              "item_id": "7866854614",
+              "price": 105.49,
+              "options": {
+                "capacity": "5000mAh",
+                "output": "USB-C",
+                "color": "white"
+              }
+            },
+            {
+              "name": "Bluetooth Speaker",
+              "product_id": "4768869376",
+              "item_id": "7617930199",
+              "price": 285.94,
+              "options": {
+                "color": "red",
+                "battery life": "20 hours",
+                "water resistance": "yes"
+              }
+            }
+          ],
+          "payment_history": [
+            {
+              "transaction_type": "payment",
+              "amount": 391.43,
+              "payment_method_id": "gift_card_8483518"
+            }
+          ]
+        },
+        "payment_methods": {
+          "gift_card_8483518": {
+            "source": "gift_card",
+            "id": "gift_card_8483518",
+            "balance": 21.0
+          }
+        },
+        "both_orders_listed_in_user_profile": true
+      },
+      "backend_evidence": [
+        "external/tau2-bench/src/tau2/domains/retail/tools.py:159-205",
+        "external/tau2-bench/src/tau2/domains/retail/tools.py:455-542"
+      ],
+      "same_bundle_alternative_witness_count": 5,
+      "duplicate_aliases": [],
+      "potential_separable_vf_note": "未证明 separable VF。可记录确认/刷新与任务完成的潜在组合关系，但本轮不设计 VF→VS→CS 或 VF→CF→CS，不修改 native state。",
+      "composition_note": "存在通用确认/商品修改约束；未构造 separable VF。",
+      "native_task_object_references": [],
+      "reference_note": "单个订单在旧 task 中出现不等于同一完整 transaction bundle alias；不复用 prompt 或 evaluator。"
+    },
+    {
+      "candidate_id": "P3_NATIVE_002",
+      "state_id": "retail:juan_smith_5229:#W1429524->#W7546247:gift_card_8506348",
+      "user_id": "juan_smith_5229",
+      "source_order": "#W1429524",
+      "downstream_order": "#W7546247",
+      "resource_id": "gift_card_8506348",
+      "upstream_mutation": "将 #W1429524 的整单付款从礼品卡替换为原生已登记的 paypal_9679338，原付款 766.17 即时退回礼品卡；源订单保留 pending。",
+      "resource_changed": {
+        "kind": "gift_card.balance",
+        "before": 63.0,
+        "credit": 766.17,
+        "after_upstream_derived": 829.17,
+        "downstream_cost": 71.58,
+        "after_downstream_derived": 757.59,
+        "values_are": "静态算术推导，不是运行后 state"
+      },
+      "downstream_dependency": "#W7546247 的一个商品升级至原生可用同产品 variant，用礼品卡支付差价 71.58。 原生门槛 63.00 < 71.58 <= 829.17，可支付集合因 mutation 改变。",
+      "P3_MANIFESTATION_TYPE": "PAYMENT_REPLACEMENT_REFUND_TO_GIFTCARD -> PENDING_ITEM_UPGRADE",
+      "independent": true,
+      "independence_basis": "原生不同用户、gift card、源/目标订单；不与两个现有 P3 或其余本轮候选共享用户/资源/订单。商品 catalog 共用不视为交易 state 重复。",
+      "correct_path_exists": true,
+      "correct_path": [
+        "按现有 policy 验证用户身份；读取源订单、目标订单及用户礼品卡；商品变更需读取原生产品 variants。",
+        "取得源操作的用户确认；取消需合法取消原因，商品变更需确认完整变更集合。",
+        "将 #W1429524 的整单付款从礼品卡替换为原生已登记的 paypal_9679338，原付款 766.17 即时退回礼品卡；源订单保留 pending。",
+        "通过 get_user_details 获取最新余额；也可由已成功 mutation 的真实结果与 backend 规则正确更新资源认知，Success 不强制某个读取调用。",
+        "依据最新余额核对目标费用，取得目标操作确认；执行目标操作。"
+      ],
+      "evaluator_feasible": true,
+      "success_evaluator_feasibility": {
+        "source_goal": "源订单仍 pending，新增指定替代方式 payment 与原 gift-card refund",
+        "downstream_goal": "目标指定商品/价格更新、status=pending (item modified)、新增 gift-card 差价 payment",
+        "expected_gift_card_final_balance": 757.59,
+        "preserved_fields": "未选择的商品、地址、其他订单及其他礼品卡余额保持不变；允许 backend 规定的 payment_history 扩展。",
+        "scope": "仅未来 outcome evaluator 的可行性描述；未实现 evaluator。确认、身份验证、强制刷新调用不混入 Success。若要评价刷新行为，需另行定义过程度量；正确状态推理可成功。"
+      },
+      "task_specific_hint_required": false,
+      "hint_note": "未来需明确普通用户意图（取消/保留源订单、所需商品配置、选择现有付款资源）；无需透露刷新步骤、隐藏余额门槛或解法。尚未生成任何 task prompt。",
+      "same_manifestation_as_existing": false,
+      "diversity_vs_existing": "HIGH：下游为商品差价支付；upstream 为付款替换，源订单保留。",
+      "stale_state_failure_mode": "继续用 63.00 判断，会错误认为 71.58 不可支付，拒绝/转人工/放弃目标或选错付款方式；真实更新后余额 829.17 足够。此为结构风险，不是已观察 Base 失败。",
+      "verdict": "STRONG_P3_CANDIDATE",
+      "recommended_for_next_realization": true,
+      "native_witness": {
+        "upstream": {
+          "kind": "PAYMENT_REPLACEMENT_REFUND_TO_GIFTCARD",
+          "credit": 766.17,
+          "new_payment_method": "paypal_9679338"
+        },
+        "downstream": {
+          "kind": "PENDING_ITEM_UPGRADE",
+          "cost": 71.58,
+          "item_change": {
+            "old_item": "7717598293",
+            "new_item": "5946177616",
+            "product_id": "6819683148",
+            "old_price": 985.66,
+            "new_price": 1057.24,
+            "delta": 71.58,
+            "new_variant": {
+              "item_id": "5946177616",
+              "options": {
+                "type": "gas",
+                "size": "portable",
+                "features": "none"
+              },
+              "available": true,
+              "price": 1057.24
+            }
+          }
+        }
+      },
+      "native_evidence": {
+        "user_id": "juan_smith_5229",
+        "source_order": {
+          "order_id": "#W1429524",
+          "user_id": "juan_smith_5229",
+          "status": "pending",
+          "items": [
+            {
+              "name": "Coffee Maker",
+              "product_id": "7996920482",
+              "item_id": "1349017811",
+              "price": 226.05,
+              "options": {
+                "color": "white",
+                "capacity": "4 cups",
+                "type": "drip",
+                "features": "auto shutoff"
+              }
+            },
+            {
+              "name": "Vacuum Cleaner",
+              "product_id": "1762337868",
+              "item_id": "3526747930",
+              "price": 540.12,
+              "options": {
+                "type": "upright",
+                "bagged/bagless": "bagged",
+                "features": "pet hair removal"
+              }
+            }
+          ],
+          "payment_history": [
+            {
+              "transaction_type": "payment",
+              "amount": 766.17,
+              "payment_method_id": "gift_card_8506348"
+            }
+          ]
+        },
+        "downstream_order": {
+          "order_id": "#W7546247",
+          "user_id": "juan_smith_5229",
+          "status": "pending",
+          "items": [
+            {
+              "name": "Desk Lamp",
+              "product_id": "6817146515",
+              "item_id": "8384507844",
+              "price": 137.94,
+              "options": {
+                "color": "white",
+                "brightness": "medium",
+                "power source": "USB"
+              }
+            },
+            {
+              "name": "Grill",
+              "product_id": "6819683148",
+              "item_id": "7717598293",
+              "price": 985.66,
+              "options": {
+                "type": "electric",
+                "size": "medium",
+                "features": "rotisserie"
+              }
+            },
+            {
+              "name": "Office Chair",
+              "product_id": "4794339885",
+              "item_id": "8426249116",
+              "price": 488.81,
+              "options": {
+                "material": "fabric",
+                "color": "black",
+                "armrest": "fixed",
+                "backrest height": "standard"
+              }
+            }
+          ],
+          "payment_history": [
+            {
+              "transaction_type": "payment",
+              "amount": 1612.41,
+              "payment_method_id": "paypal_9679338"
+            }
+          ]
+        },
+        "payment_methods": {
+          "paypal_9679338": {
+            "source": "paypal",
+            "id": "paypal_9679338"
+          },
+          "gift_card_8506348": {
+            "source": "gift_card",
+            "id": "gift_card_8506348",
+            "balance": 63.0
+          }
+        },
+        "both_orders_listed_in_user_profile": true
+      },
+      "backend_evidence": [
+        "external/tau2-bench/src/tau2/domains/retail/tools.py:545-622",
+        "external/tau2-bench/src/tau2/domains/retail/tools.py:455-542"
+      ],
+      "same_bundle_alternative_witness_count": 2,
+      "duplicate_aliases": [],
+      "potential_separable_vf_note": "未证明 separable VF。可记录确认/刷新与任务完成的潜在组合关系，但本轮不设计 VF→VS→CS 或 VF→CF→CS，不修改 native state。",
+      "composition_note": "存在通用确认/商品修改约束；未构造 separable VF。",
+      "native_task_object_references": [],
+      "reference_note": "单个订单在旧 task 中出现不等于同一完整 transaction bundle alias；不复用 prompt 或 evaluator。"
+    },
+    {
+      "candidate_id": "P3_NATIVE_003",
+      "state_id": "retail:liam_kovacs_4286:#W1547606->#W5762451:gift_card_4544711",
+      "user_id": "liam_kovacs_4286",
+      "source_order": "#W1547606",
+      "downstream_order": "#W5762451",
+      "resource_id": "gift_card_4544711",
+      "upstream_mutation": "将 #W1547606 的一个商品替换为原生可用低价同产品 variant，差额 22.08 退至现有礼品卡；源订单变为 pending (item modified)。",
+      "resource_changed": {
+        "kind": "gift_card.balance",
+        "before": 37.0,
+        "credit": 22.08,
+        "after_upstream_derived": 59.08,
+        "downstream_cost": 38.95,
+        "after_downstream_derived": 20.13,
+        "values_are": "静态算术推导，不是运行后 state"
+      },
+      "downstream_dependency": "#W5762451 的一个商品升级至原生可用同产品 variant，用礼品卡支付差价 38.95。 原生门槛 37.00 < 38.95 <= 59.08，可支付集合因 mutation 改变。",
+      "P3_MANIFESTATION_TYPE": "ITEM_DOWNGRADE_REFUND_TO_GIFTCARD -> PENDING_ITEM_UPGRADE",
+      "independent": true,
+      "independence_basis": "原生不同用户、gift card、源/目标订单；不与两个现有 P3 或其余本轮候选共享用户/资源/订单。商品 catalog 共用不视为交易 state 重复。",
+      "correct_path_exists": true,
+      "correct_path": [
+        "按现有 policy 验证用户身份；读取源订单、目标订单及用户礼品卡；商品变更需读取原生产品 variants。",
+        "取得源操作的用户确认；取消需合法取消原因，商品变更需确认完整变更集合。",
+        "将 #W1547606 的一个商品替换为原生可用低价同产品 variant，差额 22.08 退至现有礼品卡；源订单变为 pending (item modified)。",
+        "通过 get_user_details 获取最新余额；也可由已成功 mutation 的真实结果与 backend 规则正确更新资源认知，Success 不强制某个读取调用。",
+        "依据最新余额核对目标费用，取得目标操作确认；执行目标操作。"
+      ],
+      "evaluator_feasible": true,
+      "success_evaluator_feasibility": {
+        "source_goal": "源订单单个指定商品/价格更新、status=pending (item modified)、新增 gift-card refund",
+        "downstream_goal": "目标指定商品/价格更新、status=pending (item modified)、新增 gift-card 差价 payment",
+        "expected_gift_card_final_balance": 20.13,
+        "preserved_fields": "未选择的商品、地址、其他订单及其他礼品卡余额保持不变；允许 backend 规定的 payment_history 扩展。",
+        "scope": "仅未来 outcome evaluator 的可行性描述；未实现 evaluator。确认、身份验证、强制刷新调用不混入 Success。若要评价刷新行为，需另行定义过程度量；正确状态推理可成功。"
+      },
+      "task_specific_hint_required": false,
+      "hint_note": "未来需明确普通用户意图（取消/保留源订单、所需商品配置、选择现有付款资源）；无需透露刷新步骤、隐藏余额门槛或解法。尚未生成任何 task prompt。",
+      "same_manifestation_as_existing": false,
+      "diversity_vs_existing": "HIGH：下游为商品差价支付；upstream 为商品降价的小额退款，两单商品各变更一次。",
+      "stale_state_failure_mode": "继续用 37.00 判断，会错误认为 38.95 不可支付，拒绝/转人工/放弃目标或选错付款方式；真实更新后余额 59.08 足够。此为结构风险，不是已观察 Base 失败。",
+      "verdict": "STRONG_P3_CANDIDATE",
+      "recommended_for_next_realization": true,
+      "native_witness": {
+        "upstream": {
+          "kind": "ITEM_DOWNGRADE_REFUND_TO_GIFTCARD",
+          "credit": 22.08,
+          "item_change": {
+            "old_item": "4859937227",
+            "new_item": "6117189161",
+            "product_id": "3377618313",
+            "old_price": 503.58,
+            "new_price": 481.5,
+            "delta": -22.08,
+            "new_variant": {
+              "item_id": "6117189161",
+              "options": {
+                "resolution": "4K",
+                "waterproof": "yes",
+                "color": "silver"
+              },
+              "available": true,
+              "price": 481.5
+            }
+          }
+        },
+        "downstream": {
+          "kind": "PENDING_ITEM_UPGRADE",
+          "cost": 38.95,
+          "item_change": {
+            "old_item": "2244749153",
+            "new_item": "2960542086",
+            "product_id": "8600330539",
+            "old_price": 473.82,
+            "new_price": 512.77,
+            "delta": 38.95,
+            "new_variant": {
+              "item_id": "2960542086",
+              "options": {
+                "material": "wood",
+                "color": "black",
+                "height": "5 ft"
+              },
+              "available": true,
+              "price": 512.77
+            }
+          }
+        }
+      },
+      "native_evidence": {
+        "user_id": "liam_kovacs_4286",
+        "source_order": {
+          "order_id": "#W1547606",
+          "user_id": "liam_kovacs_4286",
+          "status": "pending",
+          "items": [
+            {
+              "name": "Laptop",
+              "product_id": "4760268021",
+              "item_id": "1657832319",
+              "price": 2729.32,
+              "options": {
+                "screen size": "13-inch",
+                "processor": "i7",
+                "ram": "32GB",
+                "storage": "512GB SSD",
+                "color": "black"
+              }
+            },
+            {
+              "name": "Action Camera",
+              "product_id": "3377618313",
+              "item_id": "4859937227",
+              "price": 503.58,
+              "options": {
+                "resolution": "5K",
+                "waterproof": "no",
+                "color": "silver"
+              }
+            }
+          ],
+          "payment_history": [
+            {
+              "transaction_type": "payment",
+              "amount": 3232.9,
+              "payment_method_id": "gift_card_4544711"
+            }
+          ]
+        },
+        "downstream_order": {
+          "order_id": "#W5762451",
+          "user_id": "liam_kovacs_4286",
+          "status": "pending",
+          "items": [
+            {
+              "name": "Headphones",
+              "product_id": "6992792935",
+              "item_id": "9838673490",
+              "price": 344.55,
+              "options": {
+                "type": "in-ear",
+                "connectivity": "wireless",
+                "color": "red"
+              }
+            },
+            {
+              "name": "Bookshelf",
+              "product_id": "8600330539",
+              "item_id": "2244749153",
+              "price": 473.82,
+              "options": {
+                "material": "wood",
+                "color": "brown",
+                "height": "5 ft"
+              }
+            },
+            {
+              "name": "Air Purifier",
+              "product_id": "3821016478",
+              "item_id": "9534205511",
+              "price": 473.43,
+              "options": {
+                "room size": "large",
+                "filter type": "ionic",
+                "features": "smart sensors"
+              }
+            },
+            {
+              "name": "Pet Bed",
+              "product_id": "2747247837",
+              "item_id": "7381052709",
+              "price": 193.22,
+              "options": {
+                "size": "large",
+                "material": "memory foam",
+                "color": "brown"
+              }
+            }
+          ],
+          "payment_history": [
+            {
+              "transaction_type": "payment",
+              "amount": 1485.02,
+              "payment_method_id": "gift_card_4544711"
+            }
+          ]
+        },
+        "payment_methods": {
+          "gift_card_4544711": {
+            "source": "gift_card",
+            "id": "gift_card_4544711",
+            "balance": 37.0
+          }
+        },
+        "both_orders_listed_in_user_profile": true
+      },
+      "backend_evidence": [
+        "external/tau2-bench/src/tau2/domains/retail/tools.py:455-542",
+        "external/tau2-bench/src/tau2/domains/retail/tools.py:455-542"
+      ],
+      "same_bundle_alternative_witness_count": 78,
+      "duplicate_aliases": [],
+      "potential_separable_vf_note": "未证明 separable VF。可记录确认/刷新与任务完成的潜在组合关系，但本轮不设计 VF→VS→CS 或 VF→CF→CS，不修改 native state。",
+      "composition_note": "两单各一次 item modification 的约束与 P1 相邻；source 与 target 分离，不依赖同一订单二次修改或修复 backend 行为。成功路径无需操作顺序陷阱；唯一资金门槛是 P3。",
+      "native_task_object_references": [],
+      "reference_note": "单个订单在旧 task 中出现不等于同一完整 transaction bundle alias；不复用 prompt 或 evaluator。"
+    },
+    {
+      "candidate_id": "P3_NATIVE_004",
+      "state_id": "retail:yusuf_garcia_3055:#W2564042->#W3260419:gift_card_7588375",
+      "user_id": "yusuf_garcia_3055",
+      "source_order": "#W2564042",
+      "downstream_order": "#W3260419",
+      "resource_id": "gift_card_7588375",
+      "upstream_mutation": "取消 pending 源订单 #W2564042，将原礼品卡付款 3532.75 退回 gift_card_7588375。",
+      "resource_changed": {
+        "kind": "gift_card.balance",
+        "before": 15.0,
+        "credit": 3532.75,
+        "after_upstream_derived": 3547.75,
+        "downstream_cost": 1484.51,
+        "after_downstream_derived": 2063.24,
+        "values_are": "静态算术推导，不是运行后 state"
+      },
+      "downstream_dependency": "#W3260419 的整单付款替换至礼品卡，需 1484.51。 原生门槛 15.00 < 1484.51 <= 3547.75，可支付集合因 mutation 改变。",
+      "P3_MANIFESTATION_TYPE": "CANCEL_REFUND_TO_GIFTCARD -> EXISTING_ORDER_PAYMENT_REPLACEMENT",
+      "independent": true,
+      "independence_basis": "原生不同用户、gift card、源/目标订单；不与两个现有 P3 或其余本轮候选共享用户/资源/订单。商品 catalog 共用不视为交易 state 重复。",
+      "correct_path_exists": true,
+      "correct_path": [
+        "按现有 policy 验证用户身份；读取源订单、目标订单及用户礼品卡；商品变更需读取原生产品 variants。",
+        "取得源操作的用户确认；取消需合法取消原因，商品变更需确认完整变更集合。",
+        "取消 pending 源订单 #W2564042，将原礼品卡付款 3532.75 退回 gift_card_7588375。",
+        "通过 get_user_details 获取最新余额；也可由已成功 mutation 的真实结果与 backend 规则正确更新资源认知，Success 不强制某个读取调用。",
+        "依据最新余额核对目标费用，取得目标操作确认；执行目标操作。"
+      ],
+      "evaluator_feasible": true,
+      "success_evaluator_feasibility": {
+        "source_goal": "cancelled 并有对应 gift-card refund",
+        "downstream_goal": "目标新增 gift-card payment 和原付款 refund；status=pending",
+        "expected_gift_card_final_balance": 2063.24,
+        "preserved_fields": "未选择的商品、地址、其他订单及其他礼品卡余额保持不变；允许 backend 规定的 payment_history 扩展。",
+        "scope": "仅未来 outcome evaluator 的可行性描述；未实现 evaluator。确认、身份验证、强制刷新调用不混入 Success。若要评价刷新行为，需另行定义过程度量；正确状态推理可成功。"
+      },
+      "task_specific_hint_required": false,
+      "hint_note": "未来需明确普通用户意图（取消/保留源订单、所需商品配置、选择现有付款资源）；无需透露刷新步骤、隐藏余额门槛或解法。尚未生成任何 task prompt。",
+      "same_manifestation_as_existing": true,
+      "diversity_vs_existing": "LOW：相同 cancel → refund → existing-order payment replacement，只增加新交易配置。",
+      "stale_state_failure_mode": "继续用 15.00 判断，会错误认为 1484.51 不可支付，拒绝/转人工/放弃目标或选错付款方式；真实更新后余额 3547.75 足够。此为结构风险，不是已观察 Base 失败。",
+      "verdict": "VALID_BUT_LOW_DIVERSITY",
+      "recommended_for_next_realization": false,
+      "native_witness": {
+        "upstream": {
+          "kind": "CANCEL_REFUND_TO_GIFTCARD",
+          "credit": 3532.75
+        },
+        "downstream": {
+          "kind": "EXISTING_ORDER_PAYMENT_REPLACEMENT",
+          "cost": 1484.51
+        }
+      },
+      "native_evidence": {
+        "user_id": "yusuf_garcia_3055",
+        "source_order": {
+          "order_id": "#W2564042",
+          "user_id": "yusuf_garcia_3055",
+          "status": "pending",
+          "items": [
+            {
+              "name": "Hiking Boots",
+              "product_id": "7363354090",
+              "item_id": "6159919747",
+              "price": 259.75,
+              "options": {
+                "size": "11",
+                "material": "leather",
+                "waterproof": "yes"
+              }
+            },
+            {
+              "name": "Laptop",
+              "product_id": "4760268021",
+              "item_id": "1657832319",
+              "price": 2729.32,
+              "options": {
+                "screen size": "13-inch",
+                "processor": "i7",
+                "ram": "32GB",
+                "storage": "512GB SSD",
+                "color": "black"
+              }
+            },
+            {
+              "name": "Air Purifier",
+              "product_id": "3821016478",
+              "item_id": "5669664287",
+              "price": 543.68,
+              "options": {
+                "room size": "small",
+                "filter type": "ionic",
+                "features": "quiet operation"
+              }
+            }
+          ],
+          "payment_history": [
+            {
+              "transaction_type": "payment",
+              "amount": 3532.75,
+              "payment_method_id": "gift_card_7588375"
+            }
+          ]
+        },
+        "downstream_order": {
+          "order_id": "#W3260419",
+          "user_id": "yusuf_garcia_3055",
+          "status": "pending",
+          "items": [
+            {
+              "name": "Electric Kettle",
+              "product_id": "1075968781",
+              "item_id": "9335834276",
+              "price": 137.92,
+              "options": {
+                "capacity": "2L",
+                "material": "glass",
+                "color": "black"
+              }
+            },
+            {
+              "name": "Smart Watch",
+              "product_id": "6945232052",
+              "item_id": "2860956907",
+              "price": 315.61,
+              "options": {
+                "color": "black",
+                "band material": "silicone",
+                "display": "LCD"
+              }
+            },
+            {
+              "name": "Dumbbell Set",
+              "product_id": "7233192239",
+              "item_id": "6171242004",
+              "price": 462.84,
+              "options": {
+                "weight range": "30-50 lbs",
+                "material": "rubber",
+                "set type": "fixed"
+              }
+            },
+            {
+              "name": "Hiking Boots",
+              "product_id": "7363354090",
+              "item_id": "6546364613",
+              "price": 231.43,
+              "options": {
+                "size": "11",
+                "material": "synthetic",
+                "waterproof": "yes"
+              }
+            },
+            {
+              "name": "Smart Watch",
+              "product_id": "6945232052",
+              "item_id": "4900990404",
+              "price": 336.71,
+              "options": {
+                "color": "silver",
+                "band material": "metal",
+                "display": "AMOLED"
+              }
+            }
+          ],
+          "payment_history": [
+            {
+              "transaction_type": "payment",
+              "amount": 1484.51,
+              "payment_method_id": "paypal_7503218"
+            }
+          ]
+        },
+        "payment_methods": {
+          "paypal_7503218": {
+            "source": "paypal",
+            "id": "paypal_7503218"
+          },
+          "credit_card_8405687": {
+            "source": "credit_card",
+            "id": "credit_card_8405687",
+            "brand": "mastercard",
+            "last_four": "3762"
+          },
+          "gift_card_7588375": {
+            "source": "gift_card",
+            "id": "gift_card_7588375",
+            "balance": 15.0
+          }
+        },
+        "both_orders_listed_in_user_profile": true
+      },
+      "backend_evidence": [
+        "external/tau2-bench/src/tau2/domains/retail/tools.py:159-205",
+        "external/tau2-bench/src/tau2/domains/retail/tools.py:545-622"
+      ],
+      "same_bundle_alternative_witness_count": 493,
+      "duplicate_aliases": [],
+      "potential_separable_vf_note": "未证明 separable VF。可记录确认/刷新与任务完成的潜在组合关系，但本轮不设计 VF→VS→CS 或 VF→CF→CS，不修改 native state。",
+      "composition_note": "存在通用确认/商品修改约束；未构造 separable VF。",
+      "native_task_object_references": [],
+      "reference_note": "单个订单在旧 task 中出现不等于同一完整 transaction bundle alias；不复用 prompt 或 evaluator。"
+    }
+  ],
+  "recommended_state_ids": [
+    "retail:liam_lopez_7019:#W2000719->#W7555783:gift_card_8483518",
+    "retail:juan_smith_5229:#W1429524->#W7546247:gift_card_8506348",
+    "retail:liam_kovacs_4286:#W1547606->#W5762451:gift_card_4544711"
+  ],
+  "reserve_state_ids": [
+    "retail:yusuf_garcia_3055:#W2564042->#W3260419:gift_card_7588375"
+  ],
+  "baselines": [
+    {
+      "state_id": "retail:ava_nguyen_6646:#W9892465->#W1242543:gift_card_1994993",
+      "P3_MANIFESTATION_TYPE": "CANCEL_REFUND_TO_GIFTCARD -> EXISTING_ORDER_PAYMENT_REPLACEMENT",
+      "duplicate_aliases": [
+        "retail_pa_v2_w9892465_cancel_funds_w1242543"
+      ],
+      "role": "BASELINE_REFERENCE_ONLY_NOT_MINED_NOT_RERUN"
+    },
+    {
+      "state_id": "retail:emma_martin_6993:#W5432440->#W9432206:gift_card_4129829",
+      "P3_MANIFESTATION_TYPE": "CANCEL_REFUND_TO_GIFTCARD -> EXISTING_ORDER_PAYMENT_REPLACEMENT",
+      "duplicate_aliases": [
+        "retail_pa_v2_w5432440_cancel_funds_w9432206"
+      ],
+      "role": "BASELINE_REFERENCE_ONLY_NOT_MINED_NOT_RERUN"
+    }
+  ],
+  "search_accounting": {
+    "native_db": {
+      "users": 500,
+      "orders": 1000,
+      "products": 50
+    },
+    "screened_order_resource_pairs": 338,
+    "screened_unique_pairs": 338,
+    "positive_arithmetic_witnesses": 5706,
+    "positive_unique_pairs": 162,
+    "additional_negative_control_bundles": 3,
+    "total_unique_bundles_inspected_at_any_depth": 341,
+    "fully_audited_candidate_bundles_before_dedup": 7,
+    "fully_audited_unique_candidate_bundles": 7,
+    "classification_scope": "ONLY the seven fully audited candidate bundles; arithmetic leads are not admitted candidates or counted coverage.",
+    "method": "在原生 DB 中枚举 pending 源订单、该用户已登记 gift card、同用户不同 pending/delivered 目标；源 cancellation / payment replacement refund / 单商品 downgrade；目标整单 payment replacement / 单商品 upgrade / delivered exchange feasibility。筛查 before < cost <= before+credit。仅单商品且源 item ID 在订单中唯一；不穷举多商品组合。再选四个独立正候选与三个负对照进行逐项静态审计；soft target 三个重点候选后停止扩展。",
+    "dedup_key": "user_id + source_order + gift_card + downstream_order；同一 bundle 的 variant、upstream 替代形式或 artifact ID 不增加 state 数。不同源但共享 gift card 的线索未经独立性准入；推荐集合要求不同用户/resource/order。",
+    "deduplicated_arithmetic_configuration_duplicates": 5544,
+    "unreviewed_arithmetic_leads_count": 158,
+    "limitations": [
+      "338 个结构筛查组合去重后仍 338；5706 个算术配置折叠为 162 个 pair 线索，二者不是正式 independent-state count。",
+      "其余 158 个算术线索（含现有 baseline/共享资源候选）未逐项审计，不计入候选池、分类结果或 projected coverage。",
+      "原生 tasks 和旧 dev inventory 用于 provenance；未读取 Base outcome、trajectory 或 rollout 后 DB 作为 admission 依据。",
+      "未全量证明 Retail 没有其他 P3；无新建购买、store-credit 或 payment-method creation 原生工具，故不编造对应 manifestation。"
+    ]
+  },
+  "source_sha256": {
+    "benchmarks/tau2_governed_evolution/formal_state_admission/validate_formal_state_admission.py": "af89d5e93d5f4522e58e05731de5cd8238bce7af207e016d19d34f6ad7924b19",
+    "benchmarks/tau2_governed_evolution/formal_state_admission/mechanism_coverage_snapshot.json": "e20938a7e50e2bd078811b70182e1d8541aa82a097411960eb3dd4a926acc629",
+    "benchmarks/tau2_governed_evolution/formal_state_admission/admission_provenance.json": "6305717fe5b0647443141077d8eb1ec0cc1a468206994cebd83012caf18dcd57",
+    "benchmarks/tau2_governed_evolution/formal_state_admission/expanded_benchmark_manifest.json": "18f8803a465c0f81b4eabf91be6074d3c5c89712925280b0cb135351f899986b",
+    "benchmarks/tau2_governed_evolution/formal_state_admission/benchmark_adapter.py": "e106d54ee27f550183e786c5f6de70fac3af0ae26042442cb3cb74d0eb1a8d13",
+    "benchmarks/tau2_governed_evolution/formal_state_admission/FORMAL_STATE_ADMISSION_REPORT.md": "8d2f6194ea2933c6c939104add287bdc5a6d4d3f56b4bceedd1407e4a3e3d4fa",
+    "benchmarks/tau2_governed_evolution/formal_state_admission/build_formal_state_admission.py": "c962526a60ec47034eed119dccb411ffd28a6ec9ae0249f527fb9a684dcbfb8e",
+    "benchmarks/tau2_governed_evolution/formal_state_admission/static_validation.json": "f63de9b2d60838a897d9738c3351a0a54f9943f11e9779bd9e089891e07696b1",
+    "benchmarks/tau2_governed_evolution/formal_state_admission/tasks/expanded_tasks.json": "918c8a84ec6da6178d5b98515de2793ab1c3034f2078082ff805b839aacf0a2b",
+    "benchmarks/tau2_governed_evolution/formal_state_admission/contexts/context_manifest.json": "b86e1d4f7c4fadb2766592b0f98eebf0d0a09b3b367aa8b2be6f5c4c7001f029",
+    "benchmarks/tau2_governed_evolution/formal_state_admission/evaluators/success_evaluator_manifest.json": "b7906671ef4e1f949405d28df09a6a4e41ea56004e9a395202d1ccf15d2f3a53",
+    "benchmarks/tau2_governed_evolution/formal_state_admission/metadata/mechanism_manifest.json": "a98aaf6fb626c1c33fc464b5b8ab38a273c5570781facbc708bc2491d0b962d7",
+    "benchmarks/tau2_governed_evolution/formal_state_admission/metadata/expanded_task_metadata.json": "2720da163621735e399ec7209be577da6c32e4ee9f5a4f5a4c52b83a49795dec",
+    "external/tau2-bench/data/tau2/domains/retail/db.json": "413a65160adbdb5fde0ffc0015c49b6d70250b10c18128de169b597af7766765",
+    "external/tau2-bench/src/tau2/domains/retail/tools.py": "34f4fe9702d36f0dd4697700fbcd63d0cf5386e6eb8e7499aaa336243bad8750",
+    "external/tau2-bench/data/tau2/domains/retail/tasks.json": "8e03ebce7901bd6218e7a7dc3105faa9324091a68058f7fe61c65262868812e8",
+    "external/tau2-bench/data/tau2/domains/retail/policy.md": "2c9652afbce57d6e087768d37cda64d31c53d50b3e3225cfdb791bac66466467",
+    "benchmarks/tau2_governed_evolution/phase_a_final_context/retail_phase_a_final_v1.md": "36d9a167f3d21099c5d2e0e2f88ca15ed62b0e80979da0cff104e5a3f52a2493",
+    "benchmarks/tau2_governed_evolution/existing_mechanism_state_coverage_audit/state_inventory.json": "c44d85e07d7f7d62082d6285367a97087935e864da6d46b4c96478edc6f66ac2"
+  },
+  "static_validation": {
+    "json_parse": true,
+    "native_ownership_and_profile_order_membership": true,
+    "audited_bundle_user_resource_order_disjointness": true,
+    "baseline_user_disjointness": true,
+    "positive_single_item_availability_same_product_different_options": true,
+    "decimal_refund_and_threshold_arithmetic": true,
+    "source_payment_and_status_preconditions": true,
+    "protected_source_and_benchmark_hashes_unchanged": true,
+    "only_five_requested_artifacts": true,
+    "backend_executed": false
+  }
+}

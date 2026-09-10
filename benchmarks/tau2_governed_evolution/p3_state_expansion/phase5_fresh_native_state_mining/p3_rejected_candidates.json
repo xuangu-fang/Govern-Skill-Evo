@@ -1,0 +1,545 @@
+{
+  "schema_version": "1.0",
+  "pool_id": "P3_NATIVE_CANDIDATE_POOL_V1",
+  "benchmark_id": "PHASE_A_UNIFIED_BENCHMARK_STATE_EXPANDED_V1",
+  "canonical_P3_definition": "cancellation refund resource rebound / mutation-induced resource refresh dependency",
+  "admission_basis": "static structural P3 validity only; no Base outcomes",
+  "execution": {
+    "phase5_complete": true,
+    "model_calls": 0,
+    "rollouts": 0,
+    "judge_calls": 0,
+    "backend_mutation_calls": 0,
+    "benchmark_modifications": 0,
+    "task_prompts_written": 0,
+    "evaluators_implemented": 0,
+    "calibration": false,
+    "skill_evolution": false,
+    "gate": false,
+    "train_monitor_split": false,
+    "counter_scope": "本实验的模型/评测调用；静态阅读、标准库 JSON/算术及报告生成。"
+  },
+  "rejected_candidates": [
+    {
+      "candidate_id": "P3_NATIVE_005",
+      "state_id": "retail:raj_sanchez_2970:#W1067251->#W4566809:gift_card_2259499",
+      "user_id": "raj_sanchez_2970",
+      "source_order": "#W1067251",
+      "downstream_order": "#W4566809",
+      "resource_id": "gift_card_2259499",
+      "upstream_mutation": "RETURN_REQUEST_TO_GIFTCARD",
+      "resource_changed": {
+        "kind": "gift_card.balance",
+        "before": 30.0,
+        "credit": 0,
+        "after_upstream_derived": 30.0,
+        "downstream_cost": 826.7,
+        "after_downstream_derived": null
+      },
+      "downstream_dependency": "尝试后续将 #W4566809 整单 826.70 改为 gift card 支付；当前 30.00 不足，源操作不能释放可用资金。",
+      "P3_MANIFESTATION_TYPE": "RETURN_REQUEST_TO_GIFTCARD -> EXISTING_ORDER_PAYMENT_REPLACEMENT (unsupported)",
+      "independent": true,
+      "independence_basis": "不同原生用户、源/目标订单、gift card，无本轮候选和已有 P3 重叠。",
+      "correct_path_exists": false,
+      "correct_path": [
+        "此 P3 链无 clean path。",
+        "return_delivered_order_items 仅设置 return requested / return_items / return_payment_method_id，不记账、不增加余额。",
+        "合法 return/exchange 请求本身可完成（processed cancellation 则不可），但不能据此假定余额已到账。"
+      ],
+      "evaluator_feasible": false,
+      "success_evaluator_feasibility": {
+        "reason": "该 proposed P3 goal 无真实 backend resource rebound；不能把申请完成等同即时退款。"
+      },
+      "task_specific_hint_required": false,
+      "hint_note": "任何提示均不能修复不存在的 backend 记账/不允许的取消；不得人工补余额或改 status。",
+      "same_manifestation_as_existing": false,
+      "diversity_vs_existing": "不计入 manifestation coverage。",
+      "stale_state_failure_mode": "原生余额未改变；使用旧余额并不会错。若凭退款请求推定入账，属于虚构资源状态，不是 stale pre-mutation resource。",
+      "verdict": "NOT_P3",
+      "rejection_reason": "return_delivered_order_items 仅设置 return requested / return_items / return_payment_method_id，不记账、不增加余额。",
+      "recommended_for_next_realization": false,
+      "native_evidence": {
+        "user_id": "raj_sanchez_2970",
+        "source_order": {
+          "order_id": "#W1067251",
+          "user_id": "raj_sanchez_2970",
+          "status": "delivered",
+          "items": [
+            {
+              "name": "Wireless Earbuds",
+              "product_id": "9924732112",
+              "item_id": "6452271382",
+              "price": 258.84,
+              "options": {
+                "color": "blue",
+                "battery life": "4 hours",
+                "water resistance": "IPX4"
+              }
+            },
+            {
+              "name": "Grill",
+              "product_id": "6819683148",
+              "item_id": "7848293342",
+              "price": 942.71,
+              "options": {
+                "type": "charcoal",
+                "size": "medium",
+                "features": "side burner"
+              }
+            }
+          ],
+          "payment_history": [
+            {
+              "transaction_type": "payment",
+              "amount": 1201.55,
+              "payment_method_id": "credit_card_3362387"
+            }
+          ]
+        },
+        "downstream_order": {
+          "order_id": "#W4566809",
+          "user_id": "raj_sanchez_2970",
+          "status": "pending",
+          "items": [
+            {
+              "name": "Indoor Security Camera",
+              "product_id": "2985987096",
+              "item_id": "1569829406",
+              "price": 320.55,
+              "options": {
+                "resolution": "1080p",
+                "field of view": "160 degrees",
+                "connectivity": "Ethernet"
+              }
+            },
+            {
+              "name": "Air Purifier",
+              "product_id": "3821016478",
+              "item_id": "5826601160",
+              "price": 506.15,
+              "options": {
+                "room size": "medium",
+                "filter type": "carbon",
+                "features": "night mode"
+              }
+            }
+          ],
+          "payment_history": [
+            {
+              "transaction_type": "payment",
+              "amount": 826.7,
+              "payment_method_id": "credit_card_3362387"
+            }
+          ]
+        },
+        "payment_methods": {
+          "credit_card_3362387": {
+            "source": "credit_card",
+            "id": "credit_card_3362387",
+            "brand": "mastercard",
+            "last_four": "2130"
+          },
+          "gift_card_2259499": {
+            "source": "gift_card",
+            "id": "gift_card_2259499",
+            "balance": 30.0
+          }
+        },
+        "both_orders_listed_in_user_profile": true
+      },
+      "duplicate_aliases": [],
+      "potential_separable_vf_note": "不展开；不构造 composition。",
+      "backend_evidence": [
+        "external/tau2-bench/src/tau2/domains/retail/tools.py:664-725"
+      ],
+      "native_witness": {
+        "return_item_ids": [
+          "6452271382",
+          "7848293342"
+        ],
+        "requested_refund_destination": "gift_card_2259499",
+        "order_paid_amount": 1201.55,
+        "actual_immediate_credit": 0
+      },
+      "native_task_object_references": [],
+      "reference_note": "单个订单在旧 task 中出现不等于同一完整 transaction bundle alias；不复用 prompt 或 evaluator。"
+    },
+    {
+      "candidate_id": "P3_NATIVE_006",
+      "state_id": "retail:ivan_khan_7475:#W1519594->#W7032009:gift_card_1711656",
+      "user_id": "ivan_khan_7475",
+      "source_order": "#W1519594",
+      "downstream_order": "#W7032009",
+      "resource_id": "gift_card_1711656",
+      "upstream_mutation": "CHEAPER_DELIVERED_EXCHANGE_REQUEST",
+      "resource_changed": {
+        "kind": "gift_card.balance",
+        "before": 62.0,
+        "credit": 0,
+        "after_upstream_derived": 62.0,
+        "downstream_cost": 724.34,
+        "after_downstream_derived": null
+      },
+      "downstream_dependency": "尝试后续将 #W7032009 整单 724.34 改为 gift card 支付；当前 62.00 不足，源操作不能释放可用资金。",
+      "P3_MANIFESTATION_TYPE": "CHEAPER_DELIVERED_EXCHANGE_REQUEST -> EXISTING_ORDER_PAYMENT_REPLACEMENT (unsupported)",
+      "independent": true,
+      "independence_basis": "不同原生用户、源/目标订单、gift card，无本轮候选和已有 P3 重叠。",
+      "correct_path_exists": false,
+      "correct_path": [
+        "此 P3 链无 clean path。",
+        "exchange_delivered_order_items 只记录 exchange requested 与差价，不即时退款/改变余额。",
+        "合法 return/exchange 请求本身可完成（processed cancellation 则不可），但不能据此假定余额已到账。"
+      ],
+      "evaluator_feasible": false,
+      "success_evaluator_feasibility": {
+        "reason": "该 proposed P3 goal 无真实 backend resource rebound；不能把申请完成等同即时退款。"
+      },
+      "task_specific_hint_required": false,
+      "hint_note": "任何提示均不能修复不存在的 backend 记账/不允许的取消；不得人工补余额或改 status。",
+      "same_manifestation_as_existing": false,
+      "diversity_vs_existing": "不计入 manifestation coverage。",
+      "stale_state_failure_mode": "原生余额未改变；使用旧余额并不会错。若凭退款请求推定入账，属于虚构资源状态，不是 stale pre-mutation resource。",
+      "verdict": "NOT_P3",
+      "rejection_reason": "exchange_delivered_order_items 只记录 exchange requested 与差价，不即时退款/改变余额。",
+      "recommended_for_next_realization": false,
+      "native_evidence": {
+        "user_id": "ivan_khan_7475",
+        "source_order": {
+          "order_id": "#W1519594",
+          "user_id": "ivan_khan_7475",
+          "status": "delivered",
+          "items": [
+            {
+              "name": "Electric Kettle",
+              "product_id": "1075968781",
+              "item_id": "9472539378",
+              "price": 143.72,
+              "options": {
+                "capacity": "1.5L",
+                "material": "glass",
+                "color": "white"
+              }
+            },
+            {
+              "name": "Wireless Earbuds",
+              "product_id": "9924732112",
+              "item_id": "1646531091",
+              "price": 232.49,
+              "options": {
+                "color": "blue",
+                "battery life": "6 hours",
+                "water resistance": "IPX4"
+              }
+            }
+          ],
+          "payment_history": [
+            {
+              "transaction_type": "payment",
+              "amount": 376.21,
+              "payment_method_id": "gift_card_1711656"
+            }
+          ]
+        },
+        "downstream_order": {
+          "order_id": "#W7032009",
+          "user_id": "ivan_khan_7475",
+          "status": "pending",
+          "items": [
+            {
+              "name": "Air Purifier",
+              "product_id": "3821016478",
+              "item_id": "7166996157",
+              "price": 518.31,
+              "options": {
+                "room size": "small",
+                "filter type": "HEPA",
+                "features": "night mode"
+              }
+            },
+            {
+              "name": "Backpack",
+              "product_id": "2524789262",
+              "item_id": "8054888773",
+              "price": 206.03,
+              "options": {
+                "color": "grey",
+                "size": "small",
+                "material": "nylon",
+                "compartment": "laptop"
+              }
+            }
+          ],
+          "payment_history": [
+            {
+              "transaction_type": "payment",
+              "amount": 724.34,
+              "payment_method_id": "paypal_7729105"
+            }
+          ]
+        },
+        "payment_methods": {
+          "gift_card_1711656": {
+            "source": "gift_card",
+            "id": "gift_card_1711656",
+            "balance": 62.0
+          },
+          "paypal_7729105": {
+            "source": "paypal",
+            "id": "paypal_7729105"
+          }
+        },
+        "both_orders_listed_in_user_profile": true
+      },
+      "duplicate_aliases": [],
+      "potential_separable_vf_note": "不展开；不构造 composition。",
+      "backend_evidence": [
+        "external/tau2-bench/src/tau2/domains/retail/tools.py:208-284"
+      ],
+      "native_witness": {
+        "old_item": "9472539378",
+        "new_item": "1240311797",
+        "old_price": 143.72,
+        "new_price": 137.17,
+        "recorded_exchange_difference": -6.55,
+        "actual_immediate_credit": 0,
+        "new_variant": {
+          "item_id": "1240311797",
+          "options": {
+            "capacity": "1L",
+            "material": "glass",
+            "color": "silver"
+          },
+          "available": true,
+          "price": 137.17
+        }
+      },
+      "native_task_object_references": [],
+      "reference_note": "单个订单在旧 task 中出现不等于同一完整 transaction bundle alias；不复用 prompt 或 evaluator。"
+    },
+    {
+      "candidate_id": "P3_NATIVE_007",
+      "state_id": "retail:ethan_garcia_1261:#W4967593->#W9911714:gift_card_4332117",
+      "user_id": "ethan_garcia_1261",
+      "source_order": "#W4967593",
+      "downstream_order": "#W9911714",
+      "resource_id": "gift_card_4332117",
+      "upstream_mutation": "CANCEL_PROCESSED_ORDER",
+      "resource_changed": {
+        "kind": "gift_card.balance",
+        "before": 86.0,
+        "credit": 0,
+        "after_upstream_derived": 86.0,
+        "downstream_cost": 671.66,
+        "after_downstream_derived": null
+      },
+      "downstream_dependency": "尝试后续将 #W9911714 整单 671.66 改为 gift card 支付；当前 86.00 不足，源操作不能释放可用资金。",
+      "P3_MANIFESTATION_TYPE": "CANCEL_PROCESSED_ORDER -> EXISTING_ORDER_PAYMENT_REPLACEMENT (unsupported)",
+      "independent": true,
+      "independence_basis": "不同原生用户、源/目标订单、gift card，无本轮候选和已有 P3 重叠。",
+      "correct_path_exists": false,
+      "correct_path": [
+        "此 P3 链无 clean path。",
+        "源订单原生 status=processed；cancel_pending_order 要求严格 pending，入口即拒绝。",
+        "合法 return/exchange 请求本身可完成（processed cancellation 则不可），但不能据此假定余额已到账。"
+      ],
+      "evaluator_feasible": false,
+      "success_evaluator_feasibility": {
+        "reason": "该 proposed P3 goal 无真实 backend resource rebound；不能把申请完成等同即时退款。"
+      },
+      "task_specific_hint_required": false,
+      "hint_note": "任何提示均不能修复不存在的 backend 记账/不允许的取消；不得人工补余额或改 status。",
+      "same_manifestation_as_existing": false,
+      "diversity_vs_existing": "不计入 manifestation coverage。",
+      "stale_state_failure_mode": "原生余额未改变；使用旧余额并不会错。若凭退款请求推定入账，属于虚构资源状态，不是 stale pre-mutation resource。",
+      "verdict": "INVALID",
+      "rejection_reason": "源订单原生 status=processed；cancel_pending_order 要求严格 pending，入口即拒绝。",
+      "recommended_for_next_realization": false,
+      "native_evidence": {
+        "user_id": "ethan_garcia_1261",
+        "source_order": {
+          "order_id": "#W4967593",
+          "user_id": "ethan_garcia_1261",
+          "status": "processed",
+          "items": [
+            {
+              "name": "Office Chair",
+              "product_id": "4794339885",
+              "item_id": "4168944673",
+              "price": 471.82,
+              "options": {
+                "material": "leather",
+                "color": "blue",
+                "armrest": "none",
+                "backrest height": "standard"
+              }
+            },
+            {
+              "name": "Electric Toothbrush",
+              "product_id": "7352963235",
+              "item_id": "3320557165",
+              "price": 188.67,
+              "options": {
+                "color": "blue",
+                "speed settings": "high",
+                "battery type": "AA batteries"
+              }
+            },
+            {
+              "name": "Backpack",
+              "product_id": "2524789262",
+              "item_id": "8054888773",
+              "price": 206.03,
+              "options": {
+                "color": "grey",
+                "size": "small",
+                "material": "nylon",
+                "compartment": "laptop"
+              }
+            },
+            {
+              "name": "Wristwatch",
+              "product_id": "6066914160",
+              "item_id": "1355937109",
+              "price": 1985.3,
+              "options": {
+                "strap material": "leather",
+                "dial color": "white"
+              }
+            }
+          ],
+          "payment_history": [
+            {
+              "transaction_type": "payment",
+              "amount": 2851.82,
+              "payment_method_id": "gift_card_4332117"
+            }
+          ]
+        },
+        "downstream_order": {
+          "order_id": "#W9911714",
+          "user_id": "ethan_garcia_1261",
+          "status": "pending",
+          "items": [
+            {
+              "name": "Water Bottle",
+              "product_id": "8310926033",
+              "item_id": "2366567022",
+              "price": 54.04,
+              "options": {
+                "capacity": "1000ml",
+                "material": "stainless steel",
+                "color": "blue"
+              }
+            },
+            {
+              "name": "Mechanical Keyboard",
+              "product_id": "1656367028",
+              "item_id": "1340995114",
+              "price": 235.13,
+              "options": {
+                "switch type": "tactile",
+                "backlight": "none",
+                "size": "full size"
+              }
+            },
+            {
+              "name": "Running Shoes",
+              "product_id": "6938111410",
+              "item_id": "9791469541",
+              "price": 147.05,
+              "options": {
+                "size": "9",
+                "color": "yellow",
+                "material": "synthetic",
+                "sole": "rubber"
+              }
+            },
+            {
+              "name": "Makeup Kit",
+              "product_id": "5149340237",
+              "item_id": "1763705424",
+              "price": 235.44,
+              "options": {
+                "skin tone": "dark",
+                "kit size": "professional",
+                "brand": "Brand C"
+              }
+            }
+          ],
+          "payment_history": [
+            {
+              "transaction_type": "payment",
+              "amount": 671.66,
+              "payment_method_id": "paypal_3798357"
+            }
+          ]
+        },
+        "payment_methods": {
+          "paypal_3798357": {
+            "source": "paypal",
+            "id": "paypal_3798357"
+          },
+          "gift_card_4332117": {
+            "source": "gift_card",
+            "id": "gift_card_4332117",
+            "balance": 86.0
+          }
+        },
+        "both_orders_listed_in_user_profile": true
+      },
+      "duplicate_aliases": [],
+      "potential_separable_vf_note": "不展开；不构造 composition。",
+      "backend_evidence": [
+        "external/tau2-bench/src/tau2/domains/retail/tools.py:174-181"
+      ],
+      "native_task_object_references": [
+        {
+          "task_id": "20",
+          "matched_orders": [
+            "#W4967593",
+            "#W9911714"
+          ]
+        },
+        {
+          "task_id": "21",
+          "matched_orders": [
+            "#W4967593",
+            "#W9911714"
+          ]
+        },
+        {
+          "task_id": "22",
+          "matched_orders": [
+            "#W4967593",
+            "#W9911714"
+          ]
+        }
+      ],
+      "reference_note": "单个订单在旧 task 中出现不等于同一完整 transaction bundle alias；不复用 prompt 或 evaluator。"
+    }
+  ],
+  "excluded_existing_baseline_aliases": [
+    {
+      "state_id": "retail:ava_nguyen_6646:#W9892465->#W1242543:gift_card_1994993",
+      "P3_MANIFESTATION_TYPE": "CANCEL_REFUND_TO_GIFTCARD -> EXISTING_ORDER_PAYMENT_REPLACEMENT",
+      "duplicate_aliases": [
+        "retail_pa_v2_w9892465_cancel_funds_w1242543"
+      ],
+      "role": "BASELINE_REFERENCE_ONLY_NOT_MINED_NOT_RERUN"
+    },
+    {
+      "state_id": "retail:emma_martin_6993:#W5432440->#W9432206:gift_card_4129829",
+      "P3_MANIFESTATION_TYPE": "CANCEL_REFUND_TO_GIFTCARD -> EXISTING_ORDER_PAYMENT_REPLACEMENT",
+      "duplicate_aliases": [
+        "retail_pa_v2_w5432440_cancel_funds_w9432206"
+      ],
+      "role": "BASELINE_REFERENCE_ONLY_NOT_MINED_NOT_RERUN"
+    }
+  ],
+  "unsupported_mechanism_notes": [
+    "return requested 不即时入账，不能作为 refund rebound。",
+    "exchange requested 记录差价且可检查已有余额，但不即时记账；可作为 downstream feasibility，不能当 upstream refund。",
+    "没有 new purchase / store credit / payment method creation 工具；available payment set 变化只能表示现有 gift card 的 affordability 变化，不能声称 payment method 对象新增。"
+  ],
+  "not_rejected_for_Base_success": true
+}
