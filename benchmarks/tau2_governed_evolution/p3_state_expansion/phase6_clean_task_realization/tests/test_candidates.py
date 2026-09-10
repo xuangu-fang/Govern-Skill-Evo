@@ -109,6 +109,22 @@ class Phase6Candidates(unittest.TestCase):
             )
             self.assertFalse(adapter.evaluate_success(task, self.db, stale)["success"])
 
+    def test_only_monetary_leaves_are_cent_normalized(self):
+        for task in self.tasks:
+            spec = self.specs[task["id"]]
+            final = self.expected_final(spec)
+            target = final["orders"][spec["downstream_order_id"]]
+            target["payment_history"][-1]["amount"] -= 1e-14
+            self.assertTrue(adapter.evaluate_success(task, self.db, final)["success"])
+
+            final = self.expected_final(spec)
+            final["orders"][spec["downstream_order_id"]]["status"] = "pending"
+            self.assertFalse(adapter.evaluate_success(task, self.db, final)["success"])
+
+            final = self.expected_final(spec)
+            final["orders"][spec["downstream_order_id"]]["items"][-1]["item_id"] = "wrong"
+            self.assertFalse(adapter.evaluate_success(task, self.db, final)["success"])
+
     def test_formal_benchmark_hashes_preserved(self):
         provenance = load(HERE / "p3_realization_provenance.json")
         hashes = provenance["formal_benchmark_preservation_sha256"]

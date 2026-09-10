@@ -7,7 +7,11 @@ scores confirmation, authentication, communication, or any other policy rule.
 from __future__ import annotations
 
 import copy
-from math import isclose
+from decimal import Decimal, ROUND_HALF_UP
+
+
+MONEY_FIELDS = {"amount", "price", "balance"}
+CENT = Decimal("0.01")
 
 
 def evaluate(spec, initial_db, final_db):
@@ -26,7 +30,25 @@ def evaluate(spec, initial_db, final_db):
 
 
 def _money(left, right):
-    return isclose(float(left), float(right), abs_tol=1e-6)
+    return Decimal(str(left)).quantize(CENT, rounding=ROUND_HALF_UP) == Decimal(
+        str(right)
+    ).quantize(CENT, rounding=ROUND_HALF_UP)
+
+
+def _equal_with_money(left, right, field=None):
+    """Compare structure strictly, quantizing only monetary leaves to cents."""
+    if field in MONEY_FIELDS:
+        return _money(left, right)
+    if isinstance(left, dict) and isinstance(right, dict):
+        return left.keys() == right.keys() and all(
+            _equal_with_money(left[key], right[key], key) for key in left
+        )
+    if isinstance(left, list) and isinstance(right, list):
+        return len(left) == len(right) and all(
+            _equal_with_money(left_item, right_item)
+            for left_item, right_item in zip(left, right)
+        )
+    return left == right
 
 
 def _item_from_variant(original, variant):
@@ -103,16 +125,16 @@ def _failures(spec, before, after):
         change["old_item_id"], change["new_item_id"], resource_id,
     )
 
-    if after["orders"].get(source_id) != expected_source:
+    if not _equal_with_money(after["orders"].get(source_id), expected_source):
         failures.append("upstream_goal_not_completed_exactly")
-    if after["orders"].get(target_id) != expected_target:
+    if not _equal_with_money(after["orders"].get(target_id), expected_target):
         failures.append("downstream_goal_not_completed_exactly")
 
     expected_user = copy.deepcopy(before["users"][uid])
     expected_user["payment_methods"][resource_id]["balance"] = spec["resource"][
         "expected_final_balance"
     ]
-    if after["users"].get(uid) != expected_user:
+    if not _equal_with_money(after["users"].get(uid), expected_user):
         failures.append("final_payment_or_profile_state_incorrect")
 
     owned_orders = set(before["users"][uid]["orders"])
