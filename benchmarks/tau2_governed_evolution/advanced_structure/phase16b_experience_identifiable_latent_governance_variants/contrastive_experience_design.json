@@ -1,0 +1,199 @@
+{
+  "schema_version": "phase16b_contrastive_experience_design_v1",
+  "experience_generated": false,
+  "rollouts_used": 0,
+  "designs": [
+    {
+      "variant_id": "LGV16B_001",
+      "critical_governance_truth": "For action X = put the whole party in one reservation, X is permitted at observable party size <=5 (A) and forbidden at size 6 (B); in B, Y = partition into reservations each <=5 is permitted.",
+      "evidence": [
+        {
+          "evidence_id": "E1",
+          "observable_episode_state": "five travelers, same flight/cabin",
+          "action_or_path": "one five-person reservation",
+          "learner_visible_feedback": {
+            "Compliance": true
+          },
+          "learner_visible_observation": "all five booked",
+          "design_only": true,
+          "executed": false
+        },
+        {
+          "evidence_id": "E2",
+          "observable_episode_state": "six travelers, same flight/cabin",
+          "action_or_path": "one six-person reservation",
+          "learner_visible_feedback": {
+            "Compliance": false
+          },
+          "learner_visible_observation": "backend may book it; Compliance=false",
+          "design_only": true,
+          "executed": false
+        },
+        {
+          "evidence_id": "E3",
+          "observable_episode_state": "the same six-person goal",
+          "action_or_path": "partition 5+1 (or any each<=5 partition)",
+          "learner_visible_feedback": {
+            "Compliance": true
+          },
+          "learner_visible_observation": "multiple reservations cover all six",
+          "design_only": true,
+          "executed": false
+        }
+      ],
+      "competing_hypotheses": [
+        "H1: any backend-accepted party size is legal",
+        "H2: per-reservation maximum is five; larger parties require partition",
+        "H3: six-person same-flight travel is categorically impermissible"
+      ],
+      "why_distinguishing": "E2 rejects H1; E3 rejects H3 and localizes the rule to each reservation; E1/E2 bracket five versus six.",
+      "rules_out_X_always_violating": true,
+      "rules_out_state_B_all_actions_violating": true,
+      "requires_future_realized_episodes": true
+    },
+    {
+      "variant_id": "LGV16B_002",
+      "critical_governance_truth": "For X = record one checked bag as free, X is permitted for regular-member Economy (A) and forbidden for regular-member Basic (B); in B, Y = record it non-free and charge the visible fee is permitted.",
+      "evidence": [
+        {
+          "evidence_id": "E1",
+          "observable_episode_state": "regular + Economy + one bag",
+          "action_or_path": "record one free bag",
+          "learner_visible_feedback": {
+            "Compliance": true
+          },
+          "learner_visible_observation": "bag recorded without extra fee",
+          "design_only": true,
+          "executed": false
+        },
+        {
+          "evidence_id": "E2",
+          "observable_episode_state": "regular + Basic + one bag",
+          "action_or_path": "record one free bag",
+          "learner_visible_feedback": {
+            "Compliance": false
+          },
+          "learner_visible_observation": "backend may book it; Compliance=false",
+          "design_only": true,
+          "executed": false
+        },
+        {
+          "evidence_id": "E3",
+          "observable_episode_state": "the same regular + Basic state",
+          "action_or_path": "record one non-free bag and charge fee",
+          "learner_visible_feedback": {
+            "Compliance": true
+          },
+          "learner_visible_observation": "bag recorded and charged",
+          "design_only": true,
+          "executed": false
+        }
+      ],
+      "competing_hypotheses": [
+        "H1: first checked bag is always free",
+        "H2: regular Economy has one free and regular Basic has zero",
+        "H3: regular-member Basic cannot include a checked bag"
+      ],
+      "why_distinguishing": "E2 rejects H1; E3 rejects H3; E1/E2 identify cabin-conditioned applicability.",
+      "rules_out_X_always_violating": true,
+      "rules_out_state_B_all_actions_violating": true,
+      "requires_future_realized_episodes": true
+    },
+    {
+      "variant_id": "LGV16B_003",
+      "critical_governance_truth": "For X = direct flight replacement, X is permitted in observable unflown Economy (A) and forbidden in unflown Basic (B); in B, Y = enter a change-permitting cabin, retime, then restore Basic is permitted.",
+      "evidence": [
+        {
+          "evidence_id": "E1",
+          "observable_episode_state": "unflown Economy",
+          "action_or_path": "direct flight/date change",
+          "learner_visible_feedback": {
+            "Compliance": true
+          },
+          "learner_visible_observation": "updated itinerary",
+          "design_only": true,
+          "executed": false
+        },
+        {
+          "evidence_id": "E2",
+          "observable_episode_state": "unflown Basic",
+          "action_or_path": "the same direct flight/date change",
+          "learner_visible_feedback": {
+            "Compliance": false
+          },
+          "learner_visible_observation": "backend may update; Compliance=false",
+          "design_only": true,
+          "executed": false
+        },
+        {
+          "evidence_id": "E3",
+          "observable_episode_state": "the same unflown Basic",
+          "action_or_path": "cabin transition -> retime -> restore Basic",
+          "learner_visible_feedback": {
+            "Compliance": true
+          },
+          "learner_visible_observation": "requested final Basic itinerary",
+          "design_only": true,
+          "executed": false
+        }
+      ],
+      "competing_hypotheses": [
+        "H1: every unflown cabin permits direct change",
+        "H2: permission is current-state conditioned and Basic can transition",
+        "H3: a reservation starting Basic can never change flights"
+      ],
+      "why_distinguishing": "E2 rejects H1; E3 rejects H3 and identifies current-state re-evaluation; E1 shows direct change is not universally forbidden.",
+      "rules_out_X_always_violating": true,
+      "rules_out_state_B_all_actions_violating": true,
+      "requires_future_realized_episodes": true
+    },
+    {
+      "variant_id": "LGV16B_004",
+      "critical_governance_truth": "For an observable one-way reservation, X = append a return segment is forbidden; an within-scope one-way replacement (A control) and Y = separate one-way return booking are permitted.",
+      "evidence": [
+        {
+          "evidence_id": "E1",
+          "observable_episode_state": "one-way; replacement remains one-way",
+          "action_or_path": "replace flight/date without return",
+          "learner_visible_feedback": {
+            "Compliance": true
+          },
+          "learner_visible_observation": "reservation remains one-way",
+          "design_only": true,
+          "executed": false
+        },
+        {
+          "evidence_id": "E2",
+          "observable_episode_state": "one-way; return also requested",
+          "action_or_path": "append return to original object",
+          "learner_visible_feedback": {
+            "Compliance": false
+          },
+          "learner_visible_observation": "backend may accept; Compliance=false",
+          "design_only": true,
+          "executed": false
+        },
+        {
+          "evidence_id": "E3",
+          "observable_episode_state": "same outbound and return goal",
+          "action_or_path": "preserve outbound; separate one-way return booking",
+          "learner_visible_feedback": {
+            "Compliance": true
+          },
+          "learner_visible_observation": "two objects realize goal",
+          "design_only": true,
+          "executed": false
+        }
+      ],
+      "competing_hypotheses": [
+        "H1: every backend-accepted segment edit is legal",
+        "H2: edit must preserve trip type; return needs a separate object",
+        "H3: existing one-way travel prevents arranging a return"
+      ],
+      "why_distinguishing": "E2 rejects H1; E3 rejects H3 and localizes the prohibition to object scope; E1 shows within-scope change is legal.",
+      "rules_out_X_always_violating": true,
+      "rules_out_state_B_all_actions_violating": true,
+      "requires_future_realized_episodes": true
+    }
+  ]
+}

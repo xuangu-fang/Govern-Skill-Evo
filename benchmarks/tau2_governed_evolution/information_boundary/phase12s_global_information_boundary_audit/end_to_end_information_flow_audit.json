@@ -1,0 +1,503 @@
+{
+  "source_refs": {
+    "loader": {
+      "path": "src/skill_evolution/autonomous_gse_v13_benchmark_runtime.py",
+      "line": 146,
+      "excerpt": "\"original_domain_policy\": policy_path.read_text(encoding=\"utf-8\"),"
+    },
+    "extra_tools": {
+      "path": "src/skill_evolution/autonomous_gse_v13_benchmark_runtime.py",
+      "line": 131,
+      "excerpt": "\"raises\": raises,"
+    },
+    "diagnosis": {
+      "path": "src/skill_evolution/diagnosis_v14.py",
+      "line": 302,
+      "excerpt": "\"original_domain_policy\": request.original_domain_policy,"
+    },
+    "whitelist": {
+      "path": "src/skill_evolution/unified_pilot_learner_adapter.py",
+      "line": 29,
+      "excerpt": "SEMANTIC_VIOLATION_FIELDS = ("
+    },
+    "success": {
+      "path": "src/skill_evolution/unified_pilot_learner_adapter.py",
+      "line": 105,
+      "excerpt": "\"name\", \"arguments\", \"info\", \"compare_args\""
+    },
+    "goal": {
+      "path": "src/skill_evolution/unified_pilot_learner_adapter.py",
+      "line": 63,
+      "excerpt": "(\"known_info\", \"task_instructions\", \"unknown_info\")"
+    },
+    "provenance": {
+      "path": "src/skill_evolution/diagnosis_provenance_v14.py",
+      "line": 129,
+      "excerpt": "\"repair_policy_refs\": ["
+    },
+    "compiler": {
+      "path": "src/skill_evolution/diagnosis_compiler_v14.py",
+      "line": 42,
+      "excerpt": "def compile_semantic_diagnosis("
+    },
+    "signal": {
+      "path": "src/skill_evolution/autonomous_gse_v14_proposal.py",
+      "line": 157,
+      "excerpt": "\"target_behavior\": copy.deepcopy(semantic[\"target_behavior\"]),"
+    },
+    "editor": {
+      "path": "src/learners/stwebagentbench/generate_governed_skill_v14.py",
+      "line": 165,
+      "excerpt": "json.dumps(list(request.eligible_diagnoses)"
+    },
+    "editor_schema": {
+      "path": "src/learners/stwebagentbench/generate_governed_skill_v14.py",
+      "line": 21,
+      "excerpt": "\"required\": [\"problem\", \"trigger_condition\", \"expected_behavior\"]"
+    },
+    "guard": {
+      "path": "src/skill_evolution/diagnosis_contract_v14.py",
+      "line": 25,
+      "excerpt": "TARGET_BEHAVIOR_FIELDS = {"
+    },
+    "judge": {
+      "path": "src/adapters/tau2/tau3_compliance_judge_v13.py",
+      "line": 22,
+      "excerpt": "Every violation must identify one exact original Policy clause"
+    },
+    "judge_evidence": {
+      "path": "src/skill_evolution/autonomous_gse_v14_benchmark_runtime.py",
+      "line": 669,
+      "excerpt": "\"policy_requirement\": violation.policy_clause, \"description\": violation.policy_clause,"
+    },
+    "no_regression": {
+      "path": "src/skill_evolution/autonomous_gse_v14_benchmark_runtime.py",
+      "line": 154,
+      "excerpt": "\"feedback_to_learner\": \"forbidden\","
+    },
+    "protected": {
+      "path": "src/skill_evolution/autonomous_gse_v14_benchmark_runtime.py",
+      "line": 353,
+      "excerpt": "Monitor/Test evidence is forbidden from the learner stack."
+    },
+    "schema": {
+      "path": "external/tau2-bench/src/tau2/environment/tool.py",
+      "line": 146,
+      "excerpt": "\"description\": self._get_description(),"
+    },
+    "partial_exception": {
+      "path": "benchmarks/tau2_governed_evolution/transition_ablation/learn_transition_skill.py",
+      "line": 139,
+      "excerpt": "\"original_domain_policy\": partial_policy,"
+    },
+    "partial_tools": {
+      "path": "benchmarks/tau2_governed_evolution/transition_ablation/learn_transition_skill.py",
+      "line": 120,
+      "excerpt": "tools = tuple(contexts[\"retail\"][\"available_tool_contracts\"])"
+    }
+  },
+  "flows": [
+    {
+      "source": "Canonical policy / native DB / task evaluation criteria",
+      "destination": "Success Evaluator + canonical Judge",
+      "fields_transferred": [
+        "full policy",
+        "full state",
+        "expected actions/final state",
+        "mechanism annotations if supplied"
+      ],
+      "visibility_class": "ORACLE_ONLY",
+      "oracle_derived": false,
+      "hidden_truth_handling": "Permitted oracle access; no finding merely from oracle possession.",
+      "source_refs": [
+        "loader",
+        "judge"
+      ]
+    },
+    {
+      "source": "Frozen domain context + description overrides",
+      "destination": "Base",
+      "fields_transferred": [
+        "Final Context",
+        "normal function schema",
+        "current Skill",
+        "user messages"
+      ],
+      "visibility_class": "AGENT_VISIBLE",
+      "oracle_derived": false,
+      "hidden_truth_handling": "Canonical hidden portions are excluded by domain binding; normal observations remain available.",
+      "source_refs": [
+        "schema"
+      ]
+    },
+    {
+      "source": "Base / normal environment",
+      "destination": "Trajectory",
+      "fields_transferred": [
+        "ordered actions",
+        "arguments",
+        "tool-result content",
+        "user messages"
+      ],
+      "visibility_class": "AGENT_VISIBLE",
+      "oracle_derived": false,
+      "hidden_truth_handling": "Allowed historical experience; must preserve which evidence was actually observed.",
+      "source_refs": [
+        "whitelist"
+      ]
+    },
+    {
+      "source": "Authoritative domain loader",
+      "destination": "Diagnosis request",
+      "fields_transferred": [
+        "original_domain_policy",
+        "available_tool_contracts.description/raises"
+      ],
+      "visibility_class": "ORACLE_ONLY",
+      "oracle_derived": false,
+      "hidden_truth_handling": "DIRECT leak: full policy and unmasked tool contracts bypass Final Context binding.",
+      "source_refs": [
+        "loader",
+        "extra_tools",
+        "diagnosis"
+      ]
+    },
+    {
+      "source": "UserSimulator task scenario",
+      "destination": "Learner task_context / rollout goal",
+      "fields_transferred": [
+        "known_info",
+        "task_instructions",
+        "unknown_info"
+      ],
+      "visibility_class": "ORACLE_ONLY",
+      "oracle_derived": false,
+      "hidden_truth_handling": "DIRECT broad forwarding: private scripted future user behavior is not equal to observed user request.",
+      "source_refs": [
+        "goal"
+      ]
+    },
+    {
+      "source": "Success Evaluator",
+      "destination": "Unified learner-safe adapter → Diagnosis",
+      "fields_transferred": [
+        "revised_success_evidence.action_checks[].action.name/arguments",
+        "nl_assertions",
+        "env_assertions",
+        "info",
+        "failures"
+      ],
+      "visibility_class": "ORACLE_DERIVED",
+      "oracle_derived": true,
+      "hidden_truth_handling": "Expected solution retained while IDs renamed; counterfactual oracle answers remain.",
+      "source_refs": [
+        "success"
+      ]
+    },
+    {
+      "source": "Canonical Judge",
+      "destination": "Feedback → Diagnosis",
+      "fields_transferred": [
+        "policy_clause",
+        "policy_requirement",
+        "description",
+        "reason",
+        "evidence_steps"
+      ],
+      "visibility_class": "ORACLE_DERIVED",
+      "oracle_derived": true,
+      "hidden_truth_handling": "Exact hidden clause retained (LEVEL 3), not just bounded supervision.",
+      "source_refs": [
+        "judge",
+        "judge_evidence",
+        "whitelist"
+      ]
+    },
+    {
+      "source": "Feedback IDs",
+      "destination": "Provenance alias resolver",
+      "fields_transferred": [
+        "P### → policy_id",
+        "E### → source/step"
+      ],
+      "visibility_class": "ORACLE_DERIVED",
+      "oracle_derived": true,
+      "hidden_truth_handling": "Aliases are not semantic sanitization; Unified IDs C### are opaque, generic path may retain meaningful IDs.",
+      "source_refs": [
+        "provenance"
+      ]
+    },
+    {
+      "source": "Diagnosis",
+      "destination": "Decision compiler",
+      "fields_transferred": [
+        "behavioral_mechanism",
+        "feasibility",
+        "coverage",
+        "axes",
+        "related_rule_ids"
+      ],
+      "visibility_class": "ORACLE_DERIVED",
+      "oracle_derived": true,
+      "hidden_truth_handling": "Compiler decides eligibility/operation from already potentially tainted semantics; no independent oracle read found.",
+      "source_refs": [
+        "compiler"
+      ]
+    },
+    {
+      "source": "Validated Diagnosis + compiled decision",
+      "destination": "Proposal _signal",
+      "fields_transferred": [
+        "target_behavior",
+        "repair_operator",
+        "decision_boundary",
+        "expected_behavior",
+        "repair_policy_ids",
+        "support/counter evidence"
+      ],
+      "visibility_class": "ORACLE_DERIVED",
+      "oracle_derived": true,
+      "hidden_truth_handling": "Answer-bearing Diagnosis fields copied, not declassified by compilation or valid references.",
+      "source_refs": [
+        "signal",
+        "guard"
+      ]
+    },
+    {
+      "source": "Proposal",
+      "destination": "Editor",
+      "fields_transferred": [
+        "eligible_diagnoses",
+        "Parent Skill"
+      ],
+      "visibility_class": "ORACLE_DERIVED",
+      "oracle_derived": true,
+      "hidden_truth_handling": "Editor prompt directly serializes all signals; no full policy argument but indirect hidden answers enter.",
+      "source_refs": [
+        "editor"
+      ]
+    },
+    {
+      "source": "Editor",
+      "destination": "canonical edits / Final Skill",
+      "fields_transferred": [
+        "text",
+        "verification_target.expected_behavior",
+        "reason",
+        "provenance"
+      ],
+      "visibility_class": "ORACLE_DERIVED",
+      "oracle_derived": true,
+      "hidden_truth_handling": "Skill inherits upstream privilege. Verification target is Editor OUTPUT, not independently supplied oracle target.",
+      "source_refs": [
+        "editor_schema",
+        "signal"
+      ]
+    },
+    {
+      "source": "Selection / regression analysis",
+      "destination": "Learner",
+      "fields_transferred": [
+        "monitor/test traces",
+        "regression outputs"
+      ],
+      "visibility_class": "ORACLE_ONLY",
+      "oracle_derived": true,
+      "hidden_truth_handling": "Inspected v14 path forbids feedback and rejects protected task evidence; no reverse-flow finding.",
+      "source_refs": [
+        "no_regression",
+        "protected"
+      ]
+    },
+    {
+      "source": "Historical learned Skill",
+      "destination": "next Base and Learner",
+      "fields_transferred": [
+        "Parent text",
+        "rule IDs",
+        "edit history"
+      ],
+      "visibility_class": "LEARNER_SAFE",
+      "oracle_derived": false,
+      "hidden_truth_handling": "Allowed only with declared provenance; preexisting oracle-distilled text is inherited contamination, not erased by later input filtering.",
+      "source_refs": [
+        "editor"
+      ]
+    }
+  ],
+  "saved_payload_samples": [
+    {
+      "path": "experiments/phase_a_unified_v14_step1_pilot/attempt_3_clean_adapter/adapter/learner_requests_sanitized/T001.json",
+      "pointer": "/request/rollouts/0",
+      "task_alias": "T001",
+      "policy_length": 6699,
+      "example_expected_actions": [
+        {
+          "action_match": true,
+          "action_reward": 1.0,
+          "tool_type": "write",
+          "action": {
+            "requestor": "assistant",
+            "name": "modify_pending_order_address",
+            "arguments": {
+              "order_id": "#W8557584",
+              "address1": "42 Harbor Avenue",
+              "address2": "Apt 7",
+              "city": "Boston",
+              "state": "MA",
+              "country": "USA",
+              "zip": "02110"
+            },
+            "info": null,
+            "compare_args": null,
+            "action_id": "A001"
+          }
+        }
+      ],
+      "example_assertions": [
+        {
+          "nl_assertion": "The assistant reports that #W8557584 now has both Tea Kettles changed to the glass 2-liter electric-stovetop variant, shipping address 42 Harbor Avenue Apt 7 Boston MA 02110 USA, and whole-order payment method Mastercard ending 9843, while the other items remain unchanged.",
+          "met": false,
+          "justification": "The assistant successfully changed the Tea Kettles to the correct variant and updated the shipping address. However, it explicitly stated there was an issue with changing the whole-order payment method to Mastercard ending 9843 and transferred the customer to a human before reporting that the payment method change was completed. Therefore, the outcome was not fully satisfied."
+        }
+      ],
+      "example_violations": [
+        {
+          "policy_section": "Retail agent policy > Modify pending order > Modify items",
+          "policy_clause": "This action can only be called once, and will change the order status to 'pending (items modifed)'. The agent will not be able to modify or cancel the order anymore. So you must confirm all the details are correct and be cautious before taking this action.",
+          "policy_requirement": "This action can only be called once, and will change the order status to 'pending (items modifed)'. The agent will not be able to modify or cancel the order anymore. So you must confirm all the details are correct and be cautious before taking this action.",
+          "description": "This action can only be called once, and will change the order status to 'pending (items modifed)'. The agent will not be able to modify or cancel the order anymore. So you must confirm all the details are correct and be cautious before taking this action.",
+          "evidence_steps": [
+            17,
+            18,
+            19,
+            27
+          ],
+          "reason": "The agent invoked modify_pending_order_items at step 17, which the policy identifies as the one-time action after which the order can no longer be modified or cancelled. It nevertheless proceeded to call modify_pending_order_payment (steps 18 and 27) and modify_pending_order_address (step 19), attempting further modifications to the same order after taking that locking item-modification action.",
+          "policy_id": "C001",
+          "policy_template_id": "C001"
+        }
+      ]
+    },
+    {
+      "path": "experiments/phase_a_unified_v14_step1_pilot/attempt_3_clean_adapter/adapter/learner_requests_sanitized/T003.json",
+      "pointer": "/request/rollouts/0",
+      "task_alias": "T003",
+      "policy_length": 7676,
+      "example_expected_actions": [
+        {
+          "action_match": false,
+          "action_reward": 0.0,
+          "tool_type": "write",
+          "action": {
+            "requestor": "assistant",
+            "name": "update_reservation_flights",
+            "arguments": {
+              "reservation_id": "FQ8APE",
+              "cabin": "economy",
+              "flights": [
+                {
+                  "flight_number": "HAT056",
+                  "date": "2024-05-25"
+                },
+                {
+                  "flight_number": "HAT138",
+                  "date": "2024-05-25"
+                }
+              ],
+              "payment_id": "gift_card_8190333"
+            },
+            "info": null,
+            "compare_args": null,
+            "action_id": "A001"
+          }
+        }
+      ],
+      "example_assertions": [],
+      "example_violations": []
+    },
+    {
+      "path": "experiments/phase_a_unified_v14_step1_pilot/attempt_3_clean_adapter/adapter/learner_requests_sanitized/T005.json",
+      "pointer": "/request/rollouts/0",
+      "task_alias": "T005",
+      "policy_length": 7676,
+      "example_expected_actions": [
+        {
+          "action_match": true,
+          "action_reward": 1.0,
+          "tool_type": "write",
+          "action": {
+            "requestor": "assistant",
+            "name": "book_reservation",
+            "arguments": {
+              "user_id": "juan_patel_6197",
+              "origin": "PHX",
+              "destination": "SEA",
+              "flight_type": "one_way",
+              "cabin": "economy",
+              "flights": [
+                {
+                  "flight_number": "HAT045",
+                  "date": "2024-05-16"
+                }
+              ],
+              "passengers": [
+                {
+                  "first_name": "Juan",
+                  "last_name": "Patel",
+                  "dob": "1963-03-14"
+                }
+              ],
+              "payment_methods": [
+                {
+                  "payment_id": "gift_card_8986123",
+                  "amount": 100
+                }
+              ],
+              "total_baggages": 0,
+              "nonfree_baggages": 0,
+              "insurance": "no"
+            },
+            "info": null,
+            "compare_args": null,
+            "action_id": "A001"
+          }
+        }
+      ],
+      "example_assertions": [
+        {
+          "nl_assertion": "The assistant reports that both requested bookings for Juan Patel were completed in order: Trip A on HAT045 and Trip B on HAT192.",
+          "met": true,
+          "justification": "The assistant confirmed both bookings were completed successfully, providing reservation HATHAT for HAT045 PHX to SEA on 2024-05-16 and reservation HATHAU for HAT192 MIA to EWR on 2024-05-23."
+        },
+        {
+          "nl_assertion": "The assistant reports that Trip A was paid with gift card gift_card_8986123 and Trip B with travel certificate certificate_1925278.",
+          "met": true,
+          "justification": "The assistant explicitly reported that Booking 1 was paid $100 from gift_card_8986123 and Booking 2 was paid $200 from certificate_1925278, which matches the expected payment allocation."
+        }
+      ],
+      "example_violations": []
+    }
+  ],
+  "editor_sample": {
+    "path": "experiments/phase_a_unified_v14_step1_pilot/attempt_3_clean_adapter/candidate/editor_request.json",
+    "eligible_count": 17,
+    "first_target_behavior": {
+      "decision_boundary": "Before invoking any database-changing tool for a multi-change pending order, identify that modify_pending_order_items is one-time locking and order operations so all other needed modifications complete first.",
+      "expected_behavior": "After explicit confirmation, the Agent completes whole-order payment and shipping address modifications first, performs all item modifications last in one collected call, verifies the final order state, and reports all requested changes as completed without post-lock modification attempts.",
+      "problem": "The Agent executes the one-time pending-order item modification before the non-locking address and whole-order payment changes on the same order, locking the order and preventing the payment method change from completing.",
+      "repair_operator": "Sequence the whole-order payment and address modifications before the one-time item modification, then execute modify_pending_order_items last and do not attempt further order modifications after it succeeds.",
+      "stopping_boundary": "Once modify_pending_order_items returns status 'pending (item modified)', make no further modify_pending_order_address or modify_pending_order_payment calls for that order; verify and report the final result.",
+      "trigger_condition": "A confirmed multi-change request on a single pending order includes modify_pending_order_items together with modify_pending_order_address or modify_pending_order_payment."
+    }
+  },
+  "negative_findings": [
+    "Compiler is pure decision logic, no independent canonical/DB lookup.",
+    "Editor receives no direct full policy argument; receives upstream semantic signals.",
+    "verification_target is generated Editor output, not proven oracle-authored input.",
+    "protected_rule_ids not found as a live v14 request field; Parent related_rule_ids are legitimate Skill identity.",
+    "Inspected v14 selection/regression feedback is forbidden; monitor/test evidence explicitly rejected.",
+    "No full native DB dump demonstrated in saved Diagnosis requests.",
+    "Opaque Unified IDs reduce metadata leakage; semantic strings remain unsafe."
+  ]
+}

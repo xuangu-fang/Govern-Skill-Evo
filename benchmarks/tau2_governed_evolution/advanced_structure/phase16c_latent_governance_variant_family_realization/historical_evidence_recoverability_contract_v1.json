@@ -1,0 +1,229 @@
+{
+  "name": "HISTORICAL_EVIDENCE_RECOVERABILITY_CONTRACT_V1",
+  "status": "FROZEN_BEFORE_ROLLOUT",
+  "fixed_E1_E2_E3_schema_required": false,
+  "families": [
+    {
+      "family_id": "LGV16B_001",
+      "target_truth": "A single reservation permits at most five passengers; a larger party remains legal when partitioned across reservations.",
+      "available_historical_episodes": [
+        "travel_request_025",
+        "travel_request_026",
+        "travel_request_027"
+      ],
+      "minimum_sufficient_subset": [
+        "travel_request_025",
+        "travel_request_026",
+        "travel_request_027"
+      ],
+      "minimum_evidence_count": 3,
+      "competing_hypotheses": [
+        "H1 count irrelevant",
+        "H2 multi-passenger generally forbidden",
+        "H3 reservation-level threshold",
+        "H4 passenger/payment/flight-specific violation"
+      ],
+      "evidence_elimination_trace": [
+        {
+          "after": "025",
+          "survive": [
+            "H1",
+            "H3",
+            "H4"
+          ],
+          "eliminated": [
+            "H2"
+          ]
+        },
+        {
+          "after": "025+026",
+          "survive": [
+            "H3",
+            "H4"
+          ],
+          "eliminated": [
+            "H1"
+          ]
+        },
+        {
+          "after": "025+026+027",
+          "survive": [
+            "H3"
+          ],
+          "eliminated": [
+            "H4"
+          ],
+          "reason": "the sixth traveler succeeds alone with the same flight/payment and the six-person goal succeeds when partitioned"
+        }
+      ],
+      "learner_visible_evidence": "episode state, action/tool result, final state, and Success/Compliance signal only",
+      "remaining_ambiguity": "No major listed competing hypothesis remains; exact unobserved table cells outside the realized local mapping are not claimed.",
+      "why_sufficient": "the sixth traveler succeeds alone with the same flight/payment and the six-person goal succeeds when partitioned",
+      "experience_identifiability": "STRONG"
+    },
+    {
+      "family_id": "LGV16B_002",
+      "target_truth": "Free checked-baggage and charging legality depends on membership and cabin; regular Economy has one free bag while regular Basic requires payment.",
+      "available_historical_episodes": [
+        "travel_request_028",
+        "travel_request_029",
+        "travel_request_030",
+        "travel_request_031"
+      ],
+      "minimum_sufficient_subset": [
+        "travel_request_028",
+        "travel_request_029",
+        "travel_request_030",
+        "travel_request_031"
+      ],
+      "minimum_evidence_count": 4,
+      "competing_hypotheses": [
+        "H1 one bag always free",
+        "H2 Basic never permits baggage",
+        "H3 membership/cabin applicability",
+        "H4 price alone determines legality"
+      ],
+      "evidence_elimination_trace": [
+        {
+          "after": "028",
+          "survive": [
+            "H1",
+            "H2",
+            "H3",
+            "H4"
+          ]
+        },
+        {
+          "after": "028+029",
+          "survive": [
+            "H2",
+            "H3",
+            "H4"
+          ],
+          "eliminated": [
+            "H1"
+          ]
+        },
+        {
+          "after": "028+029+030",
+          "survive": [
+            "H2",
+            "H3"
+          ],
+          "eliminated": [
+            "H4"
+          ],
+          "reason": "030 is compliant Economy at the same $100 fare as violating Basic 029"
+        },
+        {
+          "after": "all four",
+          "survive": [
+            "H3"
+          ],
+          "eliminated": [
+            "H2"
+          ],
+          "reason": "031 shows the same Basic flight permits a correctly paid bag"
+        }
+      ],
+      "learner_visible_evidence": "episode state, action/tool result, final state, and Success/Compliance signal only",
+      "remaining_ambiguity": "No major listed competing hypothesis remains; exact unobserved table cells outside the realized local mapping are not claimed.",
+      "why_sufficient": "031 shows the same Basic flight permits a correctly paid bag",
+      "experience_identifiability": "STRONG"
+    },
+    {
+      "family_id": "LGV16B_003",
+      "target_truth": "Direct flight change permission depends on current cabin state: Economy permits it; Basic does not, but a permitted state transition can enable it.",
+      "available_historical_episodes": [
+        "travel_request_032",
+        "travel_request_033"
+      ],
+      "minimum_sufficient_subset": [
+        "travel_request_032",
+        "travel_request_033"
+      ],
+      "minimum_evidence_count": 2,
+      "competing_hypotheses": [
+        "H1 direct change always allowed",
+        "H2 direct change always forbidden",
+        "H3 permission depends on current state",
+        "H4 route/date-specific failure"
+      ],
+      "evidence_elimination_trace": [
+        {
+          "after": "032",
+          "survive": [
+            "H2",
+            "H3",
+            "H4"
+          ],
+          "eliminated": [
+            "H1"
+          ]
+        },
+        {
+          "after": "032+033",
+          "survive": [
+            "H3"
+          ],
+          "eliminated": [
+            "H2",
+            "H4"
+          ],
+          "reason": "033 contains an Economy-current-state direct retime on the same TOVYFC route/date and reaches the same target through a state transition"
+        }
+      ],
+      "learner_visible_evidence": "episode state, action/tool result, final state, and Success/Compliance signal only",
+      "remaining_ambiguity": "No major listed competing hypothesis remains; exact unobserved table cells outside the realized local mapping are not claimed.",
+      "why_sufficient": "033 contains an Economy-current-state direct retime on the same TOVYFC route/date and reaches the same target through a state transition",
+      "experience_identifiability": "STRONG"
+    },
+    {
+      "family_id": "LGV16B_004",
+      "target_truth": "An existing one-way reservation may be modified within one-way scope but not extended with a return; return travel may be booked independently.",
+      "available_historical_episodes": [
+        "travel_request_034",
+        "travel_request_035"
+      ],
+      "minimum_sufficient_subset": [
+        "travel_request_034",
+        "travel_request_035"
+      ],
+      "minimum_evidence_count": 2,
+      "competing_hypotheses": [
+        "H1 adding segments generally allowed",
+        "H2 return travel forbidden",
+        "H3 original trip-type scope controls mutation",
+        "H4 destination/date-specific violation"
+      ],
+      "evidence_elimination_trace": [
+        {
+          "after": "034",
+          "survive": [
+            "H2",
+            "H3",
+            "H4"
+          ],
+          "eliminated": [
+            "H1"
+          ]
+        },
+        {
+          "after": "034+035",
+          "survive": [
+            "H3"
+          ],
+          "eliminated": [
+            "H2",
+            "H4"
+          ],
+          "reason": "035 completes the identical return need on the same route/date by independent booking, localizing the prohibition to mutation scope"
+        }
+      ],
+      "learner_visible_evidence": "episode state, action/tool result, final state, and Success/Compliance signal only",
+      "remaining_ambiguity": "No major listed competing hypothesis remains; exact unobserved table cells outside the realized local mapping are not claimed.",
+      "why_sufficient": "035 completes the identical return need on the same route/date by independent booking, localizing the prohibition to mutation scope",
+      "experience_identifiability": "STRONG"
+    }
+  ]
+}
