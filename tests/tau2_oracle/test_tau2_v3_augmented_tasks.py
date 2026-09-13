@@ -5,7 +5,7 @@ import re
 from collections import Counter
 from pathlib import Path
 
-from benchmarks.tau2_governed_evolution.compiler.resolvers import (
+from benchmarks.tau2_governed_evolution.shared.compiler.resolvers import (
     ensure_tau2_importable,
 )
 
@@ -23,6 +23,9 @@ TASKS_PATH = (
     Path(__file__).parents[2]
     / "benchmarks"
     / "tau2_governed_evolution"
+    / "editions"
+    / "governed_v3_day29"
+    / "benchmark"
     / "v3"
     / "airline_augmented_tasks.json"
 )

@@ -18,16 +18,16 @@ from typing import Any
 import yaml
 from dotenv import load_dotenv
 
-from benchmarks.tau2_governed_evolution.compiler.resolvers import ensure_tau2_importable
-from benchmarks.tau2_governed_evolution.compiler.schema import CompiledTaskBundle
-from benchmarks.tau2_governed_evolution.compliance.composite import (
+from benchmarks.tau2_governed_evolution.shared.compiler.resolvers import ensure_tau2_importable
+from benchmarks.tau2_governed_evolution.shared.compiler.schema import CompiledTaskBundle
+from benchmarks.tau2_governed_evolution.shared.compliance.composite import (
     evaluate_composed_compliance,
 )
-from benchmarks.tau2_governed_evolution.compliance.oracle import (
+from benchmarks.tau2_governed_evolution.shared.compliance.oracle import (
     evaluate_target_compliance,
 )
-from benchmarks.tau2_governed_evolution.compliance.templates import ORACLES
-from benchmarks.tau2_governed_evolution.evaluation.task_success import (
+from benchmarks.tau2_governed_evolution.shared.compliance.templates import ORACLES
+from benchmarks.tau2_governed_evolution.shared.evaluation.task_success import (
     evaluate_tge_v1_task_success,
 )
 from src.adapters.tau2.tau3_gse_runtime import (
@@ -342,7 +342,7 @@ def validate_frozen_hashes(campaign: dict[str, Any]) -> dict[str, str]:
 
 
 def _policy_rules() -> dict[str, dict[str, Any]]:
-    path = REPO_ROOT / "benchmarks/tau2_governed_evolution/registry/airline_policy_registry.yaml"
+    path = REPO_ROOT / "benchmarks/tau2_governed_evolution/shared/registry/airline_policy_registry.yaml"
     document = yaml.safe_load(path.read_text(encoding="utf-8"))
     return {item["rule_id"]: item for item in document["rules"]}
 

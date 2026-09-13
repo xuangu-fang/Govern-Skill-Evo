@@ -1,7 +1,7 @@
-from benchmarks.tau2_governed_evolution.intent_dynamics.probe_airline_c1_family import (
+from benchmarks.tau2_governed_evolution.editions.phase_v1_day30.construction.intent_dynamics.probe_airline_c1_family import (
     run_probes,
 )
-from benchmarks.tau2_governed_evolution.intent_dynamics.validate_airline_c1_family import (
+from benchmarks.tau2_governed_evolution.editions.phase_v1_day30.construction.intent_dynamics.validate_airline_c1_family import (
     validate_family,
 )
 

@@ -6,8 +6,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from benchmarks.tau2_governed_evolution.compiler.schema import CompiledTaskBundle
-from benchmarks.tau2_governed_evolution.v2.representation import (
+from benchmarks.tau2_governed_evolution.shared.compiler.schema import CompiledTaskBundle
+from benchmarks.tau2_governed_evolution.editions.governed_v2_day28.benchmark.v2.representation import (
     ACTUAL_PAYLOAD_CONFIRMATION_BASIS,
     I1_RELATION,
     I2_RELATION,
@@ -15,7 +15,12 @@ from benchmarks.tau2_governed_evolution.v2.representation import (
 )
 
 
-ROOT = Path(__file__).resolve().parents[2] / "benchmarks/tau2_governed_evolution"
+ROOT = (
+    Path(__file__).resolve().parents[2]
+    / "benchmarks"
+    / "tau2_governed_evolution"
+    / "shared"
+)
 
 
 def _validate(

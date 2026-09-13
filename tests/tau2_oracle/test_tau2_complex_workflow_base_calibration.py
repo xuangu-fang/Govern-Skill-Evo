@@ -5,7 +5,7 @@ from pathlib import Path
 
 ROOT = (
     Path(__file__).resolve().parents[2]
-    / "benchmarks/tau2_governed_evolution/complex_workflow/pilot/base_calibration"
+    / "benchmarks/tau2_governed_evolution/editions/governed_v2_day28/construction/complex_workflow/pilot/base_calibration"
 )
 EXPECTED_DECLARATIONS = "b99fd6f37b571b762a23dcd9eade57f1a2af33a3e5259b89cdb718f268183e08"
 EXPECTED_BUNDLES = "06f7209589867feeb5608b49d1c64976bf18049deaabaa97c50afeee07d96a1f"

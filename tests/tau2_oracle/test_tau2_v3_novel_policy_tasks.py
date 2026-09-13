@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import Counter
 from datetime import datetime
 
-from benchmarks.tau2_governed_evolution.v3.novel_policy.runtime import (
+from benchmarks.tau2_governed_evolution.editions.governed_v3_day29.benchmark.v3.novel_policy.runtime import (
     _ensure_tau2_importable,
     get_environment,
     get_tasks,

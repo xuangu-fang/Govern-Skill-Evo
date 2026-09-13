@@ -6,20 +6,20 @@ from pathlib import Path
 import pytest
 import yaml
 
-from benchmarks.tau2_governed_evolution.compiler.resolvers import (
+from benchmarks.tau2_governed_evolution.shared.compiler.resolvers import (
     ensure_tau2_importable,
 )
-from benchmarks.tau2_governed_evolution.compiler.schema import CompiledTaskBundle
-from benchmarks.tau2_governed_evolution.compliance.composite import (
+from benchmarks.tau2_governed_evolution.shared.compiler.schema import CompiledTaskBundle
+from benchmarks.tau2_governed_evolution.shared.compliance.composite import (
     evaluate_composed_compliance,
 )
-from benchmarks.tau2_governed_evolution.compliance.templates import (
+from benchmarks.tau2_governed_evolution.shared.compliance.templates import (
     _is_unconditional_compensation_offer,
     delayed_flight_compensation_oracle,
     explicit_confirmation_oracle,
     itinerary_identity_oracle,
 )
-from benchmarks.tau2_governed_evolution.compliance.trajectory_utils import (
+from benchmarks.tau2_governed_evolution.shared.compliance.trajectory_utils import (
     TrajectoryEvent,
     extract_trajectory_events,
 )
@@ -30,7 +30,12 @@ from pydantic import TypeAdapter  # noqa: E402
 from tau2.data_model.message import Message  # noqa: E402
 
 
-ROOT = Path(__file__).resolve().parents[2] / "benchmarks/tau2_governed_evolution"
+ROOT = (
+    Path(__file__).resolve().parents[2]
+    / "benchmarks"
+    / "tau2_governed_evolution"
+    / "shared"
+)
 
 
 def _bundle(path: str, task_id: str | None = None) -> CompiledTaskBundle:

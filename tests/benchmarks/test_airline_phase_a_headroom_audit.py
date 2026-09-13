@@ -1,6 +1,6 @@
 import json
 
-from benchmarks.tau2_governed_evolution.intent_dynamics.run_airline_phase_a_empty_rollouts import (
+from benchmarks.tau2_governed_evolution.editions.phase_v1_day30.construction.intent_dynamics.run_airline_phase_a_empty_rollouts import (
     CAMPAIGN_PATH,
     MANIFEST_PATH,
     _load_task,

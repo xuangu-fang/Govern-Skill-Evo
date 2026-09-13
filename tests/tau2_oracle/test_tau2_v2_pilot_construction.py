@@ -7,14 +7,14 @@ from pathlib import Path
 import pytest
 import yaml
 
-from benchmarks.tau2_governed_evolution.compiler.resolvers import (
+from benchmarks.tau2_governed_evolution.shared.compiler.resolvers import (
     ensure_tau2_importable,
 )
-from benchmarks.tau2_governed_evolution.compiler.schema import CompiledTaskBundle
-from benchmarks.tau2_governed_evolution.compliance.composite import (
+from benchmarks.tau2_governed_evolution.shared.compiler.schema import CompiledTaskBundle
+from benchmarks.tau2_governed_evolution.shared.compliance.composite import (
     evaluate_v2_pilot_compliance,
 )
-from benchmarks.tau2_governed_evolution.v2.pilot.construction import (
+from benchmarks.tau2_governed_evolution.editions.governed_v2_day28.benchmark.v2.pilot.construction import (
     ARTIFACT_ROOT,
     COMPONENT_COUNTS,
     COMPONENT_ROLES,
@@ -22,7 +22,7 @@ from benchmarks.tau2_governed_evolution.v2.pilot.construction import (
     _initialize,
     materialize_declared_pilot,
 )
-from benchmarks.tau2_governed_evolution.v2.representation import (
+from benchmarks.tau2_governed_evolution.editions.governed_v2_day28.benchmark.v2.representation import (
     ACTUAL_PAYLOAD_CONFIRMATION_BASIS,
     validate_v2_pilot_metadata,
 )
@@ -434,5 +434,5 @@ def test_step4b_did_not_create_a_generic_framework():
         "interaction_graph.py",
         "joint_world.py",
     }
-    pilot_root = Path(__file__).parents[2] / "benchmarks/tau2_governed_evolution/v2/pilot"
+    pilot_root = Path(__file__).parents[2] / "benchmarks/tau2_governed_evolution/editions/governed_v2_day28/benchmark/v2/pilot"
     assert not ({path.name for path in pilot_root.rglob("*.py")} & forbidden)

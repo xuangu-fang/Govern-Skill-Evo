@@ -17,7 +17,7 @@ from .autonomous_gse_v15_proposal import MultiRolloutDiagnosisProposalOperator
 from src.learners.stwebagentbench.generate_governed_skill_v15 import call_governed_editor
 
 ROOT = Path(__file__).resolve().parents[2]
-CONTEXT_MANIFEST = ROOT / 'benchmarks/tau2_governed_evolution/formal_manifestation_admission/contexts/context_manifest.json'
+CONTEXT_MANIFEST = ROOT / 'benchmarks/tau2_governed_evolution/editions/phase_v1_day30/benchmark/formal_manifestation_admission/contexts/context_manifest.json'
 
 
 def normalize_stored_simulation(simulation):

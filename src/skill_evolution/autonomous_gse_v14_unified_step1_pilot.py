@@ -3,7 +3,7 @@ import argparse,copy,dataclasses,json,os
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor,as_completed
 ROOT=Path(__file__).resolve().parents[2]
-SUITE=ROOT/'benchmarks/tau2_governed_evolution/phase_a_final_unified_benchmark_v1'
+SUITE=ROOT/'benchmarks/tau2_governed_evolution/editions/phase_v1_day30/benchmark/phase_a_final_unified_benchmark_v1'
 CAL=SUITE/'calibration'
 PILOT_ROOT=ROOT/'experiments/phase_a_unified_v14_step1_pilot'
 OUT=Path(os.environ.get('V14_UNIFIED_PILOT_OUT',PILOT_ROOT/'attempt_3_clean_adapter'))

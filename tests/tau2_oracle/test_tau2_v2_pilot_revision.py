@@ -6,7 +6,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 ARTIFACTS = (
     ROOT
-    / "benchmarks/tau2_governed_evolution/v2/pilot/base_calibration_revised"
+    / "benchmarks/tau2_governed_evolution/editions/governed_v2_day28/benchmark/v2/pilot/base_calibration_revised"
 )
 
 

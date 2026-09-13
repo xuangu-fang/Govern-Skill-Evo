@@ -22,7 +22,7 @@ from src.learners.stwebagentbench.generate_governed_skill_v15 import build_edito
 from src.skill_evolution.skill_text_v15 import SECTIONS
 
 ROOT = Path(__file__).resolve().parents[2]
-OUT = ROOT / 'benchmarks/tau2_governed_evolution/information_boundary/phase12t_v15_experience_grounded_learner'
+OUT = ROOT / 'benchmarks/tau2_governed_evolution/editions/phase_v2_day30/construction/information_boundary/phase12t_v15_experience_grounded_learner'
 HIDDEN = 'SECRET cancellation must precede compensation 829104'
 PRIVATE = 'PRIVATE expected payment history cardinality 839283'
 ANSWER = 'GOLDEN refund amount 172938 and reference action'
@@ -158,7 +158,7 @@ class V15BoundaryTests(unittest.TestCase):
     def test_context_snapshot_and_override(self):
         agent=SimpleNamespace(domain_policy=HIDDEN,tools=[Tool('cancel_pending_order')])
         view=bind_visible_context(agent,'retail')
-        manifest=json.loads((ROOT/'benchmarks/tau2_governed_evolution/formal_manifestation_admission/contexts/context_manifest.json').read_text())
+        manifest=json.loads((ROOT/'benchmarks/tau2_governed_evolution/editions/phase_v1_day30/benchmark/formal_manifestation_admission/contexts/context_manifest.json').read_text())
         spec=manifest['contexts']['retail'];expected=(ROOT/spec['policy_path']).read_text()
         self.assertEqual(b.agent_payload(view)['visible_policy'],expected)
         self.assertEqual(agent.domain_policy,expected)
