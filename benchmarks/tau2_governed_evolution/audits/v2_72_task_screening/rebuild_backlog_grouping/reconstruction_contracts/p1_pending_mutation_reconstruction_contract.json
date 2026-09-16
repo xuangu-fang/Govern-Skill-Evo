@@ -1,0 +1,61 @@
+{
+  "schema_version": "p1_pending_mutation_reconstruction_contract_v1",
+  "status": "PASS_DESIGN_CONTRACT_ONLY",
+  "family_id": "C-RET-P1-PENDING-MUTATION-SEQUENCE",
+  "axis": "CAPABILITY",
+  "target_environment": "retail-v3-unified-derived-final-candidate",
+  "formal_task_ids_allocated": 0,
+  "support_required": false,
+  "support_omission_reason": "Global Protected Controls already cover a P1 near-boundary guard and a P1 non-applicability guard.",
+  "native_transition": {
+    "trigger": "One pending order requires both whole-order payment replacement and item mutation.",
+    "required_order": ["payment", "optional_address", "items"],
+    "focal_dependency": "payment_before_items",
+    "wrong_first_action": "items",
+    "wrong_path_consequence": "The item write commits and appends price-difference payment history; whole-order payment replacement then rejects the non-single payment history.",
+    "correct_label": "CS",
+    "wrong_label": "CF"
+  },
+  "environment": {
+    "base": "phase_v3_day34 retail-v3-unified",
+    "family_specific_tools": false,
+    "new_oracle_sidecar": false,
+    "retain_hidden_mechanisms": [
+      "fulfillment mode -> exchange/return outcome",
+      "address contract -> propagation source"
+    ],
+    "information_boundary_change": "DOMAIN_WIDE_NATIVE_ITEM_TRANSITION_NEUTRALIZATION__NO_FAMILY_VARIATION",
+    "native_rule_scope": "ALL_RETAIL_ORDERS"
+  },
+  "evaluator": {
+    "source": "final native Retail DB only",
+    "checks": [
+      "requested variants present",
+      "new whole-order payment committed",
+      "original whole-order payment refunded",
+      "optional requested address present",
+      "unrequested items preserved",
+      "unrequested profile state preserved"
+    ],
+    "forbidden_inputs": ["prompt order", "construction label", "oracle mapping"]
+  },
+  "gate0": {
+    "trigger_slots": 2,
+    "path_pairs": ["correct", "items_first"],
+    "expected": ["CS", "CF", "CS", "CF"],
+    "v3_retail_oracle_replay": 16,
+    "model_calls": 0
+  },
+  "gate1": {
+    "design": "matched Trigger-only E0/ER",
+    "trigger_inputs": 2,
+    "seeds": 2,
+    "planned_rollouts": 8,
+    "pass": {
+      "e0_focal_failures_min": 3,
+      "er_successes": 4,
+      "mapping_leaks": 0
+    }
+  },
+  "next_after_gate1": "Build request-order-counterbalanced multi-surface triggers and run global shortcut audit before READY_FOR_FINAL_REALIZATION."
+}

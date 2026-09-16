@@ -8,6 +8,13 @@ from .skill_text_v15 import parse_skill, render_skill
 SEMANTIC_ORIGINS = {'TRAJECTORY_DERIVED', 'LEARNER_INFERRED', 'LEARNER_SAFE_SUPERVISION'}
 
 
+def _has_domain_scope(text, domain):
+    prefix = f'For {domain} requests'
+    return text.startswith(prefix) and (
+        len(text) == len(prefix) or text[len(prefix)] in {' ', ',', ':', ';', '—', '-'}
+    )
+
+
 @dataclass(frozen=True)
 class DiagnosisEditorRequest:
     hypotheses: Envelope
@@ -93,7 +100,7 @@ def apply_editor_output(request, raw):
         if not isinstance(vh, dict) or set(vh) != {'problem','trigger_condition','expected_behavior'} or not all(isinstance(v, str) and v.strip() for v in vh.values()):
             raise BoundaryError('Verification must be a learner hypothesis')
         domains = {p['domain'] for p in src}
-        if len(domains) == 1 and edit['operation'] != 'delete' and not edit['text'].startswith('For ' + next(iter(domains)) + ' requests,'):
+        if len(domains) == 1 and edit['operation'] != 'delete' and not _has_domain_scope(edit['text'], next(iter(domains))):
             raise BoundaryError('Domain scope missing')
         if '\n' in edit['text'] or (edit['operation'] != 'delete' and not edit['text'].strip()):
             raise BoundaryError('Invalid Skill rule')

@@ -1,4 +1,4 @@
-"""Validate the five named benchmark editions without running model calls."""
+"""Validate all named benchmark editions without running model calls."""
 
 from __future__ import annotations
 
@@ -39,12 +39,35 @@ def validate_edition(name: str) -> tuple[int, list[str]]:
         errors.append("task ids are not unique")
     if len(tasks) != version["task_count"]:
         errors.append(f"expected {version['task_count']} tasks, found {len(tasks)}")
+
+    split_file = version.get("split_file")
+    if split_file:
+        split_path = edition / split_file
+        if not split_path.is_file():
+            errors.append(f"missing split file: {split_file}")
+        else:
+            split_payload = load_json(split_path)
+            splits = split_payload.get("splits", {})
+            split_ids = [task_id for members in splits.values() for task_id in members]
+            expected_splits = {"train", "monitor"}
+            if version.get("control_task_count", 0):
+                expected_splits.add("control")
+            if set(splits) != expected_splits:
+                errors.append(
+                    "split file must contain exactly " + ", ".join(sorted(expected_splits))
+                )
+            if split_payload.get("test_split") is not None:
+                errors.append("test_split must be null")
+            if len(split_ids) != len(set(split_ids)):
+                errors.append("split membership is not disjoint")
+            if set(split_ids) != set(ids):
+                errors.append("split membership does not cover the formal task set exactly")
     return len(tasks), errors
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("editions", nargs="*", help="edition ids; defaults to all five")
+    parser.add_argument("editions", nargs="*", help="edition ids; defaults to all editions")
     args = parser.parse_args()
     names = args.editions or sorted(path.name for path in EDITIONS.iterdir() if (path / "VERSION.json").is_file())
     failed = False

@@ -1,0 +1,131 @@
+{
+  "edition": "phase_v3_day34",
+  "audit": "RETAIL_HIDDEN_OPERATIONAL_PATH",
+  "status": "COMPLETE_RECOMMEND_RHP_01_GATE_0",
+  "model_calls": 0,
+  "stable_intent_contract": "The request is solvable and the intended outcome does not change; no required user information is withheld to manufacture failure.",
+  "native_findings": {
+    "available_terminal_paths": [
+      "exchange_delivered_order_items",
+      "return_delivered_order_items",
+      "modify_pending_order_items",
+      "cancel_pending_order"
+    ],
+    "irreversibility": [
+      "A delivered order becomes exchange requested or return requested after the first resolution write.",
+      "The opposite delivered-order resolution is rejected after the first write and the first write remains committed.",
+      "A pending item modification changes status and blocks a second item modification and cancellation."
+    ],
+    "policy_visible": [
+      "Delivered-order exchange and return eligibility.",
+      "The one-call exchange and pending-item-modification boundaries.",
+      "Allowed return payment destinations and gift-card timing.",
+      "The requirement to collect all item changes before committing."
+    ],
+    "missing_native_state_or_actions": [
+      "No fulfillment-mode contract that changes which resolution preserves a user benefit.",
+      "No promotion or purchase-protection state.",
+      "No mixed-payment provenance model.",
+      "No replacement-history state beyond terminal request fields.",
+      "No create-order or reorder tool."
+    ]
+  },
+  "candidates": [
+    {
+      "id": "RHP-01",
+      "name": "FULFILLMENT_CONDITIONED_EXCHANGE_OR_RETURN",
+      "native_anchor": "Exchange and return are both executable first writes on delivered orders and are mutually exclusive afterward.",
+      "minimal_extension": "Expose a fulfillment_mode on delivered orders and add a stable v3-only contract for whether exchange preserves the original purchase protection. Return behavior remains native.",
+      "stable_user_goal_example": "Exchange for the named variant if the original purchase protection will remain; otherwise return the named item to the stated allowed payment method. Do not take any other resolution.",
+      "latent_mapping": "Observable fulfillment mode determines whether exchange preserves the required benefit, selecting exchange versus return.",
+      "counter_direction": "At least one mode must require exchange and another must require return under the same conditional goal.",
+      "wrong_action_consequence": "The wrong resolution call succeeds, changes the order to a terminal request state, and makes the preferred conditional goal unreachable.",
+      "ordinary_retry": "Blocked by the native delivered-order status transition.",
+      "shortcut_risk": "MEDIUM_HIGH: natural fulfillment labels may invite a correct guess; Gate 1 must establish real E0 headroom.",
+      "extension_scope": "MEDIUM",
+      "verdict": "RECOMMEND_GATE_0"
+    },
+    {
+      "id": "RHP-02",
+      "name": "PAYMENT_PROVENANCE_REFUND_ROUTING",
+      "native_anchor": "Return records one refund destination and accepts the original method or a gift card.",
+      "minimal_extension": "Add mixed-payment provenance and deterministic routing semantics.",
+      "stable_user_goal_example": "Return the named item set using the refund destination that satisfies the user's stated availability or timing need.",
+      "latent_mapping": "Payment composition determines a routing action or allocation.",
+      "counter_direction": "Different payment compositions must require different destinations or allocations.",
+      "wrong_action_consequence": "A return request could commit with an incorrect refund destination.",
+      "ordinary_retry": "Blocked after return requested.",
+      "shortcut_risk": "HIGH: current tool accepts only one destination, so a richer rule risks becoming a task-specific lookup.",
+      "extension_scope": "HIGH",
+      "verdict": "HOLD_SECONDARY"
+    },
+    {
+      "id": "RHP-03",
+      "name": "REPLACEMENT_HISTORY_RESOLUTION",
+      "native_anchor": "Delivered-order resolution is terminal after one exchange or return request.",
+      "minimal_extension": "Add visible replacement-history state and at least two executable history-sensitive resolution paths.",
+      "stable_user_goal_example": "Resolve the named item to the requested outcome without losing the named entitlement.",
+      "latent_mapping": "Replacement history selects ordinary exchange/return versus a distinct continuation path.",
+      "counter_direction": "Fresh and previously replaced states must require opposite valid paths.",
+      "wrong_action_consequence": "An ordinary path could commit and consume the remaining entitlement.",
+      "ordinary_retry": "Potentially blocked, but the second valid continuation tool does not exist natively.",
+      "shortcut_risk": "HIGH",
+      "extension_scope": "HIGH",
+      "verdict": "HOLD_NEEDS_TOOL_DESIGN"
+    },
+    {
+      "id": "RHP-04",
+      "name": "PENDING_MUTATION_ORDER",
+      "native_anchor": "Pending item modification blocks a second item modification and cancellation.",
+      "minimal_extension": "None for the state transition.",
+      "stable_user_goal_example": "Apply the requested changes to one pending order.",
+      "latent_mapping": "Correct mutation order preserves reachability of all requested changes.",
+      "counter_direction": "No clean reverse direction was found in which the opposite order is required.",
+      "wrong_action_consequence": "A premature item modification can make later work unreachable.",
+      "ordinary_retry": "Blocked.",
+      "shortcut_risk": "CONFIRMED_HIGH: the public Policy explicitly tells the Agent to collect all item changes and warns about the one-shot transition.",
+      "extension_scope": "NONE",
+      "verdict": "REJECT_POLICY_VISIBLE"
+    },
+    {
+      "id": "RHP-05",
+      "name": "PROMOTION_PRESERVING_REFUND_REORDER",
+      "native_anchor": "Cancellation and return create refund state.",
+      "minimal_extension": "Add promotions, promotion carryover, and a create-order or reorder action.",
+      "stable_user_goal_example": "Obtain the named replacement while preserving the stated promotion.",
+      "latent_mapping": "Order and promotion state select exchange versus refund and reorder.",
+      "counter_direction": "Promotion states could require opposite paths.",
+      "wrong_action_consequence": "Refund/reorder could lose the promotion.",
+      "ordinary_retry": "Could be blocked after refund.",
+      "shortcut_risk": "HIGH",
+      "extension_scope": "VERY_HIGH: the required reorder path and promotion state are both absent.",
+      "verdict": "REJECT_CURRENT_SCOPE"
+    },
+    {
+      "id": "RHP-06",
+      "name": "SPLIT_FULFILLMENT_PARTIAL_RESOLUTION",
+      "native_anchor": "Orders expose fulfillment groups and item membership.",
+      "minimal_extension": "Would need fulfillment-scoped resolution transitions instead of the current order-wide terminal status.",
+      "stable_user_goal_example": "Resolve the requested item set spanning fulfillment groups.",
+      "latent_mapping": "Fulfillment grouping would determine batching or sequencing.",
+      "counter_direction": "The current API supplies no case where splitting is required and safe; one combined call dominates.",
+      "wrong_action_consequence": "A partial first call can strand remaining items.",
+      "ordinary_retry": "Blocked.",
+      "shortcut_risk": "HIGH: always submitting the complete item list is sufficient under the native API.",
+      "extension_scope": "HIGH",
+      "verdict": "REJECT_NO_COUNTER_DIRECTION"
+    }
+  ],
+  "recommendation": {
+    "candidate": "RHP-01_FULFILLMENT_CONDITIONED_EXCHANGE_OR_RETURN",
+    "authorization": "GATE_0_DESIGN_ONLY",
+    "reason": "It reuses two real native terminal writes, needs only one visible order attribute plus one stable outcome contract, supports opposite correct actions, keeps the full user goal upfront, and blocks trial-and-error through native status transitions.",
+    "required_before_rollout": [
+      "Implement the extension in a process-local v3 Retail subclass without modifying native Retail or Benchmark v2.",
+      "Use two matched delivered orders whose correct actions point in opposite directions.",
+      "Prove both correct paths and both wrong committed paths without model calls.",
+      "Keep fulfillment labels, benefit values, candidate order, and amounts from directly encoding the answer.",
+      "Reject the primitive if either fulfillment mode has a tool error before commitment or if E0 solves both tasks at ceiling."
+    ]
+  }
+}

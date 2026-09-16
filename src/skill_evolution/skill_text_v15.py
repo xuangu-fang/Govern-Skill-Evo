@@ -2,7 +2,7 @@
 from .information_boundary_v15 import BoundaryError
 SECTIONS = ('Planning and navigation', 'Execution patterns', 'Form entry and verification', 'Error recovery and stopping')
 MAX_RULES = 18
-MAX_WORDS = 900
+MAX_WORDS = 1000
 
 
 def parse_skill(text):

@@ -1,0 +1,45 @@
+{
+  "family_id": "C-AIR-P4-CERTIFICATE-LIFECYCLE-ALLOCATION",
+  "canonical_name": "Pre-existing one-shot certificate cross-booking allocation",
+  "status": "PASS_MINIMAL_DESIGN_CONTRACT_ONLY",
+  "formal_task_ids_allocated": 0,
+  "environment": "airline-final-candidate-construction",
+  "environment_extension": "FIXTURE_ONLY",
+  "new_domain": false,
+  "new_tool": false,
+  "new_oracle_sidecar": false,
+  "mechanism": {
+    "initial_resources": "one pre-existing certificate and one reusable gift card",
+    "operations": ["book_reservation", "book_reservation"],
+    "certificate_transition": "the certificate is removed after its first successful booking and unused value is forfeited",
+    "planning_dependency": "prices and both bookings must be considered before the first commit",
+    "correct_allocation": "gift card funds the lower-cost first booking; certificate is reserved for the later booking that the remaining gift-card balance cannot cover",
+    "competing_allocation": "certificate funds the lower-cost first booking; the later booking cannot be completed from the remaining authorized resource"
+  },
+  "excluded_dimensions": [
+    "certificate creation or issuance",
+    "multiple certificates",
+    "reservation change or cancellation",
+    "passenger-cardinality decomposition"
+  ],
+  "trigger_inputs": 2,
+  "support_policy": "OMITTED__GLOBAL_PROTECTED_CONTROLS",
+  "gate0": {
+    "correct_paths_required_cs": 2,
+    "competing_paths_required_cf": 2,
+    "competing_first_booking_must_commit": true,
+    "second_booking_must_receive_native_missing_certificate_error": true,
+    "existing_governance_gate0_must_regress": true,
+    "v3_oracle_regression_required": 32
+  },
+  "gate1": {
+    "design": "TRIGGER_ONLY_MATCHED_E0_ER",
+    "triggers": 2,
+    "seeds": 2,
+    "planned_rollouts": 8,
+    "e0_focal_allocation_failure_min": 3,
+    "er_cs_required": 4,
+    "first_user_allocation_leak_allowed": 0,
+    "post_hoc_retuning_allowed": false
+  }
+}

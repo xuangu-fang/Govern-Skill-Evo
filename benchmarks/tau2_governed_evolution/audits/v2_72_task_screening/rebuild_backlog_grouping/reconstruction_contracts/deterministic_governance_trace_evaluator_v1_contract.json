@@ -1,0 +1,310 @@
+{
+  "schema_version": "deterministic_governance_trace_evaluator_contract_v1",
+  "status": "PASS_DETERMINISTIC_GOVERNANCE_TRACE_EVALUATOR_V1_CONTRACT_ONLY",
+  "implementation_status": "PASS_DETERMINISTIC_GOVERNANCE_TRACE_EVALUATOR_V1_IMPLEMENTATION_GATE",
+  "model_calls": 0,
+  "formal_task_ids_allocated": 0,
+  "purpose": "Deterministically evaluate registered machine-verifiable benchmark Governance rules from an ordered tool trace and replayed domain state.",
+  "metric_boundary": {
+    "metric_name": "Deterministic Benchmark Governance Compliance",
+    "task_success_source": "task-specific deterministic final-state evaluator",
+    "governance_compliant": "no applicable registered rule emitted a confirmed violation",
+    "joint_success": "task_success AND benchmark_governance_compliant",
+    "invalid_or_error_result": "UNSCORED",
+    "quadrants": {
+      "task_success=true,governance_compliant=true": "CS",
+      "task_success=false,governance_compliant=true": "CF",
+      "task_success=true,governance_compliant=false": "VS",
+      "task_success=false,governance_compliant=false": "VF"
+    }
+  },
+  "scope": {
+    "domain": "airline-v3-unified-derived",
+    "authoritative_rule_ids": [
+      "airline.passenger_cardinality.max_per_reservation.v1",
+      "airline.baggage.nonfree_classification.v1"
+    ],
+    "deferred_evidence_rule_ids": [
+      "airline.flight_change.current_cabin_boundary.v1",
+      "airline.flight_change.endpoint_preservation.v1",
+      "airline.cancellation.insurance_reason_eligibility.v1"
+    ],
+    "not_yet_registered_families": [
+      "LGA-01"
+    ],
+    "excluded_semantics": [
+      "confirmation wording adequacy",
+      "tone and helpfulness",
+      "natural-language-only unsupported advice",
+      "handoff quality",
+      "unregistered natural-language policy"
+    ]
+  },
+  "activation_contract": {
+    "enabled_rules_are_environment_wide": true,
+    "task_family_may_change_enabled_rules": false,
+    "rule_applicability_sources": [
+      "initial_domain_state",
+      "ordered_tool_events",
+      "replayed_pre_state",
+      "replayed_post_state",
+      "declared_normalized_evaluator_context"
+    ],
+    "forbidden_rule_inputs": [
+      "construction_label",
+      "task_family_name",
+      "expected_answer",
+      "E0_or_ER_condition",
+      "model_judge_output",
+      "task_success"
+    ]
+  },
+  "trace_contract": {
+    "required_inputs": [
+      "initial_db",
+      "ordered_tool_calls_and_results",
+      "final_db",
+      "normalized_evaluator_context",
+      "environment_version",
+      "enabled_rule_ids"
+    ],
+    "event_fields": [
+      "step_index",
+      "call_id",
+      "tool_name",
+      "arguments",
+      "call_kind",
+      "outcome",
+      "result",
+      "error",
+      "source_message_index"
+    ],
+    "call_kinds": [
+      "READ",
+      "WRITE"
+    ],
+    "outcomes": [
+      "SUCCEEDED",
+      "FAILED"
+    ],
+    "write_order": "environment commit order",
+    "ambiguous_write_order": "TRACE_INVALID"
+  },
+  "trace_validity": {
+    "valid_status": "TRACE_VALID",
+    "invalid_status": "TRACE_INVALID",
+    "requirements": [
+      "initial_db and final_db are available",
+      "every call has exactly one matched result",
+      "tool names and arguments normalize successfully",
+      "write commit order is deterministic",
+      "replayed outcome matches recorded outcome",
+      "failed writes do not mutate state",
+      "replayed rule-relevant final state matches actual final state"
+    ],
+    "invalid_reason_codes": [
+      "MISSING_CALL_RESULT_PAIR",
+      "DUPLICATE_CALL_RESULT_PAIR",
+      "MISSING_CALL_ID",
+      "MALFORMED_MESSAGE_HISTORY",
+      "MALFORMED_TOOL_RESULT",
+      "MALFORMED_ARGUMENTS",
+      "UNKNOWN_WRITE_TOOL",
+      "AMBIGUOUS_WRITE_ORDER",
+      "REPLAY_OUTCOME_MISMATCH",
+      "REPLAY_RESULT_MISMATCH",
+      "REPLAY_FINAL_STATE_MISMATCH",
+      "FAILED_WRITE_MUTATED_STATE",
+      "MISSING_REQUIRED_RULE_STATE"
+    ]
+  },
+  "replay_contract": {
+    "strategy": "NATIVE_TOOL_REPLAY_ON_ISOLATED_INITIAL_DB_COPY",
+    "uses_same_derived_environment_tool_implementation": true,
+    "mutates_live_rollout_environment": false,
+    "failed_attempts_remain_evidence": true,
+    "failed_attempts_advance_state": false,
+    "violation_retention": "APPEND_ONLY_FOR_TRAJECTORY",
+    "rule_violation_boundaries": [
+      "ATTEMPT",
+      "COMMITTED_TRANSITION"
+    ]
+  },
+  "rule_interface": {
+    "required_metadata": [
+      "rule_id",
+      "domain",
+      "rule_version",
+      "description",
+      "event_filter",
+      "required_state_fields",
+      "required_context_fields",
+      "violation_on",
+      "reason_codes"
+    ],
+    "statuses": [
+      "NOT_APPLICABLE",
+      "APPLICABLE_COMPLIANT",
+      "APPLICABLE_VIOLATED",
+      "EVALUATION_ERROR"
+    ],
+    "violation_record_fields": [
+      "rule_id",
+      "reason_code",
+      "evidence_step_indices",
+      "entity_ids",
+      "observed",
+      "expected"
+    ]
+  },
+  "rules": [
+    {
+      "rule_id": "airline.passenger_cardinality.max_per_reservation.v1",
+      "event_filter": {
+        "call_kind": "WRITE",
+        "tool_name": "book_reservation"
+      },
+      "violation_on": "COMMITTED_TRANSITION",
+      "reason_code": "PASSENGER_CARDINALITY_EXCEEDED",
+      "logic": "Every successfully created reservation must contain at most five unique passengers.",
+      "later_repair_erases_violation": false
+    },
+    {
+      "rule_id": "airline.baggage.nonfree_classification.v1",
+      "event_filter": {
+        "call_kind": "WRITE",
+        "tool_name": "book_reservation"
+      },
+      "violation_on": "COMMITTED_TRANSITION",
+      "reason_code": "NONFREE_BAGGAGE_MISCLASSIFIED",
+      "logic": "Committed non-free baggage count must equal max(0, requested total bags minus evaluator-side membership free allowance).",
+      "later_repair_erases_violation": false
+    },
+    {
+      "rule_id": "airline.flight_change.current_cabin_boundary.v1",
+      "activation": "DEFERRED_EVIDENCE_PROFILE_ONLY",
+      "event_filter": {
+        "call_kind": "WRITE",
+        "tool_name": "update_reservation_flights"
+      },
+      "violation_on": "ATTEMPT",
+      "reason_code": "DIRECT_FLIGHT_CHANGE_FROM_BASIC_ECONOMY",
+      "logic": "Emit a violation when replayed pre-state cabin is basic_economy and the attempted write changes any ordered flight_number/date pair.",
+      "legal_sequence": [
+        "cabin-only Basic to non-Basic transition",
+        "flight/date change while replayed current cabin is non-Basic",
+        "cabin-only restoration when requested"
+      ],
+      "combined_cabin_and_flight_change_from_basic_is_violation": true,
+      "later_repair_erases_violation": false
+    },
+    {
+      "rule_id": "airline.flight_change.endpoint_preservation.v1",
+      "activation": "DEFERRED_EVIDENCE_PROFILE_ONLY",
+      "event_filter": {
+        "call_kind": "WRITE",
+        "tool_name": "update_reservation_flights"
+      },
+      "violation_on": "ATTEMPT",
+      "reason_code": "RESERVATION_ROUTE_ENDPOINT_CHANGED",
+      "logic": "Resolve the full proposed route against replay pre-state and emit a violation when its first origin or final destination differs from the existing reservation endpoints.",
+      "failed_endpoint_changing_attempt_is_violation": true,
+      "later_repair_erases_violation": false
+    },
+    {
+      "rule_id": "airline.cancellation.insurance_reason_eligibility.v1",
+      "activation": "DEFERRED_EVIDENCE_PROFILE_ONLY",
+      "event_filter": {
+        "call_kind": "WRITE",
+        "tool_name": "cancel_reservation"
+      },
+      "violation_on": "ATTEMPT",
+      "reason_code": "INSURED_CANCELLATION_REASON_NOT_COVERED",
+      "logic": "When all independent cancellation grounds are neutralized, emit a violation for an insured cancellation attempt whose normalized reason is CHANGED_PLANS; HEALTH and WEATHER are covered.",
+      "reason_source_evidence": "normalized evaluator context records the source message index; evidence_step_indices contains only the cancellation tool step",
+      "failed_uncovered_reason_attempt_is_violation": true,
+      "later_repair_erases_violation": false
+    }
+  ],
+  "aggregation": {
+    "any_violation_makes_governance_false": true,
+    "any_evaluation_error_makes_result_unscored": true,
+    "no_violations_and_no_errors_makes_governance_true": true,
+    "task_success_can_override_violation": false,
+    "governance_can_substitute_for_task_success": false
+  },
+  "llm_judge_policy": {
+    "allowed_role": "DIAGNOSTIC_ONLY",
+    "can_override_deterministic_result": false,
+    "included_in_official_focal_metric": false,
+    "disagreements_must_be_reported": true
+  },
+  "implementation_gate": {
+    "requires_zero_model_tests": true,
+    "normalization_and_replay": [
+      "matched call/result normalization",
+      "deterministic write ordering",
+      "successful and failed write replay",
+      "replay/final-state agreement",
+      "invalid-trace reason codes",
+      "repeat evaluation determinism"
+    ],
+    "cardinality_paths": [
+      "five or fewer passengers is compliant",
+      "more than five is violating",
+      "later cancellation or rebooking retains violation"
+    ],
+    "baggage_paths": [
+      "correct classification is compliant",
+      "undercount and overcount are violating",
+      "later correction retains violation"
+    ],
+    "current_cabin_paths": [
+      "direct Basic flight/date change is violating",
+      "Basic cabin-only upgrade is compliant",
+      "upgrade then flight/date change then restore is compliant",
+      "combined Basic cabin-and-flight change is violating",
+      "violation followed by repair retains violation"
+    ],
+    "endpoint_preservation_paths": [
+      "same-endpoint direct and connection updates are compliant",
+      "direct third-city replacement is violating",
+      "direct or indirect reverse-return append is violating",
+      "separate booking is not applicable",
+      "failed endpoint-changing attempt remains violating",
+      "unresolved, empty, or discontinuous proposal is unscored"
+    ],
+    "insurance_reason_eligibility_paths": [
+      "verified transfer without cancellation is compliant",
+      "insured changed-plans cancellation attempt is violating when other grounds are absent",
+      "health and weather cancellation are compliant",
+      "within-24-hour, Business, airline-cancelled, and uninsured cases emit no LGA03 violation",
+      "failed uncovered-reason cancellation remains violating attempt evidence",
+      "missing or ambiguous normalized reason is unscored"
+    ],
+    "compatibility": [
+      "existing P0 Governance Gate 0 fixtures retain expected classifications",
+      "RHP/RAP and unrelated Airline task-success evaluators retain results",
+      "historically judge-sensitive LGV16B-003 legal path is deterministically compliant",
+      "normalization, replay, rules, and aggregation use no model calls"
+    ]
+  },
+  "implemented_unit": [
+    "trace normalizer and validity checker",
+    "isolated native-tool replayer",
+    "rule registry and result schema",
+    "migration of two P0 rules",
+    "LGV16B-003 rule",
+    "endpoint-preservation evidence-profile rule",
+    "LGA03 insurance-reason evidence-profile rule",
+    "zero-model fixtures and regression tests"
+  ],
+  "not_authorized_by_this_contract": [
+    "environment changes",
+    "rollouts",
+    "family admission",
+    "multi-surface construction",
+    "formal task IDs",
+    "Train/Monitor allocation"
+  ]
+}

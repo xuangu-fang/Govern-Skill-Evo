@@ -1,0 +1,185 @@
+{
+  "edition": "phase_v3_day34",
+  "audit": "ENVIRONMENT_EXTENSION_POINT_AUDIT",
+  "status": "COMPLETE",
+  "scope": {
+    "domains": [
+      "airline",
+      "retail"
+    ],
+    "model_calls": 0,
+    "task_construction": 0,
+    "environment_changes": 0,
+    "benchmark_v2_changes": 0
+  },
+  "native_findings": {
+    "airline": {
+      "reservation_count": 2000,
+      "multi_segment_reservations": 1690,
+      "mutation_surfaces": [
+        "book_reservation",
+        "cancel_reservation",
+        "update_reservation_baggages",
+        "update_reservation_flights",
+        "update_reservation_passengers",
+        "send_certificate"
+      ],
+      "important_semantics": [
+        "ReservationFlight stores historical price.",
+        "update_reservation_flights preserves the stored price for an unchanged segment and uses current price for a new segment.",
+        "update_reservation_flights replaces the complete reservation flight list supplied by the caller.",
+        "A successful flight update returns the committed reservation immediately.",
+        "The same reservation can be updated again; native Airline has no one-change commitment boundary.",
+        "Certificate redemption removes the certificate, but the completed v3 Pilot showed a visible resource-dominance shortcut."
+      ]
+    },
+    "retail": {
+      "order_count": 1000,
+      "pending_orders": 423,
+      "multi_item_orders": 798,
+      "mutation_surfaces": [
+        "cancel_pending_order",
+        "exchange_delivered_order_items",
+        "modify_pending_order_address",
+        "modify_pending_order_items",
+        "modify_pending_order_payment",
+        "modify_user_address",
+        "return_delivered_order_items"
+      ],
+      "important_semantics": [
+        "modify_pending_order_items changes status to pending (item modified).",
+        "A later item modification on the same order fails while the first write remains committed.",
+        "The one-shot batching requirement is explicitly visible in the native Retail policy and tool description.",
+        "Gift-card cancellation refunds are immediate and can affect later actions, but this dependency already appears in Benchmark v2."
+      ]
+    }
+  },
+  "native_probes": [
+    {
+      "probe": "airline_repeat_update",
+      "fixture": "VAAOXJ",
+      "result": "PASS",
+      "observation": "HAT287 was changed to HAT064 and then successfully changed back to HAT287 on the same reservation.",
+      "implication": "A wrong native flight choice is recoverable; a delayed-failure Pilot needs an explicit v3-only commitment boundary."
+    },
+    {
+      "probe": "retail_one_shot_item_modify",
+      "fixture": "#W5918442",
+      "result": "PASS",
+      "observation": "The first item modification committed and changed status; the second call failed with Non-pending order cannot be modified.",
+      "implication": "The native state machine supplies irreversibility, but not hidden knowledge because the batching rule is already explicit."
+    },
+    {
+      "probe": "v3_domain_isolation",
+      "result": "PASS",
+      "observation": "A process-local v3 AirlineTools subclass was registered as a separate domain with 14 tools while the native airline registration continued to construct AirlineTools.",
+      "implication": "A v3-only environment can be wired without editing native domain source or Benchmark v2."
+    }
+  ],
+  "extension_candidates": [
+    {
+      "id": "EE-01",
+      "name": "CHANNEL_CONDITIONED_SETTLEMENT_COMMIT",
+      "domain": "airline",
+      "native_anchor": "Historical prices are stored per reserved segment and native updates already compute a historical/current settlement delta.",
+      "required_extension": "Expose a stable ticketing channel or settlement-contract field, implement two channel-conditioned settlement baselines, and enforce an explicit one-change commitment budget.",
+      "latent_mapping": "Observable contract/channel plus itinerary state determines which settlement baseline must be used before choosing a conditional itinerary branch.",
+      "wrong_action_consequence": "The wrong itinerary mutation succeeds, consumes the one allowed change, and leaves a final state that violates the user's conditional goal.",
+      "ordinary_retry": "Blocked by the explicit consumed change budget.",
+      "experience_identifiability": "Requires paired channel conditions with wrong-branch failure and correct-branch success, including reverse-direction price cases.",
+      "shortcut_risk": "MEDIUM",
+      "overlap": "Builds on v2 P2/P5 but adds an explicit stable selector and commitment consequence; must be described as a clean v3 extension, not a new native tau2 fact.",
+      "verdict": "RECOMMEND_GATE_0"
+    },
+    {
+      "id": "EE-02",
+      "name": "CHANNEL_CONDITIONED_MODIFICATION_PATH",
+      "domain": "airline",
+      "native_anchor": "Direct update and cancellation/new-booking paths already exist and produce different reservation and payment histories.",
+      "required_extension": "Add a visible booking-channel field whose hidden operational contract determines whether benefits and settlement survive direct modification or replacement booking.",
+      "latent_mapping": "Booking channel determines which otherwise executable path preserves the complete user goal.",
+      "wrong_action_consequence": "The locally successful path irreversibly loses a required benefit or reservation identity.",
+      "ordinary_retry": "Potentially blocked after cancellation or benefit consumption.",
+      "experience_identifiability": "Needs both channel directions and matched goals.",
+      "shortcut_risk": "MEDIUM_HIGH",
+      "overlap": "May blur capability with policy eligibility and requires more new state than EE-01.",
+      "verdict": "HOLD_SECONDARY"
+    },
+    {
+      "id": "EE-03",
+      "name": "RETAIL_PATCH_REPLACE_CONTRACT",
+      "domain": "retail",
+      "native_anchor": "Orders contain multi-item collections and item modification already commits a state transition.",
+      "required_extension": "Introduce versioned patch versus full-replacement payload semantics and a representation for unchanged items.",
+      "latent_mapping": "Observable API contract version determines payload construction.",
+      "wrong_action_consequence": "A partial payload under replacement semantics would silently drop omitted items.",
+      "ordinary_retry": "Could be blocked by the existing one-shot status transition.",
+      "experience_identifiability": "Would require paired versions and opposite payload cases.",
+      "shortcut_risk": "HIGH",
+      "overlap": "The current tool schema cannot express a clean reverse-direction case; full payloads can dominate patch payloads without additional concurrency semantics.",
+      "verdict": "REJECT_CURRENT_FORM"
+    },
+    {
+      "id": "EE-04",
+      "name": "RETAIL_ONE_SHOT_DISCLOSURE",
+      "domain": "retail",
+      "native_anchor": "A partial successful item modification makes later item modification impossible.",
+      "required_extension": "None for state transition; User Simulator branching would be needed to hide a later requested change until the Agent elicits it.",
+      "latent_mapping": "The interaction strategy determines whether all desired changes are known before the one-shot write.",
+      "wrong_action_consequence": "Premature partial modification succeeds and makes the remaining requested modification unreachable.",
+      "ordinary_retry": "Natively blocked.",
+      "experience_identifiability": "Could contrast vague confirmation with targeted completeness elicitation.",
+      "shortcut_risk": "HIGH",
+      "overlap": "The native policy already explicitly instructs the Agent to collect all changes, so this is more suitable for a later User Simulator primitive than the first hidden-environment primitive.",
+      "verdict": "HOLD_INTERACTION_TRACK"
+    },
+    {
+      "id": "EE-05",
+      "name": "POST_MUTATION_REVISION_REBINDING",
+      "domain": "airline",
+      "native_anchor": "Native writes return committed state and stable reservation IDs.",
+      "required_extension": "Add replaceable segment/revision identifiers and a dependent segment-scoped write.",
+      "latent_mapping": "Mutation output or refreshed state determines the valid downstream binding.",
+      "wrong_action_consequence": "Using a retired binding fails or mutates the wrong target.",
+      "ordinary_retry": "A generic refresh may reveal and repair the target unless the design adds another commitment constraint.",
+      "experience_identifiability": "A refresh/rebind rule is learnable, but always refreshing remains safe on controls.",
+      "shortcut_risk": "HIGH",
+      "overlap": "This is the extension proposed after Primitive A failed; it still lacks a counter-directional Success case where unconditional refresh is harmful.",
+      "verdict": "REJECT_AS_FIRST_PRIMITIVE"
+    },
+    {
+      "id": "EE-06",
+      "name": "SINGLE_USE_RESOURCE_LIFECYCLE",
+      "domain": "airline",
+      "native_anchor": "Certificate redemption is already irreversible.",
+      "required_extension": "None in the completed Pilot.",
+      "latent_mapping": "Certificate consumption should determine global allocation.",
+      "wrong_action_consequence": "Early redemption can make a later booking impossible.",
+      "ordinary_retry": "Natively blocked after redemption.",
+      "experience_identifiability": "The rule is observable from failed reuse and missing certificate state.",
+      "shortcut_risk": "CONFIRMED_HIGH",
+      "overlap": "Completed HRS Core E0 was 12/12 because visible resource amounts revealed the correct allocation.",
+      "verdict": "REJECTED_TOO_EASY"
+    }
+  ],
+  "isolation_design": {
+    "recommended_location": "construction/latent_settlement_contract/environment/",
+    "implementation_shape": "A v3-owned DB extension plus AirlineTools subclass or composition, exposed through a separately registered process-local domain factory.",
+    "native_source_modification": false,
+    "benchmark_v2_modification": false,
+    "formal_task_admission_before_gates": false,
+    "policy_rule": "The one-change commitment limit is visible; only the channel-to-settlement mapping remains latent.",
+    "evaluation": "Custom semantic evaluator checks final itinerary, payment delta, preserved fields, and consumed change budget without enforcing tool order."
+  },
+  "recommendation": {
+    "candidate": "EE-01_CHANNEL_CONDITIONED_SETTLEMENT_COMMIT",
+    "decision": "PROCEED_TO_GATE_0_DESIGN_ONLY",
+    "reason": "It is the smallest audited option that can make the hidden mapping action-critical, make the wrong action succeed before delayed failure, block trial-and-error recovery, and reuse real native historical/current settlement structure.",
+    "remaining_risks": [
+      "Overlap with v2 P2/P5 must be disclosed.",
+      "Channel naming or price geometry must not leak the mapping.",
+      "The change budget must be explicit rather than hidden.",
+      "Two counter-directional tasks must prove that no single fixed action dominates."
+    ]
+  }
+}

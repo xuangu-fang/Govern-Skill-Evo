@@ -1,0 +1,179 @@
+{
+  "edition": "phase_v3_day34",
+  "primitive": "B_CONDITIONAL_DECISION_PROCEDURE",
+  "candidate_count": 7,
+  "admitted_count": 6,
+  "verdict": "PASS_STRUCTURAL",
+  "candidates": [
+    {
+      "candidate_id": "PB-C01",
+      "name": "Cancellation eligibility classifier",
+      "runtime_observation": "Reservation cabin, creation time, insurance, itinerary flight statuses, user membership, and the user's cancellation reason.",
+      "decision_variable": "Whether any segment has flown and whether at least one native policy eligibility condition holds.",
+      "possible_runtime_states": [
+        "z1: an itinerary segment has landed or is flying",
+        "z2: no segment has flown and an eligibility condition holds",
+        "z3: no segment has flown and no eligibility condition holds"
+      ],
+      "correct_behavior": {
+        "z1": "Do not cancel; transfer because the Agent cannot handle a partially flown itinerary.",
+        "z2": "After confirmation, call cancel_reservation.",
+        "z3": "Deny the cancellation mutation."
+      },
+      "why_not_known_at_start": "The user's assertion is not authoritative; the reservation and flight-instance states must be read at runtime.",
+      "potential_reusable_procedure": "Collect authoritative state, apply the flown-segment hard gate first, then evaluate the independent eligibility predicates, and map the classified case to transfer, cancel, or deny.",
+      "why_base_might_fail": "The tool itself accepts ineligible cancellations, so a caller can over-trust the write API or overlook one of several disjunctive eligibility paths.",
+      "task_general": true,
+      "information_boundary": "All branch inputs are available from normal user interaction and Airline read tools; the branch label remains construction-only.",
+      "structural_verdict": "ADMIT"
+    },
+    {
+      "candidate_id": "PB-C02",
+      "name": "Constrained flight-candidate selection",
+      "runtime_observation": "Direct and one-stop search results containing routes, dates, times, seat counts, cabin prices, and connection structure.",
+      "decision_variable": "The feasible candidate set after hard constraints, followed by the user's ranking preference and fallback ordering.",
+      "possible_runtime_states": [
+        "z1: preferred feasible candidate exists",
+        "z2: preferred candidate is infeasible but a lower-ranked feasible candidate exists",
+        "z3: no candidate satisfies the hard constraints"
+      ],
+      "correct_behavior": {
+        "z1": "Propose the highest-ranked feasible itinerary.",
+        "z2": "Propose the next feasible candidate under the declared fallback ordering.",
+        "z3": "Do not mutate; report that the constrained request cannot be fulfilled or ask which constraint may change."
+      },
+      "why_not_known_at_start": "Flight IDs, availability, cabin capacity, prices, and connection timings are returned only by runtime search.",
+      "potential_reusable_procedure": "Normalize candidates, apply route/date/chronology/capacity/cabin/budget constraints as hard filters, rank survivors by the user objective, and use an explicit fallback only after proving the preferred class empty.",
+      "why_base_might_fail": "A caller can rank before filtering, compare only direct results, ignore connection chronology, or silently relax a hard constraint.",
+      "task_general": true,
+      "information_boundary": "The chosen flight must be derived from public search results; no gold candidate may enter Agent or Learner context.",
+      "structural_verdict": "ADMIT"
+    },
+    {
+      "candidate_id": "PB-C03",
+      "name": "Checked-baggage allowance and charge classification",
+      "runtime_observation": "Authoritative membership, reservation cabin, passenger count, current bag counts, and requested final bag count.",
+      "decision_variable": "The membership-by-cabin allowance multiplied by passenger count, and the requested increment above that allowance/current paid-bag state.",
+      "possible_runtime_states": [
+        "z1: requested final bags remain entirely within the free allowance",
+        "z2: requested final bags exceed the free allowance and require payment",
+        "z3: the request would remove bags and is policy-ineligible"
+      ],
+      "correct_behavior": {
+        "z1": "Update total bags with the correct nonfree count and no positive charge.",
+        "z2": "Compute nonfree bags and the incremental fee, obtain payment and confirmation, then update.",
+        "z3": "Deny the removal mutation while preserving existing bags."
+      },
+      "why_not_known_at_start": "The user may misstate membership or omit cabin and current baggage; authoritative values live in user/reservation state.",
+      "potential_reusable_procedure": "Read authoritative inputs, compute per-passenger allowance from the policy matrix, derive total free capacity and incremental nonfree bags, then select free update, paid update, or denial.",
+      "why_base_might_fail": "The calculation combines two entities, a policy matrix, passenger cardinality, current state, and incremental rather than total charging.",
+      "task_general": true,
+      "information_boundary": "Only tool-observed membership/reservation fields and the request are needed; computed oracle totals stay evaluator-only.",
+      "structural_verdict": "ADMIT"
+    },
+    {
+      "candidate_id": "PB-C04",
+      "name": "Compensation eligibility and amount classifier",
+      "runtime_observation": "Membership, insurance, cabin, flight status, passenger count, complaint type, explicit compensation request, and whether a required change/cancellation completed.",
+      "decision_variable": "Eligible customer predicate combined with disruption type and remedy state.",
+      "possible_runtime_states": [
+        "z1: cancelled-flight complaint and customer is compensation-eligible",
+        "z2: delayed-flight complaint, requested remedy completed, and customer is eligible",
+        "z3: ineligible customer, unsupported reason, no explicit request, or delayed remedy not completed"
+      ],
+      "correct_behavior": {
+        "z1": "Offer/send a certificate worth 100 dollars per passenger after required confirmation.",
+        "z2": "Offer/send a certificate worth 50 dollars per passenger after the change/cancellation and confirmation.",
+        "z3": "Do not send a certificate."
+      },
+      "why_not_known_at_start": "Eligibility and disruption facts require profile, reservation, and flight-state reads; delayed compensation also depends on a runtime remedy outcome.",
+      "potential_reusable_procedure": "Verify facts, gate on explicit request and customer eligibility, classify disruption and remedy completion, calculate amount by passenger count, otherwise take no compensation action.",
+      "why_base_might_fail": "The procedure has ordered prerequisites and mutually different amount/no-action branches; the generic certificate tool enforces none of them.",
+      "task_general": true,
+      "information_boundary": "All evidence comes from conversation and public tools; eligibility/branch annotations remain hidden.",
+      "structural_verdict": "ADMIT"
+    },
+    {
+      "candidate_id": "PB-C05",
+      "name": "Flight-versus-cabin modification legality classifier",
+      "runtime_observation": "Requested mutation type, current cabin, existing flight identities, and whether any segment has flown.",
+      "decision_variable": "Whether the request changes flights, cabin only, or both, combined with basic-economy and flown-state gates.",
+      "possible_runtime_states": [
+        "z1: flight change on basic economy",
+        "z2: cabin-only change with no flown segment",
+        "z3: cabin change after any segment has flown",
+        "z4: permitted flight change preserving itinerary identity"
+      ],
+      "correct_behavior": {
+        "z1": "Do not change flights; a separately requested and permitted cabin-only operation may be considered, but no implicit workaround is authorized.",
+        "z2": "After price calculation and confirmation, update the cabin while preserving every flight.",
+        "z3": "Deny the cabin change.",
+        "z4": "After availability, payment, and confirmation checks, update the complete flight list."
+      },
+      "why_not_known_at_start": "Current cabin, exact segments, and flown status must be obtained from reservation and flight state.",
+      "potential_reusable_procedure": "Classify the requested delta before applying gates: flight identity changes and cabin-only changes have different eligibility rules; preserve all non-target fields and map each case to update or denial.",
+      "why_base_might_fail": "The shared update_reservation_flights API can obscure the semantic difference between a cabin-only write and a flight replacement and does not enforce policy gates.",
+      "task_general": true,
+      "information_boundary": "The delta is derived from request plus tool-observed current state; construction does not reveal the legal branch.",
+      "structural_verdict": "ADMIT"
+    },
+    {
+      "candidate_id": "PB-C06",
+      "name": "Agent-selected payment source",
+      "runtime_observation": "Saved payment methods, balances, transaction price, and refund/charge direction.",
+      "decision_variable": "Which stored payment identifier to pass to a booking or update.",
+      "possible_runtime_states": [
+        "z1: one source can cover the charge",
+        "z2: several sources can cover the charge",
+        "z3: no permitted source can cover the charge"
+      ],
+      "correct_behavior": {
+        "z1": "Potentially use that source after user confirmation.",
+        "z2": "Ask the user to choose unless the user already supplied a preference.",
+        "z3": "Do not submit the write."
+      },
+      "why_not_known_at_start": "Balances and exact price require runtime reads/search, but authority to choose among valid methods belongs to the user.",
+      "potential_reusable_procedure": "Check type and sufficiency constraints, then request a user choice among remaining methods.",
+      "why_base_might_fail": "A caller might choose an arbitrary valid method or use a certificate for an update.",
+      "task_general": true,
+      "information_boundary": "Observable without hidden data.",
+      "structural_verdict": "REJECT",
+      "rejection_reason": "Native semantics do not define a unique Agent-selected downstream action when multiple methods are valid; tasks that do define one usually put the preference directly in the user instruction."
+    },
+    {
+      "candidate_id": "PB-C07",
+      "name": "Reservation-set temporal and entity consistency resolution",
+      "runtime_observation": "The user's reservation IDs followed by each itinerary's times, airports, dates, and passengers.",
+      "decision_variable": "Which reservations involving the user are mutually inconsistent with fixed location/time commitments and are eligible for the requested correction.",
+      "possible_runtime_states": [
+        "z1: reservation is consistent or belongs only to another passenger",
+        "z2: reservation conflicts with an authoritative time/location commitment and may be corrected",
+        "z3: reservation conflicts but the requested mutation is policy-ineligible"
+      ],
+      "correct_behavior": {
+        "z1": "Preserve the reservation.",
+        "z2": "Propose the minimal correction for that reservation, then mutate only after confirmation.",
+        "z3": "Preserve it and explain/transfer according to the applicable operation policy."
+      },
+      "why_not_known_at_start": "The user supplies identity and commitments but the complete candidate reservation set and itinerary graph are obtained from runtime tools.",
+      "potential_reusable_procedure": "Enumerate only the user's relevant itineraries, construct chronological location constraints, exclude other-passenger records, identify conflicts, then apply operation eligibility and minimal-change selection.",
+      "why_base_might_fail": "The decision requires cross-object temporal reasoning, entity scoping, and a minimal-change rule rather than matching one field.",
+      "task_general": true,
+      "information_boundary": "All graph inputs are observable; gold conflicting reservation IDs must remain evaluator-only.",
+      "structural_verdict": "ADMIT"
+    }
+  ],
+  "recommended_for_pilot": [
+    {
+      "rank": 1,
+      "candidate_id": "PB-C02",
+      "reason": "The runtime candidate set and action binding are explicit, surface variants are abundant, the procedure is medium-level rather than an answer, and final itinerary state is semantically evaluable."
+    },
+    {
+      "rank": 2,
+      "candidate_id": "PB-C01",
+      "reason": "It provides a clean multi-state legal-operation classifier with native evidence reads and distinct cancel/deny/transfer consequences, though later calibration must test whether the visible policy makes it too easy."
+    }
+  ]
+}
+

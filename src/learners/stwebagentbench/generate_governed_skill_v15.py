@@ -16,7 +16,8 @@ Merge only compatible triggers, repair operators and predicates; shared operator
 alone do not justify merging. Source-specific conditions remain branch-scoped.
 Each source H ID contributes to at most one edit. Add selects an existing section
 and empty target_rule_id; replace/delete retain the exact compiled section and rule.
-Single-domain text starts with 'For airline requests,' or 'For retail requests,'.
+Single-domain text starts with 'For airline requests' or 'For retail requests';
+domain-specific modifiers such as 'with', 'involving', or 'when' may follow.
 Generalize episode IDs/dates/amounts when incidental, not mechanism-defining values.
 Do not put source or supervision identifiers into Skill text. Verification is a
 learner-generated hypothesis, not an oracle expected solution, and must match the

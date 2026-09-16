@@ -1,0 +1,37 @@
+{
+  "family_id": "C-RET-P3-RESOURCE-REFRESH",
+  "status": "PASS_DESIGN_CONTRACT_ONLY",
+  "formal_task_ids_allocated": 0,
+  "environment": "retail-final-candidate-unified-p1",
+  "new_domain": false,
+  "new_tool": false,
+  "new_oracle_sidecar": false,
+  "native_resource": "gift_card.balance",
+  "triggers": [
+    {
+      "construction_label": "p3-cancel-trigger",
+      "initial_balance": 40.0,
+      "upstream_mutation": "cancel_pending_order",
+      "refund": 180.0,
+      "refreshed_balance": 220.0,
+      "downstream_mutation": "modify_pending_order_payment",
+      "downstream_need": 120.0,
+      "expected_final_balance": 100.0
+    },
+    {
+      "construction_label": "p3-payment-trigger",
+      "initial_balance": 30.0,
+      "upstream_mutation": "modify_pending_order_payment",
+      "refund": 240.0,
+      "refreshed_balance": 270.0,
+      "downstream_mutation": "modify_pending_order_items",
+      "downstream_need": 80.0,
+      "expected_final_balance": 190.0
+    }
+  ],
+  "correct_path": ["upstream_write", "get_user_details", "downstream_write"],
+  "stale_path": ["early_downstream_insufficient_balance", "upstream_write", "omit_downstream_retry"],
+  "refresh_is_backend_precondition": false,
+  "gate1": {"triggers": 2, "seeds": 2, "e0_focal_min": 3, "er_cs_required": 4},
+  "support_policy": "OMITTED__GLOBAL_PROTECTED_CONTROLS"
+}

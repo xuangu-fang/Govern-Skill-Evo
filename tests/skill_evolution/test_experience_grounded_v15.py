@@ -263,6 +263,22 @@ class V15BoundaryTests(unittest.TestCase):
             return json.dumps(result)
         with self.assertRaises(b.BoundaryError):call_governed_editor(e,learner_call=bad)
 
+    def test_editor_accepts_domain_scoped_modifier(self):
+        _,_,request,_,_=fixture();h=call_diagnosis(request,learner_call=diagnosis_transport);e,_=build_editor_request((h,))
+        def modified(system,user,schema):
+            result=json.loads(editor_transport(system,user,schema))
+            result['canonical_edits'][0]['text']='For retail requests involving a consequential action, obtain confirmation.'
+            return json.dumps(result)
+        call_governed_editor(e,learner_call=modified)
+
+    def test_editor_rejects_wrong_domain_scope(self):
+        _,_,request,_,_=fixture();h=call_diagnosis(request,learner_call=diagnosis_transport);e,_=build_editor_request((h,))
+        def wrong_domain(system,user,schema):
+            result=json.loads(editor_transport(system,user,schema))
+            result['canonical_edits'][0]['text']='For airline requests involving a consequential action, obtain confirmation.'
+            return json.dumps(result)
+        with self.assertRaises(b.BoundaryError):call_governed_editor(e,learner_call=wrong_domain)
+
     def test_new_experiment_default_is_v15(self):
         from src.skill_evolution import experience_grounded_runtime as default
         self.assertEqual(default.INFORMATION_BOUNDARY_VERSION,'v15_learner_safe')
