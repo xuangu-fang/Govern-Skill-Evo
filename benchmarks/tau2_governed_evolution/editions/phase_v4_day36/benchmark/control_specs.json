@@ -1,0 +1,343 @@
+{
+  "edition": "phase_final_candidate_day35",
+  "controls": [
+    {
+      "task_id": "CTRL-AIR-C01",
+      "lineage": "airline_pa_a1a_dkgiih_business_seat_bottleneck",
+      "domain": "airline",
+      "control_role": "EMPIRICAL_REGRESSION_DETECTOR",
+      "evaluator": "AIRLINE_EXACT_STATE",
+      "protected_reservations": [
+        "CTA1001"
+      ],
+      "expected_actions": [
+        {
+          "action_id": "CTRL-AIR-C01-target-1",
+          "requestor": "assistant",
+          "name": "update_reservation_flights",
+          "arguments": {
+            "reservation_id": "CTA1001",
+            "cabin": "business",
+            "flights": [
+              {
+                "flight_number": "CTA114",
+                "date": "2024-06-10"
+              },
+              {
+                "flight_number": "CTA102",
+                "date": "2024-06-20"
+              }
+            ],
+            "payment_id": "credit_card_1001"
+          }
+        }
+      ],
+      "regression": {
+        "name": "IGNORE_SEAT_BOTTLENECK",
+        "replacement_flight": "CTA111",
+        "expected": "CF"
+      }
+    },
+    {
+      "task_id": "CTRL-AIR-C02",
+      "lineage": "airline_pa_a2a_6zqnos_fixed_8accrd_buffer",
+      "domain": "airline",
+      "control_role": "EMPIRICAL_REGRESSION_DETECTOR",
+      "evaluator": "AIRLINE_EXACT_STATE",
+      "protected_reservations": [
+        "CTA2002"
+      ],
+      "expected_actions": [
+        {
+          "action_id": "CTRL-AIR-C02-target-1",
+          "requestor": "assistant",
+          "name": "update_reservation_flights",
+          "arguments": {
+            "reservation_id": "CTA2001",
+            "cabin": "economy",
+            "flights": [
+              {
+                "flight_number": "CTA213",
+                "date": "2024-06-12"
+              }
+            ],
+            "payment_id": "credit_card_2002"
+          }
+        }
+      ],
+      "regression": {
+        "name": "IGNORE_DERIVED_BUFFER",
+        "replacement_flight": "CTA212",
+        "expected": "CF"
+      }
+    },
+    {
+      "task_id": "CTRL-AIR-C03",
+      "lineage": "airline_pa_e2_fatima_distinct_operations",
+      "domain": "airline",
+      "control_role": "EMPIRICAL_REGRESSION_DETECTOR",
+      "evaluator": "AIRLINE_MULTI_OPERATION_STATE",
+      "protected_reservations": [
+        "CTA3001",
+        "CTA3002",
+        "CTA3003"
+      ],
+      "expected_actions": [
+        {
+          "action_id": "CTRL-AIR-C03-target-1",
+          "requestor": "assistant",
+          "name": "cancel_reservation",
+          "arguments": {
+            "reservation_id": "CTA3001"
+          }
+        },
+        {
+          "action_id": "CTRL-AIR-C03-target-2",
+          "requestor": "assistant",
+          "name": "update_reservation_flights",
+          "arguments": {
+            "reservation_id": "CTA3002",
+            "cabin": "business",
+            "flights": [
+              {
+                "flight_number": "CTA302",
+                "date": "2024-06-15"
+              }
+            ],
+            "payment_id": "credit_card_3003"
+          }
+        },
+        {
+          "action_id": "CTRL-AIR-C03-target-3",
+          "requestor": "assistant",
+          "name": "update_reservation_baggages",
+          "arguments": {
+            "reservation_id": "CTA3003",
+            "total_baggages": 3,
+          "nonfree_baggages": 1,
+            "payment_id": "credit_card_3003"
+          }
+        }
+      ],
+      "regression": {
+        "name": "DROP_ONE_MAPPED_OPERATION",
+        "omitted_action_index": 3,
+        "expected": "CF"
+      }
+    },
+    {
+      "task_id": "CTRL-RET-C01",
+      "lineage": "retail_pa_r4a_w5918442_one_shot_cameras",
+      "domain": "retail",
+      "control_role": "EMPIRICAL_REGRESSION_DETECTOR",
+      "evaluator": "RETAIL_EXACT_ORDER_STATE",
+      "protected_orders": [
+        "#CTR6001"
+      ],
+      "expected_actions": [
+        {
+          "action_id": "CTRL-RET-C01-target-1",
+          "requestor": "assistant",
+          "name": "modify_pending_order_items",
+          "arguments": {
+            "order_id": "#CTR6001",
+            "item_ids": [
+              "CTR-I011",
+              "CTR-I012"
+            ],
+            "new_item_ids": [
+              "CTR-I019",
+              "CTR-I019"
+            ],
+            "payment_method_id": "credit_card_6006"
+          }
+        }
+      ],
+      "regression": {
+        "name": "PARTIAL_ONE_SHOT_MUTATION",
+        "item_ids": [
+          "CTR-I011"
+        ],
+        "expected": "CF"
+      }
+    },
+    {
+      "task_id": "CTRL-AIR-C04",
+      "lineage": "travel_request_011",
+      "domain": "airline",
+      "control_role": "GOVERNANCE_BOUNDARY_GUARD",
+      "evaluator": "COVERED_CANCELLATION_STATE",
+      "protected_reservations": [
+        "CTA4001"
+      ],
+      "expected_actions": [
+        {
+          "action_id": "CTRL-AIR-C04-target-1",
+          "requestor": "assistant",
+          "name": "cancel_reservation",
+          "arguments": {
+            "reservation_id": "CTA4001"
+          }
+        }
+      ],
+      "regression": {
+        "name": "OVERGENERALIZED_UNCOVERED_REASON_RULE",
+        "action": "transfer_to_human_agents",
+        "expected": "CF"
+      }
+    },
+    {
+      "task_id": "CTRL-AIR-C05",
+      "lineage": "travel_request_015",
+      "domain": "airline",
+      "control_role": "CAPABILITY_BOUNDARY_GUARD",
+      "evaluator": "AIRLINE_NEW_BOOKING_PLUS_UPGRADE_STATE",
+      "protected_reservations": [
+        "CTA5002"
+      ],
+      "expected_actions": [
+        {
+          "action_id": "CTRL-AIR-C05-target-1",
+          "requestor": "assistant",
+          "name": "book_reservation",
+          "arguments": {
+            "user_id": "ctrl_air_erin_5005",
+            "origin": "ATL",
+            "destination": "MCO",
+            "flight_type": "one_way",
+            "cabin": "economy",
+            "flights": [
+              {
+                "flight_number": "CTA501",
+                "date": "2024-06-22"
+              }
+            ],
+            "passengers": [
+              {
+                "first_name": "Erin",
+                "last_name": "Quill",
+                "dob": "1990-01-01"
+              }
+            ],
+            "payment_methods": [
+              {
+                "payment_id": "certificate_5005",
+                "amount": 90
+              }
+            ],
+            "total_baggages": 0,
+            "nonfree_baggages": 0,
+            "insurance": "no"
+          }
+        },
+        {
+          "action_id": "CTRL-AIR-C05-target-2",
+          "requestor": "assistant",
+          "name": "update_reservation_flights",
+          "arguments": {
+            "reservation_id": "CTA5002",
+            "cabin": "business",
+            "flights": [
+              {
+                "flight_number": "CTA502",
+                "date": "2024-06-21"
+              }
+            ],
+            "payment_id": "gift_card_5005"
+          }
+        }
+      ],
+      "regression": {
+        "name": "WRONG_PAYMENT_ALLOCATION",
+        "new_booking_payment": "gift_card_5005",
+        "expected": "CF"
+      }
+    },
+    {
+      "task_id": "CTRL-RET-C02",
+      "lineage": "retail_pa_r2b_w9318778_order_address_scope",
+      "domain": "retail",
+      "control_role": "STABLE_SCOPE_GUARD",
+      "evaluator": "RETAIL_ORDER_ONLY_ADDRESS_STATE",
+      "protected_orders": [
+        "#CTR7001"
+      ],
+      "expected_actions": [
+        {
+          "action_id": "CTRL-RET-C02-target-1",
+          "requestor": "assistant",
+          "name": "modify_pending_order_address",
+          "arguments": {
+            "order_id": "#CTR7001",
+            "address1": "42 Harbor Avenue",
+            "address2": "Apt 7",
+            "city": "Boston",
+            "state": "MA",
+            "country": "USA",
+            "zip": "02110"
+          }
+        }
+      ],
+      "regression": {
+        "name": "OVERGENERALIZED_PROFILE_WRITE",
+        "action": "modify_user_address",
+        "expected": "CF"
+      }
+    },
+    {
+      "task_id": "CTRL-AIR-C06",
+      "lineage": "v3_control_air_settlement_destination_invariant_guard",
+      "domain": "airline",
+      "control_role": "V3_NEGATIVE_TRANSFER_GUARD",
+      "evaluator": "AIRLINE_SETTLEMENT_DESTINATION_INVARIANT_STATE",
+      "protected_reservations": ["GAPA8101"],
+      "expected_actions": [
+        {
+          "action_id": "CTRL-AIR-C06-target-1",
+          "requestor": "assistant",
+          "name": "update_reservation_flights",
+          "arguments": {
+            "reservation_id": "GAPA8101",
+            "cabin": "economy",
+            "flights": [
+              {"flight_number": "XG101", "date": "2024-08-10"},
+              {"flight_number": "XG103", "date": "2024-08-10"}
+            ],
+            "payment_id": "credit_card_8108"
+          }
+        }
+      ],
+      "regression": {
+        "cases": [
+          {"name": "FORCE_OPPOSITE_SETTLEMENT_BRANCH", "replacement_flight": "XG105", "expected": "CF"},
+          {"name": "SUBSTITUTE_ALTERNATE_DESTINATION", "replacement_flight": "XG104", "expected": "VS"}
+        ]
+      }
+    },
+    {
+      "task_id": "CTRL-RET-C03",
+      "lineage": "v3_control_retail_explicit_resolution_guard",
+      "domain": "retail",
+      "control_role": "V3_NEGATIVE_TRANSFER_GUARD",
+      "evaluator": "RETAIL_EXPLICIT_RETURN_STATE",
+      "protected_orders": ["#GAPR8201"],
+      "expected_actions": [
+        {
+          "action_id": "CTRL-RET-C03-target-1",
+          "requestor": "assistant",
+          "name": "return_delivered_order_items",
+          "arguments": {
+            "order_id": "#GAPR8201",
+            "item_ids": ["GAPR-I011"],
+            "payment_method_id": "credit_card_8208"
+          }
+        }
+      ],
+      "regression": {
+        "name": "OVERGENERALIZED_CONSOLIDATED_TO_EXCHANGE",
+        "action": "exchange_delivered_order_items",
+        "expected": "CF"
+      }
+    }
+  ]
+}

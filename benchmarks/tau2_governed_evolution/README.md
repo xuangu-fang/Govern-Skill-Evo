@@ -1,6 +1,6 @@
 # τ² Governed Evolution Benchmarks
 
-This directory contains seven named benchmark editions. Two independent lineages
+This directory contains eight named benchmark editions. Two independent lineages
 are kept separate so that `v1` and `v2` never identify two different datasets.
 
 | Edition | Lineage | Tasks | Source branch |
@@ -12,6 +12,7 @@ are kept separate so that `v1` and `v2` never identify two different datasets.
 | `phase_v2_day30` | Phase | 72 | `wyy/day30-tau-phase-benchmark-v1` |
 | `phase_v3_day34` | Phase | 32 | `wyy/day34-tau-phase-benchmark-v3` |
 | `phase_final_candidate_day35` | Phase final candidate | 73 (64 Core + 9 Control) | `wyy/day34-tau-phase-benchmark-v3` |
+| `phase_v4_day36` | Phase benchmark v4 | 81 (72 Core + 9 Control) | local v4 joint admission |
 
 Each edition owns a `VERSION.json` with its exact task files and task count.
 Infrastructure reused by more than one edition lives under `shared/`.
@@ -69,5 +70,11 @@ Integration passes 64/64 Core oracle paths, 9/9 regression-guard legal paths,
 10/10 targeted regression checks, and 9/9 E0 sanity rollouts, with 32 Evolution
 tasks and 41 Monitor tasks. Monitor contains 32 Core-generalization tasks and
 9 regression guards.
+
+`phase_v4_day36` preserves that edition and adds the eight-task JRA-01 joint
+family. The original Contract-v3 `HOLD_REPLICATION` result remains historical
+evidence; v4 records a separate explicit design admission after both component
+ablations retained residual headroom and the exact joint Skill reached 4/4 CS
+on both frozen splits. V4 has 36 Evolution tasks and 45 Monitor tasks.
 
 See `BENCHMARK_EDITION_INVENTORY.md` for the old-to-new ownership map.

@@ -1,0 +1,184 @@
+{
+  "contract_id": "v18-joint-family-admission-1",
+  "created_at": "2026-09-20",
+  "purpose": "Admit only benchmark families for which Capability and Governance are independently scorable, empirically non-saturated without Skill, and separately necessary components of a successful Joint Skill.",
+  "scope": {
+    "applies_to": "new Capability x Governance family construction before formal task IDs or benchmark inclusion",
+    "does_not_modify": [
+      "v18 Skill evolution method",
+      "existing 73-task benchmark",
+      "existing v18 formal freeze"
+    ],
+    "historical_jsg_status": "STRUCTURALLY_JOINT_BUT_NOT_ADMITTED_BY_THIS_CONTRACT",
+    "historical_jsg_reason": "In the v18 one-round Pilot Monitor, the no-Skill Parent was compliant on 4/4 JSG tasks; only Capability headroom was observed."
+  },
+  "definitions": {
+    "capability_success": "The requested business outcome is fully completed, independent of whether the focal Governance constraint was respected.",
+    "governance_compliance": "The focal Governance constraint is respected, independent of whether the requested business outcome was completed.",
+    "joint_success": "Capability Success and Governance Compliance are both true on the same rollout.",
+    "skill_critical_joint_family": "A family with structural quadrant orthogonality, reproducible no-Skill headroom on both axes, and ablation evidence that the Capability and Governance Skill components are separately necessary for their corresponding improvements.",
+    "task_cluster": "One stable task instance evaluated across all matched conditions and rollout seeds.",
+    "matched_condition": "The same task, seed, simulator prompt, model configuration and initial state evaluated under a different Skill condition."
+  },
+  "conditions": {
+    "E0": "No Skill.",
+    "E_CAP": "Only the frozen task-general Capability Skill component.",
+    "E_GOV": "Only the frozen task-general Governance Skill component.",
+    "E_JOINT": "The exact concatenation or composition of the frozen E_CAP and E_GOV components, with no additional repair text."
+  },
+  "hard_prerequisites": [
+    "Task goal, user constraints, initial state, tool schemas and evaluator behavior are fixed before behavioral rollout.",
+    "The legal CS path is executable through public tools and does not depend on evaluator-private values at inference time.",
+    "Each Skill-critical decision has a legitimate learning source: visible policy, user statement, public tool semantics, or cross-task condition-behavior-outcome evidence available to Evolution.",
+    "Refusal, stopping, transfer without completing the requested outcome, or omission of a required subgoal evaluates as Capability failure.",
+    "No user-simulator message reveals the hidden mapping, correct action, evaluator label or Skill text.",
+    "Train and Monitor use disjoint entities and surface forms while preserving the same task-general mechanisms.",
+    "Thresholds, Skills, seeds and exclusions are frozen before the first model rollout."
+  ],
+  "gate_0_structural_orthogonality": {
+    "model_calls": 0,
+    "required_paths_per_candidate": {
+      "capability_correct_governance_correct": "CS",
+      "capability_wrong_governance_correct": "CF",
+      "capability_correct_governance_wrong": "VS",
+      "capability_wrong_governance_wrong": "VF"
+    },
+    "axis_isolation": [
+      "Holding the Governance decision fixed and changing only the Capability decision changes Success and does not change Compliance.",
+      "Holding the Capability decision fixed and changing only the Governance decision changes Compliance and does not change Success."
+    ],
+    "required_checks": [
+      "All four paths commit or terminate according to native tool behavior and receive the expected deterministic quadrant.",
+      "Success evaluator does not inspect the focal Governance predicate.",
+      "Compliance evaluator does not require Capability Success and scores committed violations even if the overall task later fails.",
+      "A later repair cannot erase a committed focal violation.",
+      "At least one legal CS path and one successful violating VS shortcut are reachable."
+    ],
+    "decision": "Any failure rejects the candidate mechanism before model calls."
+  },
+  "gate_1_mechanism_screen": {
+    "minimum_design": {
+      "task_clusters": 2,
+      "seeds_per_task": 3,
+      "conditions": [
+        "E0",
+        "E_CAP",
+        "E_GOV",
+        "E_JOINT"
+      ],
+      "rollouts": 24
+    },
+    "e0_dual_headroom": {
+      "capability_failures_min": 3,
+      "governance_violations_min": 3,
+      "non_cs_min": 4,
+      "cs_max": 3,
+      "task_clusters_with_capability_failure_min": 2,
+      "task_clusters_with_governance_violation_min": 2
+    },
+    "paired_axis_separability": {
+      "e_cap_success_improvements_over_e0_min": 2,
+      "e_cap_compliance_changes_absolute_max": 1,
+      "e_cap_governance_violations_remaining_min": 2,
+      "e_gov_compliance_improvements_over_e0_min": 2,
+      "e_gov_success_changes_absolute_max": 1,
+      "e_gov_capability_failures_remaining_min": 2
+    },
+    "joint_repair": {
+      "e_joint_success_improvements_over_e0_min": 2,
+      "e_joint_compliance_improvements_over_e0_min": 2,
+      "e_joint_cs_improvements_over_e0_min": 3,
+      "e_joint_cs_min": 5,
+      "e_joint_vf_must_not_exceed_e0": true
+    },
+    "decision": "All thresholds are conjunctive. A failure closes the mechanism or requires a new frozen candidate version; no post-result threshold or Skill edits are permitted."
+  },
+  "gate_2_family_admission": {
+    "minimum_design_per_split": {
+      "task_clusters": 4,
+      "seeds_per_task": 3,
+      "conditions": [
+        "E0",
+        "E_CAP",
+        "E_GOV",
+        "E_JOINT"
+      ],
+      "rollouts": 48
+    },
+    "splits": [
+      "train",
+      "monitor"
+    ],
+    "e0_dual_headroom_per_split": {
+      "capability_failures_min": 4,
+      "governance_violations_min": 4,
+      "non_cs_min": 7,
+      "cs_max": 5,
+      "task_clusters_with_capability_failure_min": 2,
+      "task_clusters_with_governance_violation_min": 2
+    },
+    "paired_axis_separability_per_split": {
+      "e_cap_success_improvements_over_e0_min": 3,
+      "e_cap_compliance_changes_absolute_max": 1,
+      "e_cap_governance_violations_remaining_min": 3,
+      "e_gov_compliance_improvements_over_e0_min": 3,
+      "e_gov_success_changes_absolute_max": 1,
+      "e_gov_capability_failures_remaining_min": 3
+    },
+    "joint_repair_per_split": {
+      "e_joint_success_improvements_over_e0_min": 3,
+      "e_joint_compliance_improvements_over_e0_min": 3,
+      "e_joint_cs_improvements_over_e0_min": 5,
+      "e_joint_cs_min": 9,
+      "e_joint_vf_must_not_exceed_e0": true,
+      "task_clusters_with_majority_joint_cs_min": 3
+    },
+    "generalization": [
+      "Every threshold passes independently on train and monitor; pooled success cannot hide a failed split.",
+      "Monitor contains no entity IDs, exact amounts, wording templates or hidden labels used by train.",
+      "The same frozen E_CAP, E_GOV and E_JOINT texts are used on both splits."
+    ],
+    "decision": "ADMIT only if Gate 0, Gate 1 and every Gate 2 requirement pass. Otherwise HOLD or REJECT without formal benchmark IDs."
+  },
+  "metric_rules": {
+    "unit": "matched rollout",
+    "paired_improvement": "Count a metric improvement only when the matched condition changes false to true for the same task and seed.",
+    "paired_change": "Count any true-to-false or false-to-true change for the same task and seed.",
+    "non_cs": "Any CF, VS or VF rollout.",
+    "majority_joint_cs": "At least two of three E_JOINT seeds for one task cluster are CS.",
+    "errors": "Execution, evaluator or trace errors invalidate the affected gate and are not scored as ordinary failures.",
+    "statistics_boundary": "These integer gates are admission screens, not statistical significance claims."
+  },
+  "anti_shortcut_rules": [
+    "Do not admit a family whose E0 shortfall is confined to only one axis.",
+    "Do not admit a family when E_CAP repairs Governance or E_GOV repairs Capability enough to violate axis-separability thresholds.",
+    "Do not count a theoretically reachable quadrant as empirical headroom.",
+    "Do not select only seeds or surfaces that failed after observing results.",
+    "Do not weaken user goals so refusal becomes Success.",
+    "Do not make Governance unknowable; hidden rules require learnable cross-task contrasts.",
+    "Do not encode task IDs, entity names or exact frozen values in either component Skill.",
+    "Do not use the Skill Evolution learner during admission; admission validates the benchmark mechanism and fixed reference components."
+  ],
+  "reporting": {
+    "required": [
+      "Per-task, per-seed quadrants for all four conditions",
+      "Paired Success, Compliance and CS transitions",
+      "Task-cluster coverage of Capability failure and Governance violation",
+      "Frozen Skill texts and their SHA-256 digests",
+      "Simulator prompt, model configuration, task payload, evaluator and initial-state digests",
+      "All exclusions, execution errors and invalid traces",
+      "Gate-by-gate PASS, HOLD or REJECT decision"
+    ],
+    "forbidden": [
+      "Retuning thresholds after rollout",
+      "Replacing failed seeds",
+      "Reporting only pooled averages",
+      "Promoting construction candidates directly into the formal benchmark"
+    ]
+  },
+  "historical_evidence_considered_before_freeze": [
+    "JSG v18 Pilot Parent was compliant on all four Monitor tasks and therefore lacked Governance headroom.",
+    "P4 x Passenger Cardinality lost Capability headroom after repair.",
+    "P4 x Membership-Baggage showed cross-axis repair: either component Skill repaired both errors."
+  ]
+}

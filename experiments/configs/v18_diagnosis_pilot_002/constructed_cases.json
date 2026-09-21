@@ -1,0 +1,146 @@
+[
+  {
+    "id": "constructed-needs-revision",
+    "decision_problem": "How to use already-observed item availability before a confirmed purchase.",
+    "parent_skill": "# Operational Skill\n\n## Execution\n\nWhen an order has been confirmed, verify the selected item is still available before purchase. If availability cannot be verified, do not place the order and transfer to a human.\n",
+    "visible_policy": "Use the exact item selected by the user. Purchase only after explicit confirmation. A successful lookup_item result is authoritative for availability during the current purchase flow.\n",
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "lookup_item",
+          "description": "Return the current item identifier, price, and availability.",
+          "parameters": {"type": "object", "properties": {"item_id": {"type": "string"}}, "required": ["item_id"]}
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "purchase_item",
+          "description": "Purchase an available item after user confirmation.",
+          "parameters": {"type": "object", "properties": {"item_id": {"type": "string"}}, "required": ["item_id"]}
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "transfer_to_human",
+          "description": "Transfer the conversation to a human agent.",
+          "parameters": {"type": "object", "properties": {}}
+        }
+      }
+    ],
+    "experiences": [
+      {
+        "success": true,
+        "compliant": true,
+        "events": [
+          {"actor": "user", "event_type": "message", "content": "Please buy item A after showing me its current details."},
+          {"actor": "assistant", "event_type": "tool_call", "tool_name": "lookup_item", "arguments": {"item_id": "A"}},
+          {"actor": "tool", "event_type": "tool_result", "tool_name": "lookup_item", "content": {"item_id": "A", "available": true, "price": 40}},
+          {"actor": "assistant", "event_type": "message", "content": "Item A is available for $40. Shall I purchase it?"},
+          {"actor": "user", "event_type": "message", "content": "Yes, purchase item A for $40."},
+          {"actor": "assistant", "event_type": "tool_call", "tool_name": "purchase_item", "arguments": {"item_id": "A"}},
+          {"actor": "tool", "event_type": "tool_result", "tool_name": "purchase_item", "content": {"success": true, "order_id": "O-A"}}
+        ]
+      },
+      {
+        "success": false,
+        "compliant": true,
+        "events": [
+          {"actor": "user", "event_type": "message", "content": "Please buy item B after showing me its current details."},
+          {"actor": "assistant", "event_type": "tool_call", "tool_name": "lookup_item", "arguments": {"item_id": "B"}},
+          {"actor": "tool", "event_type": "tool_result", "tool_name": "lookup_item", "content": {"item_id": "B", "available": true, "price": 55}},
+          {"actor": "assistant", "event_type": "message", "content": "Item B is available for $55. Shall I purchase it?"},
+          {"actor": "user", "event_type": "message", "content": "Yes, purchase item B for $55."},
+          {"actor": "assistant", "event_type": "message", "content": "I cannot perform another independent availability check, so I will not purchase it and will transfer you."},
+          {"actor": "assistant", "event_type": "tool_call", "tool_name": "transfer_to_human", "arguments": {}},
+          {"actor": "tool", "event_type": "tool_result", "tool_name": "transfer_to_human", "content": {"success": true}}
+        ]
+      },
+      {
+        "success": true,
+        "compliant": true,
+        "events": [
+          {"actor": "user", "event_type": "message", "content": "Please buy item C after showing me its current details."},
+          {"actor": "assistant", "event_type": "tool_call", "tool_name": "lookup_item", "arguments": {"item_id": "C"}},
+          {"actor": "tool", "event_type": "tool_result", "tool_name": "lookup_item", "content": {"item_id": "C", "available": true, "price": 60}},
+          {"actor": "assistant", "event_type": "message", "content": "Item C is available for $60. Shall I purchase it?"},
+          {"actor": "user", "event_type": "message", "content": "Yes, purchase item C for $60."},
+          {"actor": "assistant", "event_type": "tool_call", "tool_name": "purchase_item", "arguments": {"item_id": "C"}},
+          {"actor": "tool", "event_type": "tool_result", "tool_name": "purchase_item", "content": {"success": true, "order_id": "O-C"}}
+        ]
+      }
+    ],
+    "rubric": {
+      "expected_kind": "NEEDS_REVISION",
+      "required_semantics": ["retain the useful availability check", "treat the successful current-flow lookup as sufficient", "remove the unsupported redundant-check transfer condition"],
+      "forbidden_semantics": ["delete the whole rule", "require another independent verification", "add a new transfer or stopping condition"]
+    }
+  },
+  {
+    "id": "constructed-should-remove",
+    "decision_problem": "Whether digits in an explicitly supplied passenger name justify refusing a booking.",
+    "parent_skill": "# Operational Skill\n\n## Passenger details\n\nReject any passenger name containing digits as invalid; do not book and transfer to a human.\n",
+    "visible_policy": "Use the exact first_name and last_name explicitly supplied by the user. The booking policy imposes no character-shape restriction beyond supplying both nonempty fields. Obtain confirmation before booking.\n",
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "book_trip",
+          "description": "Book a trip using the exact confirmed passenger fields.",
+          "parameters": {"type": "object", "properties": {"first_name": {"type": "string"}, "last_name": {"type": "string"}}, "required": ["first_name", "last_name"]}
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "transfer_to_human",
+          "description": "Transfer the conversation to a human agent.",
+          "parameters": {"type": "object", "properties": {}}
+        }
+      }
+    ],
+    "experiences": [
+      {
+        "success": false,
+        "compliant": true,
+        "events": [
+          {"actor": "user", "event_type": "message", "content": "Book the trip for first name A and last name Traveler1."},
+          {"actor": "assistant", "event_type": "message", "content": "Please confirm the passenger name A Traveler1."},
+          {"actor": "user", "event_type": "message", "content": "I confirm the exact name A Traveler1."},
+          {"actor": "assistant", "event_type": "message", "content": "The last name contains a digit, so I will not book and will transfer you."},
+          {"actor": "assistant", "event_type": "tool_call", "tool_name": "transfer_to_human", "arguments": {}},
+          {"actor": "tool", "event_type": "tool_result", "tool_name": "transfer_to_human", "content": {"success": true}}
+        ]
+      },
+      {
+        "success": true,
+        "compliant": true,
+        "events": [
+          {"actor": "user", "event_type": "message", "content": "Book the trip for first name B and last name Traveler2."},
+          {"actor": "assistant", "event_type": "message", "content": "Please confirm the passenger name B Traveler2."},
+          {"actor": "user", "event_type": "message", "content": "I confirm the exact name B Traveler2."},
+          {"actor": "assistant", "event_type": "tool_call", "tool_name": "book_trip", "arguments": {"first_name": "B", "last_name": "Traveler2"}},
+          {"actor": "tool", "event_type": "tool_result", "tool_name": "book_trip", "content": {"success": true, "reservation_id": "R-2"}}
+        ]
+      },
+      {
+        "success": true,
+        "compliant": true,
+        "events": [
+          {"actor": "user", "event_type": "message", "content": "Book the trip for first name C and last name Traveler3."},
+          {"actor": "assistant", "event_type": "message", "content": "Please confirm the passenger name C Traveler3."},
+          {"actor": "user", "event_type": "message", "content": "I confirm the exact name C Traveler3."},
+          {"actor": "assistant", "event_type": "tool_call", "tool_name": "book_trip", "arguments": {"first_name": "C", "last_name": "Traveler3"}},
+          {"actor": "tool", "event_type": "tool_result", "tool_name": "book_trip", "content": {"success": true, "reservation_id": "R-3"}}
+        ]
+      }
+    ],
+    "rubric": {
+      "expected_kind": "SHOULD_REMOVE",
+      "required_semantics": ["remove the whole digit-based name restriction", "identify the refusal as the changeable Agent behavior", "preserve explicit confirmation and exact supplied fields as existing policy"],
+      "forbidden_semantics": ["retain a digit-shape validity check", "replace it with another appearance-based name check", "add verification or transfer obligations"]
+    }
+  }
+]
