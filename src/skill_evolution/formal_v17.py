@@ -1,6 +1,7 @@
 """Frozen v17 campaign. Private benchmark artifacts stay outside learner inputs."""
 import hashlib
 import json
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
@@ -81,6 +82,90 @@ def preflight(config):
             'max_agent_rollouts': config['rounds'] * (32 + 2 * 41)}
 
 
+def evolution_rollout(directory, *, orchestrator, evaluator, task_id, seed):
+    """Reuse completed trajectories, independent of success/compliance outcomes."""
+    initial = orchestrator.environment.tools.db.model_dump(mode='json')
+    names = ('initial_db', 'simulation', 'final_db')
+    if all((directory / f'{name}.json').is_file() for name in names):
+        stored_initial, simulation, final = (load(directory / f'{name}.json') for name in names)
+        if stored_initial != initial or simulation.get('task_id') != task_id or simulation.get('seed') != seed:
+            raise ValueError('Saved Evolution trajectory binding mismatch')
+        print(f'  REUSE {directory.name}', flush=True)
+    else:
+        # Archive a partial checkpoint before rerunning the task from its initial state.
+        if directory.exists():
+            index = 1
+            archive = directory.with_name(directory.name + f'.partial-{index}')
+            while archive.exists():
+                index += 1
+                archive = directory.with_name(directory.name + f'.partial-{index}')
+            directory.rename(archive)
+        simulation = orchestrator.run().model_dump(mode='json')
+        final = orchestrator.environment.tools.db.model_dump(mode='json')
+        for name, data in zip(names, (initial, simulation, final)):
+            save(directory / f'{name}.json', data)
+    evaluation_path = directory / 'evaluation.json'
+    if evaluation_path.is_file():
+        evaluation = load(evaluation_path)
+    else:
+        evaluation = evaluator.evaluate(task_id, initial_db=initial, final_db=final, simulation=simulation)
+        save(evaluation_path, evaluation)
+    return simulation, evaluation
+
+
+def resume_grouping(batch, *, scope, directory):
+    from .experience_grouping_v17 import prepare_grouping_request, run_experience_grouping
+    from .experience_grouping_contract_v17 import bind_grouping_result
+    if directory.exists():
+        if load(directory / 'grouping_request.json') != prepare_grouping_request(batch, scope=scope):
+            raise ValueError('Saved Grouping input differs from current experience')
+        completed = directory / 'validated_groups.json'
+        if completed.is_file():
+            result = load(completed)
+            rebound = bind_grouping_result(batch.payload, {'groups': result['groups']}, scope=scope)
+            if any(result.get(key) != value for key, value in rebound.items()):
+                raise ValueError('Saved Grouping result binding mismatch')
+            return result
+        # Explicit resume restarts the interrupted call; preserve its audit trail.
+        index = 1
+        archive = directory.with_name(f'grouping.interrupted-{index}')
+        while archive.exists():
+            index += 1
+            archive = directory.with_name(f'grouping.interrupted-{index}')
+        directory.rename(archive)
+    return run_experience_grouping(batch, scope=scope, artifact_dir=directory)
+
+
+def resume_diagnosis(request, *, directory):
+    from .diagnosis_v17 import run_group_diagnosis
+    from .diagnosis_prompt_v17 import build_diagnosis_request
+    from .diagnosis_validation_v17 import validate_diagnosis_response
+    from .information_boundary_v15 import unpack
+    if directory.exists():
+        if (directory / 'request.json').is_file():
+            saved = load(directory / 'request.json')
+            if any(saved.get(k) != v for k, v in build_diagnosis_request(request).items()):
+                raise ValueError('Saved Diagnosis input differs from current group')
+        validation = load(directory / 'validation.json') if (directory / 'validation.json').is_file() else {}
+        if validation.get('status') == 'VALID':
+            response = load(directory / 'response.json')
+            if response.get('finish_reason') != 'stop' or response.get('refusal'):
+                raise ValueError('Saved Diagnosis completion is invalid')
+            checked = validate_diagnosis_response(response['raw_response'], request=request)
+            if unpack(checked, 'V17_VALIDATED_DIAGNOSIS') != load(directory / 'validated_diagnosis.json'):
+                raise ValueError('Saved Diagnosis differs from revalidated response')
+            print(f'  REUSE Diagnosis {directory.name}', flush=True)
+            return validation
+        index = 1
+        archive = directory.with_name(f'{directory.name}.attempt-{index}')
+        while archive.exists():
+            index += 1
+            archive = directory.with_name(f'{directory.name}.attempt-{index}')
+        directory.rename(archive)
+    # One new attempt per explicit resume; failures still block compilation.
+    return run_group_diagnosis(request, artifact_dir=directory)
+
+
 def evolve_round(config, root, round_id, parent):
     from .information_boundary_v15 import capture_experience, project_oracle_supervision
     from .autonomous_gse_v15_benchmark_runtime import normalize_stored_simulation
@@ -101,18 +186,20 @@ def evolve_round(config, root, round_id, parent):
     initial_path = FREEZE / 'S0.md'
     skill_path = initial_path if parent == initial_path.read_text() else parent_path
     parent_digest = digest(parent.encode()); sources = []; contexts = {}; lineage = []
-    for index, task_id in enumerate(config['tasks']['train'], 1):
+    def generate(job):
+        index, task_id = job
         print(f'{round_id} Evolution {index}/32 {task_id}', flush=True)
         orchestrator, view = adapter.build_orchestrator(task_id, base_config=config['base_config'],
             seed=config['seed'], skill_path=skill_path, initial_skill_path=initial_path)
-        initial = orchestrator.environment.tools.db.model_dump(mode='json')
-        simulation = orchestrator.run().model_dump(mode='json')
-        final = orchestrator.environment.tools.db.model_dump(mode='json')
         directory = root / 'evolution_private' / f'T{index:03d}'
-        for name, data in [('initial_db', initial), ('simulation', simulation), ('final_db', final)]:
-            save(directory / f'{name}.json', data)
-        evaluation = evaluator.evaluate(task_id, initial_db=initial, final_db=final, simulation=simulation)
-        save(directory / 'evaluation.json', evaluation)
+        simulation, evaluation = evolution_rollout(directory, orchestrator=orchestrator,
+            evaluator=evaluator, task_id=task_id, seed=config['seed'])
+        return index, task_id, view, simulation, evaluation
+
+    # Each worker owns its orchestrator and task directory. Gather in fixed task order.
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        generated = list(pool.map(generate, enumerate(config['tasks']['train'], 1)))
+    for index, task_id, view, simulation, evaluation in generated:
         context = contexts.setdefault(view.payload, f'C{len(contexts)+1:03d}')
         ref = EvolutionExperienceRef(f'T{index:03d}', context, f'R{index:03d}')
         experience = capture_experience(view, normalize_stored_simulation(simulation),
@@ -124,13 +211,13 @@ def evolve_round(config, root, round_id, parent):
     scope = GroupingScope(round_id, parent_digest, tuple(s.ref for s in sources))
     batch = build_experience_cards(sources, scope=scope, max_input_chars=400000)
     save(root / 'experience_cards.json', batch.payload)
-    groups = run_experience_grouping(batch, scope=scope, artifact_dir=root / 'grouping')
+    groups = resume_grouping(batch, scope=scope, directory=root / 'grouping')
     requests = build_group_diagnosis_inputs(sources, scope=scope, grouping_result=groups, parent_skill=parent)
     diagnoses = []; rejected = []
     for request in requests:
         group_id = request.provenance['group_id']; directory = root / 'diagnosis' / group_id
         print(f'{round_id} Diagnosis {group_id}', flush=True)
-        result = run_group_diagnosis(request, artifact_dir=directory)
+        result = resume_diagnosis(request, directory=directory)
         if result['status'] != 'VALID':
             rejected.append(group_id); continue
         validated = validate_diagnosis_response(load(directory / 'response.json')['raw_response'], request=request)
@@ -150,29 +237,63 @@ def evolve_round(config, root, round_id, parent):
     return (root / 'editor/candidate_skill.md').read_text(), 'CANDIDATE'
 
 
-def run_campaign(config, output):
+def run_campaign(config, output, *, resume=False, total_rounds=None):
     from .monitor_benchmark_v17 import CurrentBenchmarkMonitor
     from .monitor_v17 import run_monitor
-    output.mkdir(parents=True, exist_ok=False)
-    save(output / 'frozen_manifest.json', load(FREEZE / 'manifest.json'))
-    save(output / 'config.json', config)
+    target_rounds = config['rounds'] if total_rounds is None else total_rounds
+    if type(target_rounds) is not int or target_rounds < config['rounds']:
+        raise ValueError('total_rounds must not reduce the original round limit')
+    if total_rounds is not None and not resume:
+        raise ValueError('Extending rounds requires --resume')
     parent = (FREEZE / 'S0.md').read_text(); rounds = []
-    (output / 'current_skill.md').write_text(parent)
+    if resume:
+        if load(output / 'config.json') != config:
+            raise ValueError('Resume configuration differs from original run')
+        previous = load(output / 'campaign.json')
+        if previous['status'] == 'COMPLETE' and (previous.get('stop_reason') != 'ROUND_LIMIT' or target_rounds <= len(previous['rounds'])):
+            raise ValueError('Campaign already complete; specify a larger --total-rounds to extend a round-limit run')
+        rounds = previous['rounds']
+        parent = (output / 'current_skill.md').read_text()
+        if rounds and digest(parent.encode()) != rounds[-1]['retained_skill_sha256']:
+            raise ValueError('Current Skill differs from last retained Skill')
+        root = output / f'round-{len(rounds)+1:02d}'
+        if any((root / name).exists() for name in ('compiler', 'editor', 'monitor_private')):
+            if not (root / 'editor/validation.json').is_file() or load(root / 'editor/validation.json')['status'] != 'VALID':
+                raise ValueError('Resume supports Evolution/Grouping/Diagnosis or a validated Candidate; interrupted Compiler/Editor is not yet supported')
+        if root.exists() and (root / 'parent_skill.md').read_text() != parent:
+            raise ValueError('Resume Parent differs from interrupted round')
+        # Keep the original run manifest and append the implementation used to resume.
+        history = output / 'resume_history.json'
+        entries = load(history) if history.exists() else []
+        entries.append({'previous_campaign': previous, 'target_rounds': target_rounds, 'manifest': load(FREEZE / 'manifest.json')})
+        save(history, entries)
+    else:
+        output.mkdir(parents=True, exist_ok=False)
+        save(output / 'frozen_manifest.json', load(FREEZE / 'manifest.json'))
+        save(output / 'config.json', config)
+        (output / 'current_skill.md').write_text(parent)
     try:
         with frozen_policies(config):
-            for index in range(1, config['rounds'] + 1):
+            for index in range(len(rounds) + 1, target_rounds + 1):
                 verify_freeze()
-                round_id = f'round-{index:02d}'; root = output / round_id; root.mkdir()
-                candidate, status = evolve_round(config, root, round_id, parent)
+                round_id = f'round-{index:02d}'; root = output / round_id; root.mkdir(exist_ok=resume)
+                if resume and (root / 'editor/candidate_skill.md').is_file():
+                    candidate = (root / 'editor/candidate_skill.md').read_text()
+                    validation = load(root / 'editor/validation.json')
+                    if validation['status'] != 'VALID' or validation['candidate_sha256'] != digest(candidate.encode()) or validation['parent_skill_digest'] != digest(parent.encode()):
+                        raise ValueError('Saved Candidate binding mismatch')
+                    status = 'CANDIDATE'
+                else:
+                    candidate, status = evolve_round(config, root, round_id, parent)
                 if candidate is None:
                     rounds.append({'round': round_id, 'status': status, 'decision': 'RETAIN'})
                     break
                 backend = CurrentBenchmarkMonitor(artifact_dir=root / 'monitor_private/backend',
-                    parent_skill=parent, candidate_skill=candidate)
+                    parent_skill=parent, candidate_skill=candidate, resume=resume)
                 if backend.base_config != config['base_config'] or backend.seed != config['seed']:
                     raise ValueError('Monitor configuration differs from frozen Evolution')
                 result = run_monitor(backend.monitor_input(round_id), backend=backend,
-                    artifact_dir=root / 'monitor_private/monitor')
+                    artifact_dir=root / 'monitor_private/monitor', max_workers=8, resume=resume)
                 if result.get('decision') not in ('ACCEPT', 'RETAIN'):
                     raise ValueError('Monitor incomplete')
                 if result['decision'] == 'ACCEPT':

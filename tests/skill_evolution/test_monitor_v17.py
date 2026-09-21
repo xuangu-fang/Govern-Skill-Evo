@@ -75,3 +75,18 @@ def test_error_is_not_failure_or_retain(tmp_path):
 def test_empty_duplicate_tasks_rejected():
     for c in [replace(config(),tasks=()), replace(config(),tasks=(MonitorTask('a',200),)*2)]:
         with pytest.raises(MonitorRejected):list(expected_calls(c))
+
+
+def test_parallel_monitor_preserves_serial_statistics_and_order(tmp_path):
+    from threading import Barrier
+    barrier = Barrier(4)
+    def observation(call):
+        return {'success': call.role == 'CANDIDATE', 'compliant': True, 'initial_state_digest': 'b'*64}
+    def concurrent_backend(call):
+        barrier.wait(timeout=5)  # Fails if calls are accidentally serial.
+        return observation(call)
+    value = config(2)
+    run_monitor(value, backend=concurrent_backend, artifact_dir=tmp_path/'parallel', max_workers=4)
+    run_monitor(value, backend=observation, artifact_dir=tmp_path/'serial')
+    for name in ('results.json', 'summary.json'):
+        assert json.loads((tmp_path/'parallel'/name).read_text()) == json.loads((tmp_path/'serial'/name).read_text())

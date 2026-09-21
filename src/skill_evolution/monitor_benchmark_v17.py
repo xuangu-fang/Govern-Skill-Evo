@@ -11,7 +11,7 @@ def canonical_digest(value):
 
 
 class CurrentBenchmarkMonitor:
-    def __init__(self, *, artifact_dir, parent_skill, candidate_skill):
+    def __init__(self, *, artifact_dir, parent_skill, candidate_skill, resume=False):
         from benchmarks.tau2_governed_evolution.editions.phase_final_candidate_day35.experiments.benchmark_v16_one_step_001 import benchmark_runtime as runtime
         self.runtime = runtime
         self.registry = runtime.BenchmarkRegistry()
@@ -21,11 +21,14 @@ class CurrentBenchmarkMonitor:
         self.base_config = runtime.load(runtime.REPO / config['base_run_config'])
         self.seed = config['rollout_seeds'][0]
         self.root = Path(artifact_dir)
-        self.root.mkdir(parents=True, exist_ok=False)
+        self.root.mkdir(parents=True, exist_ok=resume)
+        self.resume = resume
         self.skills = {'PARENT': parent_skill, 'CANDIDATE': candidate_skill}
         self.paths = {}
         for role, skill in self.skills.items():
             path = self.root / (role.lower() + '_skill.md')
+            if path.exists() and path.read_bytes() != skill.encode('utf-8'):
+                raise MonitorRejected('resume Skill differs from saved Monitor')
             path.write_bytes(skill.encode('utf-8'))
             self.paths[role] = path
         self.initial_path = runtime.REPO / config['initial_skill']
@@ -54,6 +57,22 @@ class CurrentBenchmarkMonitor:
         path = self.initial_path if call.skill == self.initial_text else self.paths[call.role]
         if path.read_bytes() != call.skill.encode('utf-8'):
             raise MonitorRejected('Skill file changed')
+        directory = self.root / call.role / hashlib.sha256(call.task_id.encode()).hexdigest()
+        if self.resume and all((directory / name).is_file() for name in ('simulation.json', 'initial_db.json', 'final_db.json', 'evaluation.json')):
+            simulation = json.loads((directory / 'simulation.json').read_text())
+            if simulation.get('task_id') != call.task_id or simulation.get('seed') != call.seed:
+                raise MonitorRejected('saved Monitor binding mismatch')
+            evaluated = json.loads((directory / 'evaluation.json').read_text())
+            initial = json.loads((directory / 'initial_db.json').read_text())
+            return {'success': evaluated['success'], 'compliant': evaluated['compliant'],
+                    'initial_state_digest': canonical_digest(initial)}
+        if directory.exists():
+            index = 1
+            archive = directory.with_name(directory.name + f'.partial-{index}')
+            while archive.exists():
+                index += 1
+                archive = directory.with_name(directory.name + f'.partial-{index}')
+            directory.rename(archive)
         orchestrator, _ = self.adapter.build_orchestrator(call.task_id, base_config=self.base_config,
             seed=call.seed, skill_path=path, initial_skill_path=self.initial_path)
         initial = orchestrator.environment.tools.db.model_dump(mode='json')

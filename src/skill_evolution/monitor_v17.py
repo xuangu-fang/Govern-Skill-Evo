@@ -124,15 +124,18 @@ def summarize_monitor(value, rows):
             'delta_rates': {k: v / n for k, v in delta.items()}}
 
 
-def run_monitor(value, *, backend, artifact_dir):
+def run_monitor(value, *, backend, artifact_dir, max_workers=1, resume=False):
     """Backend(call) returns only labels and initial-state digest; fresh environment per call.
 
     Detailed audit remains on the Monitor side. Public return deliberately exposes
     only status/decision, not labels, transitions or trajectories to the learner.
     """
+    from concurrent.futures import ThreadPoolExecutor
+    if type(max_workers) is not int or max_workers < 1:
+        raise ValueError("max_workers must be a positive integer")
     calls = list(expected_calls(value))
     directory = Path(artifact_dir)
-    directory.mkdir(parents=True, exist_ok=False)
+    directory.mkdir(parents=True, exist_ok=resume)
     def save(name, data):
         path = directory / name
         temp = directory / (name + '.tmp')
@@ -142,7 +145,7 @@ def run_monitor(value, *, backend, artifact_dir):
     save('input.json', {**asdict(value), 'tasks': [asdict(t) for t in sorted(value.tasks, key=lambda t: t.task_id)],
                         'parent_skill_digest': digest(value.parent_skill), 'candidate_skill_digest': digest(value.candidate_skill), 'rollouts_per_task': 1})
     rows = []
-    for call in calls:
+    def observe(call):
         row = {k: v for k, v in asdict(call).items() if k != 'skill'}
         try:
             result = backend(call)
@@ -154,8 +157,12 @@ def run_monitor(value, *, backend, artifact_dir):
             row.update(status='COMPLETE', error=None, **result)
         except Exception as exc:
             row.update(status='ERROR', success=None, compliant=None, initial_state_digest=None, error=type(exc).__name__)
-        rows.append(row)
-        save('results.json', rows)
+        return row
+
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        for row in pool.map(observe, calls):
+            rows.append(row)
+            save('results.json', rows)
     summary = summarize_monitor(value, rows)
     save('summary.json', summary)
     hashes = {n: hashlib.sha256((directory / n).read_bytes()).hexdigest() for n in ('input.json', 'results.json', 'summary.json')}
