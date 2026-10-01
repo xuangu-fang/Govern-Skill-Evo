@@ -36,3 +36,35 @@ v18 Diagnosis v3：[六组固定输入语义回归](V18_DIAGNOSIS_V3_REGRESSION_
 v18 Benchmark：[Skill-critical Joint Family 冻结准入契约](V18_JOINT_FAMILY_ADMISSION_CONTRACT.md)与[候选机制 shortlist](V18_JOINT_FAMILY_CANDIDATE_MECHANISMS.md)。
 
 [v18 × benchmark v4 正式协议与 run/resume 命令](V18_BENCHMARK_V4_FORMAL_PROTOCOL.md)。
+
+v19 第 1 步：[数据契约与流程边界](V19_DATA_CONTRACT_AND_FLOW.md)及[构造示例与验收映射](V19_DATA_CONTRACT_EXAMPLES.md)。仅完成契约设计，后续实现使用独立 v19 版本，不修改 v18。
+
+v19 第 2 步：[edit 账本与跨轮追踪实现](V19_EDIT_TRACKING.md)。独立的确定性账本、来源/版本校验和历史视图；尚未接入回放或 Memory 模型。
+
+v19 第 3 步：[Candidate Evolution 配对回放](V19_EVOLUTION_REPLAY.md)。完整训练集配对、Parent 复用、私有检查点恢复及 Level-0 学习侧投影；尚未接入归因、Memory 或 campaign。
+
+v19 第 4 步：[edit-level 效果归因](V19_EDIT_ATTRIBUTION.md)。归因 Prompt、完整 edit 覆盖、证据引用与冲突校验及可恢复阶段产物；结构验收不代表因果结论成立，尚未接入 Memory 或 campaign。
+
+v19 第 5 步：[持续记忆的保存、更新和检索](V19_PERSISTENT_MEMORY.md)。不可变完整证据归档、记忆头与保留 Skill 原子提交、当前规则绑定重建及带预算的证据检索；尚未接入 Diagnosis 或 campaign。
+
+v19 第 6 步：[Memory 驱动 Diagnosis 与 Skill 生成](V19_MEMORY_GENERATION.md)。当前经验与历史观察分源引用、逐 edit 显式复查、当前 Parent 重新授权、受限 Editor 与跨轮来源保留；尚未运行真实模型或第 7 步 campaign。
+
+v19 第 7 步：[独立调度、多轮工程验证与 Pilot](V19_CAMPAIGN.md)。独立 run/resume、完整配对、私有 Monitor Gate 和原子记忆提交；真实 Pilot 进展与工程 fixture 结果分开记录。
+
+v19 职责拆分第 1 步：[Current Diagnosis 与 Memory Review 独立契约](V19_SEPARATED_DISCOVERY_REVIEW.md)。当前发现与历史证据状态分离；含严格校验、原始事件访问和稳定 ID，尚未接入 Reconciliation 或新调度。
+
+v19 职责拆分第 2 步：[逐项 Reconciliation 与 v18 Compiler/Editor 适配](V19_RECONCILIATION.md)。完整来源处置、PROPOSE gap 校验、冲突拒绝及 Candidate provenance；尚未切换 campaign。
+
+v19 职责拆分第 3 步：[新闭环、恢复协议与独立 Pilot](V19_SEPARATED_CAMPAIGN.md)。新 CLI 默认拆分流程，独立目录运行；审阅与处置随账本归档并在下一轮检索。
+
+- [v19 轻量 Issue Fusion：契约、覆盖规则与阶段边界](V19_ISSUE_FUSION.md)
+
+- [v19 逐提案 Evidence Review：局部证据、有限补充与恢复](V19_EVIDENCE_REVIEW.md)
+
+- [v19 局部核验与编译闭环](V19_LOCAL_GENERATION.md)：第三步实现、独立单次运行及完整闭环命令。
+
+- [v19 单次 Evidence Review](V19_ONE_PASS_EVIDENCE_REVIEW.md)：确定性证据包、无 MORE_CONTEXT 的执行协议与运行命令。
+
+- [Pair Attribution v19.2](V19_PAIR_ATTRIBUTION.md)：逐 pair 观察、确定性聚合与新旧 Memory 兼容；旧全局 Attribution 保留。
+
+- [v19 run / resume](V19_RUN_RESUME.md)：当前流程统一入口、网络失败自动归档恢复和使用示例。

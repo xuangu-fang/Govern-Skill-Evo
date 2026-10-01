@@ -1,8 +1,8 @@
 # Experiment artifact policy
 
 `experiments/` stores the small, reviewable inputs and conclusions needed to
-understand or reproduce an experiment. It is not a storage location for model
-rollouts or per-attempt runtime data.
+understand or reproduce an experiment. Raw model rollouts and per-attempt runtime data may remain here locally,
+but must not be committed to Git.
 
 Commit these artifacts:
 
@@ -22,3 +22,9 @@ Do not commit these generated artifacts:
 Generated artifacts remain available locally for debugging. Move a conclusion
 that must be reviewed or cited into a concise report outside an ignored runtime
 directory; do not add raw JSON back to Git.
+
+## Local runtime organization
+
+See [experiment index](INDEX.md). v19 runtime data is organized under `v19/pilot/`,
+`v19/formal/`, and `archive/v19/`. The index and path map remain reviewable in Git;
+run subdirectories are ignored. v17/v18 now follow the same versioned layout. Frozen configuration and manifest locations are unchanged.
