@@ -68,3 +68,19 @@ v19 职责拆分第 3 步：[新闭环、恢复协议与独立 Pilot](V19_SEPARA
 - [Pair Attribution v19.2](V19_PAIR_ATTRIBUTION.md)：逐 pair 观察、确定性聚合与新旧 Memory 兼容；旧全局 Attribution 保留。
 
 - [v19 run / resume](V19_RUN_RESUME.md)：当前流程统一入口、网络失败自动归档恢复和使用示例。
+
+v20 第 1 步：[最小 Memory 契约与独立边界](V20_MEMORY_CONTRACT.md)及[构造示例与验收映射](V20_MEMORY_EXAMPLES.md)。按问题维护可更新的尝试记录，由 Issue Fusion 直接消费简明 Memory；冻结 v19，尚未接入 v20 Issue Fusion 或开展实验。
+
+v20 第 2 步：[问题 Memory 保存与增量更新](V20_MEMORY_UPDATE.md)。已实现独立存储、稳定问题/尝试身份、部分更新、CAS 提交与恢复。
+
+v20 第 3 步：[直接消费问题 Memory 的 Issue Fusion](V20_ISSUE_FUSION.md)。当前 Findings、问题/尝试简明状态和 Parent 规则在独立只读契约中融合；支持当前问题、已部署方案纠偏和纯历史方向，尚未接入局部 Evidence Review 或真实 campaign。
+
+v20 第 4 步：[局部 Evidence Review 与修改生成](V20_ISSUE_FUSION.md)。已实现问题级证据闭包、局部 Review、独立 v20 编辑计划与 Candidate 生成。
+
+v20 第 5 步：[多轮闭环与离线验证](V20_ISSUE_FUSION.md)。已接入独立 campaign head、可恢复的 Memory/retained Skill 发布，以及 v19 产物的只读结构验证和保守转换。
+
+v20 第 6 步：[独立 Pilot 与匹配对照实验](V20_ISSUE_FUSION.md)。先验证独立 Pilot 的工程闭环，再在相同任务 manifest、seed 和指标规则下运行 v20 Memory 与 no-memory 对照；两者均不把一次运行直接解释为因果结论。
+
+v20 第 7 步（当前）：[冻结 Pilot、Benchmark 适配与统一 run/resume](V20_ISSUE_FUSION.md)。已冻结 benchmark v4 配置，接入真实 round factory、post-generation、train/monitor split 适配器和零模型调用 preflight；真实模型 Pilot 入口已具备但尚未启动。
+
+信用卡 v2 的设计、配置、运行适配器和预检产物已迁移到 [`dataset_8bucket_1200_skill_evlaution`](</Users/didi/Desktop/dataset_8bucket_1200_skill_evlaution/docs/V2_CURRENT_PLUS_MEMORY_DESIGN.md>)，信用卡专用文件不放在本仓库。
