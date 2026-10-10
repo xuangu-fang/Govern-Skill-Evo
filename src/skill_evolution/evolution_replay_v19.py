@@ -350,7 +350,20 @@ def run_parent_evolution(*, run_id, round_id, parent_skill, backend, artifact_di
     return {'status': 'COMPLETE', 'task_count': len(value['manifest']['task_ids'])}
 
 
-def load_parent_experiences(*, run_id, round_id, parent_skill, backend, artifact_dir):
+def _execution_ref(raw):
+    """Identity of a saved execution, not a fingerprint of its public behavior.
+
+    Real simulations carry a run UUID. Without it, leave identity unknown:
+    identical scripted/replayed actions alone cannot establish a shared run.
+    """
+    simulation = raw['simulation']
+    if not isinstance(simulation.get('id'), str) or not simulation['id'].strip():
+        return None
+    return 'EXECUTION/' + digest(encode(simulation))
+
+
+def load_parent_experiences(*, run_id, round_id, parent_skill, backend, artifact_dir,
+                            include_execution_refs=False):
     """Reuse the same completed Parent observations in Grouping/Diagnosis.
 
     No task IDs, private states or evaluator explanations enter these existing
@@ -368,7 +381,10 @@ def load_parent_experiences(*, run_id, round_id, parent_skill, backend, artifact
         observed = capture_experience(view, normalize_stored_simulation(raw['simulation']),
                                      project_oracle_supervision(raw['evaluation'], raw['evaluation']), 1)
         sources.append(CapturedGroupingExperience(round_id, digest(parent_skill), ref, view, observed))
-    return tuple(sources), GroupingScope(round_id, digest(parent_skill), tuple(s.ref for s in sources))
+    result = (tuple(sources), GroupingScope(round_id, digest(parent_skill), tuple(s.ref for s in sources)))
+    if include_execution_refs:
+        return (*result, {f'T{i:03d}': _execution_ref(raw) for i, raw in enumerate(rows, 1)})
+    return result
 
 
 def _replay_inputs(ledger, history, backend, parent_dir):

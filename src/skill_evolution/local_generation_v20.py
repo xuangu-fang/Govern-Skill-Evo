@@ -30,6 +30,9 @@ class GenerationInput:
     def input_ref(self):
         return 'GENERATION_INPUT_V20/' + digest(self.payload_json)
 
+    def build_review_inputs(self):
+        return _v20_review_inputs(self)
+
 
 def build_generation_input(*, memory, fusion_input, fusion_result, parent_skill, archive,
                            current_requests=(), current_findings=(), history=()):
@@ -49,6 +52,10 @@ def build_generation_input(*, memory, fusion_input, fusion_result, parent_skill,
 
 def review_inputs(value):
     require(isinstance(value, GenerationInput), 'v20 GenerationInput required')
+    return value.build_review_inputs()
+
+
+def _v20_review_inputs(value):
     p = value.payload
     require(p['schema_version'] == 'generation_input_v20.1', 'generation protocol mismatch')
     memory = (IssueMemorySnapshot(encode(p['memory_head']), encode(p['memory']))
@@ -198,9 +205,9 @@ def apply_verified_editor(raw, *, editor_input):
             'candidate_skill': candidate, 'candidate_sha256': digest(candidate), 'edits': edits}
 
 
-def restore_generation(audit):
+def restore_generation(audit, *, source_type=GenerationInput):
     require(audit['schema_version'] == 'generation_audit_v20.1', 'generation audit protocol mismatch')
-    source = GenerationInput(encode(audit['source']))
+    source = source_type(encode(audit['source']))
     value = compile_verified(source, tuple(EvidenceReviewResult(encode(r)) for r in audit['reviews']))
     require(value.plan == audit['plan'], 'saved plan changed')
     result = apply_verified_editor(audit['result']['raw_response'], editor_input=value)
@@ -246,7 +253,7 @@ def run_local_generation(*, source, output, review_transport=None, editor_transp
         result = apply_verified_editor(raw, editor_input=value)
         audit = {'schema_version': 'generation_audit_v20.1', 'source': source.payload,
                  'reviews': [r.payload for r in results], 'plan': value.plan, 'result': result}
-        restore_generation(audit)
+        restore_generation(audit, source_type=type(source))
         _save(path / 'generation-audit.json', audit)
         _save(path / 'status.json', {'status': result['status']})
         return audit

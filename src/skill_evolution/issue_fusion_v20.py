@@ -84,7 +84,7 @@ def _check_schema(value: Any) -> dict[str, Any]:
 
 
 def _validate_input(request: IssueFusionInput) -> dict[str, Any]:
-    p = request.payload
+    p = request.validation_payload()
     required = {"schema_version", "run_id", "round_id", "memory_ref", "memory_revision",
                 "memory_issues", "current_findings", "available_rule_refs", "batch",
                 "parent_skill_sha256", "history_sha256", "authority"}
@@ -222,6 +222,8 @@ def build_issue_fusion_input(*, memory: IssueMemorySnapshot | dict[str, Any],
 @dataclass(frozen=True)
 class IssueFusionInput:
     payload_json: str
+    def validation_payload(self):
+        return self.payload
     @property
     def payload(self):
         return json.loads(self.payload_json)

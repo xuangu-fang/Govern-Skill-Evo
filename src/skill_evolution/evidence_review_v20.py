@@ -65,6 +65,10 @@ def build_evidence_archive(*, run_id, experiences=(), contexts=(), records=(), e
                 ('CURRENT_PARENT', 'COMMITTED_HISTORICAL_OBSERVATION'), 'learner trajectory origin required')
         if 'pair_id' in exp:
             metadata['pair_id'] = exp['pair_id']
+        if 'execution_ref' in exp:
+            require(isinstance(exp['execution_ref'], str) and
+                    exp['execution_ref'].startswith('EXECUTION/'), 'invalid execution identity')
+            metadata['execution_ref'] = exp['execution_ref']
         tid = 'TRAJECTORY_V20/' + digest(encode(metadata))
         _insert(trajectories, tid, metadata)
         for event in exp['events']:
@@ -139,6 +143,12 @@ class EvidenceReviewInput:
     @property
     def input_ref(self):
         return 'EVIDENCE_REVIEW_INPUT_V20/' + digest(self.payload_json)
+
+    def build_request(self):
+        return _v20_review_request(self)
+
+    def normalize_response(self, raw):
+        return raw
 
 
 @dataclass(frozen=True)
@@ -242,6 +252,7 @@ def validate_evidence_review(raw, *, request):
     require(isinstance(request, EvidenceReviewInput), 'v20 EvidenceReviewInput required')
     p = request.payload
     require(p['schema_version'] == 'evidence_review_input_v20.1', 'review protocol mismatch')
+    raw = request.normalize_response(raw)
     out = parse(raw)
     require(type(out) is dict and set(out) == set(FINAL_SCHEMA['properties']), 'exact final verdict fields required')
     fields = {k: v for k, v in FINAL_SCHEMA['properties'].items() if k != 'gap'}
@@ -271,6 +282,10 @@ def validate_evidence_review_result(result, *, request):
 
 
 def build_evidence_review_request(request):
+    return request.build_request()
+
+
+def _v20_review_request(request):
     system = ONCE_SYSTEM + '''
 This v20 packet includes all attempts of each selected problem and explicit joint
 source dependencies. memory_issues and source_records are prior hypotheses, not

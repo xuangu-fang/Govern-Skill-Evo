@@ -9,8 +9,8 @@ from .review_contract_v19 import CurrentDiagnosisInput, CurrentFindings, CURRENT
 
 def build_current_diagnosis_inputs(*, run_id, round_id, parent_skill, backend,
                                    parent_dir, grouping_result):
-    sources, scope = load_parent_experiences(run_id=run_id, round_id=round_id,
-        parent_skill=parent_skill, backend=backend, artifact_dir=parent_dir)
+    sources, scope, executions = load_parent_experiences(run_id=run_id, round_id=round_id,
+        parent_skill=parent_skill, backend=backend, artifact_dir=parent_dir, include_execution_refs=True)
     grouped = build_group_diagnosis_inputs(sources, scope=scope, grouping_result=grouping_result,
                                           parent_skill=parent_skill)
     group_ids = sorted(r.provenance['group_id'] for r in grouped)
@@ -21,10 +21,15 @@ def build_current_diagnosis_inputs(*, run_id, round_id, parent_skill, backend,
     namespace = 'CURRENT/' + digest(encode({'run_id': run_id, 'round_id': round_id})) + '/'
     for request in grouped:
         payload = request.learner_payload
+        source_tasks = {b['presented']['task_ref']: b['source']['task_ref']
+                        for b in request.provenance['experience_bindings']}
         refs = {}
         for exp in payload['experiences']:
             exp.update(origin='CURRENT_PARENT', source_round_id=round_id,
                        skill_ref=skill_ref(parent_skill), role='PARENT')
+            execution = executions[source_tasks[exp['task_ref']]]
+            if execution is not None:
+                exp['execution_ref'] = execution
             for event in exp['events']:
                 old = event['evidence_ref']; refs[old] = namespace + old
                 event['evidence_ref'] = refs[old]
