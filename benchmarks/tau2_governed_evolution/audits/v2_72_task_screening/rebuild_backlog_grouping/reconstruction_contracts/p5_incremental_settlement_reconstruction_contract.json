@@ -1,0 +1,87 @@
+{
+  "family_id": "C-AIR-P5-INCREMENTAL-SETTLEMENT-FEASIBILITY",
+  "canonical_name": "Incremental settlement feasibility and cabin fallback",
+  "status": "PASS_MINIMAL_DESIGN_CONTRACT_ONLY",
+  "formal_task_ids_allocated": 0,
+  "environment": "airline-final-candidate-construction",
+  "environment_extension": "FIXTURE_ONLY",
+  "new_domain": false,
+  "new_tool": false,
+  "new_oracle_sidecar": false,
+  "mechanism": {
+    "operation": "update_reservation_flights",
+    "replacement_scope": "COMPLETE_ITINERARY_REPLACEMENT",
+    "old_value_source": "stored per-passenger prices of all currently reserved flights",
+    "candidate_value_source": "current per-passenger fares of the complete candidate itinerary",
+    "passenger_multiplier": "current reservation passenger count",
+    "settlement_formula": "passenger_count * (candidate_itinerary_per_passenger_value - stored_old_itinerary_per_passenger_value)",
+    "decision_rule": "test cabin choices in the user's stated preference order and select the first whose incremental charge is within the authorized limit",
+    "correct_path": "read the reservation and candidates, compute each complete-replacement settlement delta from stored prices, select the first feasible cabin, confirm, and perform one flight update",
+    "competing_path": "compare gross candidate fare or total historical payment with the limit, producing the wrong fallback or no-mutation decision"
+  },
+  "trigger_inputs": [
+    {
+      "direction": "PRIMARY_CABIN_FEASIBLE_ONLY_BY_DELTA",
+      "required_relation": "preferred-cabin gross fare exceeds the limit while its incremental charge is within the limit",
+      "expected_outcome": "update to the preferred cabin"
+    },
+    {
+      "direction": "FALLBACK_CABIN_FEASIBLE_ONLY_BY_DELTA",
+      "required_relation": "preferred-cabin incremental charge exceeds the limit; fallback-cabin gross fare exceeds the limit but its incremental charge is within the limit",
+      "expected_outcome": "update to the fallback cabin"
+    }
+  ],
+  "excluded_dimensions": [
+    "partially preserved itinerary or preserved-segment repricing",
+    "passenger-list mutation",
+    "baggage allowance, baggage count, or baggage fee as a decision branch",
+    "certificate or payment-resource allocation",
+    "multiple reservations",
+    "standalone P6 backend-enforcement behavior"
+  ],
+  "information_boundary": {
+    "agent_reads": [
+      "stored reservation flight prices",
+      "reservation passenger count",
+      "candidate itinerary fares",
+      "user cabin preference order and incremental-charge limit"
+    ],
+    "must_not_expose": [
+      "precomputed settlement delta",
+      "correct cabin branch",
+      "gross-fare-versus-delta warning",
+      "execution recipe"
+    ],
+    "evaluator_only_hidden_mapping": false
+  },
+  "evaluator": {
+    "source": "native final Airline database state",
+    "success_checks": [
+      "reservation flights exactly match the expected complete candidate itinerary",
+      "selected cabin matches the settlement-feasible branch",
+      "passengers and unrelated reservations are unchanged",
+      "no unrequested baggage or payment mutation occurs"
+    ],
+    "failure_attribution": "wrong cabin or omitted update caused by gross-fare rather than stored-baseline delta planning",
+    "governance_evaluation": "existing unified Airline Governance evaluator remains unchanged"
+  },
+  "support_policy": "OMITTED__GLOBAL_PROTECTED_CONTROLS",
+  "gate0": {
+    "correct_paths_required_cs": 2,
+    "gross_fare_competing_paths_required_cf": 2,
+    "native_update_must_commit": true,
+    "existing_airline_gate0_must_regress": true,
+    "v3_oracle_regression_required": 32
+  },
+  "future_gate1": {
+    "design": "TRIGGER_ONLY_MATCHED_E0_ER",
+    "triggers": 2,
+    "seeds": 2,
+    "planned_rollouts": 8,
+    "e0_focal_settlement_failure_min": 3,
+    "er_cs_required": 4,
+    "first_user_answer_leak_allowed": 0,
+    "post_hoc_retuning_allowed": false
+  },
+  "current_scope": "CONTRACT_ONLY__NO_ENVIRONMENT_IMPLEMENTATION_OR_MODEL_ROLLOUT"
+}

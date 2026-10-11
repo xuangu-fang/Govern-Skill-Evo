@@ -32,7 +32,7 @@ OUTPUT_ROOT = (
 )
 
 REASONING_EFFORT = "low"
-MAX_COMPLETION_TOKENS = 8000
+MAX_COMPLETION_TOKENS = 12000
 
 SYSTEM_PROMPT = """You are an offline behavior-to-Skill synthesizer. You will
 receive a collection of task-successful SuiteCRM agent traces. Derive one

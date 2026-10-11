@@ -1,0 +1,188 @@
+{
+  "phase": "Phase 8 — Existing Mechanism Manifestation Gap Audit",
+  "benchmark_version": "PHASE_A_UNIFIED_BENCHMARK_STATE_EXPANDED_V2",
+  "benchmark_task_count": 51,
+  "audit_scope": ["P4", "LGA01", "P3", "LGA04"],
+  "definitions": {
+    "manifestation": "The same mechanism realized through a meaningfully different operational process or decision structure.",
+    "parametric_variation": "Different user, native object, amount, route, date, wording, or other parameter without a changed operational decision structure.",
+    "structural_variation": "A changed transaction graph, mutation type, dependency type, precedence relation, or governed scope dimension."
+  },
+  "mechanisms": {
+    "P4": {
+      "canonical_mechanism": "One-shot resource/certificate lifecycle and allocation",
+      "independent_states": 5,
+      "distinct_manifestations": 1,
+      "manifestations": [
+        {
+          "manifestation_id": "P4_M1_SEQUENTIAL_TWO_BOOKING_OPPORTUNITY_COST",
+          "description": "Two ordered one-way bookings compete for one one-shot certificate and one reusable gift card; the gift card can fund only the cheaper first booking, so the certificate must be preserved for the more expensive second booking.",
+          "states": [
+            "airline_s3_juan_patel_6197_certificate_lifecycle",
+            "airline_s3_mohamed_ahmed_3350_certificate_lifecycle",
+            "travel_request_001",
+            "travel_request_002",
+            "travel_request_003"
+          ],
+          "decision_structure": [
+            "plan two transactions before the first commit",
+            "recognize that any certificate use removes the certificate rather than preserving a residual balance",
+            "compare the gift card against both fares",
+            "allocate gift card to the first/smaller booking and certificate to the second/larger booking"
+          ],
+          "variation_inside_manifestation": [
+            "user and payment-method IDs",
+            "route, flight, and travel date",
+            "certificate face value and gift-card balance",
+            "second-trip fare and downstream shortfall"
+          ],
+          "why_not_distinct_manifestations": "All five preserve the same two-node transaction graph, the same resource applicability, the same cheap-first ordering, and the same opportunity-cost solution."
+        }
+      ],
+      "parametric_diversity": "HIGH",
+      "structural_diversity": "LOW",
+      "manifestation_coverage": "WEAK",
+      "main_gap": "No admitted state changes the number/order of transactions, certificate applicability, fallback-resource structure, or allocation geometry.",
+      "expansion_priority": "HIGH"
+    },
+    "LGA01": {
+      "canonical_mechanism": "Hidden policy precedence",
+      "independent_states": 6,
+      "distinct_manifestations": 1,
+      "manifestations": [
+        {
+          "manifestation_id": "LGA01_M1_BUSINESS_CANCELLATION_VS_FLOWN_OVERRIDE",
+          "description": "A general Business-cabin cancellation permission appears to authorize cancellation, but the more specific already-flown segment rule requires refusal or transfer.",
+          "states": [
+            "airline_lgv1_lga01_3vdhw5",
+            "airline_lgv1_lga01_4fcr1o",
+            "travel_request_004",
+            "travel_request_005",
+            "travel_request_006",
+            "travel_request_007"
+          ],
+          "decision_structure": [
+            "observe an apparently qualifying Business reservation",
+            "inspect all segment lifecycle states",
+            "apply the flown-segment exception before ordinary cancellation grounds",
+            "refuse or transfer rather than execute cancellation"
+          ],
+          "variation_inside_manifestation": [
+            "reservation and user",
+            "route and segment count",
+            "passenger count, membership, insurance, and payment history",
+            "explicit versus tool-observed flown wording"
+          ],
+          "why_not_distinct_manifestations": "Every state instantiates the same general-permission versus flown-lifecycle override and requests the same whole-reservation cancellation operation."
+        }
+      ],
+      "parametric_diversity": "HIGH",
+      "structural_diversity": "LOW",
+      "manifestation_coverage": "WEAK",
+      "main_gap": "No admitted state exercises a different precedence relation, such as a different general eligibility rule, exception predicate, or operation-specific override.",
+      "expansion_priority": "HIGH"
+    },
+    "P3": {
+      "canonical_mechanism": "Mutation-Induced Resource Refresh Dependency",
+      "independent_states": 5,
+      "upstream_manifestation_types": 3,
+      "downstream_dependency_types": 2,
+      "observed_upstream_downstream_combinations": 4,
+      "upstream_manifestations": [
+        {
+          "manifestation_id": "P3_U1_CANCELLATION_REFUND",
+          "description": "Cancel a pending gift-card-funded order and immediately restore its payment to the gift card.",
+          "states": [
+            "retail_pa_v2_w9892465_cancel_funds_w1242543",
+            "retail_pa_v2_w5432440_cancel_funds_w9432206",
+            "retail_request_001"
+          ]
+        },
+        {
+          "manifestation_id": "P3_U2_PAYMENT_METHOD_REPLACEMENT_REFUND",
+          "description": "Replace a pending order's whole-order payment method and refund the prior gift-card payment.",
+          "states": ["retail_request_002"]
+        },
+        {
+          "manifestation_id": "P3_U3_PRICE_REDUCTION_REFUND",
+          "description": "Change an item to a cheaper same-product variant and refund the price reduction to the gift card.",
+          "states": ["retail_request_003"]
+        }
+      ],
+      "downstream_dependency_manifestations": [
+        {
+          "manifestation_id": "P3_D1_WHOLE_ORDER_PAYMENT_REPLACEMENT",
+          "description": "Use the refreshed gift-card balance to replace another pending order's entire payment method.",
+          "states": [
+            "retail_pa_v2_w9892465_cancel_funds_w1242543",
+            "retail_pa_v2_w5432440_cancel_funds_w9432206"
+          ]
+        },
+        {
+          "manifestation_id": "P3_D2_ITEM_UPGRADE_DELTA_PAYMENT",
+          "description": "Use the refreshed gift-card balance to pay the delta for an item upgrade in another pending order.",
+          "states": ["retail_request_001", "retail_request_002", "retail_request_003"]
+        }
+      ],
+      "observed_combinations": [
+        {
+          "combination": "P3_U1_CANCELLATION_REFUND -> P3_D1_WHOLE_ORDER_PAYMENT_REPLACEMENT",
+          "state_count": 2
+        },
+        {
+          "combination": "P3_U1_CANCELLATION_REFUND -> P3_D2_ITEM_UPGRADE_DELTA_PAYMENT",
+          "state_count": 1
+        },
+        {
+          "combination": "P3_U2_PAYMENT_METHOD_REPLACEMENT_REFUND -> P3_D2_ITEM_UPGRADE_DELTA_PAYMENT",
+          "state_count": 1
+        },
+        {
+          "combination": "P3_U3_PRICE_REDUCTION_REFUND -> P3_D2_ITEM_UPGRADE_DELTA_PAYMENT",
+          "state_count": 1
+        }
+      ],
+      "parametric_diversity": "HIGH",
+      "structural_diversity": "MODERATE_TO_HIGH",
+      "manifestation_coverage": "PARTIAL",
+      "main_gap": "Downstream consumers remain limited to two types, and the upstream/downstream cross-product is sparse; all cases refresh the same gift-card balance resource.",
+      "expansion_priority": "MEDIUM"
+    },
+    "LGA04": {
+      "canonical_mechanism": "Hidden scope boundary",
+      "independent_states": 5,
+      "pure_states": 4,
+      "composition_states": 1,
+      "distinct_scope_manifestations": 1,
+      "manifestations": [
+        {
+          "manifestation_id": "LGA04_M1_DESTINATION_PRESERVATION",
+          "description": "User authorization to substitute a destination does not expand the flight-modification operation's destination-preservation scope.",
+          "pure_states": [
+            "airline_lgv1_lga04_43toie",
+            "airline_lgv1_lga04_4fdfne",
+            "travel_request_013",
+            "travel_request_014"
+          ],
+          "composition_states": ["airline_unified_uca01_gjlsxx_nyc_date_budget"],
+          "decision_structure": [
+            "compare requested endpoint with the reservation's preserved destination",
+            "treat user authorization as insufficient to expand tool/policy scope",
+            "refuse or transfer instead of directly mutating the destination"
+          ],
+          "variation_inside_manifestation": [
+            "reservation, route, requested airport, and date",
+            "passenger count and fare difference",
+            "pure governance request versus P5 budget/choice composition"
+          ],
+          "composition_note": "The P5×LGA04 state adds fare-search and budget reasoning, but its focal LGA04 boundary is still destination preservation; it is not a second scope manifestation."
+        }
+      ],
+      "parametric_diversity": "HIGH",
+      "structural_diversity": "LOW",
+      "manifestation_coverage": "WEAK",
+      "main_gap": "No admitted state tests a different scope dimension such as passenger/object scope; composition changes surrounding reasoning but not the focal boundary.",
+      "expansion_priority": "HIGH"
+    }
+  }
+}

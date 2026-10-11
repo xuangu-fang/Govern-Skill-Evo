@@ -1,0 +1,3 @@
+# One-shot payment-resource allocation
+
+Before committing any of several requested bookings or modifications, obtain the prices and plan the allocation across all transactions. A travel certificate is consumed by one transaction and any unused certificate value is forfeited; never assume it can fund a later transaction or reuse it after it disappears from the current profile. Allocate certificates and reusable gift-card funds so that every requested transaction remains feasible, prioritizing completion of the whole request over a soft certificate preference. Refresh the authorized payment-resource set after each commit.

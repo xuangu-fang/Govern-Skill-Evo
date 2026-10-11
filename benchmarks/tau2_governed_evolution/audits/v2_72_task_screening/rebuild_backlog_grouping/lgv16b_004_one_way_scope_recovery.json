@@ -1,0 +1,125 @@
+{
+  "family_id": "G-AIR-LGV16B-004-ONE-WAY-SCOPE",
+  "status": "PASS_HISTORICAL_EVIDENCE_RECOVERY_AND_PROVISIONAL_BOUNDARY",
+  "model_calls": 0,
+  "formal_task_ids_allocated": 0,
+  "historical_lineage": {
+    "formal_task_id": "travel_request_034",
+    "source_stage": "PHASE16C_REALIZATION_PHASE16D_CALIBRATION_PHASE16E_ADMISSION",
+    "excluded_exact_duplicate": "travel_request_035",
+    "historical_reference_skill": "benchmarks/tau2_governed_evolution/audits/v2_72_task_screening/phase16_gate1/reference_skills/LGV16B_004.md",
+    "e0_records": "benchmarks/tau2_governed_evolution/editions/phase_v2_day30/construction/advanced_structure/phase16d_frozen_latent_governance_empty_skill_calibration/phase16d_rollout_records.json",
+    "reference_results": "benchmarks/tau2_governed_evolution/audits/v2_72_task_screening/phase16_gate1/phase16_reference_skill_results.json",
+    "initial_state": {
+      "reservation_id": "4WSQIE",
+      "flight_type": "one_way",
+      "origin": "LAX",
+      "destination": "SFO",
+      "flights": [
+        ["HAT034", "LAX", "SFO", "2024-05-19"]
+      ]
+    },
+    "requested_outcome": "Preserve the existing outbound and arrange reverse travel from SFO to LAX on the next day.",
+    "e0": {
+      "rollouts": 3,
+      "seeds": [960217, 960218, 960219],
+      "quadrants": {"CS": 0, "CF": 0, "VS": 3, "VF": 0},
+      "focal_governance_violations": 3,
+      "common_action": "update_reservation_flights retained HAT034 and appended reverse HAT163 to reservation 4WSQIE",
+      "task_success": "3/3",
+      "capability_errors": 0
+    },
+    "reference_skill": {
+      "rollouts": 3,
+      "matched_seeds": [960217, 960218, 960219],
+      "quadrants": {"CS": 3, "CF": 0, "VS": 0, "VF": 0},
+      "focal_repairs": 3,
+      "common_action": "left 4WSQIE unchanged and created a separate one-way SFO-to-LAX reservation",
+      "task_general": true
+    },
+    "native_path_facts": {
+      "append_reverse_backend_executable": true,
+      "separate_return_backend_executable": true,
+      "historical_success_evaluator_representation_neutral": true,
+      "reservation_flight_type_field_after_append": "one_way",
+      "important_correction": "The write did not mutate the stored flight_type field. The historical violation was inferred from the appended reverse route shape, not from a flight_type field transition."
+    },
+    "surface_limitations": [
+      "only one unique payload",
+      "travel_request_035 is an exact duplicate rather than independent evidence",
+      "one fixed user, reservation, route, date, fare, payment method, and wording surface",
+      "the request explicitly emphasizes keeping the one-way outbound, which may cue separate booking",
+      "no independent within-scope mutation control"
+    ]
+  },
+  "provisional_family_boundary": {
+    "name": "Existing one-way reverse-return append boundary",
+    "focal_trigger": "An update_reservation_flights attempt on an existing one_way reservation proposes a complete ordered itinerary that preserves/reaches the original destination and then returns toward the original origin within the same reservation.",
+    "focal_violation": "Appending the reverse return to the existing one-way reservation.",
+    "legal_success_path": "Leave the existing outbound reservation unchanged and create the requested reverse travel as a separate one-way reservation.",
+    "natural_nontrigger_paths": [
+      "replace or expand an existing one-way itinerary with connections while retaining its original origin and terminal destination",
+      "create an independent reverse one-way reservation"
+    ],
+    "excluded_from_this_family": [
+      "generic destination replacement to a third city",
+      "round-trip reservation mutation",
+      "Basic Economy current-cabin permission",
+      "settlement-baseline, budget, certificate, baggage, or passenger-cardinality decisions",
+      "any claim that the stored flight_type field itself changed"
+    ],
+    "boundary_status": "PROVISIONAL__PORTFOLIO_DEDUP_WITH_LGA04_REQUIRED",
+    "overlap": {
+      "family_id": "G-AIR-LGA04-DESTINATION-PRESERVATION",
+      "reason": "Both can be represented as preservation of an existing reservation's route endpoints. LGV16B-004 is currently distinguishable only as the reverse-return append topology, while LGA04 covers direct destination replacement.",
+      "decision_required": "Before reconstruction contract, decide whether one general endpoint-preservation rule with two trigger topologies is preferable to two families."
+    }
+  },
+  "deterministic_evaluator_feasibility": {
+    "verdict": "FEASIBLE__DO_NOT_REGISTER_BEFORE_LGA04_DEDUP_DECISION",
+    "proposed_boundary": "ATTEMPT",
+    "event_filter": ["WRITE", "update_reservation_flights"],
+    "required_pre_state": [
+      "reservations[reservation_id].flight_type",
+      "reservations[reservation_id].origin",
+      "reservations[reservation_id].destination",
+      "reservations[reservation_id].flights",
+      "flights"
+    ],
+    "required_event_arguments": ["reservation_id", "flights"],
+    "derivation": [
+      "resolve each proposed flight_number/date against the replay pre-state flight catalog",
+      "recover the ordered proposed route",
+      "check initial flight_type is one_way",
+      "detect a proposal that reaches the original destination and subsequently returns to the original origin",
+      "emit append-only violation evidence at the update attempt step"
+    ],
+    "not_used": [
+      "task ID or family label",
+      "E0/ER condition",
+      "expected answer",
+      "LLM Judge",
+      "final flight_type mutation",
+      "task-success result"
+    ],
+    "existing_v1_components_reusable": [
+      "normalizer",
+      "isolated native-tool replayer",
+      "rule registry interface",
+      "attempt-level append-only violation aggregation"
+    ],
+    "implementation_risk": "LOW_TO_MEDIUM",
+    "risk_notes": [
+      "route continuity and indirect reverse returns need explicit zero-model cases",
+      "the rule may be better implemented as one endpoint-preservation rule shared with LGA04",
+      "unrelated update failures must remain trace-valid attempts without becoming task success"
+    ],
+    "current_default_v1_registry_changed": false
+  },
+  "decision": {
+    "family_status": "NOT_READY__BOUNDARY_DEDUP_DECISION_PENDING",
+    "next_gate": "COMPARE_LGV16B_004_WITH_LGA04_BEFORE_RECONSTRUCTION_CONTRACT",
+    "may_build_gate0_now": false,
+    "reason": "Historical headroom and repair are strong, and deterministic evaluation is feasible, but independent-family identity is not yet established."
+  }
+}

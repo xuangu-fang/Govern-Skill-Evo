@@ -1,0 +1,86 @@
+{
+  "status": "PASS_P3_ZERO_MODEL_GATE_0",
+  "family_id": "C-RET-P3-RESOURCE-REFRESH",
+  "model_calls": 0,
+  "formal_task_ids_allocated": 0,
+  "path_counts": {
+    "CS": 2,
+    "CF": 2
+  },
+  "paths": [
+    {
+      "construction_label": "p3-cancel-trigger",
+      "path": "upstream_refresh_downstream",
+      "label": "CS",
+      "evaluation": {
+        "success": true,
+        "checks": {
+          "gift_card_final_balance": true,
+          "source_cancelled": true,
+          "source_refund_committed": true,
+          "downstream_gift_payment_committed": true,
+          "downstream_old_payment_refunded": true,
+          "downstream_item_preserved": true
+        }
+      }
+    },
+    {
+      "construction_label": "p3-cancel-trigger",
+      "path": "early_downstream_then_upstream_without_retry",
+      "label": "CF",
+      "native_rejection": "Insufficient gift card balance to pay for the order",
+      "evaluation": {
+        "success": false,
+        "checks": {
+          "gift_card_final_balance": false,
+          "source_cancelled": true,
+          "source_refund_committed": true,
+          "downstream_gift_payment_committed": false,
+          "downstream_old_payment_refunded": false,
+          "downstream_item_preserved": true
+        }
+      }
+    },
+    {
+      "construction_label": "p3-payment-trigger",
+      "path": "upstream_refresh_downstream",
+      "label": "CS",
+      "evaluation": {
+        "success": true,
+        "checks": {
+          "gift_card_final_balance": true,
+          "source_new_payment_committed": true,
+          "source_gift_refund_committed": true,
+          "downstream_new_item_present": true,
+          "downstream_delta_paid_by_gift": true
+        }
+      }
+    },
+    {
+      "construction_label": "p3-payment-trigger",
+      "path": "early_downstream_then_upstream_without_retry",
+      "label": "CF",
+      "native_rejection": "Insufficient gift card balance to pay for the new item",
+      "evaluation": {
+        "success": false,
+        "checks": {
+          "gift_card_final_balance": false,
+          "source_new_payment_committed": true,
+          "source_gift_refund_committed": true,
+          "downstream_new_item_present": false,
+          "downstream_delta_paid_by_gift": false
+        }
+      }
+    }
+  ],
+  "refresh_is_backend_precondition": false,
+  "stale_path_uses_native_insufficient_balance_error": true,
+  "new_domain": false,
+  "new_tool": false,
+  "new_oracle_sidecar": false,
+  "v3_retail_oracle_replay": {
+    "RHP-01": 8,
+    "RAP-01": 8,
+    "total": 16
+  }
+}

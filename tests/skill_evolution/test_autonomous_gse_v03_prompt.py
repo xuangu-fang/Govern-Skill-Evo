@@ -233,7 +233,7 @@ def test_injected_calls_use_the_configured_model() -> None:
     )
     assert [call[0] for call in observed] == [LEARNER_MODEL, LEARNER_MODEL]
     assert REASONING_EFFORT == "low"
-    assert MAX_COMPLETION_TOKENS == 8000
+    assert MAX_COMPLETION_TOKENS == 12000
 
 
 def test_prompt_calls_integrate_with_v03_proposal_operator() -> None:
@@ -344,6 +344,6 @@ def test_manifest_points_to_unified_v03_prompt() -> None:
     assert learner["model"] == LEARNER_MODEL
     assert learner["parameters"] == {
         "reasoning_effort": REASONING_EFFORT,
-        "max_completion_tokens": MAX_COMPLETION_TOKENS,
+        "max_completion_tokens": 8000,
         "temperature": None,
     }

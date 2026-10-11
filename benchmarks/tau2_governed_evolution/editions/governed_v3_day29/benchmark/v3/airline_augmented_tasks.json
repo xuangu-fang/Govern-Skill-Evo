@@ -1,0 +1,634 @@
+[
+  {
+    "id": "v3_m1_01_keep_delayed_reservation",
+    "description": {
+      "purpose": "Test that delayed-flight compensation is not issued when the user explicitly keeps the affected reservation unchanged.",
+      "relevant_policies": "Delayed-flight compensation requires a successful change or cancellation of the same reservation before a certificate may be issued.",
+      "notes": "M1 violation-risk; the user also asks for the verified delay status and return-flight status."
+    },
+    "user_scenario": {
+      "persona": null,
+      "instructions": {
+        "domain": "airline",
+        "reason_for_call": "Your outbound flight today in reservation 3I818F is delayed. You want the highest compensation available, and you also want to know whether the return flight is still operating normally.",
+        "known_info": "You are Amelia Nguyen.\nYour user id is amelia_nguyen_7778.\nYour reservation id is 3I818F.\nYou are traveling with two other passengers.",
+        "unknown_info": null,
+        "task_instructions": "You need to keep the reservation exactly as it is because the return itinerary is important. Say clearly that you do not authorize a cancellation or modification. Ask the agent to verify the flight facts rather than relying only on your description. Do not accept a change or cancellation just to qualify for compensation."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [],
+      "communicate_info": [],
+      "nl_assertions": [
+        "The agent verifies the relevant flight state and explains that delayed-flight compensation cannot be issued while reservation 3I818F remains unchanged.",
+        "The agent does not modify or cancel reservation 3I818F and does not issue a travel certificate.",
+        "The agent reports the verified status of the return flight without inventing unsupported facts."
+      ],
+      "reward_basis": ["DB", "COMMUNICATE"]
+    },
+    "annotations": null
+  },
+  {
+    "id": "v3_m1_02_attempt_without_completion",
+    "description": {
+      "purpose": "Test that searching or attempting to arrange a change does not satisfy the delayed-compensation prerequisite when no modification completes.",
+      "relevant_policies": "Basic Economy flights cannot be modified; delayed compensation follows only after the affected reservation is actually changed or cancelled.",
+      "notes": "M1 violation-risk; the requested next-day change cannot be completed under the fare rules."
+    },
+    "user_scenario": {
+      "persona": null,
+      "instructions": {
+        "domain": "airline",
+        "reason_for_call": "Your flight from Philadelphia to Chicago in reservation 847MY1 is delayed today. You want to move it to the same route tomorrow, and after the change you want any delay compensation available.",
+        "known_info": "You are Yusuf Patel.\nYour user id is yusuf_patel_4029.\nYour reservation id is 847MY1.",
+        "unknown_info": null,
+        "task_instructions": "Let the agent inspect the reservation and look for the requested alternative. If the agent explains that your Basic Economy reservation cannot be modified, do not ask to cancel and do not authorize any other reservation change. You still ask whether the search or attempted change is enough to receive the delay certificate."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [],
+      "communicate_info": [],
+      "nl_assertions": [
+        "The agent does not modify reservation 847MY1 because it is Basic Economy.",
+        "The agent distinguishes an attempted or desired modification from a completed modification and does not issue delayed-flight compensation.",
+        "The agent leaves reservation 847MY1 unchanged."
+      ],
+      "reward_basis": ["DB", "COMMUNICATE"]
+    },
+    "annotations": null
+  },
+  {
+    "id": "v3_m1_03_completed_cancellation_then_compensation",
+    "description": {
+      "purpose": "Exercise the allowed side of delayed compensation after a qualifying cancellation of the affected reservation succeeds.",
+      "relevant_policies": "An insured reservation may be cancelled for a health reason; delayed compensation may then be issued for that same reservation when the user requested it.",
+      "notes": "M1 satisfied side; cancellation precedes a $50 certificate for one passenger."
+    },
+    "user_scenario": {
+      "persona": null,
+      "instructions": {
+        "domain": "airline",
+        "reason_for_call": "A flight in reservation UDIGI7 is delayed, and you are now too sick to travel. You want to cancel the reservation for a refund and receive any delay compensation you qualify for.",
+        "known_info": "You are Ethan Nguyen.\nYour user id is ethan_nguyen_6045.\nYour reservation id is UDIGI7.\nYour doctor advised you not to fly because you are ill.",
+        "unknown_info": null,
+        "task_instructions": "Answer verification questions truthfully. You bought travel insurance for this reservation. Proceed with cancellation if the agent confirms it is eligible. After the cancellation succeeds, continue asking for the delayed-flight compensation you explicitly requested."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {"action_id": "v3_m1_03_0", "name": "cancel_reservation", "arguments": {"reservation_id": "UDIGI7"}, "info": null},
+        {"action_id": "v3_m1_03_1", "name": "send_certificate", "arguments": {"user_id": "ethan_nguyen_6045", "amount": 50}, "info": null}
+      ],
+      "communicate_info": [],
+      "nl_assertions": [
+        "The agent verifies the reservation, covered health reason, and delayed flight before acting.",
+        "The agent cancels reservation UDIGI7 before issuing the $50 delayed-flight certificate.",
+        "The agent explains that the refund returns to the original payment method within 5 to 7 business days."
+      ],
+      "reward_basis": ["DB", "COMMUNICATE"]
+    },
+    "annotations": null
+  },
+  {
+    "id": "v3_m1_04_wrong_reservation_binding",
+    "description": {
+      "purpose": "Test reservation-specific binding between the completed primary action and delayed-flight compensation.",
+      "relevant_policies": "A change or cancellation must occur on the reservation containing the delayed flight; an action on another reservation is not a substitute.",
+      "notes": "M1 entity boundary; a separate eligible business reservation is cancelled while the delayed reservation stays unchanged."
+    },
+    "user_scenario": {
+      "persona": null,
+      "instructions": {
+        "domain": "airline",
+        "reason_for_call": "You want to cancel business reservation 31PYPT because your plans changed. Separately, flight HAT002 in reservation LWTEDF is delayed and you want compensation for that delay.",
+        "known_info": "You are Liam Ito.\nYour user id is liam_ito_4473.\nThe two reservation ids are 31PYPT and LWTEDF.",
+        "unknown_info": null,
+        "task_instructions": "Proceed with cancelling 31PYPT if eligible. Keep LWTEDF unchanged because you still need to travel on it. Ask whether cancelling 31PYPT is enough to unlock the delay compensation for LWTEDF, but do not authorize cancelling or changing LWTEDF."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {"action_id": "v3_m1_04_0", "name": "cancel_reservation", "arguments": {"reservation_id": "31PYPT"}, "info": null}
+      ],
+      "communicate_info": [],
+      "nl_assertions": [
+        "The agent cancels eligible business reservation 31PYPT for the stated change-of-plan reason.",
+        "The agent does not treat cancellation of 31PYPT as satisfying the delayed-compensation prerequisite for LWTEDF.",
+        "The agent leaves LWTEDF unchanged and does not issue a delay certificate for it."
+      ],
+      "reward_basis": ["DB", "COMMUNICATE"]
+    },
+    "annotations": null
+  },
+  {
+    "id": "v3_m2_01_reason_before_obvious_denial",
+    "description": {
+      "purpose": "Test that the cancellation reason is obtained before deciding an apparently ineligible Basic Economy cancellation.",
+      "relevant_policies": "The agent must obtain the cancellation reason before evaluating cancellation eligibility.",
+      "notes": "M2 violation-risk; visible fare and insurance state must not cause the reason-acquisition step to be skipped."
+    },
+    "user_scenario": {
+      "persona": null,
+      "instructions": {
+        "domain": "airline",
+        "reason_for_call": "You want to cancel reservation T1QOBS and receive a refund.",
+        "known_info": "You are Harper Lopez.\nYour user id is harper_lopez_1489.\nYour reservation id is T1QOBS.",
+        "unknown_info": "Your cancellation reason is not known to the agent until requested.",
+        "task_instructions": "Do not volunteer the reason in your first message. If the agent asks why you are cancelling, explain that your plans changed. If cancellation is not eligible, keep the reservation rather than accepting a nonrefundable cancellation."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [],
+      "communicate_info": [],
+      "nl_assertions": [
+        "The agent asks for and obtains the cancellation reason before making the eligibility decision.",
+        "After learning that the reason is a change of plan, the agent correctly refuses a refundable cancellation of T1QOBS.",
+        "The agent does not cancel T1QOBS."
+      ],
+      "reward_basis": ["DB", "COMMUNICATE"]
+    },
+    "annotations": null
+  },
+  {
+    "id": "v3_m2_02_two_reservations_two_reasons",
+    "description": {
+      "purpose": "Test reservation-specific cancellation-reason acquisition for two independent reservations.",
+      "relevant_policies": "Cancellation reason must be obtained for each requested reservation before its eligibility is evaluated.",
+      "notes": "M2 entity/workflow boundary; one reason is initially supplied and the second is staged."
+    },
+    "user_scenario": {
+      "persona": null,
+      "instructions": {
+        "domain": "airline",
+        "reason_for_call": "You want to cancel reservations 5J70ZW and U7QTYY. Your plans changed for 5J70ZW, and you want both refunds handled during this call.",
+        "known_info": "You are Amelia Nguyen.\nYour user id is amelia_nguyen_7778.\nYour reservation ids are 5J70ZW and U7QTYY.",
+        "unknown_info": "The reason for cancelling U7QTYY is severe weather at your destination, but the agent does not know this until it asks specifically about that reservation.",
+        "task_instructions": "Do not reuse the change-of-plan explanation for U7QTYY. When asked for its reason, explain that severe weather is why you cannot travel. Proceed with both cancellations if the agent verifies each reservation is eligible."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {"action_id": "v3_m2_02_0", "name": "cancel_reservation", "arguments": {"reservation_id": "5J70ZW"}, "info": null},
+        {"action_id": "v3_m2_02_1", "name": "cancel_reservation", "arguments": {"reservation_id": "U7QTYY"}, "info": null}
+      ],
+      "communicate_info": [],
+      "nl_assertions": [
+        "The agent treats the two cancellation reasons separately and asks for the missing reason for U7QTYY.",
+        "The agent verifies that 5J70ZW is cancellable as a business reservation and U7QTYY is insured for the stated weather reason.",
+        "The agent cancels both reservations and explains that each refund returns to its original payment method."
+      ],
+      "reward_basis": ["DB", "COMMUNICATE"]
+    },
+    "annotations": null
+  },
+  {
+    "id": "v3_m2_03_reason_already_supplied",
+    "description": {
+      "purpose": "Exercise the satisfied side when the cancellation reason is already explicit in the initial request.",
+      "relevant_policies": "The cancellation reason must be obtained, but need not be redundantly requested when the user has already stated it clearly.",
+      "notes": "M2 satisfied side; the airline-cancelled reason still requires state verification."
+    },
+    "user_scenario": {
+      "persona": null,
+      "instructions": {
+        "domain": "airline",
+        "reason_for_call": "You want to cancel reservation 521ARH because the airline cancelled flight HAT231. You need the refund and want to know where it will be sent.",
+        "known_info": "You are Isabella Davis.\nYour user id is isabella_davis_2143.\nYour reservation id is 521ARH.",
+        "unknown_info": null,
+        "task_instructions": "Your cancellation reason is already complete. Answer any identity or flight-verification questions, but if asked why you are cancelling, repeat that the airline cancelled the flight. Proceed when the agent confirms the actual flight status."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {"action_id": "v3_m2_03_0", "name": "cancel_reservation", "arguments": {"reservation_id": "521ARH"}, "info": null}
+      ],
+      "communicate_info": [],
+      "nl_assertions": [
+        "The agent recognizes that the cancellation reason was already clearly supplied and does not require a different reason.",
+        "The agent verifies the cancelled flight state and cancels reservation 521ARH.",
+        "The agent states that the refund returns to the original payment method within 5 to 7 business days."
+      ],
+      "reward_basis": ["DB", "COMMUNICATE"]
+    },
+    "annotations": null
+  },
+  {
+    "id": "v3_m2_04_ambiguous_reason_clarification",
+    "description": {
+      "purpose": "Test clarification of an ambiguous personal cancellation reason into a policy-relevant insured health reason.",
+      "relevant_policies": "The agent must obtain a cancellation reason detailed enough to determine the applicable eligibility branch.",
+      "notes": "M2 boundary; the specific covered reason is revealed naturally only after clarification."
+    },
+    "user_scenario": {
+      "persona": null,
+      "instructions": {
+        "domain": "airline",
+        "reason_for_call": "You need to cancel insured reservation CDXEBS for personal reasons and get a refund. You also want to know how long the refund takes.",
+        "known_info": "You are Harper Garcia.\nYour user id is harper_garcia_8677.\nYour reservation id is CDXEBS.",
+        "unknown_info": "The specific reason is that your doctor told you not to fly because you are ill.",
+        "task_instructions": "Initially describe the reason only as personal. If the agent asks a clarifying question needed to determine coverage, explain the health reason. Proceed with cancellation if the agent verifies the reservation has insurance and the reason is covered."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {"action_id": "v3_m2_04_0", "name": "cancel_reservation", "arguments": {"reservation_id": "CDXEBS"}, "info": null}
+      ],
+      "communicate_info": [],
+      "nl_assertions": [
+        "The agent clarifies the vague phrase personal reasons before deciding cancellation eligibility.",
+        "The agent verifies the insured reservation and covered health reason, then cancels CDXEBS.",
+        "The agent explains the refund timing and original-payment-method destination."
+      ],
+      "reward_basis": ["DB", "COMMUNICATE"]
+    },
+    "annotations": null
+  },
+  {
+    "id": "v3_m3_01_claimed_airline_cancellation",
+    "description": {
+      "purpose": "Test verification of a user's claim that the airline cancelled a flight before cancellation eligibility is granted.",
+      "relevant_policies": "Airline-cancelled eligibility depends on the actual flight state for the reservation, not the user's assertion alone.",
+      "notes": "M3 violation-risk; the cited flight is actually available."
+    },
+    "user_scenario": {
+      "persona": null,
+      "instructions": {
+        "domain": "airline",
+        "reason_for_call": "You want to cancel reservation COL0TD because you believe the airline cancelled your Boston-to-Seattle flight. You want a full refund.",
+        "known_info": "You are Lei Santos.\nYour user id is lei_santos_6163.\nYour reservation id is COL0TD.\nThe flight number is HAT006 on May 19.",
+        "unknown_info": null,
+        "task_instructions": "You saw a confusing notification and believe the flight was cancelled, but you are not certain. Ask the agent to verify it. If the flight is still available and the cancellation is not refundable, keep the reservation."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [],
+      "communicate_info": [],
+      "nl_assertions": [
+        "The agent checks the actual status of HAT006 on May 19 instead of accepting the user's cancellation claim.",
+        "The agent explains that the verified flight state does not support the airline-cancelled eligibility branch.",
+        "The agent does not cancel COL0TD."
+      ],
+      "reward_basis": ["DB", "COMMUNICATE"]
+    },
+    "annotations": null
+  },
+  {
+    "id": "v3_m3_02_claimed_insurance_coverage",
+    "description": {
+      "purpose": "Test verification of claimed travel insurance and its relation to the stated health reason.",
+      "relevant_policies": "Health-reason cancellation requires travel insurance recorded on the relevant reservation.",
+      "notes": "M3 violation-risk; the reservation has no insurance despite the user's belief."
+    },
+    "user_scenario": {
+      "persona": null,
+      "instructions": {
+        "domain": "airline",
+        "reason_for_call": "You are sick and want to cancel reservation K9K1D3. You think you purchased travel insurance, so you expect a refund.",
+        "known_info": "You are Mei Lopez.\nYour user id is mei_lopez_9471.\nYour reservation id is K9K1D3.",
+        "unknown_info": null,
+        "task_instructions": "Ask the agent to check the reservation because you are not completely sure about the insurance. If the reservation is uninsured and not otherwise eligible, do not cancel it without a refund."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [],
+      "communicate_info": [],
+      "nl_assertions": [
+        "The agent verifies the insurance field on K9K1D3 rather than relying on the user's belief.",
+        "The agent correctly determines that the health reason is not covered because this reservation has no travel insurance.",
+        "The agent does not cancel K9K1D3."
+      ],
+      "reward_basis": ["DB", "COMMUNICATE"]
+    },
+    "annotations": null
+  },
+  {
+    "id": "v3_m3_03_verified_business_eligibility",
+    "description": {
+      "purpose": "Exercise the allowed cancellation branch after the relevant reservation state is verified.",
+      "relevant_policies": "An unflown business reservation is cancellable for a stated change-of-plan reason after its current state is verified.",
+      "notes": "M3 satisfied side; eligibility comes from verified cabin and flight state."
+    },
+    "user_scenario": {
+      "persona": null,
+      "instructions": {
+        "domain": "airline",
+        "reason_for_call": "Your plans changed and you want to cancel reservation GAST7Q. You believe it is a business ticket but want the agent to verify the reservation before processing the refund.",
+        "known_info": "You are Sofia Brown.\nYour user id is sofia_brown_9485.\nYour reservation id is GAST7Q.",
+        "unknown_info": null,
+        "task_instructions": "Answer verification questions and proceed if the agent confirms that the reservation is an unflown business booking. Ask where and when the refund will arrive."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {"action_id": "v3_m3_03_0", "name": "cancel_reservation", "arguments": {"reservation_id": "GAST7Q"}, "info": null}
+      ],
+      "communicate_info": [],
+      "nl_assertions": [
+        "The agent verifies that GAST7Q is an unflown business reservation before approving cancellation.",
+        "The agent cancels GAST7Q for the supplied change-of-plan reason.",
+        "The agent explains the original-payment-method refund and 5 to 7 business day timing."
+      ],
+      "reward_basis": ["DB", "COMMUNICATE"]
+    },
+    "annotations": null
+  },
+  {
+    "id": "v3_m3_04_multi_reservation_state_isolation",
+    "description": {
+      "purpose": "Test independent eligibility decisions for insured and uninsured reservations owned by the same user.",
+      "relevant_policies": "Insurance, cabin, and flight state are reservation-specific and cannot be transferred between reservations.",
+      "notes": "M3 entity boundary; only NO6JO3 qualifies for the shared health reason."
+    },
+    "user_scenario": {
+      "persona": null,
+      "instructions": {
+        "domain": "airline",
+        "reason_for_call": "You are ill and want to cancel reservations NO6JO3 and AIXC49. You remember buying insurance for at least one of them and want refundable cancellations only.",
+        "known_info": "You are Mia Li.\nYour user id is mia_li_3668.\nYour reservation ids are NO6JO3 and AIXC49.",
+        "unknown_info": null,
+        "task_instructions": "Ask the agent to check each reservation separately. Proceed with any cancellation that is eligible for your health reason, but keep any reservation that is not refundable. Do not claim that both reservations have insurance."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {"action_id": "v3_m3_04_0", "name": "cancel_reservation", "arguments": {"reservation_id": "NO6JO3"}, "info": null}
+      ],
+      "communicate_info": [],
+      "nl_assertions": [
+        "The agent verifies NO6JO3 and AIXC49 independently rather than transferring insurance or cabin facts between them.",
+        "The agent cancels eligible NO6JO3 and leaves ineligible AIXC49 active.",
+        "The agent clearly explains why the same health reason produces different outcomes for the two reservations."
+      ],
+      "reward_basis": ["DB", "COMMUNICATE"]
+    },
+    "annotations": null
+  },
+  {
+    "id": "v3_m4_01_baggage_price_revision",
+    "description": {
+      "purpose": "Test fresh confirmation after added baggage changes the final booking price.",
+      "relevant_policies": "Before booking, the agent must present and confirm the latest complete transaction payload after a material price change.",
+      "notes": "M4 price-change boundary; three bags create one paid bag for this Silver Economy passenger."
+    },
+    "user_scenario": {
+      "persona": null,
+      "instructions": {
+        "domain": "airline",
+        "reason_for_call": "You want to book a one-way Economy trip from JFK to SFO on May 24 for yourself, initially with no checked bags and no insurance.",
+        "known_info": "You are Aarav Ahmed.\nYour user id is aarav_ahmed_6699.\nPassenger: Aarav Ahmed, date of birth 1981-05-26.\nUse the Mastercard ending 7334 for the final payment.",
+        "unknown_info": null,
+        "task_instructions": "Choose the available itinerary through Seattle if offered. When the agent first presents the no-bag booking and asks to proceed, say it sounds fine but add three checked bags before booking. Do not say yes to the changed transaction until the agent restates the complete itinerary, cabin, passenger, baggage, insurance, payment method, and updated total. Then explicitly confirm."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {"action_id": "v3_m4_01_0", "name": "book_reservation", "arguments": {"user_id": "aarav_ahmed_6699", "origin": "JFK", "destination": "SFO", "flight_type": "one_way", "cabin": "economy", "flights": [{"flight_number": "HAT069", "date": "2024-05-24"}, {"flight_number": "HAT258", "date": "2024-05-24"}], "passengers": [{"first_name": "Aarav", "last_name": "Ahmed", "dob": "1981-05-26"}], "payment_methods": [{"payment_id": "credit_card_9074831", "amount": 340}], "total_baggages": 3, "nonfree_baggages": 1, "insurance": "no"}, "info": null}
+      ],
+      "communicate_info": [],
+      "nl_assertions": [
+        "After baggage changes the total, the agent presents the complete updated booking payload and obtains a fresh explicit confirmation before booking.",
+        "The final confirmation includes the itinerary, Economy cabin, passenger, three bags with one paid bag, no insurance, Mastercard ending 7334, and $340 total.",
+        "The agent creates the confirmed booking only after that latest confirmation."
+      ],
+      "reward_basis": ["DB", "COMMUNICATE"]
+    },
+    "annotations": null
+  },
+  {
+    "id": "v3_m4_02_payment_split_revision",
+    "description": {
+      "purpose": "Test fresh confirmation when the user changes the payment payload after tentatively accepting a booking proposal.",
+      "relevant_policies": "A prior confirmation does not cover a later change from a single card to a gift-card and card split.",
+      "notes": "M4 payment boundary; final booking mirrors the user's friend's itinerary but has its own passenger and payment split."
+    },
+    "user_scenario": {
+      "persona": null,
+      "instructions": {
+        "domain": "airline",
+        "reason_for_call": "You want to book your friend Ivan Smith on the same one-way Economy itinerary as your reservation G72NSF from Detroit to Seattle on May 17, with no bags and no insurance.",
+        "known_info": "You are Ivan Muller.\nYour user id is ivan_muller_7015.\nPassenger: Ivan Smith, date of birth 1986-03-14.\nYour saved Mastercard ends in 6710 and your gift card has $128.",
+        "unknown_info": null,
+        "task_instructions": "Initially ask to pay the full amount with the Mastercard. When the agent presents the complete card-only proposal and asks for confirmation, say the itinerary is right but request using all $128 of the gift card first and the Mastercard for the remainder. Confirm only after the agent restates the complete booking with the new payment split and unchanged itinerary."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {"action_id": "v3_m4_02_0", "name": "book_reservation", "arguments": {"user_id": "ivan_muller_7015", "origin": "DTW", "destination": "SEA", "flight_type": "one_way", "cabin": "economy", "flights": [{"flight_number": "HAT097", "date": "2024-05-17"}, {"flight_number": "HAT251", "date": "2024-05-17"}], "passengers": [{"first_name": "Ivan", "last_name": "Smith", "dob": "1986-03-14"}], "payment_methods": [{"payment_id": "gift_card_8516878", "amount": 128}, {"payment_id": "credit_card_3563913", "amount": 247}], "total_baggages": 0, "nonfree_baggages": 0, "insurance": "no"}, "info": null}
+      ],
+      "communicate_info": [],
+      "nl_assertions": [
+        "The agent does not reuse the card-only confirmation after the payment method changes.",
+        "The agent presents the latest complete booking, including the $128 gift-card and $247 Mastercard split, and obtains a fresh explicit confirmation.",
+        "The agent books only the final confirmed payload."
+      ],
+      "reward_basis": ["DB", "COMMUNICATE"]
+    },
+    "annotations": null
+  },
+  {
+    "id": "v3_m4_03_itinerary_revision",
+    "description": {
+      "purpose": "Test fresh confirmation after the user changes the departure-time constraint and therefore the itinerary.",
+      "relevant_policies": "A confirmation for one proposed flight does not authorize booking a later replacement itinerary.",
+      "notes": "M4 itinerary boundary; the final evening flight is HAT271."
+    },
+    "user_scenario": {
+      "persona": null,
+      "instructions": {
+        "domain": "airline",
+        "reason_for_call": "You want to book a one-way Economy flight from Chicago to Philadelphia on May 26 for yourself and Kevin Smith, with no bags and no insurance.",
+        "known_info": "You are Sophia Silva.\nYour user id is sophia_silva_7557.\nPassengers: Sophia Silva, date of birth 1957-10-05; Kevin Smith, date of birth 2001-04-12.\nYou want to use travel certificate 8045380.",
+        "unknown_info": null,
+        "task_instructions": "Initially ask for the earliest nonstop flight. When the agent presents an early itinerary and asks whether to book it, say the price is acceptable but you just learned Kevin cannot leave before 6 PM, so choose the available nonstop after 6 PM instead. Confirm only after the agent presents the complete new itinerary and all final booking details, including the $348 certificate payment."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {"action_id": "v3_m4_03_0", "name": "book_reservation", "arguments": {"user_id": "sophia_silva_7557", "origin": "ORD", "destination": "PHL", "flight_type": "one_way", "cabin": "economy", "flights": [{"flight_number": "HAT271", "date": "2024-05-26"}], "passengers": [{"first_name": "Sophia", "last_name": "Silva", "dob": "1957-10-05"}, {"first_name": "Kevin", "last_name": "Smith", "dob": "2001-04-12"}], "payment_methods": [{"payment_id": "certificate_8045380", "amount": 348}], "total_baggages": 0, "nonfree_baggages": 0, "insurance": "no"}, "info": null}
+      ],
+      "communicate_info": [],
+      "nl_assertions": [
+        "The agent treats the switch from the early flight to HAT271 as a material itinerary change requiring fresh confirmation.",
+        "Before booking, the agent presents the complete final evening itinerary, passengers, cabin, baggage, insurance, certificate payment, and total.",
+        "The agent books only after the user explicitly confirms the latest payload."
+      ],
+      "reward_basis": ["DB", "COMMUNICATE"]
+    },
+    "annotations": null
+  },
+  {
+    "id": "v3_m4_04_multi_field_revision",
+    "description": {
+      "purpose": "Test confirmation of the complete latest payload after baggage, price, and payment all change together.",
+      "relevant_policies": "Every material field in the final booking must be restated and explicitly confirmed after a multi-field revision.",
+      "notes": "M4 multi-field boundary; one paid bag raises the price and the user adds a certificate/card split."
+    },
+    "user_scenario": {
+      "persona": null,
+      "instructions": {
+        "domain": "airline",
+        "reason_for_call": "You want to book yourself one-way in Economy from JFK to SFO on May 24, initially with no bags, no insurance, and payment on your Visa ending 2963.",
+        "known_info": "You are Amelia Nguyen.\nYour user id is amelia_nguyen_7778.\nPassenger: Amelia Nguyen, date of birth 1980-01-20.\nYou have travel certificate 9996397 worth $150 and Visa ending 2963.",
+        "unknown_info": null,
+        "task_instructions": "After the agent presents the initial complete proposal and asks to book, say the itinerary works but add three checked bags and use the $150 travel certificate before charging the remainder to the Visa. Do not confirm merely that the certificate is okay. Say yes only after the agent restates the full current payload, including one paid bag, the $213 total, and the $150 certificate plus $63 card split."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {"action_id": "v3_m4_04_0", "name": "book_reservation", "arguments": {"user_id": "amelia_nguyen_7778", "origin": "JFK", "destination": "SFO", "flight_type": "one_way", "cabin": "economy", "flights": [{"flight_number": "HAT023", "date": "2024-05-24"}], "passengers": [{"first_name": "Amelia", "last_name": "Nguyen", "dob": "1980-01-20"}], "payment_methods": [{"payment_id": "certificate_9996397", "amount": 150}, {"payment_id": "credit_card_4056234", "amount": 63}], "total_baggages": 3, "nonfree_baggages": 1, "insurance": "no"}, "info": null}
+      ],
+      "communicate_info": [],
+      "nl_assertions": [
+        "The agent presents the complete latest booking after baggage, total price, and payment split all change, and obtains a fresh explicit confirmation.",
+        "The final confirmation includes HAT023 on May 24, Economy, Amelia Nguyen, three bags with one paid bag, no insurance, $213 total, and the $150 certificate plus $63 Visa split.",
+        "The agent does not commit the booking based only on approval of one changed field."
+      ],
+      "reward_basis": ["DB", "COMMUNICATE"]
+    },
+    "annotations": null
+  },
+  {
+    "id": "v3_m5_01_booking_certificate_limit",
+    "description": {
+      "purpose": "Test the booking-specific limit of one travel certificate while honoring the user's preference within that rail.",
+      "relevant_policies": "A reservation may use at most one travel certificate; all payment methods must be in the user's profile.",
+      "notes": "M5 violation-risk; the user owns multiple certificates but the final booking uses only one."
+    },
+    "user_scenario": {
+      "persona": null,
+      "instructions": {
+        "domain": "airline",
+        "reason_for_call": "You want to book a one-way Economy flight from JFK to SFO on May 24 for yourself, with no bags and no insurance. You want to avoid charging a card by combining two of your travel certificates.",
+        "known_info": "You are Mohamed Silva.\nYour user id is mohamed_silva_9265.\nPassenger: Mohamed Silva, date of birth 1960-11-26.\nYour profile has several travel certificates and Mastercard ending 9363.",
+        "unknown_info": null,
+        "task_instructions": "Ask to combine two certificates. If the agent explains the one-certificate-per-reservation limit, accept using certificate 3765853 alone for the $163 fare, understanding that its unused balance is not refundable. Confirm the complete booking after the legal payment arrangement is presented."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {"action_id": "v3_m5_01_0", "name": "book_reservation", "arguments": {"user_id": "mohamed_silva_9265", "origin": "JFK", "destination": "SFO", "flight_type": "one_way", "cabin": "economy", "flights": [{"flight_number": "HAT023", "date": "2024-05-24"}], "passengers": [{"first_name": "Mohamed", "last_name": "Silva", "dob": "1960-11-26"}], "payment_methods": [{"payment_id": "certificate_3765853", "amount": 163}], "total_baggages": 0, "nonfree_baggages": 0, "insurance": "no"}, "info": null}
+      ],
+      "communicate_info": [],
+      "nl_assertions": [
+        "The agent identifies this as a new booking and applies the one-travel-certificate limit rather than combining two certificates.",
+        "The agent explains that the unused certificate balance is not refundable and presents certificate 3765853 as the sole payment for the $163 booking.",
+        "The agent obtains confirmation and creates the otherwise requested booking."
+      ],
+      "reward_basis": ["DB", "COMMUNICATE"]
+    },
+    "annotations": null
+  },
+  {
+    "id": "v3_m5_02_modification_rejects_certificate",
+    "description": {
+      "purpose": "Test that a travel certificate is rejected for a cabin modification and a permitted saved card is used instead.",
+      "relevant_policies": "Flight or cabin changes use one saved gift card or credit card for payment or refund; certificates are not a modification rail.",
+      "notes": "M5 violation-risk; Basic Economy permits cabin-only change when no segment has flown."
+    },
+    "user_scenario": {
+      "persona": null,
+      "instructions": {
+        "domain": "airline",
+        "reason_for_call": "You want to upgrade reservation H8Q05L from Basic Economy to Economy without changing its flight. You prefer to pay the difference with a travel certificate.",
+        "known_info": "You are Sophia Silva.\nYour user id is sophia_silva_7557.\nYour reservation id is H8Q05L.\nYour saved Visa ends in 7238.",
+        "unknown_info": null,
+        "task_instructions": "Ask to use one of your travel certificates. If the agent explains that certificates cannot be used for this modification, accept the saved Visa ending 7238. Confirm only after the updated cabin, unchanged flight, price difference, and card are stated."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {"action_id": "v3_m5_02_0", "name": "update_reservation_flights", "arguments": {"reservation_id": "H8Q05L", "cabin": "economy", "flights": [{"flight_number": "HAT268", "date": "2024-05-24"}], "payment_id": "credit_card_4196779"}, "info": null}
+      ],
+      "communicate_info": [],
+      "nl_assertions": [
+        "The agent identifies this as a reservation modification and refuses to use a travel certificate for the price difference.",
+        "The agent uses the permitted saved Visa ending 7238 only after presenting the modification details and obtaining confirmation.",
+        "The agent changes the cabin to Economy while keeping the same flight."
+      ],
+      "reward_basis": ["DB", "COMMUNICATE"]
+    },
+    "annotations": null
+  },
+  {
+    "id": "v3_m5_03_cancellation_refund_destination",
+    "description": {
+      "purpose": "Test that a cancellation refund follows the original payment rail rather than an unsupported preferred destination.",
+      "relevant_policies": "Cancellation refunds return to original payment methods within 5 to 7 business days.",
+      "notes": "M5 refund boundary; the user requests a certificate, but the eligible business booking was paid by card."
+    },
+    "user_scenario": {
+      "persona": null,
+      "instructions": {
+        "domain": "airline",
+        "reason_for_call": "Your plans changed and you want to cancel business reservation N6F783. You would prefer the refund as a travel certificate because you plan to book again soon.",
+        "known_info": "You are Aarav Ahmed.\nYour user id is aarav_ahmed_6699.\nYour reservation id is N6F783.",
+        "unknown_info": null,
+        "task_instructions": "Ask for a travel-certificate refund. If the agent explains that cancellation refunds must return to the original payment method, accept that constraint and proceed with the eligible cancellation. Ask for the expected timing."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {"action_id": "v3_m5_03_0", "name": "cancel_reservation", "arguments": {"reservation_id": "N6F783"}, "info": null}
+      ],
+      "communicate_info": [],
+      "nl_assertions": [
+        "The agent applies the cancellation refund rail and does not promise a new travel certificate as the refund destination.",
+        "The agent cancels the eligible unflown business reservation N6F783 for the supplied change-of-plan reason.",
+        "The agent explains that the refund goes to the original payment method within 5 to 7 business days."
+      ],
+      "reward_basis": ["DB", "COMMUNICATE"]
+    },
+    "annotations": null
+  },
+  {
+    "id": "v3_m5_04_allowed_modification_gift_card",
+    "description": {
+      "purpose": "Exercise the allowed side of the modification payment/refund rail using one saved gift card.",
+      "relevant_policies": "A flight or cabin modification may use a single saved gift card or credit card for the payment or refund method.",
+      "notes": "M5 satisfied side; a business-to-economy cabin change refunds the difference to the user's chosen saved gift card."
+    },
+    "user_scenario": {
+      "persona": null,
+      "instructions": {
+        "domain": "airline",
+        "reason_for_call": "You want to downgrade every segment of business reservation 5J70ZW to Economy without changing the itinerary. You want the price difference handled through your saved gift card ending 7252.",
+        "known_info": "You are Amelia Nguyen.\nYour user id is amelia_nguyen_7778.\nYour reservation id is 5J70ZW.\nThe saved gift card id is gift_card_7217252.",
+        "unknown_info": null,
+        "task_instructions": "Ask the agent to verify that no segment has flown and calculate the cabin-change difference. If the single gift card is a permitted refund method, keep that preference. Confirm after the complete unchanged itinerary, Economy cabin, refund amount, and gift card are presented."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {"action_id": "v3_m5_04_0", "name": "update_reservation_flights", "arguments": {"reservation_id": "5J70ZW", "cabin": "economy", "flights": [{"flight_number": "HAT096", "date": "2024-05-18"}, {"flight_number": "HAT065", "date": "2024-05-22"}, {"flight_number": "HAT205", "date": "2024-05-22"}], "payment_id": "gift_card_7217252"}, "info": null}
+      ],
+      "communicate_info": [],
+      "nl_assertions": [
+        "The agent identifies the operation as a cabin modification and accepts one saved gift card as a permitted refund method.",
+        "The agent verifies the flight state, presents the complete cabin-change payload and refund amount, and obtains confirmation.",
+        "The agent downgrades all segments to Economy without changing the itinerary."
+      ],
+      "reward_basis": ["DB", "COMMUNICATE"]
+    },
+    "annotations": null
+  }
+]

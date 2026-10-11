@@ -1,0 +1,174 @@
+{
+  "status": "PASS_P2_TWO_LINEAGE_RECOVERY_AND_PURE_BOUNDARY_ISOLATION",
+  "family_id": "C-AIR-P2-PRESERVED-SEGMENT-VALUATION",
+  "previous_family_id": "C-AIR-P2-P5-P6-PRESERVED-PRICING",
+  "phase": "EVIDENCE_RECOVERY_BOUNDARY_NARROWING_AND_PAIR_FEASIBILITY_ONLY",
+  "scope": {
+    "lineages": 2,
+    "historical_e0_rollouts": 6,
+    "new_model_rollouts": 0,
+    "new_environment_fixtures": 0,
+    "formal_task_ids_allocated": 0
+  },
+  "family_invariant": {
+    "name": "Preserved same-cabin segment historical valuation",
+    "rule": "When a submitted flight-change itinerary retains the same flight number, date and cabin for a segment, that segment contributes its stored reservation price rather than its current catalog price.",
+    "capability_dependency": "A task is P2-critical only when using stored rather than current price changes an evaluator-required decision or outcome.",
+    "agent_learning_target": "Recognize a retained segment and value it from reservation history before comparing candidate itineraries.",
+    "not_p2": [
+      "subtracting the stored complete old-flight baseline to obtain the transaction delta",
+      "multiplying or aggregating the complete itinerary settlement across passengers",
+      "backend failure to enforce flight-change or cancellation policy",
+      "candidate ordering, schedule tie-breaks, baggage policy or payment-resource allocation"
+    ]
+  },
+  "lineages": [
+    {
+      "task_id": "airline_pa_o3a_m66qvw_preserved_pricing",
+      "original_role": "CAPABILITY_ANCHOR",
+      "source_stage": "phase_a_success_v2",
+      "historical_family_annotation": "P2+P5+P6",
+      "e0": {
+        "counts": {
+          "CS": 2,
+          "CF": 0,
+          "VS": 0,
+          "VF": 1
+        },
+        "focal_p2_error_observations": 1,
+        "failure_stability": "NOT_STABLE",
+        "interpretation": "One rollout used the current HAT007 catalog price instead of the stored price, attempted HAT281, hit insufficient gift-card balance, then self-repaired to HAT178. Two other E0 runs chose HAT178 directly."
+      },
+      "trajectory_evidence": {
+        "error_reasoning_step": 14,
+        "wrong_candidate_attempt_step": 17,
+        "corrected_candidate_attempt_step": 22,
+        "stored_preserved_price": 183,
+        "current_catalog_price": 118,
+        "expected_higher_candidate_charge": 68,
+        "expected_fallback_refund": 80
+      },
+      "mechanism_exposure": {
+        "P2": "EXPOSED_CRITICAL",
+        "P5": "EXPOSED_CRITICAL",
+        "P6": "EXPOSED_NONCRITICAL"
+      },
+      "isolation_verdict": "NOT_PURE_P2__P2_AND_P5_JOINTLY_DETERMINE_THE_ABSOLUTE_THRESHOLD",
+      "reference_skill": "NO_P2_ONLY_MATCHED_REPAIR",
+      "use_in_reconstruction": "ERROR_HYPOTHESIS_SEED_ONLY__DO_NOT_REUSE_AS_TRIGGER"
+    },
+    {
+      "task_id": "airline_pa_b2_1n99u6_lexicographic_return",
+      "original_role": "PROTECTED_CONTROL",
+      "source_stage": "phase_a_success_v2",
+      "historical_family_annotation": "P2+P5+P6",
+      "e0": {
+        "counts": {
+          "CS": 3,
+          "CF": 0,
+          "VS": 0,
+          "VF": 0
+        },
+        "focal_p2_error_observations": 0,
+        "failure_stability": "CLEAN_HISTORICAL_E0"
+      },
+      "mechanism_exposure": {
+        "P2": "EXPOSED_NONCRITICAL",
+        "P5": "EXPOSED_NONCRITICAL",
+        "P6": "EXPOSED_NONCRITICAL"
+      },
+      "noncritical_reason": "The preserved outbound contributes the same constant under every return candidate; the required lexicographic selection does not depend on its valuation.",
+      "control_evolution_evidence": {
+        "matched_pairs": 9,
+        "transitions": {
+          "CS->CS": 5,
+          "CS->VS": 1,
+          "VS->CS": 3
+        },
+        "clean_regressions": 1,
+        "parent_non_cs": 3,
+        "interpretation": "The surface may detect regression, but its evolution parent baseline is noisy and the observed transitions do not isolate P2."
+      },
+      "reference_skill": "NO_P2_ONLY_MATCHED_REPAIR",
+      "use_in_reconstruction": "NATURAL_NONCRITICAL_TOPOLOGY_SEED_ONLY__REBUILD_CONTROL_STATE_AND_SURFACE"
+    }
+  ],
+  "aggregate_evidence": {
+    "historical_e0_counts": {
+      "CS": 5,
+      "CF": 0,
+      "VS": 0,
+      "VF": 1
+    },
+    "stable_p2_failure": false,
+    "independent_p2_critical_states": 1,
+    "p2_only_reference_repair_verified": false,
+    "conclusion": "The two lineages remain useful as historical EE-01 evidence, but do not justify a separate P2 family or a duplicate Skill-necessity experiment."
+  },
+  "p2_p5_p6_isolation": {
+    "P2_kept": "Which price contributes for a segment preserved with the same flight, date and cabin.",
+    "P5_excluded": "The absolute settlement formula that subtracts the stored complete old-flight baseline.",
+    "P5_neutralization": "Compare two candidate outcomes against each other using the same original reservation. The old-flight baseline is identical and cancels, so the correct ordering depends on candidate itinerary values rather than knowledge of the P5 subtraction rule.",
+    "P6_excluded": "Whether native mutation APIs enforce policy eligibility.",
+    "P6_neutralization": "Use clearly eligible flight changes under the visible policy; neither correct nor competing choice depends on bypassing backend enforcement.",
+    "other_exclusions": [
+      "baggage-count or cabin-baggage branching",
+      "certificate allocation",
+      "passenger-list mutation",
+      "multiple reservations",
+      "absolute additional-payment threshold"
+    ]
+  },
+  "minimal_failure_control_pair": {
+    "feasibility": "FEASIBLE_BUT_CANCELLED__WOULD_DUPLICATE_V3_EE01",
+    "shared_topology": "The user asks the agent to compare two eligible flight-change options and execute the one with the lower transaction cost. One option preserves an existing same-cabin segment; the other replaces it. Both options start from the same reservation, so the P5 old baseline is constant and does not affect their ordering.",
+    "failure_trigger": {
+      "construction_condition": "The preserved segment has different stored and current prices, and substituting current for stored price reverses the correct option ordering.",
+      "correct_path": "Use the stored preserved-segment value and execute the oracle option.",
+      "competing_path": "Reprice the preserved segment from current catalog data and execute the opposite option.",
+      "expected_gate0": "CORRECT_PATH_CS__COMPETING_PATH_CF"
+    },
+    "control": {
+      "construction_condition": "Use the same comparison topology and a nonzero stored/current price gap, but choose candidate margins such that both valuation hypotheses select the same option.",
+      "purpose": "Detect a brittle Skill that blindly changes the branch whenever a preserved segment exists, while avoiding a trivial stored-equals-current control.",
+      "expected_gate0": "P2_AWARE_AND_COMPETING_VALUATION_SELECT_THE_SAME_CS_OPTION"
+    },
+    "task_success_evaluator": "Deterministically compare the executed final itinerary with the option implied by pre-state stored prices and current candidate prices; no Governance judge is required.",
+    "pair_limit": "The pair could establish structural polarity, but its Reference Skill would relearn the retained-historical branch of the existing v3 EE-01 channel mapping. It is therefore not built."
+  },
+  "unified_environment": {
+    "target": "airline-v3-unified",
+    "feasibility": "FEASIBLE_WITH_DOMAIN_WIDE_INFORMATION_BOUNDARY_REVIEW",
+    "requirement": "If P2 is treated as hidden capability knowledge, the preserved-price mapping must be neutralized consistently for every Airline task in the final unified environment, not only for P2 fixtures.",
+    "regression_risk": "A domain-wide policy change may affect existing EE, JSG, P4 and other Airline tasks; the later design contract must prove those tasks do not gain a family-specific information boundary or changed oracle.",
+    "current_action": "NO_ENVIRONMENT_CHANGE_IN_THIS_PHASE"
+  },
+  "shortcut_risks_for_later_design": [
+    "Do not reuse M66QVW, HAT007, $50, $183 or $118 as fixed labels for the Trigger direction.",
+    "Counterbalance whether the preserved option or full-replacement option is correct.",
+    "Counterbalance stored price above versus below current catalog price.",
+    "Do not reveal the correct option through candidate order, request order or explicit preserved-price wording.",
+    "Keep passenger count, payment sufficiency and eligibility noncritical to the branch."
+  ],
+  "decision": {
+    "pair_feasibility": "YES_BUT_NOT_WORTH_BUILDING",
+    "admission": "NO_STANDALONE_FAMILY",
+    "family_status": "DROPPED_AS_STANDALONE__SUBSUMED_BY_V3_EE01",
+    "next_gate": "DROPPED__NO_ACTIVE_GATE",
+    "do_not_do_yet": [
+      "minimal reconstruction contract",
+      "environment implementation",
+      "model rollout",
+      "multi-surface construction",
+      "formal task ID allocation",
+      "Train/Monitor split"
+    ],
+    "retained_use": "ATTRIBUTE_THE_TWO_V2_LINEAGES_TO_V3_EE01_HISTORICAL_COVERAGE"
+  },
+  "evidence_sources": [
+    "../../../editions/phase_v1_day30/construction/phase_a_exposure_audit/task_exposure_matrix.json",
+    "../../../editions/phase_v1_day30/construction/phase_a_exposure_audit/latent_phenomena.json",
+    "../../../editions/phase_v1_day30/benchmark/phase_a_final_unified_benchmark_v1/calibration/mechanism_attribution.json",
+    "../v2_72_task_audit.json"
+  ]
+}

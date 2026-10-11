@@ -164,11 +164,13 @@ def build_task_clusters(joint_report: dict[str, Any]) -> list[dict[str, Any]]:
         lineage.add(key)
         grouped[(domain, task_id)].append(pair)
 
-    domain_counts = {
-        domain: sum(key[0] == domain for key in grouped) for domain in EXPECTED_DOMAINS
-    }
-    if len(grouped) != TOTAL_TASKS or domain_counts != {"airline": 10, "retail": 10}:
-        raise DistributionalGateContractError("Gate requires 10 Airline and 10 Retail task clusters.")
+    domains = tuple(domain for domain in EXPECTED_DOMAINS if any(
+        key[0] == domain for key in grouped
+    ))
+    if len(grouped) != TOTAL_TASKS or not domains:
+        raise DistributionalGateContractError(
+            "Gate requires 20 task clusters across available domain strata."
+        )
 
     effect_rows = joint_report.get("task_level_effects")
     if not isinstance(effect_rows, list) or len(effect_rows) != TOTAL_TASKS:
@@ -185,7 +187,7 @@ def build_task_clusters(joint_report: dict[str, Any]) -> list[dict[str, Any]]:
         raise DistributionalGateContractError("Task clusters and task-level effects do not match.")
 
     clusters = []
-    for domain in EXPECTED_DOMAINS:
+    for domain in domains:
         for key in sorted((key for key in grouped if key[0] == domain), key=lambda item: item[1]):
             values = grouped[key]
             if len(values) != ROLLOUTS_PER_TASK or {
@@ -223,11 +225,11 @@ def _draw_stratified_replicate(
 
     success_count = compliance_count = 0
     draw_counts: dict[str, int] = {}
-    for domain in EXPECTED_DOMAINS:
+    for domain in sorted(clusters_by_domain):
         clusters = clusters_by_domain.get(domain)
-        if not isinstance(clusters, list) or len(clusters) != TASKS_PER_DOMAIN:
-            raise DistributionalGateContractError("Each bootstrap stratum must contain 10 tasks.")
-        sampled = rng.choices(clusters, k=TASKS_PER_DOMAIN)
+        if not isinstance(clusters, list) or not clusters:
+            raise DistributionalGateContractError("Each bootstrap stratum must be non-empty.")
+        sampled = rng.choices(clusters, k=len(clusters))
         draw_counts[domain] = len(sampled)
         success_count += sum(cluster["success_delta_sum"] for cluster in sampled)
         compliance_count += sum(cluster["compliance_delta_sum"] for cluster in sampled)
@@ -262,9 +264,10 @@ def build_distributional_gate_decision(
     ):
         raise DistributionalGateContractError("Observed integer shift disagrees with overall_shift.")
 
+    available_domains = tuple(sorted({cluster["domain"] for cluster in clusters}))
     clusters_by_domain = {
         domain: [cluster for cluster in clusters if cluster["domain"] == domain]
-        for domain in EXPECTED_DOMAINS
+        for domain in available_domains
     }
     rng = random.Random(gate_config["bootstrap_seed"])
     positive_count = 0
@@ -295,8 +298,11 @@ def build_distributional_gate_decision(
             "unit": "task",
             "cluster_rollouts": ROLLOUTS_PER_TASK,
             "stratified_by_domain": True,
-            "airline_tasks_per_replicate": TASKS_PER_DOMAIN,
-            "retail_tasks_per_replicate": TASKS_PER_DOMAIN,
+            "domain_tasks_per_replicate": {
+                domain: len(values) for domain, values in clusters_by_domain.items()
+            },
+            "airline_tasks_per_replicate": len(clusters_by_domain.get("airline", [])),
+            "retail_tasks_per_replicate": len(clusters_by_domain.get("retail", [])),
             "replicates": gate_config["bootstrap_replicates"],
             "seed": gate_config["bootstrap_seed"],
             "epsilon_pair_count": gate_config["epsilon_pair_count"],

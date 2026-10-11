@@ -1,0 +1,138 @@
+{
+  "schema_version": "airline_phase_a_mechanism_candidates_1.0",
+  "benchmark_id": "airline_phase_a_mechanism_expansion_step4s",
+  "selection_status": "frozen_before_empty_skill_rollouts",
+  "selection_basis": "native_state_and_mechanism_structure_only",
+  "empty_rollout_outcomes_used_for_selection": false,
+  "calibration_seeds": [710, 711, 712],
+  "rollout_seeds": [720, 721, 722],
+  "tasks": [
+    {
+      "task_id": "airline_pa_b1_obut9v_fastest_return",
+      "family": "B_candidate_resolution",
+      "source_state": {"source_task_id": "21", "user_id": "sofia_kim_7287", "reservation_ids": ["OBUT9V"]},
+      "candidate_evidence": [
+        "HAT290+HAT175: 14:00-20:00, 6h, one stop, $312 Economy, available",
+        "HAT084+HAT266: 04:00-16:00, 12h, one stop, $242 Economy, available",
+        "HAT084+HAT175: 04:00-20:00, 16h, one stop, $282 Economy, available"
+      ],
+      "dependency_graph": ["complete DEN-IAH May-27 inventory", "filter available same-day Economy itineraries", "lexicographic duration/stops/arrival/fare resolution", "bind HAT290+HAT175 to preserved outbound", "proposal+confirmation", "flight write then baggage write"],
+      "oracle": {
+        "branch": "HAT290+HAT175 uniquely minimizes elapsed travel time at six hours",
+        "actions": [
+          {"name": "update_reservation_flights", "arguments": {"reservation_id": "OBUT9V", "cabin": "economy", "flights": [{"flight_number": "HAT078", "date": "2024-05-27"}, {"flight_number": "HAT118", "date": "2024-05-27"}, {"flight_number": "HAT290", "date": "2024-05-27"}, {"flight_number": "HAT175", "date": "2024-05-27"}], "payment_id": "gift_card_6276644"}},
+          {"name": "update_reservation_baggages", "arguments": {"reservation_id": "OBUT9V", "total_baggages": 2, "nonfree_baggages": 0, "payment_id": "gift_card_6276644"}}
+        ]
+      },
+      "initial_required_regexes": ["OBUT9V", "sofia_kim_7287", "May 27", "minimum total elapsed|fastest|shortest", "stop", "arriv", "price|fare", "outbound.*unchanged|keep.*outbound", "one checked bag|two", "confirm"],
+      "scenario": {
+        "known_info": "You are Sofia Kim, user id sofia_kim_7287. The reservation is OBUT9V and payment method is gift_card_6276644.",
+        "task_instructions": "In your first turn ask to keep the current outbound exactly unchanged and change only the May 27 Denver-to-Houston return in Economy. From every available same-day itinerary choose minimum total elapsed travel time; tie-break by fewer stops, then earlier Houston arrival, then lower fare. Add exactly one checked bag so the final reservation has two. Preserve passengers and every other field. Require the complete round trip, selected-return rationale, and final baggage state before explicit confirmation. Never add or revise a criterion later and never name a flight before the agent discovers it."
+      },
+      "calibration_proposal": "Complete round trip: preserved outbound HAT078 IAH-ORD 01:00-03:30 and HAT118 ORD-DEN 04:00-06:00 on May 27; selected return HAT290 DEN-LAS 14:00-16:00 and HAT175 LAS-IAH 17:00-20:00 on May 27. The return takes six elapsed hours and is faster than available HAT084+HAT266 at twelve hours and HAT084+HAT175 at sixteen hours, so no tie-break is needed. Cabin is Economy; passengers are preserved; final baggage is exactly two total and zero non-free.",
+      "nl_assertions": ["The assistant reports HAT290 and HAT175 as the selected May 27 return, preserves HAT078 and HAT118 as outbound, and reports two checked bags."]
+    },
+    {
+      "task_id": "airline_pa_b2_1n99u6_lexicographic_return",
+      "family": "B_candidate_resolution",
+      "source_state": {"source_task_id": "30", "user_id": "james_taylor_7043", "reservation_ids": ["1N99U6"]},
+      "candidate_evidence": [
+        "HAT131: 18:00-21:00, nonstop, $198 Economy, available for two passengers",
+        "HAT112: 22:00-01:00+1, nonstop, $149 Economy, available",
+        "HAT190: 01:00-04:00, excluded by after-16:00 window",
+        "HAT286: 22:00-01:00+1, nonstop, $170 Economy, available"
+      ],
+      "dependency_graph": ["complete IAH-LAS May-27 direct inventory", "filter departures after 16:00", "earliest-arrival then latest-departure then fare", "bind HAT131 to preserved outbound HAT284+HAT152", "proposal+confirmation", "complete-reservation write"],
+      "oracle": {
+        "branch": "Among direct departures after 16:00, HAT131 uniquely arrives earliest at 21:00",
+        "actions": [{"name": "update_reservation_flights", "arguments": {"reservation_id": "1N99U6", "cabin": "economy", "flights": [{"flight_number": "HAT284", "date": "2024-05-19"}, {"flight_number": "HAT152", "date": "2024-05-19"}, {"flight_number": "HAT131", "date": "2024-05-27"}], "payment_id": "gift_card_5634230"}}]
+      },
+      "initial_required_regexes": ["1N99U6", "james_taylor_7043", "May 27", "after 4|after 16", "earliest.*arriv", "later departure|latest departure", "cheaper|fare", "outbound.*unchanged|keep.*outbound", "confirm"],
+      "scenario": {
+        "known_info": "You are James Taylor, user id james_taylor_7043. The reservation is 1N99U6 and payment method is gift_card_5634230.",
+        "task_instructions": "In your first turn require the current outbound to remain exactly unchanged and change only the May 27 Houston-to-Las Vegas return. It must be Economy, nonstop, and depart after 4 PM. Among qualifying flights choose earliest Las Vegas arrival; tie-break by later departure and then lower fare. Preserve passengers, baggage, route, and round-trip type. Require the complete final round trip and selection rationale before explicit confirmation. Never revise the rule and never reveal a flight number before tool results."
+      },
+      "calibration_proposal": "Complete round trip: preserved outbound HAT284 LAS-PHX 03:00-04:00 and HAT152 PHX-IAH 15:00-18:00 on May 19; selected return HAT131 IAH-LAS on May 27, 18:00-21:00. HAT131 is Economy and nonstop, departs after 16:00, and arrives earlier than qualifying HAT112 and HAT286 at 01:00 the next day; HAT190 departs before the window, so no tie-break is needed. Both passengers, one checked bag, route and round-trip type are preserved.",
+      "nl_assertions": ["The assistant reports HAT131 as the selected return and HAT284 plus HAT152 as the preserved outbound."]
+    },
+    {
+      "task_id": "airline_pa_d1_m66qvw_preserved_outbound",
+      "family": "D_precommit_consistency",
+      "source_state": {"source_task_id": "native_db", "user_id": "lucas_nguyen_6408", "reservation_ids": ["M66QVW"]},
+      "candidate_evidence": ["May-30 ATL-LAS direct options include HAT178 08:00-12:00, HAT102 21:00-01:00+1, HAT281 22:00-02:00+1", "HAT178 is the unique earliest arrival among departures at or after 07:00"],
+      "dependency_graph": ["read old complete round trip", "resolve new return HAT178", "preserve outbound HAT007 unchanged", "compile HAT007+HAT178", "proposal must equal confirmation state", "complete-reservation write"],
+      "oracle": {
+        "branch": "HAT178 is the unique earliest-arriving qualifying return; HAT007 must remain in the complete payload",
+        "actions": [{"name": "update_reservation_flights", "arguments": {"reservation_id": "M66QVW", "cabin": "economy", "flights": [{"flight_number": "HAT007", "date": "2024-05-24"}, {"flight_number": "HAT178", "date": "2024-05-30"}], "payment_id": "gift_card_2684964"}}]
+      },
+      "initial_required_regexes": ["M66QVW", "lucas_nguyen_6408", "May 30", "after 7|at or after 7", "earliest|arrives earliest", "outbound.*unchanged|keep.*outbound", "passenger", "checked bags|bags", "confirm"],
+      "scenario": {
+        "known_info": "You are Lucas Nguyen, user id lucas_nguyen_6408. The reservation is M66QVW and the original payment method is gift_card_2684964.",
+        "task_instructions": "In your first turn permit changing only the May 30 Atlanta-to-Las Vegas return. Keep the May 24 outbound exactly unchanged. The new return must be Economy, nonstop, depart at or after 7 AM, and be the qualifying flight that arrives earliest; tie-break by lower fare. Preserve passengers, two checked bags, route, and round-trip type. Require the complete final round trip and all preserved state before explicit confirmation. Never revise or reveal the winning flight early."
+      },
+      "calibration_proposal": "Complete round trip: preserved Economy outbound HAT007 LAS-ATL on May 24, 12:00-16:00; new Economy nonstop return HAT178 ATL-LAS on May 30, 08:00-12:00, fare $126. HAT178 departs at or after 07:00 and arrives earlier than qualifying HAT102 at 01:00 next day and HAT281 at 02:00 next day, so no fare tie-break is needed. Both passengers, two checked bags, route, round-trip type and original refund method gift_card_2684964 are preserved.",
+      "nl_assertions": ["The assistant reports HAT007 as the preserved outbound and HAT178 as the new return, with two bags preserved."]
+    },
+    {
+      "task_id": "airline_pa_d2_sf5va1_cabin_fallback_bags",
+      "family": "D_precommit_consistency",
+      "source_state": {"source_task_id": "native_db", "user_id": "olivia_moore_2080", "reservation_ids": ["SF5VA1"]},
+      "candidate_evidence": ["HAT076 has nine Business seats", "HAT080 has zero Business seats", "the whole-reservation Business branch is unavailable", "Silver Economy permits two free checked bags for one passenger"],
+      "dependency_graph": ["read both preserved flights and cabin inventory", "reject whole-reservation Business branch", "retain Economy cabin", "independent two-bag invariant survives fallback", "proposal+confirmation", "baggage-only write without rejected-cabin leakage"],
+      "oracle": {
+        "branch": "Business is unavailable on HAT080, so cabin remains Economy while the independent two-bag requirement is applied",
+        "actions": [{"name": "update_reservation_baggages", "arguments": {"reservation_id": "SF5VA1", "total_baggages": 2, "nonfree_baggages": 0, "payment_id": "gift_card_7002574"}}]
+      },
+      "initial_required_regexes": ["SF5VA1", "olivia_moore_2080", "Business", "available|availability|enough seats", "remain|keep.*cabin|current cabin", "two", "flight.*unchanged|preserve.*flight", "passenger", "confirm"],
+      "scenario": {
+        "known_info": "You are Olivia Moore, user id olivia_moore_2080. The reservation is SF5VA1 and payment method is gift_card_7002574.",
+        "task_instructions": "In your first turn say to keep both current flights and the passenger exactly unchanged. If Business has enough seats for the passenger on every existing flight, change the entire reservation to Business; otherwise keep the current cabin. Independently of that branch, set the final checked-baggage total to exactly two. Preserve route and round-trip type. Require final cabin, both preserved flights, passenger and baggage state before explicit confirmation. Never revise the rule later."
+      },
+      "calibration_proposal": "Business is unavailable on one preserved flight, so cabin remains Economy; HAT076 and HAT080 and passenger Emma Nguyen remain unchanged, while checked baggage becomes two total and zero non-free.",
+      "nl_assertions": ["The assistant reports that Business is unavailable, cabin remains Economy, HAT076 and HAT080 are preserved, and baggage becomes two."]
+    },
+    {
+      "task_id": "airline_pa_e1_raj_mixed_operations",
+      "family": "E_entity_operation_binding",
+      "source_state": {"source_task_id": "native_db", "user_id": "raj_kovacs_8102", "reservation_ids": ["O8IHB3", "I4ZX6J", "L5CCL5"]},
+      "candidate_evidence": ["O8IHB3 is future Business and cancellable for change of plan", "I4ZX6J is future Economy and can increase baggage from one to two", "L5CCL5 is Basic Economy and is an explicit no-op"],
+      "dependency_graph": ["read three reservations", "classify cabin per entity", "Business->cancel O8IHB3", "Economy->baggage I4ZX6J", "Basic Economy->no-op L5CCL5", "confirm complete entity-operation map", "writes only to bound entities"],
+      "oracle": {
+        "branch": "Cabin classification uniquely maps the three named reservations to cancel, baggage update, and no-op",
+        "actions": [
+          {"name": "cancel_reservation", "arguments": {"reservation_id": "O8IHB3"}},
+          {"name": "update_reservation_baggages", "arguments": {"reservation_id": "I4ZX6J", "total_baggages": 2, "nonfree_baggages": 0, "payment_id": "credit_card_7320675"}}
+        ]
+      },
+      "initial_required_regexes": ["raj_kovacs_8102", "O8IHB3", "I4ZX6J", "L5CCL5", "Business.*cancel|cancel.*Business", "change of plan", "Economy.*bag|bag.*Economy", "Basic Economy.*unchanged|Basic Economy.*no", "confirm"],
+      "scenario": {
+        "known_info": "You are Raj Kovacs, user id raj_kovacs_8102. Inspect exactly O8IHB3, I4ZX6J, and L5CCL5. Use credit_card_7320675 for baggage if needed.",
+        "task_instructions": "In your first turn provide this complete mapping rule: cancel a Business reservation for reason change of plan; on an Economy reservation keep flights unchanged and set total checked baggage to exactly two; leave a Basic Economy reservation completely unchanged. Apply the rule only to the three named future reservations. Preserve all fields not targeted by the mapped operation. Require a classification and operation for every reservation before one explicit confirmation covering the complete operation set. Never revise the map later."
+      },
+      "calibration_proposal": "O8IHB3 is Business and will be cancelled for change of plan; I4ZX6J is Economy and will retain flights while baggage becomes two total and zero non-free; L5CCL5 is Basic Economy and will remain unchanged.",
+      "nl_assertions": ["The assistant reports cancellation of O8IHB3, a two-bag update for I4ZX6J, and no change to L5CCL5."]
+    },
+    {
+      "task_id": "airline_pa_e2_fatima_distinct_operations",
+      "family": "E_entity_operation_binding",
+      "source_state": {"source_task_id": "native_db", "user_id": "fatima_taylor_8297", "reservation_ids": ["RVEZA8", "IGDD1Q", "NQD9KO"]},
+      "candidate_evidence": ["RVEZA8 is insured Economy and cancellable for a health reason", "IGDD1Q is Basic Economy with three Economy seats and can change cabin while preserving HAT291", "NQD9KO is Business and can increase baggage from two to three"],
+      "dependency_graph": ["read three reservations", "Economy+insured health reason->cancel RVEZA8", "Basic Economy->Economy cabin IGDD1Q", "Business->three bags NQD9KO", "confirm complete distinct entity-operation map", "execute three operation types on correct entities"],
+      "oracle": {
+        "branch": "The three cabin/state classifications uniquely map to cancellation, cabin update, and baggage update",
+        "actions": [
+          {"name": "cancel_reservation", "arguments": {"reservation_id": "RVEZA8"}},
+          {"name": "update_reservation_flights", "arguments": {"reservation_id": "IGDD1Q", "cabin": "economy", "flights": [{"flight_number": "HAT291", "date": "2024-05-22"}], "payment_id": "credit_card_1672809"}},
+          {"name": "update_reservation_baggages", "arguments": {"reservation_id": "NQD9KO", "total_baggages": 3, "nonfree_baggages": 0, "payment_id": "credit_card_1672809"}}
+        ]
+      },
+      "initial_required_regexes": ["fatima_taylor_8297", "RVEZA8", "IGDD1Q", "NQD9KO", "Economy.*cancel|cancel.*Economy", "health", "Basic Economy.*Economy|upgrade.*IGDD1Q", "Business.*3|Business.*three|NQD9KO.*3|NQD9KO.*three", "confirm"],
+      "scenario": {
+        "known_info": "You are Fatima Taylor, user id fatima_taylor_8297. Inspect exactly RVEZA8, IGDD1Q, and NQD9KO. Use credit_card_1672809 for updates.",
+        "task_instructions": "In your first turn provide this complete mapping: cancel the Economy reservation RVEZA8 for a health reason covered by its insurance; change the Basic Economy reservation IGDD1Q to Economy while preserving its flight, passengers and baggage; on the Business reservation NQD9KO preserve cabin and flights but set total checked baggage to exactly three. Apply no operation to any other reservation. Require the complete entity-operation map and consequences before explicit confirmation. Never revise the mapping later."
+      },
+      "calibration_proposal": "RVEZA8 will be cancelled for the insured health reason; IGDD1Q will preserve HAT291 and its passengers and bags while cabin changes to Economy; NQD9KO will preserve Business flights and passengers while baggage becomes three total and zero non-free.",
+      "nl_assertions": ["The assistant reports cancellation of RVEZA8, an Economy cabin change for IGDD1Q with HAT291 preserved, and a three-bag update for NQD9KO."]
+    }
+  ]
+}

@@ -1,0 +1,130 @@
+{
+  "phase": "Phase 9 — Targeted Manifestation Mining",
+  "mechanism": "P4",
+  "canonical_mechanism": "One-shot resource/certificate lifecycle and allocation",
+  "current_dominant_manifestation": "Two sequential bookings; a gift card covers the cheaper first booking; a single one-shot certificate must be preserved for the larger second booking.",
+  "candidates_inspected": 4,
+  "candidates": [
+    {
+      "candidate_id": "P4_TM_001_MIXED_OPERATION_APPLICABILITY",
+      "native_state_id": "airline:fatima_ito_3977:RVKGA6:certificate_5753608:gift_card_2858570",
+      "proposed_manifestation": "A new booking and an existing-reservation cabin upgrade compete for resources with different applicability sets.",
+      "structural_difference": "The two downstream operations are heterogeneous. The certificate can fund the new booking but is backend-ineligible for an update; the gift card can fund either. The allocation is therefore driven by operation-specific applicability, not merely larger-versus-smaller fare.",
+      "native_support": {
+        "user_id": "fatima_ito_3977",
+        "certificate": {"payment_id": "certificate_5753608", "balance": 500.0},
+        "gift_card": {"payment_id": "gift_card_2858570", "balance": 228.0},
+        "first_transaction": {
+          "operation": "book_reservation",
+          "flight_number": "HAT293",
+          "date": "2024-05-27",
+          "route": "ATL-MCO",
+          "cabin": "economy",
+          "price": 200,
+          "available_seats": 4
+        },
+        "second_transaction": {
+          "operation": "update_reservation_flights",
+          "reservation_id": "RVKGA6",
+          "change": "same HAT221/2024-05-21 itinerary from Economy to Business",
+          "stored_base_fare": 100,
+          "business_fare": 206,
+          "delta": 106,
+          "business_seats": 10
+        },
+        "other_profile_methods_note": "A future task would have to state a normal user payment constraint limiting the two operations to the named certificate and gift card; no task is created here."
+      },
+      "correct_handling_path": "Use certificate_5753608 for the $200 new booking and preserve gift_card_2858570 for the $106 update delta.",
+      "erroneous_executable_path": "Use the gift card for the first booking; booking succeeds and leaves $28. The update then cannot use the certificate and the remaining gift-card balance is insufficient.",
+      "backend_executable": true,
+      "backend_evidence": "book_reservation accepts and consumes the certificate or gift card; _payment_for_update rejects certificates and checks gift-card sufficiency.",
+      "schema_disclosure_note": "The update tool documents certificate ineligibility, so this candidate may be easy, but the operational allocation failure remains executable at the first write.",
+      "clean_evaluator_feasible": true,
+      "evaluator_strategy": "Check creation of the exact new reservation/payment and the exact RVKGA6 cabin update/payment while protecting unrelated state.",
+      "task_specific_hint_required": false,
+      "policy_deletion_required": false,
+      "variation_type": "STRUCTURAL_VARIATION",
+      "verdict": "STRONG_NEW_MANIFESTATION"
+    },
+    {
+      "candidate_id": "P4_TM_002_THREE_TRANSACTION_HETEROGENEOUS_MATCHING",
+      "native_state_id": "airline:sophia_davis_8874:certificate_9507611:gift_card_5896248:certificate_1654224",
+      "proposed_manifestation": "Three bookings compete for two heterogeneous one-shot certificates and one gift card, creating a constrained resource-to-transaction matching problem.",
+      "structural_difference": "Transaction cardinality rises from two to three and the agent must match three different resource capacities to three demands; there is no single 'save the certificate for the second trip' rule.",
+      "native_support": {
+        "user_id": "sophia_davis_8874",
+        "selected_resources": [
+          {"payment_id": "certificate_9507611", "source": "certificate", "balance": 250.0},
+          {"payment_id": "gift_card_5896248", "source": "gift_card", "balance": 264.0},
+          {"payment_id": "certificate_1654224", "source": "certificate", "balance": 500.0}
+        ],
+        "transactions": [
+          {"flight_number": "HAT035", "date": "2024-05-20", "route": "DTW-PHX", "cabin": "business", "price": 250, "available_seats": 1},
+          {"flight_number": "HAT244", "date": "2024-05-21", "route": "LAS-PHX", "cabin": "business", "price": 264, "available_seats": 18},
+          {"flight_number": "HAT038", "date": "2024-05-28", "route": "DFW-SEA", "cabin": "business", "price": 400, "available_seats": 19}
+        ],
+        "other_profile_methods_note": "A future task would restrict use to these three named stored-value methods; no task is created here."
+      },
+      "correct_handling_path": "Match certificate_9507611 to $250, gift_card_5896248 to $264, and certificate_1654224 to $400.",
+      "erroneous_executable_path": "A locally legal but mismatched early payment consumes one certificate or depletes the exact-balance gift card, leaving a later fare without a capable method.",
+      "backend_executable": true,
+      "backend_evidence": "book_reservation independently validates method balance and then removes each used certificate; it does not reserve resources across future reservations.",
+      "clean_evaluator_feasible": true,
+      "evaluator_strategy": "Check three exact new reservations and their selected payment IDs; reject partial completion or mutation of other state.",
+      "task_specific_hint_required": false,
+      "policy_deletion_required": false,
+      "variation_type": "STRUCTURAL_VARIATION",
+      "verdict": "STRONG_NEW_MANIFESTATION"
+    },
+    {
+      "candidate_id": "P4_TM_003_REVERSED_TEMPORAL_ORDER",
+      "native_state_id": "airline:mei_wilson_7043:certificate_9801805:gift_card_5107860",
+      "proposed_manifestation": "The certificate-critical larger booking occurs first, followed by a smaller gift-card-funded booking.",
+      "structural_difference": "The correct lifecycle action is immediate certificate consumption rather than preservation for a later transaction, reversing the temporal surface pattern.",
+      "native_support": {
+        "user_id": "mei_wilson_7043",
+        "certificate": {"payment_id": "certificate_9801805", "balance": 250.0},
+        "gift_card": {"payment_id": "gift_card_5107860", "balance": 176.0},
+        "transactions": [
+          {"flight_number": "HAT011", "date": "2024-05-23", "route": "SEA-SFO", "cabin": "economy", "price": 200},
+          {"flight_number": "HAT049", "date": "2024-05-28", "route": "ORD-DEN", "cabin": "economy", "price": 100}
+        ]
+      },
+      "correct_handling_path": "Use the certificate for the first $200 booking and gift card for the later $100 booking.",
+      "erroneous_executable_path": "Split or otherwise consume the gift card and certificate on the first booking, leaving no adequate resource for the second.",
+      "backend_executable": true,
+      "clean_evaluator_feasible": true,
+      "task_specific_hint_required": false,
+      "policy_deletion_required": false,
+      "variation_type": "LIMITED_STRUCTURAL_VARIATION",
+      "weakness": "The underlying capacity rule still assigns the certificate to the larger fare, and the first transaction largely forces that choice.",
+      "verdict": "VALID_BUT_WEAK"
+    },
+    {
+      "candidate_id": "P4_TM_004_CHEAP_FIRST_REPLICATION_CONTROL",
+      "native_state_id": "certificate_candidate_scan:s3_scan_01_to_05",
+      "proposed_manifestation": "Additional users or fares with the existing cheap-first/expensive-second geometry.",
+      "structural_difference": "None.",
+      "native_support": "The existing certificate candidate scan contains five such bundles, all already represented by the admitted P4 states.",
+      "backend_executable": true,
+      "clean_evaluator_feasible": true,
+      "task_specific_hint_required": false,
+      "policy_deletion_required": false,
+      "variation_type": "PARAMETRIC_VARIATION",
+      "verdict": "NOT_NEW_MANIFESTATION"
+    }
+  ],
+  "classification_counts": {
+    "STRONG_NEW_MANIFESTATION": 2,
+    "VALID_BUT_WEAK": 1,
+    "NOT_NEW_MANIFESTATION": 1,
+    "BACKEND_OR_SCHEMA_ENFORCED": 0,
+    "TRIVIAL_POLICY_REMOVAL": 0,
+    "INVALID": 0
+  },
+  "recommended_candidate_ids": [
+    "P4_TM_001_MIXED_OPERATION_APPLICABILITY",
+    "P4_TM_002_THREE_TRANSACTION_HETEROGENEOUS_MATCHING"
+  ],
+  "second_manifestation_found": true
+}

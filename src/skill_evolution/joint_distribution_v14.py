@@ -78,11 +78,17 @@ def validate_monitor_result(result: dict[str, Any]) -> None:
     if (
         not isinstance(task_ids, list) or len(task_ids) != 20
         or len(set(task_ids)) != 20
-        or sum(value.startswith("airline:") for value in task_ids) != 10
-        or sum(value.startswith("retail:") for value in task_ids) != 10
+        or any(
+            not isinstance(value, str)
+            or value.count(":") != 1
+            or value.split(":", 1)[0] not in {"airline", "retail"}
+            for value in task_ids
+        )
         or not isinstance(rows, list) or len(rows) != 60
     ):
-        raise JointDistributionContractError("Monitor result must contain 20 balanced tasks and 60 rows.")
+        raise JointDistributionContractError(
+            "Monitor result must contain 20 Airline/Retail tasks and 60 rows."
+        )
     expected_keys = {
         (domain, task_id, rollout_index)
         for domain_task in task_ids

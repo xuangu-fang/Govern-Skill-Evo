@@ -1,0 +1,104 @@
+schema_version: 1
+roles:
+  atomic_repair:
+    purpose: Repeated learnable evidence for correcting a target governance decision.
+  boundary:
+    purpose: Both predicate sides prevent deny-all, execute-all, and similar overreach.
+  preservation:
+    purpose: Stable governed behavior that detects regressions without needing Parent failure.
+  multi_step_ordering:
+    purpose: Correct sub-operations must occur in the native Policy order.
+  multi_policy_composition:
+    purpose: Separately seen rules must remain jointly enforceable in one workflow.
+
+mechanisms:
+  airline.user_mandate.checked_baggage:
+    policy_rules: [airline.book.no_unrequested_baggage]
+    concept_ids: [airline.explicit_user_mandate]
+    evolution_roles: [atomic_repair, boundary]
+    calibration_evidence:
+      task_count: 6
+      rollout_count: 18
+      behavior_states: {CS: 13, VS: 0, CF: 0, VF: 5}
+      diagnosis: user_control_repair
+    recommended_split_usage: {train: high, monitor: medium, test: high}
+    priority: high
+
+  airline.state_gate.flight_change_cabin:
+    policy_rules: [airline.modify.basic_economy_flight_change]
+    concept_ids: [airline.state_gated_permission]
+    evolution_roles: [atomic_repair, boundary]
+    calibration_evidence:
+      task_count: 6
+      rollout_count: 18
+      behavior_states: {CS: 13, VS: 0, CF: 3, VF: 2}
+      diagnosis: eligibility_repair_and_boundary
+    recommended_split_usage: {train: high, monitor: medium, test: high}
+    priority: high
+
+  airline.mutation_guard.itinerary_identity:
+    policy_rules: [airline.modify.itinerary_invariants]
+    concept_ids: [airline.mutation_invariant_guard]
+    evolution_roles: [boundary, preservation]
+    calibration_evidence:
+      task_count: 6
+      rollout_count: 18
+      behavior_states: {CS: 17, VS: 0, CF: 1, VF: 0}
+      diagnosis: preservation
+    recommended_split_usage: {train: low, monitor: high, test: medium}
+    priority: medium
+
+  airline.process.explicit_confirmation:
+    policy_rules: [airline.action.explicit_confirmation]
+    concept_ids: [airline.transaction_commit_confirmation]
+    evolution_roles: [boundary, preservation]
+    calibration_evidence:
+      task_count: 6
+      rollout_count: 18
+      behavior_states: {CS: 18, VS: 0, CF: 0, VF: 0}
+      diagnosis: atomic_process_preservation
+    recommended_split_usage: {train: low, monitor: high, test: medium}
+    priority: medium
+
+  airline.process.cancellation_reason:
+    policy_rules: [airline.cancel.reason_required]
+    concept_ids: [airline.operation_input_completeness]
+    evolution_roles: [boundary, preservation]
+    calibration_evidence:
+      task_count: 6
+      rollout_count: 18
+      behavior_states: {CS: 18, VS: 0, CF: 0, VF: 0}
+      diagnosis: process_preservation_too_easy
+    recommended_split_usage: {train: none, monitor: high, test: medium}
+    priority: medium
+
+  airline.ordering.delayed_flight_compensation:
+    policy_rules: [airline.compensation.delayed_flight_sequence]
+    concept_ids: [airline.policy_scoped_remedy]
+    evolution_roles: [multi_step_ordering, boundary]
+    calibration_evidence:
+      task_count: 6
+      rollout_count: 18
+      behavior_states: {CS: 17, VS: 1, CF: 0, VF: 0}
+      diagnosis: ordering_repair_weak_vs
+    recommended_split_usage: {train: high, monitor: medium, test: high}
+    priority: high
+
+  airline.composition.booking_baggage_confirmation:
+    policy_rules:
+      - airline.book.no_unrequested_baggage
+      - airline.action.explicit_confirmation
+    concept_ids:
+      - airline.explicit_user_mandate
+      - airline.transaction_commit_confirmation
+    evolution_roles: [multi_policy_composition, boundary]
+    calibration_evidence:
+      task_count: 12
+      rollout_count: 36
+      behavior_states: {CS: 28, VS: 5, CF: 0, VF: 3}
+      diagnosis: composition_repair_natural_vs
+    recommended_split_usage:
+      train: prohibited
+      monitor: none
+      test: fresh_families_only
+    priority: high

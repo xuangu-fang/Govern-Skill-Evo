@@ -1,0 +1,443 @@
+[
+  {
+    "id": "CTRL-AIR-C01",
+    "description": {
+      "purpose": "Protected Control: preserve a return while rejecting a faster outbound with insufficient Business seats.",
+      "relevant_policies": "Shared final-candidate Airline policy.",
+      "notes": "Monitor regression guard; excluded from Core improvement rates."
+    },
+    "user_scenario": {
+      "persona": "A customer with a complete, stable request used to detect Skill regression or over-generalization.",
+      "instructions": {
+        "domain": "airline-final-candidate-unified",
+        "reason_for_call": "Change only the outbound of reservation CTA1001 to a Business itinerary on June 10. Keep the June 20 return unchanged. All three travelers must stay together; choose the shortest qualifying outbound, but every segment must have at least three Business seats.",
+        "known_info": "Your user ID is ctrl_air_ari_1001 and payment method is credit_card_1001. The three travelers are Ari Control1, Ari Control2, and Ari Control3 with the saved dates of birth.",
+        "unknown_info": "You do not know which candidate has enough seats until the agent checks availability.",
+        "task_instructions": "State every constraint upfront. Do not name or rank a candidate. Confirm only a complete proposal that preserves the return and includes all travelers. After confirming, stay in the conversation until the agent has executed the change and reported completion; do not stop at proposal confirmation."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {
+          "action_id": "CTRL-AIR-C01-target-1",
+          "requestor": "assistant",
+          "name": "update_reservation_flights",
+          "arguments": {
+            "reservation_id": "CTA1001",
+            "cabin": "business",
+            "flights": [
+              {
+                "flight_number": "CTA114",
+                "date": "2024-06-10"
+              },
+              {
+                "flight_number": "CTA102",
+                "date": "2024-06-20"
+              }
+            ],
+            "payment_id": "credit_card_1001"
+          }
+        }
+      ],
+      "env_assertions": null,
+      "communicate_info": [],
+      "nl_assertions": [],
+      "reward_basis": [
+        "DB"
+      ]
+    }
+  },
+  {
+    "id": "CTRL-AIR-C02",
+    "description": {
+      "purpose": "Protected Control: derive a six-hour arrival buffer from a fixed second reservation.",
+      "relevant_policies": "Shared final-candidate Airline policy.",
+      "notes": "Monitor regression guard; excluded from Core improvement rates."
+    },
+    "user_scenario": {
+      "persona": "A customer with a complete, stable request used to detect Skill regression or over-generalization.",
+      "instructions": {
+        "domain": "airline-final-candidate-unified",
+        "reason_for_call": "Keep reservation CTA2002 unchanged. Change CTA2001 to a direct Economy flight arriving in DTW at least six hours before CTA2002 departs DTW; among qualifying flights choose the earliest arrival.",
+        "known_info": "Your user ID is ctrl_air_bea_2002 and payment method is credit_card_2002.",
+        "unknown_info": "You do not know the cutoff or winning flight until the agent reads both reservations and searches flights.",
+        "task_instructions": "State the stable rule without calculating the cutoff or naming a flight. Confirm only a proposal that also preserves CTA2002."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {
+          "action_id": "CTRL-AIR-C02-target-1",
+          "requestor": "assistant",
+          "name": "update_reservation_flights",
+          "arguments": {
+            "reservation_id": "CTA2001",
+            "cabin": "economy",
+            "flights": [
+              {
+                "flight_number": "CTA213",
+                "date": "2024-06-12"
+              }
+            ],
+            "payment_id": "credit_card_2002"
+          }
+        }
+      ],
+      "env_assertions": null,
+      "communicate_info": [],
+      "nl_assertions": [],
+      "reward_basis": [
+        "DB"
+      ]
+    }
+  },
+  {
+    "id": "CTRL-AIR-C03",
+    "description": {
+      "purpose": "Protected Control: preserve a three-way entity-to-operation mapping.",
+      "relevant_policies": "Shared final-candidate Airline policy.",
+      "notes": "Monitor regression guard; excluded from Core improvement rates."
+    },
+    "user_scenario": {
+      "persona": "A customer with a complete, stable request used to detect Skill regression or over-generalization.",
+      "instructions": {
+        "domain": "airline-final-candidate-unified",
+        "reason_for_call": "For CTA3001, cancel because severe weather makes the insured trip impossible. For CTA3002, keep its flight and upgrade Economy to Business. For CTA3003, keep its Business flight and set checked baggage to exactly three. Do not modify any other reservation.",
+        "known_info": "Your user ID is ctrl_air_cia_3003 and payment method is credit_card_3003.",
+        "unknown_info": "You do not know internal evaluator labels; the three stated operations are complete and independent.",
+        "task_instructions": "State all three operations upfront, keep their reservation mapping unchanged, and confirm only one complete proposal covering all three."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {
+          "action_id": "CTRL-AIR-C03-target-1",
+          "requestor": "assistant",
+          "name": "cancel_reservation",
+          "arguments": {
+            "reservation_id": "CTA3001"
+          }
+        },
+        {
+          "action_id": "CTRL-AIR-C03-target-2",
+          "requestor": "assistant",
+          "name": "update_reservation_flights",
+          "arguments": {
+            "reservation_id": "CTA3002",
+            "cabin": "business",
+            "flights": [
+              {
+                "flight_number": "CTA302",
+                "date": "2024-06-15"
+              }
+            ],
+            "payment_id": "credit_card_3003"
+          }
+        },
+        {
+          "action_id": "CTRL-AIR-C03-target-3",
+          "requestor": "assistant",
+          "name": "update_reservation_baggages",
+          "arguments": {
+            "reservation_id": "CTA3003",
+            "total_baggages": 3,
+              "nonfree_baggages": 1,
+            "payment_id": "credit_card_3003"
+          }
+        }
+      ],
+      "env_assertions": null,
+      "communicate_info": [],
+      "nl_assertions": [],
+      "reward_basis": [
+        "DB"
+      ]
+    }
+  },
+  {
+    "id": "CTRL-RET-C01",
+    "description": {
+      "purpose": "Protected Control: modify two requested items together in the one allowed pending-order mutation.",
+      "relevant_policies": "Shared final-candidate Retail policy.",
+      "notes": "Monitor regression guard; excluded from Core improvement rates."
+    },
+    "user_scenario": {
+      "persona": "A customer with a complete, stable request used to detect Skill regression or over-generalization.",
+      "instructions": {
+        "domain": "retail-final-candidate-unified",
+        "reason_for_call": "Change both Action Cameras in pending order #CTR6001 to the available 4K, waterproof, black variant. Both changes must happen together; a partial change is unacceptable.",
+        "known_info": "You are Faye Reed, email faye.reed@example.test, ZIP 02108. Use credit_card_6006 for the combined difference.",
+        "unknown_info": "You do not know the source or target item IDs before the agent inspects the order and product.",
+        "task_instructions": "State the complete two-camera goal upfront. Confirm only a proposal that includes both source cameras in one modification."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {
+          "action_id": "CTRL-RET-C01-target-1",
+          "requestor": "assistant",
+          "name": "modify_pending_order_items",
+          "arguments": {
+            "order_id": "#CTR6001",
+            "item_ids": [
+              "CTR-I011",
+              "CTR-I012"
+            ],
+            "new_item_ids": [
+              "CTR-I019",
+              "CTR-I019"
+            ],
+            "payment_method_id": "credit_card_6006"
+          }
+        }
+      ],
+      "env_assertions": null,
+      "communicate_info": [],
+      "nl_assertions": [],
+      "reward_basis": [
+        "DB"
+      ]
+    }
+  },
+  {
+    "id": "CTRL-AIR-C04",
+    "description": {
+      "purpose": "Protected Control: covered weather cancellation must remain executable.",
+      "relevant_policies": "Shared final-candidate Airline policy.",
+      "notes": "Monitor regression guard; excluded from Core improvement rates."
+    },
+    "user_scenario": {
+      "persona": "A customer with a complete, stable request used to detect Skill regression or over-generalization.",
+      "instructions": {
+        "domain": "airline-final-candidate-unified",
+        "reason_for_call": "Severe weather at my destination means I cannot travel. Cancel insured reservation CTA4001, refund its payment, and leave all other bookings unchanged.",
+        "known_info": "Your user ID is ctrl_air_dan_4004.",
+        "unknown_info": "You do not know the internal normalized reason label.",
+        "task_instructions": "Keep the weather reason stable. If the proposed cancellation matches, confirm it. Do not accept a refusal or transfer when direct cancellation is permitted."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {
+          "action_id": "CTRL-AIR-C04-target-1",
+          "requestor": "assistant",
+          "name": "cancel_reservation",
+          "arguments": {
+            "reservation_id": "CTA4001"
+          }
+        }
+      ],
+      "env_assertions": null,
+      "communicate_info": [],
+      "nl_assertions": [],
+      "reward_basis": [
+        "DB"
+      ]
+    }
+  },
+  {
+    "id": "CTRL-AIR-C05",
+    "description": {
+      "purpose": "Protected Control: complete a new booking and a separate cabin upgrade with compatible payment resources.",
+      "relevant_policies": "Shared final-candidate Airline policy.",
+      "notes": "Monitor regression guard; excluded from Core improvement rates."
+    },
+    "user_scenario": {
+      "persona": "A customer with a complete, stable request used to detect Skill regression or over-generalization.",
+      "instructions": {
+        "domain": "airline-final-candidate-unified",
+        "reason_for_call": "Book a separate one-way Economy trip on CTA501 from ATL to MCO on June 22 for Erin Quill, with no bags or insurance. Also upgrade CTA5002 to Business while keeping CTA502, its passenger, baggage, and insurance unchanged. Use only certificate_5005 and gift_card_5005; both goals must complete.",
+        "known_info": "Your user ID is ctrl_air_erin_5005 and date of birth is 1990-01-01.",
+        "unknown_info": "You do not know the payment balances or which allocation is executable.",
+        "task_instructions": "State both goals upfront without prescribing payment allocation or tool order. Confirm only an exact complete two-operation proposal."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {
+          "action_id": "CTRL-AIR-C05-target-1",
+          "requestor": "assistant",
+          "name": "book_reservation",
+          "arguments": {
+            "user_id": "ctrl_air_erin_5005",
+            "origin": "ATL",
+            "destination": "MCO",
+            "flight_type": "one_way",
+            "cabin": "economy",
+            "flights": [
+              {
+                "flight_number": "CTA501",
+                "date": "2024-06-22"
+              }
+            ],
+            "passengers": [
+              {
+                "first_name": "Erin",
+                "last_name": "Quill",
+                "dob": "1990-01-01"
+              }
+            ],
+            "payment_methods": [
+              {
+                "payment_id": "certificate_5005",
+                "amount": 90
+              }
+            ],
+            "total_baggages": 0,
+            "nonfree_baggages": 0,
+            "insurance": "no"
+          }
+        },
+        {
+          "action_id": "CTRL-AIR-C05-target-2",
+          "requestor": "assistant",
+          "name": "update_reservation_flights",
+          "arguments": {
+            "reservation_id": "CTA5002",
+            "cabin": "business",
+            "flights": [
+              {
+                "flight_number": "CTA502",
+                "date": "2024-06-21"
+              }
+            ],
+            "payment_id": "gift_card_5005"
+          }
+        }
+      ],
+      "env_assertions": null,
+      "communicate_info": [],
+      "nl_assertions": [],
+      "reward_basis": [
+        "DB"
+      ]
+    }
+  },
+  {
+    "id": "CTRL-RET-C02",
+    "description": {
+      "purpose": "Protected Control: keep a temporary shipping address scoped to one pending order.",
+      "relevant_policies": "Shared final-candidate Retail policy.",
+      "notes": "Monitor regression guard; excluded from Core improvement rates."
+    },
+    "user_scenario": {
+      "persona": "A customer with a complete, stable request used to detect Skill regression or over-generalization.",
+      "instructions": {
+        "domain": "retail-final-candidate-unified",
+        "reason_for_call": "Change only pending order #CTR7001's shipping address to 42 Harbor Avenue, Apt 7, Boston, MA 02110, USA. Keep my default profile address and every other order unchanged.",
+        "known_info": "You are Gio Stone, email gio.stone@example.test, current ZIP 02108.",
+        "unknown_info": "You do not know the internal address-propagation contract.",
+        "task_instructions": "State the order-only scope upfront. Confirm only a proposal that protects the profile address; do not request a profile write."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {
+          "action_id": "CTRL-RET-C02-target-1",
+          "requestor": "assistant",
+          "name": "modify_pending_order_address",
+          "arguments": {
+            "order_id": "#CTR7001",
+            "address1": "42 Harbor Avenue",
+            "address2": "Apt 7",
+            "city": "Boston",
+            "state": "MA",
+            "country": "USA",
+            "zip": "02110"
+          }
+        }
+      ],
+      "env_assertions": null,
+      "communicate_info": [],
+      "nl_assertions": [],
+      "reward_basis": [
+        "DB"
+      ]
+    }
+  },
+  {
+    "id": "CTRL-AIR-C06",
+    "description": {
+      "purpose": "Protected Control: preserve a mapping-invariant settlement branch and the original destination.",
+      "relevant_policies": "Shared final-candidate Airline policy and settlement extension.",
+      "notes": "Monitor regression guard; excluded from Core improvement rates."
+    },
+    "user_scenario": {
+      "persona": "A reservation owner with a stable conditional flight-change request.",
+      "instructions": {
+        "domain": "airline-final-candidate-unified",
+        "reason_for_call": "For reservation GAPA8101, keep XG101. If the complete itinerary adds at most $90, I prefer either XG103 to SFO or XG104 to OAK. Otherwise use either XG105 to SFO or XG106 to OAK. Either destination works equally well for me.",
+        "known_info": "Your user ID is gap_air_nora_8108 and payment method is credit_card_8108.",
+        "unknown_info": "You do not know the channel settlement mapping or which destination the policy permits for this existing reservation change.",
+        "task_instructions": "State the complete conditional request without choosing a branch or destination for the agent. Authorize any actual settlement amount within the stated $90 cap on credit_card_8108; do not require the agent to infer the hidden mapping before execution. Confirm only an exact itinerary that satisfies the conditional branch and policy. After confirming, wait until the change is executed and the actual amount is reported. Never reveal or guess the hidden settlement mapping."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {
+          "action_id": "CTRL-AIR-C06-target-1",
+          "requestor": "assistant",
+          "name": "update_reservation_flights",
+          "arguments": {
+            "reservation_id": "GAPA8101",
+            "cabin": "economy",
+            "flights": [
+              {"flight_number": "XG101", "date": "2024-08-10"},
+              {"flight_number": "XG103", "date": "2024-08-10"}
+            ],
+            "payment_id": "credit_card_8108"
+          }
+        }
+      ],
+      "env_assertions": null,
+      "communicate_info": [],
+      "nl_assertions": [],
+      "reward_basis": ["DB"]
+    }
+  },
+  {
+    "id": "CTRL-RET-C03",
+    "description": {
+      "purpose": "Protected Control: preserve an explicit unconditional return despite the fulfillment-mode mapping.",
+      "relevant_policies": "Shared final-candidate Retail policy and resolution extension.",
+      "notes": "Monitor regression guard; excluded from Core improvement rates."
+    },
+    "user_scenario": {
+      "persona": "A customer making an explicit unconditional return request.",
+      "instructions": {
+        "domain": "retail-final-candidate-unified",
+        "reason_for_call": "Return the navy 750ml Travel Flask from delivered order #GAPR8201 to my original Visa payment method. I do not want an exchange or replacement, even if one could preserve purchase protection.",
+        "known_info": "Your account email is omar.ives@example.test and the payment method is credit_card_8208.",
+        "unknown_info": "You do not know or need to decide the fulfillment-mode mapping because your requested resolution is unconditional.",
+        "task_instructions": "State the explicit return request and do not accept an exchange proposal. Confirm the exact return once, then wait until the agent reports completion."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {
+          "action_id": "CTRL-RET-C03-target-1",
+          "requestor": "assistant",
+          "name": "return_delivered_order_items",
+          "arguments": {
+            "order_id": "#GAPR8201",
+            "item_ids": ["GAPR-I011"],
+            "payment_method_id": "credit_card_8208"
+          }
+        }
+      ],
+      "env_assertions": null,
+      "communicate_info": [],
+      "nl_assertions": [],
+      "reward_basis": ["DB"]
+    }
+  }
+]

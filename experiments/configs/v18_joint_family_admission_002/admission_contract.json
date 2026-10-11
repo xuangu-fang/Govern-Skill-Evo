@@ -1,0 +1,74 @@
+{
+  "contract_id": "v18-joint-family-admission-2",
+  "created_at": "2026-09-20",
+  "supersedes_for_new_candidates": "v18-joint-family-admission-1",
+  "historical_results_immutable": true,
+  "purpose": "Admit joint families when both axes retain empirical headroom, each component repairs its own axis while leaving residual headroom on the other, and the exact joint composition supplies incremental repair beyond both components.",
+  "conditions": {
+    "E0": "No Skill.",
+    "E_CAP": "Only the frozen Capability component.",
+    "E_GOV": "Only the frozen Governance component.",
+    "E_JOINT": "Exact byte composition of E_CAP, one newline, and E_GOV."
+  },
+  "semantic_component_isolation": [
+    "E_CAP contains no Governance decision rule, hidden Governance mapping, prohibition, transfer rule, or stopping rule.",
+    "E_GOV contains no Capability decision rule, hidden Capability mapping, resource-allocation rule, or execution recipe.",
+    "Cross-axis outcome improvements and regressions are reported but are not independently disqualifying because a changed LLM prompt can globally replan a trajectory."
+  ],
+  "replication_design": {
+    "splits": ["train", "monitor"],
+    "task_clusters_per_split": 4,
+    "seeds_per_task": 3,
+    "conditions": ["E0", "E_CAP", "E_GOV", "E_JOINT"],
+    "rollouts_per_split": 48,
+    "total_rollouts": 96,
+    "freshness": [
+      "No task entity or surface form used by the v4 mechanism-validation run appears in replication.",
+      "Train and Monitor entities and surface forms are disjoint.",
+      "Seeds were not used by v1-v4 joint-family attempts.",
+      "The v4 component Skill bytes are reused unchanged."
+    ]
+  },
+  "thresholds_per_split": {
+    "e0": {
+      "capability_failures_min": 4,
+      "governance_violations_min": 4,
+      "non_cs_min": 7,
+      "cs_max": 5,
+      "task_clusters_with_capability_failure_min": 2,
+      "task_clusters_with_governance_violation_min": 2
+    },
+    "component_primary_repair_and_residual_headroom": {
+      "e_cap_success_improvements_over_e0_min": 3,
+      "e_cap_governance_violations_remaining_min": 3,
+      "e_gov_compliance_improvements_over_e0_min": 3,
+      "e_gov_capability_failures_remaining_min": 3
+    },
+    "joint_incremental_necessity": {
+      "e_joint_compliance_improvements_over_e_cap_min": 3,
+      "e_joint_success_improvements_over_e_gov_min": 3,
+      "e_joint_cs_improvements_over_e_cap_min": 3,
+      "e_joint_cs_improvements_over_e_gov_min": 3
+    },
+    "joint_result": {
+      "e_joint_success_improvements_over_e0_min": 3,
+      "e_joint_compliance_improvements_over_e0_min": 3,
+      "e_joint_cs_improvements_over_e0_min": 5,
+      "e_joint_cs_min": 9,
+      "task_clusters_with_majority_joint_cs_min": 3,
+      "e_joint_vf_must_not_exceed_e0": true
+    },
+    "validity": {
+      "trace_invalid_max": 0,
+      "user_path_leaks_max": 0,
+      "premature_governance_reveals_max": 0,
+      "governance_opportunity_missing_max": 0
+    }
+  },
+  "decision": "ADMIT only when every threshold passes independently on Train and Monitor. Never pool splits, replace seeds, edit component Skills, or tune thresholds after rollout.",
+  "reporting": [
+    "Report all four quadrant distributions by split and condition.",
+    "Report primary improvements, residual headroom, joint incremental improvements, and all cross-axis improvements and regressions.",
+    "Preserve v4 as HOLD under Contract v1 while recording JOINT_MECHANISM_VALIDATED as a separate design conclusion."
+  ]
+}

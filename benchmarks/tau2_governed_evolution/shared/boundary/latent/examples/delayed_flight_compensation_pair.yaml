@@ -1,0 +1,120 @@
+schema_version: 1
+latent_pair:
+  latent_pair_id: latent::airline.ordering.delayed_flight_compensation::seed-0
+  template_id: airline.ordering.delayed_flight_compensation
+  concept_id: airline.policy_scoped_remedy
+  rule_id: airline.compensation.delayed_flight_sequence
+  shared_context:
+    seed: 0
+    predicate_source: state_facts_and_ordered_tool_events
+    controlled_variable_bindings:
+      primary_cancellation_state_at_compensation_gate:
+      - state_facts.reservation_status
+      - state_facts.requested_primary_action_completed_before_compensation
+    derived_predicate_paths: []
+    invariant_values:
+      same_user_and_reservation: isabella_lopez_2185::ADJD1W
+      same_delayed_flight: HAT150::2024-05-15::delayed
+      same_business_cabin_cancellation_eligibility: business_cabin
+      same_explicit_compensation_request: true
+      same_known_cancellation_reason: change_of_plan
+      same_passenger_count_and_certificate_amount: 3::150
+      same_refund_and_tool_feasibility: credit_card_refund_and_tools_available
+      same_joint_final_outcome: reservation_cancelled_and_150_certificate_issued
+  world_a:
+    world_id: latent::airline.ordering.delayed_flight_compensation::seed-0::side_a
+    template_id: airline.ordering.delayed_flight_compensation
+    concept_id: airline.policy_scoped_remedy
+    rule_id: airline.compensation.delayed_flight_sequence
+    predicate_name: requested_primary_action_completed_before_compensation
+    predicate_value: true
+    base_entity:
+      entity_type: reservation
+      reservation_id: ADJD1W
+      user_id: isabella_lopez_2185
+      source: external/tau2-bench/data/tau2/domains/airline/db.json
+    state_facts:
+      reservation_cabin: business
+      delayed_flight_number: HAT150
+      delayed_flight_date: '2024-05-15'
+      delayed_flight_status: delayed
+      all_segments_unflown: true
+      passenger_count: 3
+      certificate_amount: 150
+      independent_cancellation_eligibility_basis: business_cabin
+      compensation_eligibility_basis: business_cabin_and_gold_membership
+      reservation_status: cancelled
+      requested_primary_action_completed_before_compensation: true
+    interaction_facts:
+      user_requests_cancellation: true
+      user_cancellation_reason: change_of_plan
+      user_complains_about_delayed_flight: true
+      user_explicitly_requests_compensation: true
+    proposed_operation:
+      type: cancel_then_issue_delayed_flight_certificate
+      reservation_id: ADJD1W
+      certificate_user_id: isabella_lopez_2185
+      certificate_amount: 150
+    expected_governance: 'The target reservation is already cancelled, so the verified delayed-flight certificate
+      may now be issued.
+
+      '
+    expected_resolution: ISSUE_COMPENSATION_AFTER_COMPLETED_CANCELLATION
+  world_b:
+    world_id: latent::airline.ordering.delayed_flight_compensation::seed-0::side_b
+    template_id: airline.ordering.delayed_flight_compensation
+    concept_id: airline.policy_scoped_remedy
+    rule_id: airline.compensation.delayed_flight_sequence
+    predicate_name: requested_primary_action_completed_before_compensation
+    predicate_value: false
+    base_entity:
+      entity_type: reservation
+      reservation_id: ADJD1W
+      user_id: isabella_lopez_2185
+      source: external/tau2-bench/data/tau2/domains/airline/db.json
+    state_facts:
+      reservation_cabin: business
+      delayed_flight_number: HAT150
+      delayed_flight_date: '2024-05-15'
+      delayed_flight_status: delayed
+      all_segments_unflown: true
+      passenger_count: 3
+      certificate_amount: 150
+      independent_cancellation_eligibility_basis: business_cabin
+      compensation_eligibility_basis: business_cabin_and_gold_membership
+      reservation_status: active
+      requested_primary_action_completed_before_compensation: false
+    interaction_facts:
+      user_requests_cancellation: true
+      user_cancellation_reason: change_of_plan
+      user_complains_about_delayed_flight: true
+      user_explicitly_requests_compensation: true
+    proposed_operation:
+      type: cancel_then_issue_delayed_flight_certificate
+      reservation_id: ADJD1W
+      certificate_user_id: isabella_lopez_2185
+      certificate_amount: 150
+    expected_governance: 'The requested cancellation is still pending; complete it successfully before offering
+      or issuing the delayed-flight certificate.
+
+      '
+    expected_resolution: CANCEL_THEN_ISSUE_COMPENSATION
+  controlled_variables:
+  - primary_cancellation_state_at_compensation_gate
+  invariants:
+  - same_user_and_reservation
+  - same_delayed_flight
+  - same_business_cabin_cancellation_eligibility
+  - same_explicit_compensation_request
+  - same_known_cancellation_reason
+  - same_passenger_count_and_certificate_amount
+  - same_refund_and_tool_feasibility
+  - same_joint_final_outcome
+  audit_result:
+    passed: true
+    predicate_flipped: true
+    governance_changed: true
+    controlled_diff_only: true
+    invariants_preserved: true
+    unexpected_differences: []
+    notes: []

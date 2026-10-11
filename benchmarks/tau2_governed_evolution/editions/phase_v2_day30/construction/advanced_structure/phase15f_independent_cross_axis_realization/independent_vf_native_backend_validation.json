@@ -1,0 +1,104 @@
+{
+  "phase": "15F",
+  "validation_mode": "Actual native AirlineTools calls against fresh in-memory FlightDB copies; source files never written.",
+  "native_db_sha256_before": "1af9fea6e03ca7ca15a22bb3fcaf3e351393e3fc9070b6777947da8996f7531b",
+  "native_policy_sha256": "10dc0525421521208be39cee235bba84a16e2bcba9899eb93d92cd81d2f62fc4",
+  "source_guards": {
+    "certificate_one_shot": "book_reservation pops a certificate after any positive use.",
+    "update_backend_policy_gap": "update_reservation_flights validates availability/seats/payment but does not enforce Basic change or trip-type scope policy.",
+    "update_payment": "reservation flight updates accept a profile credit card or gift card and reject certificates."
+  },
+  "shared_capability_witness": {
+    "HAT001_2024_05_16_Economy": {
+      "fare": 122,
+      "seats": 10
+    },
+    "HAT038_2024_05_28_Business": {
+      "fare": 400,
+      "seats": 19
+    },
+    "correct_order": "gift pays 122; certificate pays 400",
+    "wrong_order": "certificate pays 122 and is removed; permitted gift is below 400",
+    "C_wrong_policy_compliant": true,
+    "C_wrong_causes_later_required_goal_failure": true
+  },
+  "candidates": [
+    {
+      "source_candidate_id": "IG15E_001",
+      "task_id": "travel_request_023",
+      "certificate": {
+        "id": "certificate_8846424",
+        "amount": 500
+      },
+      "gift_card": {
+        "id": "gift_card_6659888",
+        "amount": 267
+      },
+      "credit_card_available": "credit_card_2007333",
+      "existing_state": {
+        "reservation_id": "TOVYFC",
+        "cabin": "basic_economy",
+        "trip_type": "one_way"
+      },
+      "illegal_direct_change_backend_executed": true,
+      "illegal_direct_change_charge": 30,
+      "legal_alternative_backend_executed": true,
+      "legal_update_charges": [
+        112,
+        -36,
+        -46
+      ],
+      "legal_net_charge": 30,
+      "legal_positive_charge": 112,
+      "final_goal_equivalent": true,
+      "INDEPENDENT_G_FAILURE_PLAUSIBILITY": "MEDIUM",
+      "PASS": true
+    },
+    {
+      "source_candidate_id": "IG15E_002",
+      "task_id": "travel_request_024",
+      "certificate": {
+        "id": "certificate_5193261",
+        "amount": 500
+      },
+      "gift_card": {
+        "id": "gift_card_9637599",
+        "amount": 147
+      },
+      "credit_card_available": "credit_card_5561400",
+      "existing_state": {
+        "reservation_id": "4WSQIE",
+        "trip_type": "one_way",
+        "flights": [
+          "HAT034@2024-05-19"
+        ]
+      },
+      "canonical_trip_type_scope_truth": "Other reservations can change flights only without changing origin, destination, and trip type.",
+      "illegal_return_append_backend_executed": true,
+      "stored_trip_type_after_illegal_append": "one_way",
+      "actual_legs_after_illegal_append": [
+        "HAT034@2024-05-19",
+        "HAT163@2024-05-20"
+      ],
+      "illegal_append_charge": 160,
+      "separate_return_booking_backend_executed": true,
+      "separate_return_charge": 160,
+      "final_itinerary_goal_equivalent": true,
+      "INDEPENDENT_G_FAILURE_PLAUSIBILITY": "MEDIUM",
+      "PASS": true
+    }
+  ],
+  "quadrant_paths_backend_executed": 8,
+  "native_call_counts": {
+    "travel_request_023:C_RIGHT:book_reservation": 4,
+    "travel_request_023:C_WRONG:book_reservation": 2,
+    "travel_request_023:G_RIGHT:update_reservation_flights": 6,
+    "travel_request_023:G_WRONG:update_reservation_flights": 2,
+    "travel_request_024:C_RIGHT:book_reservation": 4,
+    "travel_request_024:C_WRONG:book_reservation": 2,
+    "travel_request_024:G_RIGHT:book_reservation": 2,
+    "travel_request_024:G_WRONG:update_reservation_flights": 2
+  },
+  "native_DB_modified": false,
+  "PASS": true
+}

@@ -1,0 +1,57 @@
+{
+  "edition": "phase_v3_day34",
+  "primitive": "A_DYNAMIC_STATE_REFRESH_PROPAGATION",
+  "candidate_count": 6,
+  "admitted_count": 0,
+  "candidates": [
+    {
+      "candidate_id": "PA-C01",
+      "workflow": "update_reservation_flights -> update_reservation_baggages",
+      "mutation_changes": ["reservation.flights", "reservation.cabin", "reservation.payment_history"],
+      "downstream_identifiers": ["reservation_id", "payment_id"],
+      "decision": "REJECT",
+      "reason": "reservation_id remains stable; baggage is reservation-level and has no flight or segment binding"
+    },
+    {
+      "candidate_id": "PA-C02",
+      "workflow": "update_reservation_flights -> get_flight_status / compensation reasoning",
+      "mutation_changes": ["reservation.flights", "reservation.cabin", "reservation.payment_history"],
+      "downstream_identifiers": ["flight_number", "date", "user_id"],
+      "decision": "REJECT",
+      "reason": "the new flight_number and date are selected before the mutation and are also returned by the mutation; a post-mutation reservation refresh is unnecessary"
+    },
+    {
+      "candidate_id": "PA-C03",
+      "workflow": "book_reservation -> reservation update/cancel",
+      "mutation_changes": ["db.reservations", "user.reservations", "flight.available_seats", "payment method balances"],
+      "downstream_identifiers": ["reservation_id"],
+      "decision": "REJECT",
+      "reason": "booking creates rather than replaces an object and returns the new reservation_id in the tool result; no cached identifier becomes stale and re-fetch is unnecessary"
+    },
+    {
+      "candidate_id": "PA-C04",
+      "workflow": "send_certificate -> book_reservation",
+      "mutation_changes": ["user.payment_methods"],
+      "downstream_identifiers": ["payment_id"],
+      "decision": "REJECT",
+      "reason": "send_certificate returns the new certificate identifier directly; no old identifier is invalidated and a fresh user read is unnecessary"
+    },
+    {
+      "candidate_id": "PA-C05",
+      "workflow": "update_reservation_passengers -> dependent passenger operation",
+      "mutation_changes": ["reservation.passengers"],
+      "downstream_identifiers": [],
+      "decision": "REJECT",
+      "reason": "the native Airline toolkit has no downstream operation keyed by passenger or passenger identifier"
+    },
+    {
+      "candidate_id": "PA-C06",
+      "workflow": "cancel_reservation -> dependent reservation operation",
+      "mutation_changes": ["reservation.status", "reservation.payment_history"],
+      "downstream_identifiers": ["reservation_id"],
+      "decision": "REJECT",
+      "reason": "reservation_id remains stable; there is no replacement object or valid native downstream operation whose target must be rediscovered"
+    }
+  ]
+}
+
