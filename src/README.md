@@ -1,6 +1,6 @@
 # `src` 源码目录
 
-本目录保存项目自己实现的代码。第三方 benchmark 位于 `external/`，实验产物位于 `experiments/`，二者不应与这里的实现代码混在一起。
+本目录保存项目自己实现的代码。第三方 benchmark 位于 `external/`，实验配置与精选结果位于 `experiments/`，完整运行产物位于 `artifacts/`，二者不应与这里的实现代码混在一起。
 
 如果只是想找到某项功能，可以先看下面的“目录说明”；如果要运行 Autonomous GSE，再阅读“正式演化流程”。命令和代码中使用的英文名称会保留，正文则说明它们的实际作用。
 
@@ -14,6 +14,13 @@
 | `verifiers/` | 判断任务是否成功、执行过程是否合规，并输出判断依据。 |
 | `learners/` | 从任务交互记录中总结经验，生成第一个候选 Skill，或小幅修改已接受的 Skill。 |
 | `skill_evolution/` | 负责分批、生成候选版本、比较评测结果、决定是否接受，以及正式运行前的完整性检查。 |
+| [`benchmark_governed/`](benchmark_governed/README.md) | Governed V1–V3 的实现，与 Phase 谱系分开。 |
+| [`benchmark_v1/`](benchmark_v1/) | Phase V1 环境和评测实现。 |
+| [`benchmark_v2/`](benchmark_v2/) | Phase V2 环境和评测实现。 |
+| [`benchmark_v3/`](benchmark_v3/README.md) | Phase V3 开发版、正式版以及复用的机制实现。 |
+| [`benchmark_v4/`](benchmark_v4/README.md) | V4 环境注册与新增联合任务，直接复用 V3。 |
+| [`benchmark_shared/`](benchmark_shared/README.md) | τ² benchmark 跨版本编译、组合、合规和评测实现。 |
+| [`benchmark_v5/`](benchmark_v5/README.md) | 集中保存 Benchmark V5 的环境、校准、探测和学习实验实现，各功能放在包内子目录。 |
 
 
 ## 基础校验流程
@@ -62,20 +69,20 @@ Autonomous GSE v0.1 会把训练任务分成三批。每一步使用当前已接
 ```bash
 # 只读查看已执行的任务计划
 conda run -n stwebagentbench python -m \
-  src.skill_evolution.autonomous_gse_benchmark_runtime plan
+  src.skill_evolution.v01.autonomous_gse_benchmark_runtime plan
 
 # 只读查看当前历史文件和运行状态
 conda run -n stwebagentbench python -m \
-  src.skill_evolution.autonomous_gse_benchmark_runtime status
+  src.skill_evolution.v01.autonomous_gse_benchmark_runtime status
 
 # 为新 Campaign 运行 S0 的18条初始 Selection Task
 conda run -n stwebagentbench python -m \
-  src.skill_evolution.autonomous_gse_benchmark_runtime initial-checkpoint \
+  src.skill_evolution.v01.autonomous_gse_benchmark_runtime initial-checkpoint \
   --campaign path/to/campaign_manifest.json
 
 # 从已完成的 S0 checkpoint 运行完整三步流程
 conda run -n stwebagentbench python -m \
-  src.skill_evolution.autonomous_gse_benchmark_runtime run \
+  src.skill_evolution.v01.autonomous_gse_benchmark_runtime run \
   --campaign path/to/campaign_manifest.json
 ```
 
@@ -86,18 +93,18 @@ Autonomous GSE v0.2 使用独立入口，并保留相同的两阶段执行方式
 ```bash
 # draft 状态也可安全预览计划和状态
 conda run -n stwebagentbench python -m \
-  src.skill_evolution.autonomous_gse_v02_benchmark_runtime plan
+  src.skill_evolution.v02.autonomous_gse_v02_benchmark_runtime plan
 
 conda run -n stwebagentbench python -m \
-  src.skill_evolution.autonomous_gse_v02_benchmark_runtime status
+  src.skill_evolution.v02.autonomous_gse_v02_benchmark_runtime status
 
 # Manifest 明确改为 ready 后，先运行 S0 的18条 Selection Task
 conda run -n stwebagentbench python -m \
-  src.skill_evolution.autonomous_gse_v02_benchmark_runtime initial-checkpoint
+  src.skill_evolution.v02.autonomous_gse_v02_benchmark_runtime initial-checkpoint
 
 # 只有完整 S0 checkpoint 存在时，才执行三步正式流程
 conda run -n stwebagentbench python -m \
-  src.skill_evolution.autonomous_gse_v02_benchmark_runtime run
+  src.skill_evolution.v02.autonomous_gse_v02_benchmark_runtime run
 ```
 
 v0.2 的 S0 是显式空 Skill 文档：优化器读取该文档的固定结构，Benchmark rollout 不注入 learned Skill。正式入口不使用 SHA、内容 hash、implementation binding 或单独 freeze record。

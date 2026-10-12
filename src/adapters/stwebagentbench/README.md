@@ -146,7 +146,7 @@ GSE_RUN_DOCKER_ISOLATION=1 conda run -n stwebagentbench \
 
 ## Autonomous GSE v0.1
 
-Autonomous GSE 不要求人工依次调用训练和评测程序。正式入口 `src.skill_evolution.autonomous_gse_benchmark_runtime` 会统一安排三步实验：
+Autonomous GSE 不要求人工依次调用训练和评测程序。正式入口 `src.skill_evolution.v01.autonomous_gse_benchmark_runtime` 会统一安排三步实验：
 
 ```text
 当前已接受版本 + 本步固定的17个任务
@@ -163,27 +163,27 @@ Autonomous GSE 不要求人工依次调用训练和评测程序。正式入口 `
 ```bash
 # 只读计划
 conda run -n stwebagentbench python -m \
-  src.skill_evolution.autonomous_gse_benchmark_runtime plan
+  src.skill_evolution.v01.autonomous_gse_benchmark_runtime plan
 
 # 只读状态
 conda run -n stwebagentbench python -m \
-  src.skill_evolution.autonomous_gse_benchmark_runtime status
+  src.skill_evolution.v01.autonomous_gse_benchmark_runtime status
 
 # 新 Campaign：先运行 S0 的18条 Selection Task
 conda run -n stwebagentbench python -m \
-  src.skill_evolution.autonomous_gse_benchmark_runtime initial-checkpoint \
+  src.skill_evolution.v01.autonomous_gse_benchmark_runtime initial-checkpoint \
   --campaign path/to/campaign_manifest.json
 
 # 新 Campaign：从 S0 checkpoint 开始运行完整三步流程
 conda run -n stwebagentbench python -m \
-  src.skill_evolution.autonomous_gse_benchmark_runtime run \
+  src.skill_evolution.v01.autonomous_gse_benchmark_runtime run \
   --campaign path/to/campaign_manifest.json
 ```
 
 现有 `autonomous_gse_v01` 已完成，两个正式命令会拒绝覆盖其历史产物。重新运行同一功能时应提供新的 Campaign ID 和独立产物目录；运行时按路径、版本、Task ID 和 outcome 语义校验，不依赖逐文件内容摘要、实现绑定或单独冻结记录。正式结果按照用途分层保存：
 
 ```text
-artifacts/autonomous_gse_v01/
+artifacts/methods/v01/autonomous_gse_v01/
 ├── raw/
 │   ├── train/<parent-or-candidate>/task_*/trial_01/trajectory.json
 │   └── selection/<parent-or-candidate>/task_*/trial_01/trajectory.json
@@ -205,7 +205,7 @@ artifacts/autonomous_gse_v01/
 - 共运行87条任务记录，调用 Learner 3次；
 - 没有运行 Test，也没有遗留失败记录。
 
-适合进入 Git 的正式报告副本位于 `experiments/results/autonomous_gse_v01/campaign_report.json`；完整本机产物位于 `artifacts/autonomous_gse_v01/formal/`。
+适合进入 Git 的正式报告副本位于 `experiments/methods/v01/autonomous_gse_v01/results/campaign_report.json`；完整本机产物位于 `artifacts/methods/v01/autonomous_gse_v01/formal/`。
 
 ### 运行安全要求
 
@@ -377,7 +377,7 @@ experiments/results/stweb_suitecrm_poc_v01/selection/
 生成分析文件：
 
 ```bash
-conda run -n stwebagentbench python -m src.skill_evolution.two_dimensional_gate \
+conda run -n stwebagentbench python -m src.skill_evolution.shared.two_dimensional_gate \
   --results experiments/results/stweb_suitecrm_poc_v01/selection/task_results.json \
   --reference no_skill \
   --candidate human_skill \

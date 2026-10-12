@@ -6,11 +6,8 @@ import json
 from typing import Any, Callable
 
 from src.learners.stwebagentbench.generate_skill import call_learner
-from src.skill_evolution.autonomous_gse_v03_proposal import (
-    EditorRequest,
-    ReflectorRequest,
-)
-from src.skill_evolution.autonomous_gse_v05_proposal import annotate_parent_skill
+from src.skill_evolution.v03.autonomous_gse_v03_proposal import EditorRequest, ReflectorRequest
+from src.skill_evolution.v05.autonomous_gse_v05_proposal import annotate_parent_skill
 
 LEARNER_MODEL = "openai/gpt-5.6-luna"
 MAXIMUM_RAW_PATCHES = 4

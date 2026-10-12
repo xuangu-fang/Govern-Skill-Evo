@@ -1,1 +1,0 @@
-"""Named benchmark editions."""

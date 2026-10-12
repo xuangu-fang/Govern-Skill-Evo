@@ -7,25 +7,11 @@ from pathlib import Path
 import pytest
 import yaml
 
-from benchmarks.tau2_governed_evolution.shared.compiler.resolvers import (
-    ensure_tau2_importable,
-)
-from benchmarks.tau2_governed_evolution.shared.compiler.schema import CompiledTaskBundle
-from benchmarks.tau2_governed_evolution.shared.compliance.composite import (
-    evaluate_v2_pilot_compliance,
-)
-from benchmarks.tau2_governed_evolution.editions.governed_v2_day28.benchmark.v2.pilot.construction import (
-    ARTIFACT_ROOT,
-    COMPONENT_COUNTS,
-    COMPONENT_ROLES,
-    _booking_summary,
-    _initialize,
-    materialize_declared_pilot,
-)
-from benchmarks.tau2_governed_evolution.editions.governed_v2_day28.benchmark.v2.representation import (
-    ACTUAL_PAYLOAD_CONFIRMATION_BASIS,
-    validate_v2_pilot_metadata,
-)
+from src.benchmark_shared.compiler.resolvers import ensure_tau2_importable
+from src.benchmark_shared.compiler.schema import CompiledTaskBundle
+from src.benchmark_shared.compliance.composite import evaluate_v2_pilot_compliance
+from src.benchmark_governed.v2.benchmark.v2.pilot.construction import ARTIFACT_ROOT, COMPONENT_COUNTS, COMPONENT_ROLES, _booking_summary, _initialize, materialize_declared_pilot
+from src.benchmark_governed.v2.benchmark.v2.representation import ACTUAL_PAYLOAD_CONFIRMATION_BASIS, validate_v2_pilot_metadata
 
 ensure_tau2_importable()
 
@@ -413,7 +399,7 @@ def test_i2_confounders_are_fixed_satisfied(pilot):
 
 def test_committed_artifacts_round_trip_and_rebuild_deterministically(tmp_path, pilot):
     bundles, audit = pilot
-    stored_audit = json.loads((ARTIFACT_ROOT / "construction_audit.json").read_text())
+    stored_audit = json.loads(((Path(__file__).resolve().parents[2] / 'experiments/benchmarks/tau2/governed_v2_day28/benchmark/v2/pilot/artifacts/construction_audit.json')).read_text())
     assert audit["compiled_bundle_sha256"] == stored_audit["compiled_bundle_sha256"]
     stored = yaml.safe_load((ARTIFACT_ROOT / "compiled_bundles.yaml").read_text())
     loaded = [CompiledTaskBundle.from_dict(item) for item in stored]
@@ -421,7 +407,9 @@ def test_committed_artifacts_round_trip_and_rebuild_deterministically(tmp_path, 
 
     materialize_declared_pilot(output_dir=tmp_path)
     for filename in ("compiled_bundles.yaml", "tasks.json", "construction_audit.json"):
-        assert (tmp_path / filename).read_bytes() == (ARTIFACT_ROOT / filename).read_bytes()
+        expected = (Path(__file__).resolve().parents[2] / 'experiments/benchmarks/tau2/governed_v2_day28/benchmark/v2/pilot/artifacts/construction_audit.json'
+                    if filename == "construction_audit.json" else ARTIFACT_ROOT / filename)
+        assert (tmp_path / filename).read_bytes() == expected.read_bytes()
 
 
 def test_step4b_did_not_create_a_generic_framework():
@@ -434,5 +422,5 @@ def test_step4b_did_not_create_a_generic_framework():
         "interaction_graph.py",
         "joint_world.py",
     }
-    pilot_root = Path(__file__).parents[2] / "benchmarks/tau2_governed_evolution/editions/governed_v2_day28/benchmark/v2/pilot"
+    pilot_root = Path(__file__).parents[2] / "src/benchmark_governed/v2/benchmark/v2/pilot"
     assert not ({path.name for path in pilot_root.rglob("*.py")} & forbidden)

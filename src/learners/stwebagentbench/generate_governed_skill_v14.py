@@ -6,10 +6,8 @@ import json
 from collections.abc import Callable
 from typing import Any
 
-from src.skill_evolution.autonomous_gse_v05_proposal import annotate_parent_skill
-from src.skill_evolution.autonomous_gse_v14_proposal import (
-    DiagnosisEditorRequest, EditorContractError,
-)
+from src.skill_evolution.v05.autonomous_gse_v05_proposal import annotate_parent_skill
+from src.skill_evolution.v14.autonomous_gse_v14_proposal import DiagnosisEditorRequest, EditorContractError
 
 LEARNER_MODEL = "openai/deepseek-v4-pro"
 EDITOR_MAX_COMPLETION_TOKENS = 16000

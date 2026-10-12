@@ -10,7 +10,7 @@ from src.learners.stwebagentbench.generate_skill import (
     REASONING_EFFORT,
     call_learner,
 )
-from src.skill_evolution.autonomous_gse_v02_proposal import LearnerRequest
+from src.skill_evolution.v02.autonomous_gse_v02_proposal import LearnerRequest
 
 
 LEARNER_MODEL = "openai/gpt-5.6-terra"

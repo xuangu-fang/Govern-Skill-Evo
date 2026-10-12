@@ -1,9 +1,5 @@
-from benchmarks.tau2_governed_evolution.editions.phase_v1_day30.construction.intent_dynamics.validate_airline_c1_m05knl import (
-    validate_pair,
-)
-from benchmarks.tau2_governed_evolution.editions.phase_v1_day30.construction.intent_dynamics.probe_airline_c1_m05knl import (
-    run_probes,
-)
+from scripts.benchmarks.v1.construction.intent_dynamics.validate_airline_c1_m05knl import validate_pair
+from scripts.benchmarks.v1.construction.intent_dynamics.probe_airline_c1_m05knl import run_probes
 
 
 def test_airline_c1_m05knl_static_pair_contract() -> None:

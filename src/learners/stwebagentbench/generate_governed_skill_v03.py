@@ -10,10 +10,7 @@ from src.learners.stwebagentbench.generate_skill import (
     REASONING_EFFORT,
     call_learner,
 )
-from src.skill_evolution.autonomous_gse_v03_proposal import (
-    EditorRequest,
-    ReflectorRequest,
-)
+from src.skill_evolution.v03.autonomous_gse_v03_proposal import EditorRequest, ReflectorRequest
 
 
 LEARNER_MODEL = "openai/gpt-5.6-luna"

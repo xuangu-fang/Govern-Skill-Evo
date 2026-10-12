@@ -37,7 +37,7 @@ goal, reject the opposite corrective action, and preserve the first write.
 ## Gate 0
 
 ```bash
-python benchmarks/tau2_governed_evolution/editions/phase_v3_day34/construction/retail_hidden_operational_path/tools/validate_gate0.py
+python scripts/benchmarks/v3/development/retail_hidden_operational_path/tools/validate_gate0.py
 ```
 
 Gate 0 passes only if both correct paths score Success 1, both opposite paths
@@ -66,7 +66,7 @@ not admitted to `benchmark/`.
 Reproduce the model run with:
 
 ```bash
-python benchmarks/tau2_governed_evolution/editions/phase_v3_day34/experiments/retail_hidden_operational_path_gate1/run_gate1.py
+python scripts/benchmarks/v3/development/experiments/retail_hidden_operational_path_gate1/run_gate1.py
 ```
 
 ## Capability Core admission

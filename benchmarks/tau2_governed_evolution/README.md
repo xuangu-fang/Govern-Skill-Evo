@@ -15,12 +15,12 @@ are kept separate so that `v1` and `v2` never identify two different datasets.
 | `phase_v4_day36` | Phase benchmark v4 | 81 (72 Core + 9 Control) | local v4 joint admission |
 
 Each edition owns a `VERSION.json` with its exact task files and task count.
-Infrastructure reused by more than one edition lives under `shared/`.
+Shared Python infrastructure lives in [src/benchmark_shared](../../src/benchmark_shared/README.md); `shared/` retains templates and example data. Phase V3/V4 implementations are in [src/benchmark_v3](../../src/benchmark_v3/README.md) and [src/benchmark_v4](../../src/benchmark_v4/README.md), with executable tools under `scripts/benchmarks/`.
 
 Run the offline structural validation with:
 
 ```bash
-python -m benchmarks.tau2_governed_evolution.validate_editions
+python -m scripts.benchmarks.validate_editions
 ```
 
 `phase_v3_day34` is an independent capability-benchmark development edition.
@@ -78,3 +78,7 @@ ablations retained residual headroom and the exact joint Skill reached 4/4 CS
 on both frozen splits. V4 has 36 Evolution tasks and 45 Monitor tasks.
 
 See `BENCHMARK_EDITION_INVENTORY.md` for the old-to-new ownership map.
+
+## 材料分工
+
+本目录保存基准定义。早期 Governed 与 Phase 的实现现已全部移出，源码入口见 [src](../../src/README.md)，配置与报告见 [τ² 实验导航](../../experiments/benchmarks/tau2/README.md)。完整轨迹和运行数据库位于 `artifacts/benchmarks/tau2/`。

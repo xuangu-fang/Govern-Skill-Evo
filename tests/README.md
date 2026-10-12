@@ -11,7 +11,12 @@
 | `adapters/tau2/` | τ³原始结果到正式`TrajectoryDataset`的转换。 |
 | `trajectory/` | 检查统一任务记录能否正确保存、读取、验证事件顺序，以及从 v0.1 迁移到 v0.2。 |
 | `verifiers/` | 检查任务成功判断、固定规则校验、AI 语义校验以及与人工标准答案的比较。 |
-| `skill_evolution/` | 检查 Autonomous GSE 的协议、任务分批、步骤流转、候选生成、预算限制、正式运行边界和冻结规则。 |
+| `skill_evolution/vXX/` | 检查 Autonomous GSE 的协议、任务分批、步骤流转、候选生成、预算限制、正式运行边界和冻结规则。 |
+| `skill_evolution/shared/` | 通用功能和仓库路径约定。 |
+| `benchmarks/v4/`、`benchmarks/v5/` | Benchmark 定义、运行接口和准入检查；V5 按 calibration、learning、probe、sa、sc、prototypes 分组。 |
+| `learners/stwebagentbench/` | ST-WebAgentBench 候选 Skill 生成。 |
+
+V19 固定样例放在 `skill_evolution/v19/fixtures/`。各测试子包有独立 `__init__.py`，同名测试文件可同时收集。
 
 ## 主要测试文件
 
@@ -29,11 +34,11 @@
 | `verifiers/handlers/semantic/test_write_confirmation.py` | 检查写操作详情、明确确认、打包确认、执行顺序和 AI 中间判断。 |
 | `verifiers/evaluators/test_transfer_scope.py` | 检查转人工判断与人工标准答案的比较指标和数据覆盖。 |
 | `verifiers/evaluators/test_write_confirmation.py` | 检查写操作确认与人工标准答案的字段指标、证据步骤和数据覆盖。 |
-| `skill_evolution/test_autonomous_gse_protocol.py` | 检查已完成实验和步骤的数据格式、记录批次、演化门槛代表性案例及正式结果。 |
-| `skill_evolution/test_autonomous_gse_controller.py` | 检查步骤进度、最终结果、当前版本与评测基准的继承关系，以及非法状态转换。 |
-| `skill_evolution/test_autonomous_gse_proposal.py` | 检查候选提议格式，以及初始生成和增量修改两种方式。 |
-| `skill_evolution/test_autonomous_gse_runtime.py` | 在不调用外部 API 的情况下检查三步流程、预算和 Test 隔离。 |
-| `skill_evolution/test_autonomous_gse_benchmark_runtime.py` | 检查提示词输入隔离、最多123条任务记录的预算计划、Runner连接，以及只读与正式运行入口。 |
+| `skill_evolution/v01/test_autonomous_gse_protocol.py` | 检查已完成实验和步骤的数据格式、记录批次、演化门槛代表性案例及正式结果。 |
+| `skill_evolution/v01/test_autonomous_gse_controller.py` | 检查步骤进度、最终结果、当前版本与评测基准的继承关系，以及非法状态转换。 |
+| `skill_evolution/v01/test_autonomous_gse_proposal.py` | 检查候选提议格式，以及初始生成和增量修改两种方式。 |
+| `skill_evolution/v01/test_autonomous_gse_runtime.py` | 在不调用外部 API 的情况下检查三步流程、预算和 Test 隔离。 |
+| `skill_evolution/v01/test_autonomous_gse_benchmark_runtime.py` | 检查提示词输入隔离、最多123条任务记录的预算计划、Runner连接，以及只读与正式运行入口。 |
 
 ## 运行测试
 
@@ -51,6 +56,8 @@ python -m pytest -q tests
 pytest -q tests/trajectory
 pytest -q tests/verifiers
 pytest -q tests/adapters/tau2
+pytest -q tests/skill_evolution/v19
+pytest -q tests/benchmarks/v5
 ```
 
 只运行单个测试文件：
@@ -60,3 +67,9 @@ pytest -q tests/verifiers/handlers/semantic/test_transfer_scope.py
 ```
 
 单元测试不得调用真实外部模型。AI 语义校验测试使用假的模型调用函数，检查提示词是否泄漏答案、JSON 能否解析、证据步骤是否正确，以及中间判断能否得到预期的最终合规结果。
+
+V06 的浏览器适配测试需要 ST-WebAgentBench 环境，可单独运行 `python -m pytest tests/skill_evolution/v06 -q`；其余方法和 τ² 测试使用 τ² 环境。未安装另一套环境依赖时，不要把收集错误当作实验失败。
+
+## Benchmark 谱系
+
+`benchmarks/governed/v1/` 至 `v3/` 属于早期 Governed 系列；`benchmarks/v1/` 至 `v5/` 按 Phase / 独立 V5 组织。共享审计在 `scripts/benchmarks/audits/`，共享实现位于 `src/benchmark_shared/`。

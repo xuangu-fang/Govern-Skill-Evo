@@ -1,0 +1,82 @@
+"""Offline copy migration restarting Memory Review with current decision contracts."""
+import argparse,sys,shutil,uuid
+from pathlib import Path
+ROOT=Path(__file__).resolve().parents[3];sys.path[:0]=[str(ROOT),str(ROOT/'external/tau2-bench/src')]
+def main():
+    ap=argparse.ArgumentParser(description=__doc__)
+    for k in ('source','output'):ap.add_argument('--'+k,type=Path,required=True)
+    args=ap.parse_args();source=args.source.resolve();output=args.output.resolve()
+    from src.skill_evolution.shared.experiment_paths import resolve_artifact_path
+    from src.skill_evolution.v19.memory_restart_v19 import files, compatible_manifest, _ManifestView, ENTRYPOINT
+    from src.skill_evolution.v19.campaign_v19 import source_manifest, _binding
+    from src.skill_evolution.v19.semantics_migration_v19 import SemanticsMigration
+    from src.skill_evolution.v19.evolution_replay_v19 import _load, _save, _file_digest, _lock
+    from src.skill_evolution.v19.memory_store_v19 import load_memory, require
+    from src.skill_evolution.v19.evolution_benchmark_v19 import BenchmarkEvolutionV19
+    from src.skill_evolution.v19.monitor_campaign_v19 import BenchmarkMonitorV19
+    from src.skill_evolution.v19.current_diagnosis_v19 import validate_current_batch
+    from src.skill_evolution.v19.review_contract_v19 import CurrentDiagnosisInput, CurrentFindings, MemoryReviewInput
+    from src.skill_evolution.v19.edit_tracking_v19 import encode
+    from src.skill_evolution.v19.edit_memory_review_v19 import packet_profile
+    require(source!=output and source not in output.parents and output not in source.parents,'disjoint paths required')
+    with _lock(source),_lock(output):
+        require(not output.exists(),'output exists');before=files(source)
+        old=_load(source/'binding.json');previous=_load(source/'migration.json')
+        require(old['memory_restart_sha256']==_file_digest(source/'migration.json'),'receipt changed')
+        require(files(resolve_artifact_path(previous['archive']))==previous['archive_files'],'archive changed')
+        snapshot=load_memory(source/'memory');rd=f"round-{snapshot.head['revision']+1:02d}";g=source/rd/'generation'
+        require((g/'historical-reviews.json').exists() and not (g/'local-reviews/fusion/request.json').exists(),'expected completed Memory Review and unsent Fusion')
+        bound=_load(g/'input.json')
+        requests=[CurrentDiagnosisInput(encode(r['payload']),encode(r['provenance'])) for r in bound['current_inputs']]
+        findings=[CurrentFindings(encode(_load(g/f'current-{i:03d}-findings.json'))) for i in range(len(requests))]
+        validate_current_batch(requests,findings)
+        from src.skill_evolution.v19.current_diagnosis_v19 import build_current_diagnosis_inputs, validate_current_findings
+        from src.skill_evolution.v19.review_prompt_v19 import build_current_diagnosis_request
+        from src.skill_evolution.v19.memory_generation_v19 import _prepared, _read_call
+        evo_backend=BenchmarkEvolutionV19()
+        rebuilt=build_current_diagnosis_inputs(run_id=old['run_id'],round_id=rd,
+            parent_skill=snapshot.head['retained_skill'],backend=_ManifestView(evo_backend,old['evolution_manifest']),
+            parent_dir=source/rd/'parent_evolution',grouping_result=_load(source/rd/'grouping/groups.json'))
+        require(tuple(requests)==tuple(rebuilt),'current input differs from Parent/grouping')
+        for i,request in enumerate(requests):
+            raw=_read_call(g/f'current-{i:03d}',_prepared(build_current_diagnosis_request(request)))
+            require(validate_current_findings(raw,request=request)==findings[i],'saved Current Diagnosis differs')
+        from src.skill_evolution.v19.historical_review_v19 import build_memory_review_input
+        review=build_memory_review_input(store_dir=source/'memory',current_requests=requests,current_findings=findings)
+        require(review.payload==_load(g/'memory-review-input.json'),'Memory input changed unexpectedly')
+        profile=packet_profile(review)
+        require(all(x['within_budget'] for x in profile['edits']),'Memory Review input exceeds engineering guard')
+        evo,mon=BenchmarkEvolutionV19(),BenchmarkMonitorV19();actual={'evolution_manifest':evo.manifest(),'monitor_manifest':mon.manifest()}
+        for k,v in actual.items():compatible_manifest(old[k],v)
+        code=source_manifest();stage=output.with_name('.'+output.name+'.pending-'+uuid.uuid4().hex)
+        shutil.copytree(source,stage);require(files(stage)==before,'copy mismatch')
+        bound['source_files']={p.name:_file_digest(p) for p in (ROOT/'src/skill_evolution/v19').glob('*v19.py')};_save(stage/rd/'generation/input.json',bound)
+        # Move only the copied downstream into recovery; source remains byte-for-byte intact.
+        archive=stage/'recovery'/'memory-logic-migration'/rd
+        archive.mkdir(parents=True)
+        moved=[]
+        for item in list((stage/rd/'generation').iterdir()):
+            if item.name=='input.json' or item.name.startswith('current-') or item.name.endswith('.lock'):continue
+            moved.append(item.name);item.rename(archive/item.name)
+        _save(stage/rd/'generation/validation.json',{'status':'INCOMPLETE','stage':'MEMORY_REVIEW','error_type':'MIGRATION_READY'})
+        reused={k:v for k,v in files(stage).items() if
+            (k.startswith(('round-','memory/rounds/','recovery/')) and
+             k not in (f'{rd}/generation/input.json',f'{rd}/generation/validation.json') and not k.endswith('.lock'))}
+        receipt={**previous,'source':str(source),'archive':str(source),'archive_files':before,
+            'original_binding':old,'replacement_sources':code,'current_manifests':actual,'reused_files':reused,
+            'decision_migration':{'round_id':rd,'memory_revision':snapshot.head['revision'],
+                'current_diagnoses':len(findings),'review_profile':profile,'next_stage':'MEMORY_REVIEW',
+                'archived_downstream':moved,'model_calls':0,
+                'changes':['FUSION_HISTORY_BOUNDARY','CLAIM_COMPARISON_AND_LIMITATIONS',
+                           'SHARED_SINGLE_REPAIR','FLAT_TASK_RULE_EDITOR']}}
+        receipt.pop('budget_migration',None)
+        report=_load(stage/'campaign.json')
+        report.update(status='INCOMPLETE',active_round=rd,failed_stage='MEMORY_REVIEW',error_type='MIGRATION_READY')
+        _save(stage/'campaign.json',report)
+        _save(stage/'migration.json',receipt)
+        binding=_binding(old['config'],old['run_id'],old['initial_skill'],_ManifestView(evo,old['evolution_manifest']),_ManifestView(mon,old['monitor_manifest']))
+        _save(stage/'binding.json',{**binding,'entrypoint':ENTRYPOINT,'memory_restart_sha256':_file_digest(stage/'migration.json')})
+        require(files(source)==before and source_manifest()==code,'source drift')
+        stage.rename(output);SemanticsMigration(output/'migration.json').verify_reused_artifacts(output)
+        print(encode({'status':'READY','output':str(output),'round':rd,'memory_revision':snapshot.head['revision'],'current_diagnoses':len(findings),'edits':profile['edit_count'],'model_calls':0}))
+if __name__=='__main__':main()

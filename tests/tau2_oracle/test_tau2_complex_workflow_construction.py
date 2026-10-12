@@ -4,13 +4,7 @@ import json
 from collections import Counter
 from functools import lru_cache
 
-from benchmarks.tau2_governed_evolution.editions.governed_v2_day28.construction.complex_workflow.pilot.construction import (
-    ARCHETYPE_COUNTS,
-    FREEZE_MANIFEST_PATH,
-    canonical_trajectory,
-    materialize_declared_pilot,
-    read_declarations,
-)
+from src.benchmark_governed.v2.construction.complex_workflow.pilot.construction import ARCHETYPE_COUNTS, FREEZE_MANIFEST_PATH, canonical_trajectory, materialize_declared_pilot, read_declarations
 
 
 @lru_cache(maxsize=1)

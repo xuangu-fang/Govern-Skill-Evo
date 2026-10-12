@@ -33,14 +33,17 @@
 ## 实验约定
 
 - 实验前先写 Question 和 Hypothesis；
-- 配置放在 `experiments/configs/`；
-- 数据划分与 ID 放在 `experiments/manifests/`；
-- 结论和小型结果表放在 `experiments/reports/`；
-- 原始大文件放在被忽略的 `outputs/` 或外部存储；
+- 方法实验配置和数据划分放在 `experiments/methods/vXX/<实验编号>/config/`；
+- Benchmark 实验材料放在 `experiments/benchmarks/`；
+- 结论和小型结果表放在对应实验的 `reports/`、`results/`；
+- 原始运行数据放在被忽略的 `artifacts/` 或外部存储；
 - 运行后在 `docs/04_EXPERIMENT_LOG.md` 追加记录，不覆盖旧记录；
 - 每次记录 `git rev-parse HEAD`、完整模型 ID、temperature、policy version 和重复次数。
 
 ## 代码约定
+
+方法实现归入 `src/skill_evolution/vXX/`，真正通用的代码归入 `shared/`。测试按相同版本组织；运行及维护脚本按 [scripts 导航](scripts/README.md) 归类。直接导入实际模块，不新增旧位置兼容文件或链接。
+
 
 - 第三方仓库放在 `external/`，通过薄 adapter 调用；
 - 统一 schema 必须保留原始 payload，避免转换时丢失证据；

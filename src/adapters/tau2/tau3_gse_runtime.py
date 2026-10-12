@@ -20,7 +20,7 @@ from src.adapters.tau2.tau3_compliance_judge import (
     compatibility_policy_id,
     judge_compliance,
 )
-from src.skill_evolution.two_dimensional_gate import classify_state
+from src.skill_evolution.shared.two_dimensional_gate import classify_state
 
 
 DOMAINS = {"airline", "retail"}

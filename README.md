@@ -1,5 +1,7 @@
 # Governed Skill Evolution
 
+导航：[方法实验](experiments/methods/README.md) · [Benchmark 系列与版本](benchmarks/README.md) · [研究文档](docs/README.md) · [文件归属清单](docs/repository/README.md) · [方法源码](src/skill_evolution/README.md) · [命令入口](scripts/README.md) · [测试](tests/README.md)
+
 > 让 Agent 从运行经验中学习，同时不把违规捷径、偶然成功和错误归因固化成 Skill。
 
 本项目由教师与学生共同建设，目标是研究一种**可控、可验证、可追溯的 Skill 自进化 Agent 框架**。当前仓库处于研究启动阶段：我们首先验证问题是否真实存在，再逐步实现方法，而不是一开始就搭建庞大的“自进化系统”。
@@ -117,29 +119,29 @@ Tool-using Agent 在完成任务时会产生完整轨迹，包括对话、推理
 
 报告必须展示 Skill 来自哪些轨迹、修改了什么，以及 task success 和 compliance 分别如何变化。
 
-## 预期目录
+## 当前目录
 
 ```text
 .
-├── README.md
-├── CONTRIBUTING.md
-├── docs/                  # 研究叙事、路线、论文地图、实验日志
-├── external/              # 第三方仓库；默认不提交
-├── policies/              # 版本化Policy规则集与规则运行上下文
-├── skills/                # 人工与自动生成的 Skill 版本
+├── docs/                     # 方法、benchmark、入门材料及实验日志
+├── benchmarks/               # Benchmark 定义、构造与校验代码
+├── external/                 # 第三方仓库；默认不提交
+├── policies/                 # 版本化 Policy 和规则运行上下文
+├── skills/                   # 人工与自动生成的 Skill
 ├── src/
-│   ├── adapters/          # 第三方环境的薄适配层
-│   ├── policies/          # Policy与VerificationContext Schema
-│   ├── trajectory/        # 统一轨迹 schema 与转换
-│   ├── verifiers/         # task/process verifier
-│   └── skill_evolution/   # lesson、patch、gate 与 lineage
+│   ├── adapters/             # 第三方环境适配
+│   ├── learners/             # 候选 Skill 生成
+│   ├── policies/             # Policy 和上下文 Schema
+│   ├── trajectory/           # 统一轨迹格式与转换
+│   ├── verifiers/            # 任务与过程校验
+│   └── skill_evolution/      # vXX/ 方法实现及 shared/ 通用工具
+├── scripts/                  # runs/ analysis/ preparation/ migrations/ maintenance/
 ├── experiments/
-│   ├── annotations/       # 人工标签与语义judgments
-│   ├── configs/
-│   ├── manifests/
-│   ├── results/
-│   └── reports/
-└── tests/
+│   ├── methods/              # 按方法版本归档的配置与精选结果
+│   ├── benchmarks/           # Benchmark 实验配置与精选结果
+│   └── ...                   # 早期 POC、人工标注等独立材料
+├── artifacts/                # 本地原始运行数据；不纳入 Git
+└── tests/                    # 与实现对应的版本测试及 benchmark 测试
 ```
 
 第三方仓库放在 `external/`，不要复制大量外部代码到 `src/`。原始业务数据、密钥、`.env`、大体积轨迹和生成输出不得提交。
@@ -160,3 +162,5 @@ Tool-using Agent 在完成任务时会产生完整轨迹，包括对话、推理
 当前版本是研究起点，不是最终框架。近期唯一优先级是跑通公开环境、理解真实轨迹，并验证 success/compliance gap 是否稳定存在。
 
 如果 H1/H2 无法成立，我们将依据证据转向可审计的 trajectory diagnosis 与 Skill provenance，而不是强行维持“违规传播”的论文叙事。
+
+方法原始运行已统一归入 `artifacts/methods/`，见[运行导航与启动命令](experiments/methods/RUNTIME.md)。

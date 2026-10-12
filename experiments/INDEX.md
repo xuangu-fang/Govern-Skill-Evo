@@ -1,13 +1,8 @@
-# 实验目录索引
+# 实验总索引
 
-| 版本 | 索引 | 整理状态 |
-|---|---|---|
-| v17 | [v17 实验索引](v17/INDEX.md) | 正式实验、最终阶段 Pilot 和较早 Diagnosis 归档已分开 |
-| v18 | [v18 实验索引](v18/INDEX.md) | Pilot 与正式实验已分开；冻结配置保持原位 |
-| v19 | [v19 实验索引](v19/INDEX.md) | 两轮有效 Pilot 与早期尝试已分开 |
+- [v01–v21 方法实验](methods/README.md)：统一的配置、精选结果与原始运行导航。
+- [Benchmark 实验](benchmarks/README.md)：v5 校准与 V18 联合家族准入材料。
+- [人工标注](annotations)与[早期基线结果](results)仍保持原位。
+- [产物政策](README.md)。
 
-每个版本使用 `formal/`、`pilot/`，旧尝试集中在 `archive/<版本>/`。
-旧路径在各版本 `path-map.json` 中可查。原始运行文件与历史脚本保留原文；路径迁移不代表旧启动/恢复脚本已适配。
-
-`configs/`、`manifests/` 和 benchmark 冻结依赖不迁移。
-Git 只保存索引、映射、配置及精选报告；原始实验目录仍留在本地，详见 [产物政策](README.md)。
+原始方法运行已统一迁入 `artifacts/methods/`，详见[运行导航](methods/RUNTIME.md)和[运行路径映射](methods/runtime-path-map.json)。旧版本目录及兼容链接已删除；配置迁移的路径映射仍见 [methods/path-map.json](methods/path-map.json)。
