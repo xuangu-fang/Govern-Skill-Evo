@@ -5,15 +5,14 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 ARTIFACTS = (
-    ROOT
-    / "benchmarks/tau2_governed_evolution/editions/governed_v2_day28/benchmark/v2/pilot/base_calibration_revised"
+    (Path(__file__).resolve().parents[2] / 'experiments/benchmarks/tau2/governed_v2_day28/benchmark/v2/pilot/base_calibration_revised')
 )
 
 
 def _rows() -> list[dict]:
     return [
         json.loads(line)
-        for line in (ARTIFACTS / "rollout_results.jsonl").read_text().splitlines()
+        for line in ((Path(__file__).resolve().parents[2] / 'artifacts/benchmarks/tau2/governed_v2_day28/benchmark/v2/pilot/base_calibration_revised/rollout_results.jsonl')).read_text().splitlines()
     ]
 
 
@@ -72,7 +71,7 @@ def test_revised_calibration_preserves_behavior_and_component_factorization() ->
 
 def test_revised_summary_accepts_the_single_bounded_revision_evidence() -> None:
     summary = json.loads(
-        (ARTIFACTS / "base_calibration_summary.json").read_text()
+        ((Path(__file__).resolve().parents[2] / 'experiments/benchmarks/tau2/governed_v2_day28/benchmark/v2/pilot/base_calibration_revised/base_calibration_summary.json')).read_text()
     )
 
     assert summary["overall"] == {
@@ -110,7 +109,7 @@ def test_revised_summary_accepts_the_single_bounded_revision_evidence() -> None:
 
 def test_revision_removed_known_resolution_and_passenger_confounds() -> None:
     summary = json.loads(
-        (ARTIFACTS / "base_calibration_summary.json").read_text()
+        ((Path(__file__).resolve().parents[2] / 'experiments/benchmarks/tau2/governed_v2_day28/benchmark/v2/pilot/base_calibration_revised/base_calibration_summary.json')).read_text()
     )
 
     for family_id in ("v2p_a_01", "v2p_a_02"):

@@ -100,7 +100,7 @@ oracle for the hidden rule.
 Run:
 
 ```bash
-python benchmarks/tau2_governed_evolution/editions/phase_v3_day34/construction/latent_settlement_contract/tools/validate_gate0.py
+python scripts/benchmarks/v3/development/latent_settlement_contract/tools/validate_gate0.py
 ```
 
 The candidate may proceed to the eight-rollout E0/ER smoke only if:
@@ -124,7 +124,7 @@ Horizon/Summit × preferred/fallback combination twice.
 Run the expanded-family validation with:
 
 ```bash
-python benchmarks/tau2_governed_evolution/editions/phase_v3_day34/construction/latent_settlement_contract/core_family/tools/validate_core.py
+python scripts/benchmarks/v3/development/latent_settlement_contract/core_family/tools/validate_core.py
 ```
 
 It verifies all correct and opposite committed paths, non-recoverability,

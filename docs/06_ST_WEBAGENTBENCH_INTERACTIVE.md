@@ -154,6 +154,6 @@ Scenario v3 保留与任务相关的参数，并移除了 33 条旧版
 
 v08 Runtime 会强制父流程和 Candidate rollout 使用 Interactive 环境，要求每条
 加载的轨迹记录固定的 UserSimulator 模型、Prompt 和 Scenario 版本，并将结果写入
-隔离的 `artifacts/autonomous_gse_v08/` 根目录。它不包含旧版 Original 对照、
+隔离的 `artifacts/methods/v08/autonomous_gse_v08/` 根目录。它不包含旧版 Original 对照、
 final Test、post-hoc replay 或 three-seed replication。可执行命令记录在
-`experiments/campaigns/autonomous_gse_v08/README.md` 中。
+`experiments/methods/v08/autonomous_gse_v08/config/README.md` 中。

@@ -5,15 +5,14 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 ARTIFACTS = (
-    ROOT
-    / "benchmarks/tau2_governed_evolution/editions/governed_v2_day28/benchmark/v2/pilot/base_calibration"
+    (Path(__file__).resolve().parents[2] / 'experiments/benchmarks/tau2/governed_v2_day28/benchmark/v2/pilot/base_calibration')
 )
 
 
 def _rows() -> list[dict]:
     return [
         json.loads(line)
-        for line in (ARTIFACTS / "rollout_results.jsonl").read_text().splitlines()
+        for line in ((Path(__file__).resolve().parents[2] / 'artifacts/benchmarks/tau2/governed_v2_day28/benchmark/v2/pilot/base_calibration/rollout_results.jsonl')).read_text().splitlines()
     ]
 
 
@@ -72,7 +71,7 @@ def test_behavior_states_and_interaction_component_labels_are_preserved() -> Non
 
 def test_saved_summary_records_observed_structural_judgments() -> None:
     summary = json.loads(
-        (ARTIFACTS / "base_calibration_summary.json").read_text()
+        ((Path(__file__).resolve().parents[2] / 'experiments/benchmarks/tau2/governed_v2_day28/benchmark/v2/pilot/base_calibration/base_calibration_summary.json')).read_text()
     )
 
     assert summary["overall"] == {

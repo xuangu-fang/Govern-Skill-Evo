@@ -24,12 +24,7 @@ from typing import Any
 REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT))
 
-from src.skill_evolution.two_dimensional_gate import (
-    OutcomeState,
-    STATE_ORDER,
-    classify_state,
-    classify_transition,
-)
+from src.skill_evolution.shared.two_dimensional_gate import OutcomeState, STATE_ORDER, classify_state, classify_transition
 
 
 DEFAULT_MANIFEST = (

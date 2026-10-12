@@ -15,13 +15,8 @@ from src.adapters.stwebagentbench.parallel_rollout import (
     run_subprocess_rollouts,
     trajectory_path,
 )
-from src.skill_evolution.autonomous_gse_v03_benchmark_runtime import (
-    RunnerRolloutBackend,
-)
-from src.skill_evolution.autonomous_gse_v04_benchmark_runtime import (
-    _expand_campaign,
-    _resolve_repo_path,
-)
+from src.skill_evolution.v03.autonomous_gse_v03_benchmark_runtime import RunnerRolloutBackend
+from src.skill_evolution.v04.autonomous_gse_v04_benchmark_runtime import _expand_campaign, _resolve_repo_path
 
 DEFAULT_CONFIG = (
     REPO_ROOT

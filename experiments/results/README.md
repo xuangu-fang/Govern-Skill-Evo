@@ -6,14 +6,14 @@
 
 | 目录 | 实验内容 | 主要结果或用途 |
 |---|---|---|
-| [`day4_trace2skill/`](day4_trace2skill/) | 从5条航空客服任务记录中总结局部经验，再生成候选 Skill | 选出2条规则写入候选 Skill，另有1条因编辑名额限制未采用 |
-| [`day5_schema/`](day5_schema/) | 把10条 τ³ 任务记录转换成统一格式，并分别判断任务成功和一项流程合规规则 | 验证统一数据格式以及任务结果、流程结果分开保存的方式 |
-| [`day6_process_verifier/`](day6_process_verifier/) | 逐步把2条、3条、4条、5条规则接入通用过程校验器 | `v04` 是当前覆盖5条规则的完整结果 |
-| [`skillopt_searchqa_main200_hard_s42/`](skillopt_searchqa_main200_hard_s42/) | 使用 SkillOpt 在 SearchQA 上连续优化 Skill | 5步中接受3个候选版本；选择评测严格准确率从0.75升至0.80，独立测试从0.90升至0.91 |
-| [`autonomous_gse_v01/`](autonomous_gse_v01/) | Autonomous GSE v0.1 三步正式实验的版本化报告 | 最终保留 S1，共87条任务记录、3次 Learner 调用、0条独立 Test |
-| [`stweb_suitecrm_poc_v01/`](stweb_suitecrm_poc_v01/) | SuiteCRM 基线对照、两种简单学习方法及受规则约束的候选 S1 | 保存4种方法的18任务对照结果，并从 S0 训练经验生成 S1 |
-| [`stweb_suitecrm_poc_v02/`](stweb_suitecrm_poc_v02/) | 在相同18个任务上比较 S0 与 S1 | S1 的任务成功率、合规率和 CuP 均提高，因此接受 S1 |
-| [`stweb_suitecrm_poc_v03/`](stweb_suitecrm_poc_v03/) | 从 S1 增量生成 S2，并比较 S1 与 S2 | S2 的合规率和 CuP 下降，因此拒绝 S2，继续保留 S1 |
+| [`day4_trace2skill/`](day4_trace2skill) | 从5条航空客服任务记录中总结局部经验，再生成候选 Skill | 选出2条规则写入候选 Skill，另有1条因编辑名额限制未采用 |
+| [`day5_schema/`](day5_schema) | 把10条 τ³ 任务记录转换成统一格式，并分别判断任务成功和一项流程合规规则 | 验证统一数据格式以及任务结果、流程结果分开保存的方式 |
+| [`day6_process_verifier/`](day6_process_verifier) | 逐步把2条、3条、4条、5条规则接入通用过程校验器 | `v04` 是当前覆盖5条规则的完整结果 |
+| [`skillopt_searchqa_main200_hard_s42/`](skillopt_searchqa_main200_hard_s42) | 使用 SkillOpt 在 SearchQA 上连续优化 Skill | 5步中接受3个候选版本；选择评测严格准确率从0.75升至0.80，独立测试从0.90升至0.91 |
+| [`autonomous_gse_v01/`](../methods/v01/autonomous_gse_v01/results) | Autonomous GSE v0.1 三步正式实验的版本化报告 | 最终保留 S1，共87条任务记录、3次 Learner 调用、0条独立 Test |
+| [`stweb_suitecrm_poc_v01/`](stweb_suitecrm_poc_v01) | SuiteCRM 基线对照、两种简单学习方法及受规则约束的候选 S1 | 保存4种方法的18任务对照结果，并从 S0 训练经验生成 S1 |
+| [`stweb_suitecrm_poc_v02/`](stweb_suitecrm_poc_v02) | 在相同18个任务上比较 S0 与 S1 | S1 的任务成功率、合规率和 CuP 均提高，因此接受 S1 |
+| [`stweb_suitecrm_poc_v03/`](stweb_suitecrm_poc_v03) | 从 S1 增量生成 S2，并比较 S1 与 S2 | S2 的合规率和 CuP 下降，因此拒绝 S2，继续保留 S1 |
 
 ## 结果目录与其他实验目录的区别
 
@@ -29,14 +29,14 @@
 Autonomous GSE v0.1 的正式三步实验已经完成。适合进入 Git 的报告副本位于：
 
 ```text
-experiments/results/autonomous_gse_v01/campaign_report.json
+experiments/methods/v01/autonomous_gse_v01/results/campaign_report.json
 ```
 
-完整的本机运行产物仍位于 `artifacts/autonomous_gse_v01/`。该实验最终保留 S1，共产生87条任务记录、调用 Learner 3次，没有运行独立 Test。它的简化配置和记录批次位于 `experiments/campaigns/autonomous_gse_v01/`。
+完整的本机运行产物仍位于 `artifacts/methods/v01/autonomous_gse_v01/`。该实验最终保留 S1，共产生87条任务记录、调用 Learner 3次，没有运行独立 Test。它的简化配置和记录批次位于 `experiments/methods/v01/autonomous_gse_v01/config/`。
 
 ## Day 4：Trace2Skill 候选 Skill
 
-目录：[`day4_trace2skill/`](day4_trace2skill/)
+目录：[`day4_trace2skill/`](day4_trace2skill)
 
 这组实验从5条早期统一任务记录出发，选择任务5、7、8进行局部分析。系统先为每条任务总结可复用经验，再比较风险和通用性，最终选择2项修改写入候选 Skill。
 
@@ -53,7 +53,7 @@ experiments/results/autonomous_gse_v01/campaign_report.json
 
 ## Day 5：统一任务记录格式与基础校验
 
-目录：[`day5_schema/`](day5_schema/)
+目录：[`day5_schema/`](day5_schema)
 
 这组结果把 τ³ 的运行记录转换成项目统一格式，并把“任务是否成功”与“执行过程是否合规”分开判断。`Trajectory` 表示一次完整任务运行记录，`verdict` 表示校验程序给出的判断。
 
@@ -68,7 +68,7 @@ experiments/results/autonomous_gse_v01/campaign_report.json
 
 ## Day 6：通用执行过程校验器
 
-目录：[`day6_process_verifier/`](day6_process_verifier/)
+目录：[`day6_process_verifier/`](day6_process_verifier)
 
 这组文件记录通用过程校验器逐步增加规则的四个版本。每个文件都包含相同10条任务的逐规则判断、证据和总体合规结果。它们是版本演进记录，不是四次互相独立的实验。
 
@@ -83,7 +83,7 @@ experiments/results/autonomous_gse_v01/campaign_report.json
 
 ## SkillOpt SearchQA
 
-目录：[`skillopt_searchqa_main200_hard_s42/`](skillopt_searchqa_main200_hard_s42/)
+目录：[`skillopt_searchqa_main200_hard_s42/`](skillopt_searchqa_main200_hard_s42)
 
 这组实验使用200道训练题连续运行5个 Skill 优化步骤，并用固定的选择评测决定是否接受每一步的候选版本。更完整的实验说明见该目录的 [`README.md`](skillopt_searchqa_main200_hard_s42/README.md)。
 
@@ -115,14 +115,14 @@ experiments/results/autonomous_gse_v01/campaign_report.json
 
 具体目录：
 
-- [`steps/step_0004/`](skillopt_searchqa_main200_hard_s42/steps/step_0004/)：候选版本被接受，并成为最终最佳 Skill；
-- [`steps/step_0005/`](skillopt_searchqa_main200_hard_s42/steps/step_0005/)：候选版本被选择门槛拒绝。
+- [`steps/step_0004/`](skillopt_searchqa_main200_hard_s42/steps/step_0004)：候选版本被接受，并成为最终最佳 Skill；
+- [`steps/step_0005/`](skillopt_searchqa_main200_hard_s42/steps/step_0005)：候选版本被选择门槛拒绝。
 
 第1至第3步的汇总仍保存在 `history.json`，完整逐题记录位于本机 `external/SkillOpt/outputs/searchqa_main200_hard_s42/`，不在 Git 结果目录中。
 
 ## SuiteCRM v01：基线对照和候选 S1
 
-目录：[`stweb_suitecrm_poc_v01/`](stweb_suitecrm_poc_v01/)
+目录：[`stweb_suitecrm_poc_v01/`](stweb_suitecrm_poc_v01)
 
 这组实验先用51条无 Skill 训练记录生成不同 Skill，再用18个固定任务比较四种方法：无 Skill、人工 Skill、只根据任务成功学习的 Skill、只根据成功且合规记录学习的 Skill。该目录还保存了后来根据任务结果与规则校验证据共同生成的候选 S1。
 
@@ -180,7 +180,7 @@ experiments/results/autonomous_gse_v01/campaign_report.json
 
 ## SuiteCRM v02：S0 与 S1 的正式比较
 
-目录：[`stweb_suitecrm_poc_v02/`](stweb_suitecrm_poc_v02/)
+目录：[`stweb_suitecrm_poc_v02/`](stweb_suitecrm_poc_v02)
 
 这组实验在18个固定任务上比较无 Skill 起点 S0 和候选 S1。结果显示，S1 的任务成功数从5升至6，合规数从4升至6，CuP 从3升至4，因此 S1 被接受并成为新的当前版本。
 
@@ -192,7 +192,7 @@ experiments/results/autonomous_gse_v01/campaign_report.json
 
 ## SuiteCRM v03：S1 与 S2 的正式比较
 
-目录：[`stweb_suitecrm_poc_v03/`](stweb_suitecrm_poc_v03/)
+目录：[`stweb_suitecrm_poc_v03/`](stweb_suitecrm_poc_v03)
 
 这组实验从已接受的 S1 出发，根据新的训练经验增量生成 S2，再在相同18个固定任务上比较两个版本。两者任务成功数均为7，但 S2 的合规数从7降至6，CuP 从4降至3，因此 S2 被拒绝，当前版本继续保持为 S1。
 

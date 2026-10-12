@@ -6,23 +6,11 @@ from pathlib import Path
 import pytest
 import yaml
 
-from benchmarks.tau2_governed_evolution.shared.compiler.resolvers import (
-    ensure_tau2_importable,
-)
-from benchmarks.tau2_governed_evolution.shared.compiler.schema import CompiledTaskBundle
-from benchmarks.tau2_governed_evolution.shared.compliance.composite import (
-    evaluate_composed_compliance,
-)
-from benchmarks.tau2_governed_evolution.shared.compliance.templates import (
-    _is_unconditional_compensation_offer,
-    delayed_flight_compensation_oracle,
-    explicit_confirmation_oracle,
-    itinerary_identity_oracle,
-)
-from benchmarks.tau2_governed_evolution.shared.compliance.trajectory_utils import (
-    TrajectoryEvent,
-    extract_trajectory_events,
-)
+from src.benchmark_shared.compiler.resolvers import ensure_tau2_importable
+from src.benchmark_shared.compiler.schema import CompiledTaskBundle
+from src.benchmark_shared.compliance.composite import evaluate_composed_compliance
+from src.benchmark_shared.compliance.templates import _is_unconditional_compensation_offer, delayed_flight_compensation_oracle, explicit_confirmation_oracle, itinerary_identity_oracle
+from src.benchmark_shared.compliance.trajectory_utils import TrajectoryEvent, extract_trajectory_events
 
 ensure_tau2_importable()
 

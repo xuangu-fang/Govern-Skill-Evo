@@ -1,6 +1,7 @@
 import gzip
 import json
 from pathlib import Path
+from src.skill_evolution.shared.experiment_paths import resolve_artifact_path
 
 
 ROOT = (
@@ -12,7 +13,7 @@ EXPECTED_BUNDLES = "06f7209589867feeb5608b49d1c64976bf18049deaabaa97c50afeee07d9
 
 
 def _rows() -> list[dict]:
-    return [json.loads(line) for line in (ROOT / "rollout_results.jsonl").read_text().splitlines()]
+    return [json.loads(line) for line in ((Path(__file__).resolve().parents[2] / 'artifacts/benchmarks/tau2/governed_v2_day28/construction/complex_workflow/pilot/base_calibration/rollout_results.jsonl')).read_text().splitlines()]
 
 
 def test_cw3_has_exactly_three_valid_rollouts_per_frozen_task() -> None:
@@ -26,7 +27,7 @@ def test_cw3_has_exactly_three_valid_rollouts_per_frozen_task() -> None:
 
 
 def test_cw3_freeze_and_base_runtime_are_unchanged() -> None:
-    summary = json.loads((ROOT / "base_calibration_summary.json").read_text())
+    summary = json.loads(((Path(__file__).resolve().parents[2] / 'experiments/benchmarks/tau2/governed_v2_day28/construction/complex_workflow/pilot/base_calibration/base_calibration_summary.json')).read_text())
     assert summary["freeze_verification"] == {
         "declarations_sha256": EXPECTED_DECLARATIONS,
         "compiled_bundle_sha256": EXPECTED_BUNDLES,
@@ -51,7 +52,7 @@ def test_cw3_preserves_complete_evidence_and_final_state() -> None:
         assert row["component_compliance"] is not None
         assert row["behavior_state"] in {"CS", "CF", "VS", "VF"}
         assert row["protected_state_audit"]["all_protected_invariants_unchanged"]
-        db_path = Path(row["final_db_state"]["path"])
+        db_path = resolve_artifact_path(row["final_db_state"]["path"])
         with gzip.open(db_path, "rt") as handle:
             db = json.load(handle)
         assert {"users", "reservations", "flights"} <= set(db)
@@ -69,7 +70,7 @@ def test_cw3_staged_goals_were_introduced_and_acted_on() -> None:
 
 
 def test_cw3_summary_and_manual_attribution_are_complete() -> None:
-    summary = json.loads((ROOT / "base_calibration_summary.json").read_text())
+    summary = json.loads(((Path(__file__).resolve().parents[2] / 'experiments/benchmarks/tau2/governed_v2_day28/construction/complex_workflow/pilot/base_calibration/base_calibration_summary.json')).read_text())
     assert summary["overall"] == {
         "rollouts": 45,
         "valid_rollouts": 45,
@@ -90,7 +91,7 @@ def test_cw3_summary_and_manual_attribution_are_complete() -> None:
     assert summary["hypothesis_b_judgment"] == "PARTIALLY_SUPPORTED"
     assert summary["next_decision"] == "HOLD"
 
-    annotations = json.loads((ROOT / "trajectory_attributions.json").read_text())
+    annotations = json.loads(((Path(__file__).resolve().parents[2] / 'experiments/benchmarks/tau2/governed_v2_day28/construction/complex_workflow/pilot/base_calibration/trajectory_attributions.json')).read_text())
     non_cs = [row for row in _rows() if row["behavior_state"] != "CS"]
     assert len(annotations) == len(non_cs) == 26
     assert all(item["note"] for item in annotations)

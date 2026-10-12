@@ -8,7 +8,7 @@ from src.adapters.tau2.tau3_task_split import build_frozen_split, load_frozen_sp
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 TAU2_ROOT = REPO_ROOT / "external/tau2-bench"
-FROZEN = REPO_ROOT / "experiments/campaigns/autonomous_gse_v09/batch_map.json"
+FROZEN = REPO_ROOT / "experiments/methods/v09/autonomous_gse_v09/config/batch_map.json"
 
 
 def test_tau3_split_counts_batches_and_overlap_contract() -> None:

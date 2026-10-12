@@ -7,8 +7,8 @@ from collections.abc import Callable
 from typing import Any
 
 from src.learners.stwebagentbench.generate_skill import call_learner
-from src.skill_evolution.autonomous_gse_v05_proposal import annotate_parent_skill
-from src.skill_evolution.autonomous_gse_v07_proposal import DiagnosisEditorRequest
+from src.skill_evolution.v05.autonomous_gse_v05_proposal import annotate_parent_skill
+from src.skill_evolution.v07.autonomous_gse_v07_proposal import DiagnosisEditorRequest
 
 LEARNER_MODEL = "openai/gpt-5.6-luna"
 LearnerCall = Callable[[str, str, str], tuple[str, str, dict[str, Any] | None]]

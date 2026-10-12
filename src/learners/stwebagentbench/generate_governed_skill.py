@@ -26,11 +26,8 @@ from src.learners.stwebagentbench.generate_skill import (
     save_text_atomic,
     validate_skill,
 )
-from src.skill_evolution.governed_experience import SCHEMA_VERSION
-from src.skill_evolution.two_dimensional_gate import (
-    OutcomeState,
-    classify_state,
-)
+from src.skill_evolution.shared.governed_experience import SCHEMA_VERSION
+from src.skill_evolution.shared.two_dimensional_gate import OutcomeState, classify_state
 
 
 DEFAULT_INPUT = INPUT_ROOT / "governed_experiences_v01.json"

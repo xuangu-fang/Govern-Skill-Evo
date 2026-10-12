@@ -113,7 +113,7 @@ S0的初始选择评测                               = 18
 唯一作为正式依据的 S0 文件是：
 
 ```text
-experiments/campaigns/autonomous_gse_v01/skills/S0_no_skill.json
+experiments/methods/v01/autonomous_gse_v01/config/skills/S0_no_skill.json
 ```
 
 使用 S0 运行时，应保留基准测试（benchmark）默认的 Agent 系统提示词和策略，但不能注入任何学习得到的 Skill。
@@ -375,10 +375,10 @@ S1                            # 第一个被接受的 Skill 版本号
 唯一作为正式依据的实验清单是：
 
 ```text
-experiments/campaigns/autonomous_gse_v01/campaign_manifest.json
+experiments/methods/v01/autonomous_gse_v01/config/campaign_manifest.json
 ```
 
-v0.1 已于 2026-08-13 完成，当前清单状态为 `completed`。任务分配以已执行的 `batch_map.json` 为准，正式结果以 `experiments/results/autonomous_gse_v01/campaign_report.json` 为准。
+v0.1 已于 2026-08-13 完成，当前清单状态为 `completed`。任务分配以已执行的 `batch_map.json` 为准，正式结果以 `experiments/methods/v01/autonomous_gse_v01/results/campaign_report.json` 为准。
 
 当前正式入口保留两阶段执行方式：`initial-checkpoint` 先让 S0 完成18条 Selection Task，`run` 再从该 checkpoint 执行完整三步流程。已完成的 `autonomous_gse_v01` 不允许原地覆盖；重新运行应使用新的 Campaign ID。入口只校验路径、版本、Task ID、预算和结构化结果关系，不依赖逐文件内容摘要、实现绑定或单独冻结记录。
 

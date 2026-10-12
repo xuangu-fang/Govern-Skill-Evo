@@ -100,29 +100,29 @@ the combined formal set contained sixteen tasks; RAP-01 later raised it to 24.
 Run the offline edition and retained-Pilot checks with:
 
 ```bash
-python -m benchmarks.tau2_governed_evolution.validate_editions phase_v3_day34
-python benchmarks/tau2_governed_evolution/editions/phase_v3_day34/construction/primitive_a/tools/validate_primitive_a.py
-python benchmarks/tau2_governed_evolution/editions/phase_v3_day34/construction/primitive_b/pb_c02/tools/validate_tasks.py
-python benchmarks/tau2_governed_evolution/editions/phase_v3_day34/construction/hidden_resource_semantics/tools/validate_construction.py
-python benchmarks/tau2_governed_evolution/editions/phase_v3_day34/construction/latent_settlement_contract/tools/validate_gate0.py
-python benchmarks/tau2_governed_evolution/editions/phase_v3_day34/construction/latent_settlement_contract/core_family/tools/validate_core.py
-python benchmarks/tau2_governed_evolution/editions/phase_v3_day34/construction/retail_hidden_operational_path_audit/tools/probe_native_retail.py
-python benchmarks/tau2_governed_evolution/editions/phase_v3_day34/construction/retail_hidden_operational_path/tools/validate_gate0.py
-python benchmarks/tau2_governed_evolution/editions/phase_v3_day34/construction/retail_hidden_operational_path/core_family/tools/validate_core.py
-python benchmarks/tau2_governed_evolution/editions/phase_v3_day34/construction/retail_dual_update_sequence/tools/validate_gate0.py
-python benchmarks/tau2_governed_evolution/editions/phase_v3_day34/construction/joint_settlement_destination_scope/tools/validate_gate0.py
-python benchmarks/tau2_governed_evolution/editions/phase_v3_day34/construction/joint_settlement_destination_scope/core_family/tools/validate_core.py --verify-admission
-python benchmarks/tau2_governed_evolution/editions/phase_v3_day34/construction/integration_audit/validate_integration.py
+python -m scripts.benchmarks.validate_editions phase_v3_day34
+python scripts/benchmarks/v3/development/primitive_a/tools/validate_primitive_a.py
+python scripts/benchmarks/v3/development/primitive_b/pb_c02/tools/validate_tasks.py
+python scripts/benchmarks/v3/development/hidden_resource_semantics/tools/validate_construction.py
+python scripts/benchmarks/v3/development/latent_settlement_contract/tools/validate_gate0.py
+python scripts/benchmarks/v3/development/latent_settlement_contract/core_family/tools/validate_core.py
+python src/benchmark_v3/development/retail_hidden_operational_path_audit/tools/probe_native_retail.py
+python scripts/benchmarks/v3/development/retail_hidden_operational_path/tools/validate_gate0.py
+python scripts/benchmarks/v3/development/retail_hidden_operational_path/core_family/tools/validate_core.py
+python scripts/benchmarks/v3/development/retail_dual_update_sequence/tools/validate_gate0.py
+python scripts/benchmarks/v3/development/joint_settlement_destination_scope/tools/validate_gate0.py
+python scripts/benchmarks/v3/development/joint_settlement_destination_scope/core_family/tools/validate_core.py --verify-admission
+python scripts/benchmarks/v3/development/integration_audit/validate_integration.py
 ```
 
 The completed calibration runners remain reproducible but are not part of the
 formal edition validator:
 
 ```bash
-python benchmarks/tau2_governed_evolution/editions/phase_v3_day34/experiments/primitive_b_pb_c02_pilot/run_pilot.py --stage all
-python benchmarks/tau2_governed_evolution/editions/phase_v3_day34/experiments/hidden_resource_semantics_pilot/run_pilot.py --stage all
-python benchmarks/tau2_governed_evolution/editions/phase_v3_day34/experiments/latent_settlement_contract_gate1/run_gate1.py
-python benchmarks/tau2_governed_evolution/editions/phase_v3_day34/experiments/retail_hidden_operational_path_gate1/run_gate1.py
-python benchmarks/tau2_governed_evolution/editions/phase_v3_day34/experiments/retail_dual_update_sequence_gate1/run_gate1.py
-python benchmarks/tau2_governed_evolution/editions/phase_v3_day34/experiments/joint_settlement_destination_scope_gate1/run_gate1.py
+python scripts/benchmarks/v3/development/experiments/primitive_b_pb_c02_pilot/run_pilot.py --stage all
+python scripts/benchmarks/v3/development/experiments/hidden_resource_semantics_pilot/run_pilot.py --stage all
+python scripts/benchmarks/v3/development/experiments/latent_settlement_contract_gate1/run_gate1.py
+python scripts/benchmarks/v3/development/experiments/retail_hidden_operational_path_gate1/run_gate1.py
+python scripts/benchmarks/v3/development/experiments/retail_dual_update_sequence_gate1/run_gate1.py
+python scripts/benchmarks/v3/development/experiments/joint_settlement_destination_scope_gate1/run_gate1.py
 ```

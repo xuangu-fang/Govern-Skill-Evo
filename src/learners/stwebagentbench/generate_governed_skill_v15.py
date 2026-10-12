@@ -1,6 +1,6 @@
 """v15 bounded Editor; receives certified learner hypotheses, never Oracle input."""
 import json
-from src.skill_evolution.autonomous_gse_v15_proposal import editor_payload, apply_editor_output
+from src.skill_evolution.v15.autonomous_gse_v15_proposal import editor_payload, apply_editor_output
 
 EDITOR_SYSTEM_PROMPT = '''You are GSE-v15 bounded Editor. In one call, deduplicate,
 generalize incidental details, normalize wording, select a Parent section, and write

@@ -7,28 +7,13 @@ from pathlib import Path
 import pytest
 import yaml
 
-from benchmarks.tau2_governed_evolution.shared.compiler.resolvers import (
-    ensure_tau2_importable,
-)
-from benchmarks.tau2_governed_evolution.shared.compiler.schema import CompiledTaskBundle
-from benchmarks.tau2_governed_evolution.shared.compliance.composite import (
-    evaluate_v2_pilot_compliance,
-)
-from benchmarks.tau2_governed_evolution.shared.compliance.oracle import (
-    evaluate_target_compliance,
-)
-from benchmarks.tau2_governed_evolution.shared.compliance.templates import (
-    _is_user_cancellation_reason,
-    baggage_allowance_oracle,
-)
-from benchmarks.tau2_governed_evolution.shared.compliance.trajectory_utils import (
-    TrajectoryEvent,
-)
-from benchmarks.tau2_governed_evolution.editions.governed_v2_day28.benchmark.v2.representation import (
-    ACTUAL_PAYLOAD_CONFIRMATION_BASIS,
-    I1_RELATION,
-    I2_RELATION,
-)
+from src.benchmark_shared.compiler.resolvers import ensure_tau2_importable
+from src.benchmark_shared.compiler.schema import CompiledTaskBundle
+from src.benchmark_shared.compliance.composite import evaluate_v2_pilot_compliance
+from src.benchmark_shared.compliance.oracle import evaluate_target_compliance
+from src.benchmark_shared.compliance.templates import _is_user_cancellation_reason, baggage_allowance_oracle
+from src.benchmark_shared.compliance.trajectory_utils import TrajectoryEvent
+from src.benchmark_governed.v2.benchmark.v2.representation import ACTUAL_PAYLOAD_CONFIRMATION_BASIS, I1_RELATION, I2_RELATION
 
 ensure_tau2_importable()
 

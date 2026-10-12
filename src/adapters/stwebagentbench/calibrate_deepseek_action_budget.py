@@ -24,18 +24,15 @@ from st_bench_example import DemoAgent  # noqa: E402
 from src.adapters.stwebagentbench.seeded_agent import (  # noqa: E402
     seed_agent_client,
 )
-from src.skill_evolution.autonomous_gse_v06_benchmark_runtime import (  # noqa: E402
-    BENCHMARK_AGENT_MODEL,
-    selection_execution_seed,
-)
+from src.skill_evolution.v06.autonomous_gse_v06_benchmark_runtime import BENCHMARK_AGENT_MODEL, selection_execution_seed
 
 DEFAULT_INPUT_ROOT = (
     REPO_ROOT
-    / "artifacts/autonomous_gse_v06/raw/selection/initial_selection/s0_empty_skill"
+    / "artifacts/methods/v06/autonomous_gse_v06/raw/selection/initial_selection/s0_empty_skill"
 )
 DEFAULT_OUTPUT = (
     REPO_ROOT
-    / "artifacts/autonomous_gse_v06/calibration/deepseek_action_budget.json"
+    / "artifacts/methods/v06/autonomous_gse_v06/calibration/deepseek_action_budget.json"
 )
 DEFAULT_BUDGETS = (512, 1024, 2048, 4096, 8192)
 

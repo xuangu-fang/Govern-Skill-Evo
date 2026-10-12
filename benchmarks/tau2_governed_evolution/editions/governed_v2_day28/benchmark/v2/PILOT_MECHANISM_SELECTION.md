@@ -2,7 +2,7 @@
 
 ## 1. Status and authority
 
-This document freezes the Step 2 mechanism portfolio for the 24–32 task Structural Pilot. It is subordinate to [`STRUCTURAL_PILOT_CONTRACT.md`](./STRUCTURAL_PILOT_CONTRACT.md). In particular, the selection is governed by:
+This document freezes the Step 2 mechanism portfolio for the 24–32 task Structural Pilot. It is subordinate to [`STRUCTURAL_PILOT_CONTRACT.md`](STRUCTURAL_PILOT_CONTRACT.md). In particular, the selection is governed by:
 
 - Minimal Structural Upgrade;
 - Natural Workflow First;

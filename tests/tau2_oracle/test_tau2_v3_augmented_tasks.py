@@ -5,9 +5,7 @@ import re
 from collections import Counter
 from pathlib import Path
 
-from benchmarks.tau2_governed_evolution.shared.compiler.resolvers import (
-    ensure_tau2_importable,
-)
+from src.benchmark_shared.compiler.resolvers import ensure_tau2_importable
 
 ensure_tau2_importable()
 

@@ -314,15 +314,11 @@ def run_worker(payload: dict[str, Any]) -> None:
     task = payload["task"]
 
     if payload["source_split"] == "train":
-        from src.skill_evolution.autonomous_gse_v03_benchmark_runtime import (
-            _run_train_task,
-        )
+        from src.skill_evolution.v03.autonomous_gse_v03_benchmark_runtime import _run_train_task
 
         _run_train_task(args, manifest, method, skill, task)
     else:
-        from src.skill_evolution.autonomous_gse_v03_benchmark_runtime import (
-            _run_selection_task,
-        )
+        from src.skill_evolution.v03.autonomous_gse_v03_benchmark_runtime import _run_selection_task
 
         _run_selection_task(args, manifest, method, skill, task)
 

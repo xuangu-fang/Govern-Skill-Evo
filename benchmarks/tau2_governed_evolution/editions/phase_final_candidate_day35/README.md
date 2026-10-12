@@ -42,8 +42,8 @@ Validation:
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 python3.12 \
-  -m benchmarks.tau2_governed_evolution.validate_editions phase_final_candidate_day35
+  -m scripts.benchmarks.validate_editions phase_final_candidate_day35
 
 PYTHONDONTWRITEBYTECODE=1 python3.12 \
-  benchmarks/tau2_governed_evolution/editions/phase_final_candidate_day35/construction/integration_audit/validate_integration.py
+  scripts/benchmarks/v3/final/integration_audit/validate_integration.py
 ```
