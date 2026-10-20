@@ -1,0 +1,89 @@
+{
+  "decision": "revise",
+  "reason": "The successful executions show a consistent retrieve-clean-place sequence, including opening a closed destination before placement. P2 shows a Skill-addressable search/efficiency failure: it repeatedly revisited already-empty locations and did not inspect many plausible closed containers before hitting the step limit, while P3 and P4 show that expanding the search to different fixtures/containers can find the target. Since no Parent Skill exists, these updates establish the baseline task decomposition, search, cleaning, and placement requirements.",
+  "plan": {
+    "goal": "Establish a reusable ALFRED Skill for clean-and-place tasks that decomposes the task, efficiently finds the named object, avoids unproductive search loops, cleans when required, and opens closed destinations before placement, while preserving successful direct retrieval, cleaning, and final placement behavior.",
+    "updates": [
+      {
+        "id": "u1",
+        "text": "For any instruction of the form 'put a clean <object> in/on <destination>' or 'clean some <object> and put it in <destination>', decompose the task into acquiring the named object, cleaning it when required, and placing it at the named destination. Use the current observation, current inventory, and admissible action list to identify the object and destination. If the object is already held, proceed with the remaining phases; if it is visible, navigate to it and take it; if it is inside a closed likely container, open that container before taking. Select only actions present in the current admissible list; when a desired go-to target is not offered, choose another admissible action that makes progress toward a plausible source or destination. Preserve successful direct retrieval and placement behavior when no cleaning is required.",
+        "basis": [
+          "G1",
+          "P1:1",
+          "P1:2",
+          "P1:3",
+          "P3:20",
+          "P4:5",
+          "P4:7"
+        ]
+      },
+      {
+        "id": "u2",
+        "text": "When the named object is not visible in the current observation or inventory, search systematically instead of cycling. Use the visible room layout to choose a plausible unchecked receptacle or fixture; prefer opening closed cabinets, drawers, fridges, or other containers because their contents are hidden, and inspect open shelves, counters, and other fixtures as well. After a location is observed empty and no state has changed, do not immediately return to it or repeat an unchanged inventory check; choose a different plausible location. If ordinary candidates in the immediate area have been checked, extend the search to distinct remaining containers, shelves, or less obvious utility fixtures rather than bouncing among the same few locations. Monitor the step budget and leave enough steps to acquire, clean, and place the object once found.",
+        "basis": [
+          "G2",
+          "P2:13",
+          "P2:31",
+          "P2:50",
+          "P2:outcome",
+          "P3:19",
+          "P3:20",
+          "P4:6"
+        ]
+      },
+      {
+        "id": "u3",
+        "text": "When the task wording requires a clean object, the object must be cleaned while held before final placement. After taking the named object, navigate to an available cleaning fixture, such as a sinkbasin when present, and perform the clean action for that object there; use the resulting clean confirmation as evidence that this phase is complete. Do not move the object to the final destination before this cleaning action. If the task does not require cleaning, skip this phase.",
+        "basis": [
+          "G1",
+          "P1:3",
+          "P1:4",
+          "P1:5",
+          "P3:21",
+          "P3:22",
+          "P4:8",
+          "P4:9"
+        ]
+      },
+      {
+        "id": "u4",
+        "text": "After cleaning, or after taking when cleaning is not required, navigate to the named destination. If the destination is a closed receptacle, open it first and verify that it is open; then perform the move action that places the held object into or onto that destination. If the destination is already open or is an open surface, move directly without an unnecessary open action. The placement move is the goal-completing action; after a successful move, stop rather than adding unrelated actions.",
+        "basis": [
+          "G1",
+          "P1:6",
+          "P1:7",
+          "P3:23",
+          "P3:24",
+          "P4:10",
+          "P4:11",
+          "P4:12"
+        ]
+      }
+    ],
+    "checks": [
+      {
+        "id": "c1",
+        "about": [
+          "u2"
+        ],
+        "question": "When the target has not appeared after several checks, does the Actor move to a different plausible unchecked container or fixture, including opening a closed one, rather than returning to a just-emptied sink, counter, or cabinet or repeating inventory, and does it leave enough steps for the clean-and-place sequence?"
+      },
+      {
+        "id": "c2",
+        "about": [
+          "u1",
+          "u3",
+          "u4"
+        ],
+        "question": "For a clean-and-place task, does the Actor take the matching object, clean it at a cleaning fixture while holding it, open a closed destination if necessary, and finish with the move-to-destination action?"
+      },
+      {
+        "id": "c3",
+        "about": [
+          "u1"
+        ],
+        "question": "When a desired location is not in the current admissible actions, does the Actor choose another listed action that advances the task rather than emitting an unavailable command?"
+      }
+    ]
+  }
+}

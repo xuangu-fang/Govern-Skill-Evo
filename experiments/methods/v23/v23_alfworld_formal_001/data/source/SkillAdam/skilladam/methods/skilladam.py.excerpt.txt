@@ -1,0 +1,21 @@
+593:     def _build_sampler(
+594:         self,
+595:         cases: tuple[BenchmarkCase, ...],
+596:     ):
+597:         case_ids = list(
+598:             self.config.optimization_case_ids
+599:             or tuple(case.case_id for case in cases)
+600:         )
+601:         if self.config.shuffle_optimization_pool:
+602:             random.Random(self.config.seed).shuffle(case_ids)
+603:         if self.config.validation_mode == "same_batch":
+604:             return build_same_batch_sampler(
+605:                 case_ids,
+606:                 batch_size=self.config.train_size,
+607:                 max_iterations=self.config.feedback_loop.max_iterations,
+608:                 strategy=self.config.sampling_strategy,
+609:                 seed=self.config.seed,
+610:                 include_partial_final_batch=(
+611:                     self.config.include_partial_final_batch
+612:                 ),
+613:             )

@@ -4,8 +4,8 @@
 
 | 对象 | 入口 |
 |---|---|
-| 方法实验 | [v01–v22 配置、结果与运行导航](../experiments/methods/README.md) |
-| 方法文档 | [v17](methods/v17/README.md)、[v18](methods/v18/README.md)、[v19](methods/v19/README.md)、[v20](methods/v20/README.md)、[v21](methods/v21/README.md)、[v22 诊断预条件化设计](methods/v22/README.md) |
+| 方法实验 | [v01–v23 配置、结果与运行导航](../experiments/methods/README.md) |
+| 方法文档 | [v17](methods/v17/README.md)、[v18](methods/v18/README.md)、[v19](methods/v19/README.md)、[v20](methods/v20/README.md)、[v21](methods/v21/README.md)、[v22 诊断预条件化设计](methods/v22/README.md)、[v23 自动分组设计](methods/v23/README.md) |
 | Benchmark 总导航 | [系列、版本和材料归属](../benchmarks/README.md) |
 | Benchmark v5 | [设计、协议与报告](benchmarks/v5/README.md) |
 | 实验日志 | [docs 下实验日志](04_EXPERIMENT_LOG.md)；根目录副本保持原样 |

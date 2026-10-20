@@ -1,0 +1,71 @@
+120:     root: Path,
+121:     split: Split,
+122: ) -> tuple[BenchmarkCase, ...]:
+123:     paths = {
+124:         name: root / name / "items.json"
+125:         for name in ("train", "val", "test")
+126:     }
+127:     present = {name for name, path in paths.items() if path.is_file()}
+128:     if len(present) != len(paths):
+129:         missing = sorted(set(paths) - present)
+130:         raise ValueError(
+131:             "ALFWorld split files are incomplete; missing "
+132:             + ", ".join(f"{name}/items.json" for name in missing)
+133:         )
+134: 
+135:     items_by_split = {
+136:         name: _read_split_items(path, name)
+137:         for name, path in paths.items()
+138:     }
+139:     _reject_cross_split_duplicates(items_by_split)
+140:     split_manifest = _load_split_manifest(root)
+141:     _validate_declared_counts(split_manifest, items_by_split)
+142:     historical_split = _HISTORICAL_SPLITS[split]
+143: 
+144:     cases: list[BenchmarkCase] = []
+145:     for item in items_by_split[historical_split]:
+146:         metadata: dict[str, Any] = {
+147:             "split": split,
+148:             "historical_split": historical_split,
+149:             "source_layout": "alfworld-path-split",
+150:         }
+151:         for key in ("source_repo", "source_method"):
+152:             value = split_manifest.get(key)
+153:             if isinstance(value, str) and value.strip():
+154:                 metadata[key] = value.strip()
+155:         cases.append(
+156:             BenchmarkCase(
+157:                 case_id=item["id"],
+158:                 payload={
+159:                     "gamefile": item["gamefile"],
+160:                     "task_type": item["task_type"],
+161:                     "environment_split": _environment_split(
+162:                         historical_split,
+163:                         item["gamefile"],
+164:                     ),
+165:                 },
+166:                 reference=None,
+167:                 metadata=metadata,
+168:             )
+169:         )
+170:     return tuple(sorted(cases, key=lambda case: case.case_id))
+171: 
+172: 
+173: def _read_split_items(
+174:     path: Path,
+175:     split: str,
+176: ) -> tuple[dict[str, str], ...]:
+177:     raw_items = _read_json(path, f"{split}/items.json")
+178:     if not isinstance(raw_items, list):
+179:         raise ValueError(
+180:             f"ALFWorld {split}/items.json must contain a JSON array"
+181:         )
+182:     items: list[dict[str, str]] = []
+183:     seen: set[str] = set()
+184:     for index, raw_item in enumerate(raw_items):
+185:         if not isinstance(raw_item, Mapping):
+186:             raise ValueError(
+187:                 f"ALFWorld {split}[{index}] must be a JSON object"
+188:             )
+189:         case_id = _non_empty_text(
+190:             raw_item.get("id"),

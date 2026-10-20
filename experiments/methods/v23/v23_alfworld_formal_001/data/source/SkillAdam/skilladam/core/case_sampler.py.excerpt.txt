@@ -1,0 +1,49 @@
+100: def build_same_batch_sampler(
+101:     case_ids: Sequence[CaseId],
+102:     *,
+103:     batch_size: int,
+104:     max_iterations: int,
+105:     strategy: str = "random",
+106:     seed: int = 42,
+107:     include_partial_final_batch: bool = False,
+108: ) -> DisjointCaseSampler:
+109:     """Build deterministic batches whose validation reuses training cases."""
+110: 
+111:     if batch_size <= 0:
+112:         raise ValueError("batch_size must be positive")
+113:     if max_iterations <= 0:
+114:         raise ValueError("max_iterations must be positive")
+115:     pool = list(case_ids)
+116:     unique = list(dict.fromkeys(pool))
+117:     if len(unique) != len(pool) or len(unique) < batch_size:
+118:         raise ValueError(
+119:             f"at least {batch_size} unique cases are required for sampling"
+120:         )
+121:     if strategy == "random":
+122:         rng = random.Random(seed)
+123:         batches = [
+124:             _same_batch(rng.sample(unique, batch_size))
+125:             for _ in range(max_iterations)
+126:         ]
+127:     elif strategy == "sequential":
+128:         batches = []
+129:         for start in range(0, len(unique), batch_size):
+130:             selected = unique[start : start + batch_size]
+131:             if len(selected) < batch_size and not include_partial_final_batch:
+132:                 break
+133:             batches.append(_same_batch(selected))
+134:             if len(batches) >= max_iterations:
+135:                 break
+136:     else:
+137:         raise ValueError(f"unknown sampling strategy: {strategy!r}")
+138:     return DisjointCaseSampler(batches)
+139: 
+140: 
+141: def _same_batch(case_ids: Sequence[CaseId]) -> IterationCases:
+142:     selected = tuple(case_ids)
+143:     return IterationCases(
+144:         training_case_ids=selected,
+145:         validation_case_ids=selected,
+146:         validation_mode="same_batch",
+147:     )
+148: 

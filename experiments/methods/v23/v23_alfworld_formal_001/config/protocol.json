@@ -1,0 +1,100 @@
+{
+  "benchmark": "ALFWorld",
+  "seed": 42,
+  "epochs": 1,
+  "batch_size": 10,
+  "rounds": 6,
+  "ordering": "official_sequential_no_shuffle",
+  "initial_parent": null,
+  "initial_memory": {
+    "entries": [],
+    "sources": {}
+  },
+  "independent_validation": false,
+  "gate": "ACCEPT iff Candidate success count > Parent success count; otherwise RETAIN",
+  "gate_and_replay_tasks": "same frozen optimization batch",
+  "memory_timing": "Preconditioner and Replay both read round-start Memory; new Memory starts next round",
+  "state_publication": "atomic Parent + Active Memory; no partial promotion",
+  "actor": {
+    "python": "/Users/didi/miniforge3/envs/alfworld/bin/python",
+    "model": "deepseek-flash",
+    "base_url": "https://api.deepseek.com",
+    "request_parameters": {
+      "endpoint": "https://api.deepseek.com/chat/completions",
+      "model": "deepseek-flash",
+      "max_tokens": 16384,
+      "timeout_seconds": 300,
+      "temperature": 1.0,
+      "reasoning_effort": "medium",
+      "thinking": {
+        "type": "enabled"
+      },
+      "stream": false
+    },
+    "execution_protocol": {
+      "system_prompt": "You are an expert agent operating in the ALFRED Embodied Environment.",
+      "initial_template": "\nYou are an expert agent operating in the ALFRED Embodied Environment.\nYour current observation is: {current_observation}\nYour admissible actions of the current situation are: [{admissible_actions}].\n\nNow it's your turn to take an action.\nYou should first reason step-by-step about the current situation. This reasoning process MUST be enclosed within <think> </think> tags.\nOnce you've finished your reasoning, you should choose an admissible action for current step and present it within <action> </action> tags.\n",
+      "history_template": "\nYou are an expert agent operating in the ALFRED Embodied Environment. Your task is to: {task_description}\nPrior to this step, you have already taken {step_count} step(s). Below are the most recent {history_length} observations and the corresponding actions you took: {action_history}\nYou are now at step {current_step} and your current observation is: {current_observation}\nYour admissible actions of the current situation are: [{admissible_actions}].\n\nNow it's your turn to take an action.\nYou should first reason step-by-step about the current situation. This reasoning process MUST be enclosed within <think> </think> tags.\nOnce you've finished your reasoning, you should choose an admissible action for current step and present it within <action> </action> tags.\n",
+      "max_steps": 50,
+      "max_tokens": 16384,
+      "temperature": 1.0,
+      "thinking": "enabled",
+      "reasoning_effort": "medium",
+      "model_semantics": "DeepSeek officially maps medium to high; thinking-mode temperature is ignored by the model.",
+      "environment_seed": 42,
+      "history": "last_2_pre_action_observations",
+      "history_length": 2,
+      "action_mode": "generation_with_admissible_candidates",
+      "invalid_output_policy": "missing_action_tag_or_empty_content_falls_back_to_look",
+      "request_timeout_seconds": 300,
+      "source": {
+        "repository": "https://github.com/microsoft/SkillOpt",
+        "commit": "343db229dbd5ddaf9df6b1d5540d8bcdb2604d5c",
+        "files": {
+          "rollout_no_history.md": {
+            "source_path": "skillopt/envs/alfworld/prompts/rollout_no_history.md",
+            "source_url": "https://raw.githubusercontent.com/microsoft/SkillOpt/343db229dbd5ddaf9df6b1d5540d8bcdb2604d5c/skillopt/envs/alfworld/prompts/rollout_no_history.md",
+            "sha256": "fcf6fe7a561729ccc4581697f5c8ad5986c150e56e32d761bad944b2fc9da614"
+          },
+          "rollout_with_history.md": {
+            "source_path": "skillopt/envs/alfworld/prompts/rollout_with_history.md",
+            "source_url": "https://raw.githubusercontent.com/microsoft/SkillOpt/343db229dbd5ddaf9df6b1d5540d8bcdb2604d5c/skillopt/envs/alfworld/prompts/rollout_with_history.md",
+            "sha256": "7b17c85e102f3e49400df99bd3f333337827df9441abd873926a566ad9858027"
+          },
+          "LICENSE": {
+            "source_path": "LICENSE",
+            "source_url": "https://raw.githubusercontent.com/microsoft/SkillOpt/343db229dbd5ddaf9df6b1d5540d8bcdb2604d5c/LICENSE",
+            "sha256": "9515a04280cf50ce154eb3ab8fa375c7cc5e6b45ea5cb23b7ff3830737020c15"
+          }
+        },
+        "model_settings_reference": "https://github.com/ruc-datalab/SkillAdam/blob/b6c9640f7a9e0d5e3a500c25bc4e6369eeca78f1/skilladam/experiments/main_results.json",
+        "reasoning_mapping_reference": "https://api-docs.deepseek.com/guides/thinking_mode/"
+      },
+      "protocol_id": "govern_alfworld_fixed_skill_v1",
+      "skill_injection": "append_to_system_every_request_when_fixed",
+      "skill_prefix": "\n\n<skill_knowledge>\n",
+      "skill_suffix": "\n</skill_knowledge>",
+      "environment_backend": "textworld_pddl",
+      "wrapper": "AlfredDemangler(shuffle=False)",
+      "reset": "fresh_environment_then_reset_once"
+    },
+    "request_attempts": 3,
+    "strict_response": true
+  },
+  "environment": {
+    "data_root": "/Users/didi/.cache/alfworld",
+    "dataset": "json_2.1.1",
+    "versions": {
+      "alfworld": "0.4.2",
+      "textworld": "1.7.0",
+      "numpy": "1.26.4",
+      "requests": "2.32.5"
+    }
+  },
+  "module_input_limits": {
+    "chars": 300000,
+    "utf8_bytes": 400000
+  },
+  "llm_seed": null,
+  "note": "seed=42 seeds the environment; official sequential batching uses no shuffle. LLM responses are not guaranteed reproducible."
+}

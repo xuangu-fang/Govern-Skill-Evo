@@ -1,0 +1,46 @@
+752:     args: argparse.Namespace,
+753:     method: str,
+754: ) -> tuple[tuple[object, ...], str]:
+755:     from skilladam.execution import select_cases
+756: 
+757:     validation_split = args.validation_split or "validation"
+758:     train_cases = select_cases(
+759:         adapter.load_cases("train"),
+760:         benchmark=args.benchmark,
+761:         scope=args.scope,
+762:         case_ids=(),
+763:         limit=None,
+764:     )
+765:     if validation_split == "train":
+766:         validation_cases = train_cases
+767:     else:
+768:         validation_cases = select_cases(
+769:             adapter.load_cases(validation_split),
+770:             benchmark=args.benchmark,
+771:             scope=args.scope,
+772:             case_ids=(),
+773:             limit=None,
+774:         )
+775:     if method == "skilladam":
+776:         if args.merge_validation_into_train:
+777:             from skilladam.types import BenchmarkCase
+778: 
+779:             merged_validation = tuple(
+780:                 BenchmarkCase(
+781:                     case_id=case.case_id,
+782:                     payload=case.payload,
+783:                     reference=case.reference,
+784:                     metadata={
+785:                         **case.metadata,
+786:                         "source_split": case.metadata.get(
+787:                             "split",
+788:                             validation_split,
+789:                         ),
+790:                         "split": "train",
+791:                     },
+792:                 )
+793:                 for case in validation_cases
+794:             )
+795:             selected = (*train_cases, *merged_validation)
+796:             validation_split = "train"
+797:         else:

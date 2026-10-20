@@ -1,0 +1,216 @@
+{
+  "empty": {
+    "preconditioner": {
+      "decision": "ready",
+      "reason": "The original Updates are consistent with the recorded P1-P4 behavior and Actor capabilities: u1 addresses the repeated-location search failure in P2 while preserving P3's successful expansion to a non-kitchen receptacle; u2 captures the successful acquire-clean-place dependency sequence in P1, P3, and P4; and u3 directly addresses the inadmissible-action failure in P4:5. No supplied Memory entry or current evidence justifies changing or withdrawing any Update or Check.",
+      "adjustments": [],
+      "checks": null
+    },
+    "effective_plan": {
+      "goal": "Improve search efficiency when a target is not found at first, while preserving the successful acquire-clean-place workflow and avoiding wasted inadmissible actions.",
+      "updates": [
+        {
+          "id": "u1",
+          "text": "When locating a target object, do not repeatedly cycle among the same few locations. After checking a location and observing that the target is absent, including after opening a container whose visible contents lack the target, prefer an unchecked admissible location over returning to a previously checked one. Use a deterministic forward sweep through location names/numbers or receptacle classes to compensate for limited history, and expand across genuinely different receptacle and surface types, including outlying or non-kitchen receptacles when present, before revisiting checked sites. At minimum, avoid choosing a location that appears in the immediately preceding observations/actions when another admissible unexamined location exists, unless a new observation indicates the target may now be there.",
+          "basis": [
+            "G2",
+            "P2:5",
+            "P2:8",
+            "P2:11",
+            "P2:21",
+            "P2:outcome",
+            "P3:18",
+            "P3:19",
+            "P3:20",
+            "P3:outcome"
+          ]
+        },
+        {
+          "id": "u2",
+          "text": "For clean-and-place tasks, follow dependency order: locate and acquire the requested target object; if its source container is closed, open it before taking the object; go to the appropriate cleaning fixture such as a sinkbasin when available and clean the held target; then go to the requested destination; if the destination container is closed, open it before placing; finally move or place the cleaned target into or onto the destination. Verify that the acquired object matches the requested target and do not substitute an unrelated object.",
+          "basis": [
+            "G1",
+            "P1:2",
+            "P1:3",
+            "P1:5",
+            "P1:7",
+            "P4:7",
+            "P4:9",
+            "P4:11",
+            "P4:12",
+            "P3:20",
+            "P3:22",
+            "P3:24"
+          ]
+        },
+        {
+          "id": "u3",
+          "text": "Only select actions that appear in the current admissible action list. If an intended location or action is absent, do not issue it and expect progress; instead choose an available alternative, such as another listed location or a currently available examine/open action, and continue the plan from there.",
+          "basis": [
+            "P4:5",
+            "P4:6"
+          ]
+        }
+      ],
+      "checks": [
+        {
+          "id": "c1",
+          "update_ids": [
+            "u1"
+          ],
+          "question": "When the target is not found in the first inspected locations, does the agent avoid repeated A-B-A visitation loops and expand to previously unchecked receptacle or surface types until the target is found?"
+        },
+        {
+          "id": "c2",
+          "update_ids": [
+            "u2"
+          ],
+          "question": "After acquiring the target, does the agent clean it at the appropriate cleaning fixture before delivery and open a closed destination before placing it?"
+        },
+        {
+          "id": "c3",
+          "update_ids": [
+            "u3"
+          ],
+          "question": "Does the agent restrict each action to the current admissible action list and recover from an unavailable intended action without wasting further steps?"
+        }
+      ]
+    }
+  },
+  "real": {
+    "preconditioner": {
+      "decision": "ready",
+      "reason": "The successful acquire-clean-place workflow (u2) is compatible with the recorded successes and is preserved unchanged. The search update (u1) is revised because the historical Skill containing the same search guidance still cycled, missed the listed bathtubbasin, and caused a costly all-cabinet sweep before reaching a plausible surface. The admissible-action update (u3) is strengthened because its prior abstract wording did not prevent an absent numeric-sweep action. Checks are updated to match the revised behavioral requirements.",
+      "adjustments": [
+        {
+          "from": [
+            "u1"
+          ],
+          "to": [
+            {
+              "id": "u1",
+              "text": "When locating a target object, do not repeatedly cycle among the same few locations. Use the current admissible location list, which enumerates all reachable receptacles, to plan the search: first check locations that plausibly hold the target type (for example the fridge or a countertop for food, a stoveburner for cookware, or a sinkbasin or bathtubbasin for a sponge or cloth), then move through other distinct receptacle classes, including outlying or non-kitchen ones such as a bathtubbasin, cart, or toilet when listed, before inspecting any location a second time. Do not spend many consecutive steps exhausting a single class such as all cabinets or all shelves; after a few instances of one class, switch to a different unchecked class. After checking a location and observing that the target is absent, prefer an unchecked admissible location over returning to a previously checked one, and avoid the location named in the immediately preceding observation or action when another unexamined admissible location exists, unless a new observation indicates the target may now be there."
+            }
+          ],
+          "basis": [
+            "M1",
+            "G2",
+            "P2:5",
+            "P2:11"
+          ],
+          "reason": "M1 records that this exact search guidance (deterministic name/number sweep plus class expansion) did not stop cycling, never reached the listed bathtubbasin, and in a many-cabinet scene produced a long cabinet sweep before a plausible stoveburner surface. P2 shows the repetitive A-B-A pattern the Update targets. Replacing the bare numeric/class sweep with an admissible-list plan that prioritizes plausible locations and interleaves classes directly addresses both the missed non-kitchen receptacle and the costly same-class sweep."
+        },
+        {
+          "from": [
+            "u3"
+          ],
+          "to": [
+            {
+              "id": "u3",
+              "text": "Before emitting an action, verify that its exact text appears in the current admissible action list. Only select actions that are listed. If you intend to continue a numeric sweep and the next numbered instance is absent from the list (for example 'go to stoveburner 3' when only stoveburner 2 and stoveburner 4 are listed), skip to the next listed instance instead of issuing the absent action. If any intended location or action is absent, do not issue it and expect progress; choose an available alternative, such as another listed location or a currently available examine or open action, and continue the plan from there."
+            }
+          ],
+          "basis": [
+            "M2",
+            "P4:5",
+            "P4:6"
+          ],
+          "reason": "M2 documents that the earlier admissibility wording did not prevent the exact absent action 'go to stoveburner 3' in this task; both the Parent (P4:5) and the guided Candidate issued it before correcting to the listed stoveburner 4. An explicit pre-action exact-text check with a numeric-skip rule is a justified strengthening of the same requirement."
+        }
+      ],
+      "checks": [
+        {
+          "id": "c1",
+          "update_ids": [
+            "u1"
+          ],
+          "question": "When the target is not found at first, does the agent use the full admissible location list, prioritize plausible locations for the target type, and cover distinct receptacle classes — including non-kitchen or outlying receptacles — before repeating a location or spending many consecutive steps on a single class?"
+        },
+        {
+          "id": "c2",
+          "update_ids": [
+            "u2"
+          ],
+          "question": "After acquiring the target, does the agent clean it at the appropriate cleaning fixture before delivery and open a closed destination before placing it?"
+        },
+        {
+          "id": "c3",
+          "update_ids": [
+            "u3"
+          ],
+          "question": "At each step, does the agent choose an action whose exact text appears in the current admissible list, and when the next instance of a numeric sequence is absent does it skip to a listed instance rather than issuing the absent action?"
+        }
+      ]
+    },
+    "effective_plan": {
+      "goal": "Improve search efficiency when a target is not found at first, while preserving the successful acquire-clean-place workflow and avoiding wasted inadmissible actions.",
+      "updates": [
+        {
+          "id": "u1",
+          "text": "When locating a target object, do not repeatedly cycle among the same few locations. Use the current admissible location list, which enumerates all reachable receptacles, to plan the search: first check locations that plausibly hold the target type (for example the fridge or a countertop for food, a stoveburner for cookware, or a sinkbasin or bathtubbasin for a sponge or cloth), then move through other distinct receptacle classes, including outlying or non-kitchen ones such as a bathtubbasin, cart, or toilet when listed, before inspecting any location a second time. Do not spend many consecutive steps exhausting a single class such as all cabinets or all shelves; after a few instances of one class, switch to a different unchecked class. After checking a location and observing that the target is absent, prefer an unchecked admissible location over returning to a previously checked one, and avoid the location named in the immediately preceding observation or action when another unexamined admissible location exists, unless a new observation indicates the target may now be there.",
+          "basis": [
+            "G2",
+            "P2:5",
+            "P2:8",
+            "P2:11",
+            "P2:21",
+            "P2:outcome",
+            "P3:18",
+            "P3:19",
+            "P3:20",
+            "P3:outcome"
+          ]
+        },
+        {
+          "id": "u2",
+          "text": "For clean-and-place tasks, follow dependency order: locate and acquire the requested target object; if its source container is closed, open it before taking the object; go to the appropriate cleaning fixture such as a sinkbasin when available and clean the held target; then go to the requested destination; if the destination container is closed, open it before placing; finally move or place the cleaned target into or onto the destination. Verify that the acquired object matches the requested target and do not substitute an unrelated object.",
+          "basis": [
+            "G1",
+            "P1:2",
+            "P1:3",
+            "P1:5",
+            "P1:7",
+            "P4:7",
+            "P4:9",
+            "P4:11",
+            "P4:12",
+            "P3:20",
+            "P3:22",
+            "P3:24"
+          ]
+        },
+        {
+          "id": "u3",
+          "text": "Before emitting an action, verify that its exact text appears in the current admissible action list. Only select actions that are listed. If you intend to continue a numeric sweep and the next numbered instance is absent from the list (for example 'go to stoveburner 3' when only stoveburner 2 and stoveburner 4 are listed), skip to the next listed instance instead of issuing the absent action. If any intended location or action is absent, do not issue it and expect progress; choose an available alternative, such as another listed location or a currently available examine or open action, and continue the plan from there.",
+          "basis": [
+            "P4:5",
+            "P4:6"
+          ]
+        }
+      ],
+      "checks": [
+        {
+          "id": "c1",
+          "update_ids": [
+            "u1"
+          ],
+          "question": "When the target is not found at first, does the agent use the full admissible location list, prioritize plausible locations for the target type, and cover distinct receptacle classes — including non-kitchen or outlying receptacles — before repeating a location or spending many consecutive steps on a single class?"
+        },
+        {
+          "id": "c2",
+          "update_ids": [
+            "u2"
+          ],
+          "question": "After acquiring the target, does the agent clean it at the appropriate cleaning fixture before delivery and open a closed destination before placing it?"
+        },
+        {
+          "id": "c3",
+          "update_ids": [
+            "u3"
+          ],
+          "question": "At each step, does the agent choose an action whose exact text appears in the current admissible list, and when the next instance of a numeric sequence is absent does it skip to a listed instance rather than issuing the absent action?"
+        }
+      ]
+    }
+  }
+}
