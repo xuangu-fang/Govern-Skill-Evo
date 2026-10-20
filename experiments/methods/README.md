@@ -4,7 +4,7 @@
 
 当前结构为 `experiments/methods/<版本>/<实验ID>/{config,results,reports}`，只建立实际存在的材料子目录。完整运行产物已统一归入 `artifacts/methods/`，见[运行导航](RUNTIME.md)。
 
-当前配置和代码直接引用规范目录；全部兼容软链接已删除。历史记录中的路径由读取工具定位，详见[本次清理说明](../../docs/repository/CANONICAL_PATHS.md)。
+当前配置和代码直接引用规范目录；v22 的历史修订通过包路径和少量相对链接复用源码，见 [v22 引用关系](v22/README.md)。早期版本的兼容入口整理记录保留在原文档中。历史记录中的路径由读取工具定位，详见[本次清理说明](../../docs/repository/CANONICAL_PATHS.md)。
 
 [迁移记录与验收](../../docs/repository/METHOD_EXPERIMENT_LAYOUT.md) · [Benchmark 实验](../benchmarks/README.md) · [产物政策](../README.md)
 
@@ -31,6 +31,7 @@
 | v19 | [v19 实验入口](v19/README.md) | 1 |
 | v20 | [v20 实验入口](v20/README.md) | 1 |
 | v21 | [v21 实验入口](v21/README.md) | 1 |
+| v22 | [v22 实验与修订入口](v22/README.md) | 18 |
 
 ## 原始运行统一入口
 
