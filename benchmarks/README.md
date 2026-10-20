@@ -6,6 +6,7 @@
 |---|---|---|
 | [τ² Governed Evolution](tau2_governed_evolution/README.md) | [8 个命名 editions](tau2_governed_evolution/editions) | Governed 与 Phase 两条谱系，分别保留历史身份 |
 | [Standalone](standalone/README.md) | [v5](standalone/editions/v5/README.md) | 独立合成原型，尚未冻结为正式任务集 |
+| [ALFWorld](alfworld/README.md) | [SkillOpt 39/18/134](alfworld/editions/skillopt_39_18_134/README.md) | 已保存固定划分并检查本机文件，已接入单任务和 NoSkill Test 评测入口 |
 
 ## 内容归属
 
