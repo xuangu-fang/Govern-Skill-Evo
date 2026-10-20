@@ -1,0 +1,281 @@
+--- /dev/null
++++ experiments/methods/v23_2/v23_2_diagnosis_boundary_001/run.py
+@@ -0,0 +1,152 @@
++"""Freeze original Diagnosis requests; run only three isolated P1 requests."""
++import argparse
++import hashlib
++import json
++from pathlib import Path
++import subprocess
++import time
++from unittest.mock import patch
++
++from experiments.methods.v23_2.v23_2_response_alignment_001 import run as base
++from src.skill_evolution.v23 import diagnosis, grouping, evolution as ev
++from src.skill_evolution.v23_2 import local_validation as local
++
++ROOT = base.history.ROOT
++SOURCE = base.history.SOURCE
++EXP = Path(__file__).resolve().parent
++OUTPUT = ROOT/'artifacts/methods/v23_2/v23_2_diagnosis_boundary_001'
++PROMPT = EXP/'config/diagnosis_prompt.md'
++ROUNDS = ('R04', 'R05', 'R06')
++
++
++def digest(path):
++    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
++
++
++def protected_files():
++    with patch.multiple(base, EXP=EXP, OUTPUT=OUTPUT):
++        values = base.protected_files()
++    roots = ('docs/methods/v23', 'docs/methods/v23_2', 'tests/skill_evolution/v23',
++             'tests/skill_evolution/v23_2', 'tests/adapters/alfworld')
++    files = [p for name in roots for p in (ROOT/name).rglob('*')
++             if p.is_file() and '__pycache__' not in p.parts]
++    files += [ROOT/p for p in ('benchmarks/README.md', 'docs/04_EXPERIMENT_LOG.md',
++              'docs/README.md', 'experiments/methods/README.md', 'src/skill_evolution/README.md')]
++    return {**values, **{str(p.relative_to(ROOT)):digest(p) for p in files}}
++
++
++def material(rnd):
++    """Read the original upstream archive, never reconstruct it from a later Plan."""
++    rd = SOURCE/'rounds'/rnd
++    gp, dp = (base.history.selected(rd, n) for n in ('grouping', 'diagnosis'))
++    grouped = grouping.load_grouping(gp)
++    old = diagnosis.load_diagnosis(dp, expected_grouping=grouped)
++    saved = ev.read(dp/'input.json')
++    assert saved == grouped and set(saved) == {'facts','background','grouping','sources','round_id'}
++    assert saved['facts']['parent'] == ev.read(rd/'round_input.json')['parent']
++    messages, request, meta = (ev.read(dp/n) for n in ('messages.json','request.json','run.json'))
++    assert messages == diagnosis.messages_for(saved) == request['body']['messages']
++    assert set(json.loads(messages[1]['content'])) == {'parent','command_sets','runs','grouping'}
++    cfg = ev.read(SOURCE/'config.json')
++    recoveries = []
++    for p in sorted((SOURCE/'recoveries').glob('*.json')):
++        value = ev.read(p)
++        if value['at'] <= meta['started_at']:
++            if value.get('input_limits'):
++                cfg.pop('max_input_bytes', None)
++            cfg.update(value.get('input_limits') or {})
++            recoveries.append(p)
++    call = {**{k:v for k,v in request['body'].items() if k!='messages'},
++            'endpoint':request['endpoint'], 'timeout_seconds':request['timeout_seconds']}
++    assert call == meta['call_config'] and cfg['max_input_chars'] == meta['max_input_chars']
++    config = {'call_config':call, 'max_input_chars':cfg['max_input_chars'],
++              'max_message_utf8_bytes':ev.message_byte_limit(cfg), 'max_attempts':3,
++              'retry_delay_seconds':0}
++    files = [dp/n for n in ('input.json','messages.json','request.json','run.json','diagnosis.json','response.json','prompt.md')]
++    files += [gp/'grouping.json', rd/'round_input.json', SOURCE/'config.json', *recoveries]
++    entry = {'diagnosis_path':str(dp), 'grouping_path':str(gp), 'config':config,
++             'original_output':old['diagnosis'], 'http_request_limit':1,
++             'source_hashes':{str(p.relative_to(ROOT)):digest(p) for p in files}}
++    return saved, entry
++
++
++def verify_p0():
++    base.check_baseline()
++    cases = ev.read(EXP/'config/cases.json')
++    for rnd in ROUNDS:
++        assert material(rnd)[1] == cases[rnd]
++    for name, value in ev.read(EXP/'config/p0_freeze.json')['sha256'].items():
++        assert digest(EXP/name) == value
++    assert protected_files() == ev.read(EXP/'config/protected_before.json')
++
++
++def p0():
++    assert not (EXP/'config/cases.json').exists() and not OUTPUT.exists()
++    base.check_baseline()
++    ev.save(EXP/'config/protected_before.json', protected_files())
++    (EXP/'results/git_status_before.txt').write_text(subprocess.check_output(['git','status','--short'],text=True))
++    ev.save(EXP/'config/cases.json', {rnd:material(rnd)[1] for rnd in ROUNDS})
++    names = ('config/cases.json','config/history_receipt.json','reports/P0_BASELINE.md')
++    ev.save(EXP/'config/p0_freeze.json', {'at':ev.now(), 'new_model_calls':0,
++            'sha256':{n:digest(EXP/n) for n in names}})
++    verify_p0()
++    print('P0 verified: exact upstream requests, no Memory, historical capacities, 0 calls.')
++
++
++def frozen_files():
++    files = [Path(__file__), EXP/'tests/test_profile.py', PROMPT, EXP/'config/replacements.json',
++             EXP/'config/v23.diff', EXP/'reports/P1_DESIGN.md', EXP/'results/offline_tests.json',
++             EXP/'config/p0_freeze.json', EXP/'config/cases.json', Path(local.__file__)]
++    return {str(p.relative_to(ROOT)):digest(p) for p in files}
++
++
++def prepare():
++    verify_p0()
++    assert not OUTPUT.exists() and not (EXP/'config/p1_freeze.json').exists()
++    for rnd in ROUNDS:
++        saved, entry = material(rnd)
++        old = ev.read(Path(entry['diagnosis_path'])/'messages.json')
++        new = local.messages_for('diagnosis', saved, prompt_path=PROMPT)
++        assert old[1:] == new[1:]
++    ev.save(EXP/'config/p1_freeze.json', {'at':ev.now(), 'max_logical_calls':3,
++            'max_http_requests':3, 'automatic_retries':0, 'sha256':frozen_files()})
++
++
++def run_one(saved, directory, config, *, generate=None):
++    # Experiment-only strict request budget; do not change shared retry policy.
++    with patch.object(local.evolution, '_retryable', return_value=False):
++        return local.run_stage('diagnosis', saved, directory, config,
++                               prompt_path=PROMPT, generate=generate)
++
++
++def run():
++    verify_p0()
++    assert frozen_files() == ev.read(EXP/'config/p1_freeze.json')['sha256']
++    OUTPUT.mkdir(parents=True, exist_ok=False)
++    outcomes = {}; started = time.monotonic()
++    try:
++        for rnd in ROUNDS:
++            saved, entry = material(rnd)
++            print('START '+rnd, flush=True)
++            outcomes[rnd] = {'status':'started'}
++            ev.save(OUTPUT/'status.json', outcomes)
++            try:
++                value = run_one(saved, OUTPUT/rnd, entry['config'])
++                outcomes[rnd] = {'status':'valid', 'decision':value['diagnosis']['decision']}
++            except ev.Stopped as exc:
++                outcomes[rnd] = {'status':'stopped', 'error':str(exc)}
++            ev.save(OUTPUT/'status.json', outcomes)
++            print('END '+rnd+': '+str(outcomes[rnd]), flush=True)
++    finally:
++        ev.save(OUTPUT/'summary.json', {'logical_calls_started':len(outcomes), 'outcomes':outcomes,
++                'elapsed_seconds':time.monotonic()-started, 'cost':ev.cost_summary(OUTPUT)})
++        before = ev.read(EXP/'config/protected_before.json'); after = protected_files()
++        changed = [p for p in before.keys()|after.keys() if before.get(p)!=after.get(p)]
++        ev.save(EXP/'results/protection.json', {'checked_files':len(before), 'unchanged':not changed,'changed':changed})
++        assert not changed
++
++
++if __name__ == '__main__':
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument('action', choices=('p0','check','prepare','run'))
++    {'p0':p0,'check':verify_p0,'prepare':prepare,'run':run}[parser.parse_args().action]()
+--- /dev/null
++++ experiments/methods/v23_2/v23_2_diagnosis_boundary_001/tests/test_profile.py
+@@ -0,0 +1,62 @@
++"""Deterministic interface tests; no semantic scoring or live API requests."""
++import json
++import pytest
++import requests
++from experiments.methods.v23_2.v23_2_diagnosis_boundary_001 import run as r
++from src.skill_evolution.v23 import diagnosis, preconditioner
++from tests.skill_evolution.v23_2.test_local_validation import saved, config
++from tests.skill_evolution.v23.test_diagnosis import answer
++
++
++def test_frozen_sources_and_defaults():
++    r.verify_p0()
++    original = r.ev.read(r.SOURCE/'contract.json')['src/skill_evolution/v23/diagnosis_prompt.md']
++    assert diagnosis.PROMPT_PATH.read_text() == original
++    for change in r.ev.read(r.EXP/'config/replacements.json'):
++        assert original.count(change['before']) == 1
++        original = original.replace(change['before'], change['after'])
++    assert r.PROMPT.read_text() == original
++    assert r.local.PROMPTS['diagnosis'] == diagnosis.PROMPT_PATH
++
++
++@pytest.mark.parametrize('rnd', r.ROUNDS)
++def test_fixed_request_is_upstream_only(rnd):
++    saved, entry = r.material(rnd)
++    assert 'memory' not in saved and 'diagnosis' not in saved
++    old = r.ev.read(r.Path(entry['diagnosis_path'])/'messages.json')
++    new = r.local.messages_for('diagnosis', saved, prompt_path=r.PROMPT)
++    expected = old[0]['content']
++    for change in r.ev.read(r.EXP/'config/replacements.json'):
++        expected = expected.replace(change['before'], change['after'])
++    assert new[0]['content'] == expected and new[1:] == old[1:]
++    assert set(json.loads(new[1]['content'])) == {'parent','command_sets','runs','grouping'}
++    diagnosis.validate_diagnosis(entry['original_output'], diagnosis.diagnosis_input(saved))
++
++
++def test_output_parses_and_downstream_contract_unchanged(saved, config, tmp_path):
++    upstream = {k:v for k,v in saved.items() if k not in ('diagnosis','memory')}
++    result = r.run_one(upstream, tmp_path/'d', config, generate=lambda *_:answer())
++    assert set(result) == set(upstream)|{'diagnosis'} and 'memory' not in result
++    assert r.local.load_attempt(tmp_path/'d/attempts/001', prompt_path=r.PROMPT) == result
++    payload = preconditioner.preconditioner_input(result)
++    assert payload['plan'] == result['diagnosis']['plan']
++    effective = preconditioner.compile_effective_plan(
++        {'decision':'ready','reason':'Keep supported proposal.','adjustments':[],'checks':None}, payload)
++    assert effective == result['diagnosis']['plan']
++
++
++@pytest.mark.parametrize('kind', ['timeout','truncated','contract'])
++def test_failed_case_makes_one_request_only(saved, config, tmp_path, kind):
++    calls=[]
++    def generate(*_):
++        calls.append(1)
++        if kind == 'timeout':raise requests.Timeout('offline simulated failure')
++        value=answer()
++        if kind=='truncated':value['finish_reason']='length'
++        else:value['content']='{"unexpected":true}'
++        return value
++    upstream={k:v for k,v in saved.items() if k not in ('diagnosis','memory')}
++    with pytest.raises(r.ev.Stopped):r.run_one(upstream,tmp_path/'d',config,generate=generate)
++    assert len(calls)==1 and (tmp_path/'d/stop.json').exists()
++    assert not (tmp_path/'d/attempts/002').exists()
++    assert (tmp_path/'d/attempts/001/error.json').exists()
+--- /dev/null
++++ experiments/methods/v23_2/v23_2_diagnosis_boundary_001/analyze.py
+@@ -0,0 +1,58 @@
++"""Read P1 archives and verify request isolation; never calls a model."""
++import json
++from pathlib import Path
++from experiments.methods.v23_2.v23_2_diagnosis_boundary_001 import run as r
++
++
++def main():
++    r.verify_p0()
++    assert r.frozen_files() == r.ev.read(r.EXP/'config/p1_freeze.json')['sha256']
++    comparison = {}; attempts = []; verification = {}
++    lines = ['# 原始与P1 Diagnosis全文\n\n仅result.json指向的合法输出参与语义比较；所有失败原文亦保留。']
++    for rnd in r.ROUNDS:
++        saved, entry = r.material(rnd); stage = r.OUTPUT/rnd; result = None
++        if (stage/'result.json').exists():
++            directory = stage/r.ev.read(stage/'result.json')['path']
++            result = r.local.load_attempt(directory, prompt_path=r.PROMPT)['diagnosis']
++        comparison[rnd] = {'original':entry['original_output'],'new':result}
++        lines.append(f'\n## {rnd}\n\n[原始输入]({entry["diagnosis_path"]}/input.json) · [Grouping]({entry["grouping_path"]}/grouping.json) · [原始请求]({entry["diagnosis_path"]}/request.json)')
++        for label,value in comparison[rnd].items():
++            lines.append(f'\n### {label}\n\n```json\n'+json.dumps(value,ensure_ascii=False,indent=2)+'\n```')
++        for directory in sorted((stage/'attempts').glob('*')):
++            assert r.ev.read(directory/'input.json') == saved and 'memory' not in saved
++            messages = r.ev.read(directory/'messages.json')
++            old = r.ev.read(Path(entry['diagnosis_path'])/'messages.json')
++            expected = old[0]['content']
++            for change in r.ev.read(r.EXP/'config/replacements.json'):
++                expected = expected.replace(change['before'],change['after'])
++            assert messages[0]['content'] == expected and messages[1:] == old[1:]
++            assert set(json.loads(messages[1]['content'])) == {'parent','command_sets','runs','grouping'}
++            req = r.ev.read(directory/'request.json') if (directory/'request.json').exists() else None
++            if req:
++                assert req['body']['messages'] == messages and req['attempts'] == 1
++                actual = {**{k:v for k,v in req['body'].items() if k!='messages'},
++                          'endpoint':req['endpoint'],'timeout_seconds':req['timeout_seconds']}
++                assert actual == entry['config']['call_config']
++            meta = r.ev.read(directory/'run.json')
++            assert meta['max_input_chars'] == entry['config']['max_input_chars']
++            assert meta['max_message_utf8_bytes'] == entry['config']['max_message_utf8_bytes']
++            response = r.ev.read(directory/'response.json') if (directory/'response.json').exists() else {}
++            attempts.append({'round':rnd,'path':str(directory), 'status':meta['status'],
++                 'started_at':meta['started_at'],'finished_at':meta['finished_at'],
++                 'elapsed_seconds':meta['elapsed_seconds'],'usage':response.get('usage'),
++                 'finish_reason':response.get('finish_reason'),
++                 'error':r.ev.read(directory/'error.json') if (directory/'error.json').exists() else None})
++            lines.append(f'\n### 本次真实attempt {directory.name}\n\n[请求]({directory}/request.json) · [响应]({directory}/response.json) · [校验]({directory}/validation.json)\n\n```text\n'+((directory/'raw_output.txt').read_text() if (directory/'raw_output.txt').exists() else '(no completed response)')+'\n```')
++        verification[rnd] = {'same_original_upstream_input':True,'memory_absent':True,
++                            'only_two_system_replacements':True,'model_config_and_capacity_unchanged':True,
++                            'valid_result':result is not None}
++    assert len(attempts)<=3 and all(a['started_at']>r.ev.read(r.EXP/'config/p1_freeze.json')['at'] for a in attempts)
++    r.ev.save(r.EXP/'results/comparison.json',comparison)
++    r.ev.save(r.EXP/'results/attempts.json',attempts)
++    r.ev.save(r.EXP/'results/verification.json',verification)
++    (r.EXP/'reports/OUTPUTS.md').write_text('\n'.join(lines)+'\n')
++    summary=r.ev.read(r.OUTPUT/'summary.json');r.ev.save(r.EXP/'results/summary.json',summary)
++    print(json.dumps(summary))
++
++
++if __name__=='__main__':main()

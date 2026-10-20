@@ -1,0 +1,53 @@
+{
+  "decision": "ready",
+  "reason": "The original Plan's direction is sound and matches the recorded failures (repeated revisiting of already-inspected receptacles in P3/P6/P7/P8, and wasted no-op steps in P1/P6/P7/P8/P10), and the desklamp, acquire-then-place, and clean/cool-then-place behaviors of the Parent are not touched. However, u1 as written relies partly on a full-search memory of 'receptacles not yet inspected' and u2 addresses the symptom of off-list/no-op actions without the root cause, both of which exceed or underuse what the Actor can observe. Both Updates are adjusted to be executable within the Actor's actual information (current observation, admissible-action list, and last two observation/action pairs) while preserving the coverage and step-efficiency goal.",
+  "adjustments": [
+    {
+      "from": [
+        "u1"
+      ],
+      "to": [
+        {
+          "id": "u1",
+          "text": "During any search for the exact requested object (or for the desklamp once the target is in hand), pursue coverage of candidate receptacles instead of looping over the same few, using only information you can actually observe. Treat a container that is already open (or whose contents you just saw) as already inspected and do not re-inspect it; on arriving at a closed cabinet/drawer/fridge, open it and inspect its contents once before leaving. Use the current observation (open/closed state and visible contents), the admissible-action list, and the last two observations/actions to notice when the next move would revisit a receptacle you just left empty or repeat the same small set of locations, and in that case choose a different candidate you have reason to believe is unexamined. Sweep a numbered series of same-type containers in one direction without doubling back; once that series is exhausted without the target, switch to a different receptacle type (e.g., from drawers to cabinets, countertops, fridge, shelves, or sinkbasin) before re-entering the series. This is coverage for finding the exact target within the step budget; it does not permit picking up, conditioning, or placing a substitute object.",
+          "basis": [
+            "G2",
+            "G3",
+            "P3:8",
+            "P6:6",
+            "P6:14",
+            "P6:16",
+            "P8:9",
+            "P10:6"
+          ],
+          "reason": "The recorded runs show the failing behavior is repeated re-inspection of the same few receptacles (P3:8 returns to the already-open empty drawer 1; P6:6, P6:14, P6:16 cycle among drawers 1-3; P8:9 loops among sinkbasin/cabinets; P10:6 cycles fridge/countertop/cabinet), exactly the pattern G2-G3 describe. The original wording nonetheless asked the Actor to move to a receptacle 'not yet inspected in this search' and to exhaust a series 'without returning to earlier ones,' which requires memory of the whole search that the Actor does not have (only the last two observation/action pairs). The revision keeps the same coverage/type-switching strategy but grounds the 'already inspected' signal in what the Actor can directly see (a container that is already open or whose contents it just viewed) and in the admissible-action list and recent window, so the requirement is executable without a persistent inspected-set."
+        }
+      ],
+      "basis": [],
+      "reason": ""
+    },
+    {
+      "from": [
+        "u2"
+      ],
+      "to": [
+        {
+          "id": "u2",
+          "text": "Do not spend steps on actions that cannot change the world or reveal new information. Choose actions from the provided admissible-action list, and do not issue an action that is not listed. If an action returns 'Nothing happens,' if a 'look' repeats the description you already have for the current receptacle, or if 'inventory' is issued while carrying nothing, do not repeat that action or an equivalent one. Instead immediately take a state-changing action: move to a different, not-yet-seen receptacle, open a closed container, take the target, perform the required clean/cool/heat, or place the target at the destination.",
+          "basis": [
+            "P1:4",
+            "P6:20",
+            "P7:11",
+            "P7:12",
+            "P8:39",
+            "P10:25"
+          ],
+          "reason": "The no-op evidence (P7:11-P7:12 issue 'look' twice with an identical observation; P8:39 and P10:25 issue 'inventory' while carrying nothing) supports the original anti-repetition requirement. In addition, the two 'Nothing happens' events (P1:4 and P6:20) both carried the flag action_in_admissible_commands = false, i.e. they were actions not present in the Actor's supplied admissible list, so the symptom stems from choosing off-list actions. Because the admissible-action list is always visible to the Actor, adding the observable requirement to act only from that list directly prevents the root cause of 'Nothing happens' and makes the requirement executable at decision time."
+        }
+      ],
+      "basis": [],
+      "reason": ""
+    }
+  ],
+  "checks": null
+}

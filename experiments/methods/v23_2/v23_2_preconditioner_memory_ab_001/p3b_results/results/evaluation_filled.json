@@ -1,0 +1,381 @@
+{
+  "status": "same_prompt_valid_pair_completed",
+  "goal": "Make search for the exact requested object coverage-oriented and step-efficient so the target is found, conditioned if required, and placed before the step budget is exhausted, without picking up, conditioning, or placing a substitute. Preserve the successful desklamp behavior (hold/co-locate the target and turn the lamp on at its receptacle), the direct acquire-then-place flow, and the correct clean/cool-then-place ordering already demonstrated.",
+  "original_checks": [
+    {
+      "id": "c1",
+      "update_ids": [
+        "u1"
+      ],
+      "question": "After a receptacle is inspected and the target is absent, does the Actor move to a new uninspected receptacle or switch receptacle type rather than returning to one already seen empty or re-sweeping the same series?"
+    },
+    {
+      "id": "c2",
+      "update_ids": [
+        "u2"
+      ],
+      "question": "Does the Actor avoid repeating no-op actions ('Nothing happens,' duplicate 'look,' empty-handed 'inventory') and instead choose a state-changing action?"
+    },
+    {
+      "id": "c3",
+      "update_ids": [
+        "u1",
+        "u2"
+      ],
+      "question": "When the exact target is found, does the Actor still complete the required conditioning and final placement with that target, and preserve the desklamp on-while-co-located success pattern?"
+    }
+  ],
+  "updates": [
+    {
+      "update_id": "u1",
+      "original_update": {
+        "id": "u1",
+        "text": "During any search for the exact requested object (or for the desklamp once the target is in hand), treat the search as coverage of distinct candidate receptacles rather than a loop over a few. When the current observation shows the requested item is absent, move to a receptacle not yet inspected in this search, while retaining the existing rule to open a closed cabinet/drawer/fridge on arrival and inspect its contents. Sweep a numbered series of same-type containers in one direction without returning to earlier ones; once that series is exhausted without the target, switch to a different receptacle type (e.g., from drawers to cabinets, countertops, fridge, shelves, or sinkbasin) before re-entering the series. Use the most recent observations to notice when the next move would revisit a receptacle just left empty or repeat the same small set of locations, and in that case choose a different uninspected candidate. This is coverage for finding the exact target within the step budget; it does not permit picking up, conditioning, or placing a substitute object.",
+        "basis": [
+          "G2",
+          "G3",
+          "G4",
+          "P3:8",
+          "P6:6",
+          "P6:14",
+          "P6:16",
+          "P8:9",
+          "P10:6"
+        ]
+      },
+      "known_current_evidence": "P3:7–11空drawer回访、13–16找到mug后交付；P6/P8循环且部分位置未到；P10:32才发现apple，33/35/38获取处理交付。支持减少重复和覆盖遗漏，不证明唯一顺序。当前/候选/两步历史不等于全局visited；G1和Goal提示有用回返/共址要保留。",
+      "historical_increment": "M6的真实搜索编辑既有diningtable收益，也有同类countertop3遗漏和49步才获取的预算失败；M3混合覆盖与精确目标反馈；M9有条件回源及增步；M1/M2/M7/M8提供应保留行为及条件。",
+      "A_decision": "keep",
+      "B_decision": "replace",
+      "A_reason": "Both proposed Updates are directly grounded in the supplied executions and are executable under the Actor's constraints, so no behavioral adjustment is justified. Update u1 targets the repeated small-set search loops visible in P3:5-P3:11 (drawers 1-4 swept, then re-swept before leaving the series), P6:6-P6:17 (drawer 1/countertop 1/drawer 2 cycled repeatedly), P8:9-P8:49 (cabinets 1-4 and sinkbasin 1 cycled many times), and P10:6-P10:31 (fridge 1/countertop 1/countertop 2/cabinet 1 cycled for ~30 steps before finding apple 1). Update u2 targets the observed no-op actions: the inadmissible 'go to shelf 2' returning 'Nothing happens' at P1:4, the duplicated 'look' with an unchanged observation at P7:11-P7:12, and the empty-handed 'inventory' at P8:39 and P10:25. Both Updates retain the Parent Skill's desklamp and acquire-condition-place behaviors, and the numbered-series/type-switch heuristic makes the coverage requirement implementable with the Actor's two-step history. Memory is empty, so no historical edit-behavior response argues for changing strategy, narrowing scope, or withdrawing either Update.",
+      "B_reason": "Both Updates address behavior that the supplied runs actually exhibit (long one-type searches with revisits, and wasted no-op steps). Only u1 needs refinement: the current evidence and Memory M3/M6 show that the effective ingredient is sampling additional receptacle types plus exact-target/no-substitute guidance, while the anti-cycling/revisit-avoidance wording alone was not reliably followed and is hard to track with the Actor's two-step history. u2 already matches the recorded no-op evidence (unreachable 'go to', duplicate 'look', empty-handed 'inventory'), so it is preserved, and the existing Checks remain appropriate.",
+      "A_adjustments": [],
+      "B_adjustments": [
+        {
+          "from": [
+            "u1"
+          ],
+          "to": [
+            {
+              "id": "u1",
+              "text": "During any search for the exact requested object (or, once the target is in hand, for the desklamp), do not restrict the search to one container type or to a small set of locations. When the current observation shows the exact requested item is absent, choose the next destination from the admissible 'go to' list so that you sample a receptacle type not yet used in this search rather than another instance of the type just swept or a location you just saw was empty; for example, if a run of drawers has not yielded the target, go to cabinets, countertops, shelves, fridge, diningtable, or sinkbasin before re-entering the drawer series. While sweeping the numbered instances of one container type, move in one direction and do not return to an instance you just left empty. Keep the existing rule to open a closed cabinet/drawer/fridge on arrival and inspect its contents before leaving. Continue until the exact target is found or every receptacle type available in the room's action list has been sampled once. This is coverage for finding the exact target within the step budget; it does not permit picking up, conditioning, or placing a substitute object."
+            }
+          ],
+          "basis": [
+            "P6:6",
+            "P6:50",
+            "P8:9",
+            "P8:50",
+            "P10:6",
+            "G3",
+            "M3",
+            "M6"
+          ],
+          "reason": "Current runs show the Actor confines long searches to one or two receptacle types and revisits empty ones: P6 sweeps drawers up to drawer 20 and never opens a cabinet (P6:6, P6:50), P8 cycles among cabinets and sinkbasin and never reaches shelf 1 (P8:9, P8:50), and P10 cycles among fridge/countertops/cabinets for many steps before finding the apple (P10:6). Memory M3/M6 record that the anti-cycling/revisit-avoidance wording was not reliably followed and did not by itself break the cycling/step-limit failure, whereas added search breadth combined with exact-target guidance did help. The revised Update therefore makes the breadth requirement executable from the recent observations and the admissible 'go to' list, prioritizes sampling untried receptacle types, and retains the one-direction sweep, the open-closed-container rule, and the no-substitute constraint."
+        }
+      ],
+      "A_checks": null,
+      "B_checks": null,
+      "effective_A": {
+        "id": "u1",
+        "text": "During any search for the exact requested object (or for the desklamp once the target is in hand), treat the search as coverage of distinct candidate receptacles rather than a loop over a few. When the current observation shows the requested item is absent, move to a receptacle not yet inspected in this search, while retaining the existing rule to open a closed cabinet/drawer/fridge on arrival and inspect its contents. Sweep a numbered series of same-type containers in one direction without returning to earlier ones; once that series is exhausted without the target, switch to a different receptacle type (e.g., from drawers to cabinets, countertops, fridge, shelves, or sinkbasin) before re-entering the series. Use the most recent observations to notice when the next move would revisit a receptacle just left empty or repeat the same small set of locations, and in that case choose a different uninspected candidate. This is coverage for finding the exact target within the step budget; it does not permit picking up, conditioning, or placing a substitute object.",
+        "basis": [
+          "G2",
+          "G3",
+          "G4",
+          "P3:8",
+          "P6:6",
+          "P6:14",
+          "P6:16",
+          "P8:9",
+          "P10:6"
+        ]
+      },
+      "effective_B": {
+        "id": "u1",
+        "text": "During any search for the exact requested object (or, once the target is in hand, for the desklamp), do not restrict the search to one container type or to a small set of locations. When the current observation shows the exact requested item is absent, choose the next destination from the admissible 'go to' list so that you sample a receptacle type not yet used in this search rather than another instance of the type just swept or a location you just saw was empty; for example, if a run of drawers has not yielded the target, go to cabinets, countertops, shelves, fridge, diningtable, or sinkbasin before re-entering the drawer series. While sweeping the numbered instances of one container type, move in one direction and do not return to an instance you just left empty. Keep the existing rule to open a closed cabinet/drawer/fridge on arrival and inspect its contents before leaving. Continue until the exact target is found or every receptacle type available in the room's action list has been sampled once. This is coverage for finding the exact target within the step budget; it does not permit picking up, conditioning, or placing a substitute object.",
+        "basis": [
+          "G2",
+          "G3",
+          "G4",
+          "P3:8",
+          "P6:6",
+          "P6:14",
+          "P6:16",
+          "P8:9",
+          "P10:6"
+        ]
+      },
+      "material_difference": "Prioritize unused receptacle types; add category-once stopping condition; retain one-direction sweep and exact-target constraints.",
+      "difference_evidence": [
+        "M3",
+        "M6"
+      ],
+      "new_commitment_risk": [
+        "Global unused-category progress without demonstrated state support",
+        "Every category sampled once as search termination"
+      ],
+      "attribution_boundary": "Current runs also motivate breadth; joint historical edits and single stochastic pair do not isolate Memory or M6 causality.",
+      "conclusion": "Direction-level historical response signal with unsupported replacement requirements",
+      "assessment": {
+        "material_difference": "Prioritize unused receptacle types; add category-once stopping condition; retain one-direction sweep and exact-target constraints.",
+        "historical_basis": [
+          "M3",
+          "M6"
+        ],
+        "supported_signal": "Prior edits and mixed responses explicitly motivate actual direction change.",
+        "unsupported_requirements": [
+          "Global unused-category progress without demonstrated state support",
+          "Every category sampled once as search termination"
+        ],
+        "attribution_limit": "Current runs also motivate breadth; joint historical edits and single stochastic pair do not isolate Memory or M6 causality."
+      }
+    },
+    {
+      "update_id": "u2",
+      "original_update": {
+        "id": "u2",
+        "text": "Do not spend steps on actions that cannot change the world or reveal new information. If an action returns 'Nothing happens,' if a 'look' repeats the description you already have for the current receptacle, or if 'inventory' is issued while carrying nothing, do not repeat that action or an equivalent one. Instead immediately take a state-changing action: move to a new uninspected receptacle, open a closed container, take the target, perform the required clean/cool/heat, or place the target at the destination.",
+        "basis": [
+          "P1:4",
+          "P7:11",
+          "P7:12",
+          "P8:39",
+          "P10:25"
+        ]
+      },
+      "known_current_evidence": "P1:4不可用go shelf2→Nothing happens；P7:11/12重复look；P8:39/P10:25空手inventory。支持状态不变时避免无信息重复，不支持状态改变后永久禁止同动作或等价动作，也不证明一切信息获取都应立即换成state-changing。",
+      "historical_increment": "M6候选仍重复不可用移动与空位置检查，提示反循环条款未稳定落实而非应禁止整类动作；M7动作可用/持物温度处理及交付条件，M8精确对象，M9有效回源提供范围保留。",
+      "A_decision": "keep",
+      "B_decision": "keep",
+      "A_reason": "Both proposed Updates are directly grounded in the supplied executions and are executable under the Actor's constraints, so no behavioral adjustment is justified. Update u1 targets the repeated small-set search loops visible in P3:5-P3:11 (drawers 1-4 swept, then re-swept before leaving the series), P6:6-P6:17 (drawer 1/countertop 1/drawer 2 cycled repeatedly), P8:9-P8:49 (cabinets 1-4 and sinkbasin 1 cycled many times), and P10:6-P10:31 (fridge 1/countertop 1/countertop 2/cabinet 1 cycled for ~30 steps before finding apple 1). Update u2 targets the observed no-op actions: the inadmissible 'go to shelf 2' returning 'Nothing happens' at P1:4, the duplicated 'look' with an unchanged observation at P7:11-P7:12, and the empty-handed 'inventory' at P8:39 and P10:25. Both Updates retain the Parent Skill's desklamp and acquire-condition-place behaviors, and the numbered-series/type-switch heuristic makes the coverage requirement implementable with the Actor's two-step history. Memory is empty, so no historical edit-behavior response argues for changing strategy, narrowing scope, or withdrawing either Update.",
+      "B_reason": "Both Updates address behavior that the supplied runs actually exhibit (long one-type searches with revisits, and wasted no-op steps). Only u1 needs refinement: the current evidence and Memory M3/M6 show that the effective ingredient is sampling additional receptacle types plus exact-target/no-substitute guidance, while the anti-cycling/revisit-avoidance wording alone was not reliably followed and is hard to track with the Actor's two-step history. u2 already matches the recorded no-op evidence (unreachable 'go to', duplicate 'look', empty-handed 'inventory'), so it is preserved, and the existing Checks remain appropriate.",
+      "A_adjustments": [],
+      "B_adjustments": [],
+      "A_checks": null,
+      "B_checks": null,
+      "effective_A": {
+        "id": "u2",
+        "text": "Do not spend steps on actions that cannot change the world or reveal new information. If an action returns 'Nothing happens,' if a 'look' repeats the description you already have for the current receptacle, or if 'inventory' is issued while carrying nothing, do not repeat that action or an equivalent one. Instead immediately take a state-changing action: move to a new uninspected receptacle, open a closed container, take the target, perform the required clean/cool/heat, or place the target at the destination.",
+        "basis": [
+          "P1:4",
+          "P7:11",
+          "P7:12",
+          "P8:39",
+          "P10:25"
+        ]
+      },
+      "effective_B": {
+        "id": "u2",
+        "text": "Do not spend steps on actions that cannot change the world or reveal new information. If an action returns 'Nothing happens,' if a 'look' repeats the description you already have for the current receptacle, or if 'inventory' is issued while carrying nothing, do not repeat that action or an equivalent one. Instead immediately take a state-changing action: move to a new uninspected receptacle, open a closed container, take the target, perform the required clean/cool/heat, or place the target at the destination.",
+        "basis": [
+          "P1:4",
+          "P7:11",
+          "P7:12",
+          "P8:39",
+          "P10:25"
+        ]
+      },
+      "material_difference": null,
+      "difference_evidence": [],
+      "new_commitment_risk": [],
+      "attribution_boundary": "No substantive difference observed; shared residual concerns are not Memory improvement.",
+      "conclusion": "No substantive update difference",
+      "assessment": {
+        "material_difference": null,
+        "historical_increment_observed": false,
+        "remaining_issue": "No additional qualification for retry or information action after state change."
+      }
+    }
+  ],
+  "sources": {
+    "at": "2026-10-20T09:16:49.065349+00:00",
+    "A": {
+      "path": "/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_2/v23_2_preconditioner_memory_ab_001/p3b_A_format_001/runs/A",
+      "request_sha256": "a31f11af7f85bcf358b96e451b0f57c73829595b8ec1ede8ad6edd2967e8d351",
+      "effective_sha256": "8d50ab651a8aee5fe4ad4aff35d71f6f173e60db3630a0c06b46732ddc7518ea"
+    },
+    "B": {
+      "path": "/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_2/v23_2_preconditioner_memory_ab_001/p3b_B_format_001/runs/B",
+      "request_sha256": "135a3de01e9274bf04a7c5ad20998277a78ab68d4b6f9d4ca64cc4b669848072",
+      "effective_sha256": "98c96c0cc4b5bbe5b4b4fce0251ee06237a8b1c6d757bd99baa13edc4a940695"
+    },
+    "system_sha256": "6c22274c4e9c6682c917f8ce56c17d1c0f6c6a05a573900ecea0111272a3be8f",
+    "system_identical": true,
+    "all_other_request_fields_except_memory_identical": true,
+    "memory_ids": [
+      "M1",
+      "M2",
+      "M3",
+      "M6",
+      "M7",
+      "M8",
+      "M9"
+    ],
+    "current_runs": [
+      "P1",
+      "P3",
+      "P6",
+      "P7",
+      "P8",
+      "P10"
+    ],
+    "same_prompt_input_control_passed": true,
+    "protocol_amendment": "Both arms use authorized output-format addition; not byte-identical original P3A prompt. Historical reports and freezes retained.",
+    "causal_mechanism_established": false,
+    "new_http_requests": 1,
+    "new_environment_calls": 0
+  },
+  "input_control_passed": true,
+  "mechanism_established": false,
+  "A": {
+    "response": {
+      "decision": "ready",
+      "reason": "Both proposed Updates are directly grounded in the supplied executions and are executable under the Actor's constraints, so no behavioral adjustment is justified. Update u1 targets the repeated small-set search loops visible in P3:5-P3:11 (drawers 1-4 swept, then re-swept before leaving the series), P6:6-P6:17 (drawer 1/countertop 1/drawer 2 cycled repeatedly), P8:9-P8:49 (cabinets 1-4 and sinkbasin 1 cycled many times), and P10:6-P10:31 (fridge 1/countertop 1/countertop 2/cabinet 1 cycled for ~30 steps before finding apple 1). Update u2 targets the observed no-op actions: the inadmissible 'go to shelf 2' returning 'Nothing happens' at P1:4, the duplicated 'look' with an unchanged observation at P7:11-P7:12, and the empty-handed 'inventory' at P8:39 and P10:25. Both Updates retain the Parent Skill's desklamp and acquire-condition-place behaviors, and the numbered-series/type-switch heuristic makes the coverage requirement implementable with the Actor's two-step history. Memory is empty, so no historical edit-behavior response argues for changing strategy, narrowing scope, or withdrawing either Update.",
+      "adjustments": [],
+      "checks": null
+    },
+    "effective_plan": {
+      "goal": "Make search for the exact requested object coverage-oriented and step-efficient so the target is found, conditioned if required, and placed before the step budget is exhausted, without picking up, conditioning, or placing a substitute. Preserve the successful desklamp behavior (hold/co-locate the target and turn the lamp on at its receptacle), the direct acquire-then-place flow, and the correct clean/cool-then-place ordering already demonstrated.",
+      "updates": [
+        {
+          "id": "u1",
+          "text": "During any search for the exact requested object (or for the desklamp once the target is in hand), treat the search as coverage of distinct candidate receptacles rather than a loop over a few. When the current observation shows the requested item is absent, move to a receptacle not yet inspected in this search, while retaining the existing rule to open a closed cabinet/drawer/fridge on arrival and inspect its contents. Sweep a numbered series of same-type containers in one direction without returning to earlier ones; once that series is exhausted without the target, switch to a different receptacle type (e.g., from drawers to cabinets, countertops, fridge, shelves, or sinkbasin) before re-entering the series. Use the most recent observations to notice when the next move would revisit a receptacle just left empty or repeat the same small set of locations, and in that case choose a different uninspected candidate. This is coverage for finding the exact target within the step budget; it does not permit picking up, conditioning, or placing a substitute object.",
+          "basis": [
+            "G2",
+            "G3",
+            "G4",
+            "P3:8",
+            "P6:6",
+            "P6:14",
+            "P6:16",
+            "P8:9",
+            "P10:6"
+          ]
+        },
+        {
+          "id": "u2",
+          "text": "Do not spend steps on actions that cannot change the world or reveal new information. If an action returns 'Nothing happens,' if a 'look' repeats the description you already have for the current receptacle, or if 'inventory' is issued while carrying nothing, do not repeat that action or an equivalent one. Instead immediately take a state-changing action: move to a new uninspected receptacle, open a closed container, take the target, perform the required clean/cool/heat, or place the target at the destination.",
+          "basis": [
+            "P1:4",
+            "P7:11",
+            "P7:12",
+            "P8:39",
+            "P10:25"
+          ]
+        }
+      ],
+      "checks": [
+        {
+          "id": "c1",
+          "update_ids": [
+            "u1"
+          ],
+          "question": "After a receptacle is inspected and the target is absent, does the Actor move to a new uninspected receptacle or switch receptacle type rather than returning to one already seen empty or re-sweeping the same series?"
+        },
+        {
+          "id": "c2",
+          "update_ids": [
+            "u2"
+          ],
+          "question": "Does the Actor avoid repeating no-op actions ('Nothing happens,' duplicate 'look,' empty-handed 'inventory') and instead choose a state-changing action?"
+        },
+        {
+          "id": "c3",
+          "update_ids": [
+            "u1",
+            "u2"
+          ],
+          "question": "When the exact target is found, does the Actor still complete the required conditioning and final placement with that target, and preserve the desklamp on-while-co-located success pattern?"
+        }
+      ]
+    }
+  },
+  "B": {
+    "response": {
+      "decision": "ready",
+      "reason": "Both Updates address behavior that the supplied runs actually exhibit (long one-type searches with revisits, and wasted no-op steps). Only u1 needs refinement: the current evidence and Memory M3/M6 show that the effective ingredient is sampling additional receptacle types plus exact-target/no-substitute guidance, while the anti-cycling/revisit-avoidance wording alone was not reliably followed and is hard to track with the Actor's two-step history. u2 already matches the recorded no-op evidence (unreachable 'go to', duplicate 'look', empty-handed 'inventory'), so it is preserved, and the existing Checks remain appropriate.",
+      "adjustments": [
+        {
+          "from": [
+            "u1"
+          ],
+          "to": [
+            {
+              "id": "u1",
+              "text": "During any search for the exact requested object (or, once the target is in hand, for the desklamp), do not restrict the search to one container type or to a small set of locations. When the current observation shows the exact requested item is absent, choose the next destination from the admissible 'go to' list so that you sample a receptacle type not yet used in this search rather than another instance of the type just swept or a location you just saw was empty; for example, if a run of drawers has not yielded the target, go to cabinets, countertops, shelves, fridge, diningtable, or sinkbasin before re-entering the drawer series. While sweeping the numbered instances of one container type, move in one direction and do not return to an instance you just left empty. Keep the existing rule to open a closed cabinet/drawer/fridge on arrival and inspect its contents before leaving. Continue until the exact target is found or every receptacle type available in the room's action list has been sampled once. This is coverage for finding the exact target within the step budget; it does not permit picking up, conditioning, or placing a substitute object."
+            }
+          ],
+          "basis": [
+            "P6:6",
+            "P6:50",
+            "P8:9",
+            "P8:50",
+            "P10:6",
+            "G3",
+            "M3",
+            "M6"
+          ],
+          "reason": "Current runs show the Actor confines long searches to one or two receptacle types and revisits empty ones: P6 sweeps drawers up to drawer 20 and never opens a cabinet (P6:6, P6:50), P8 cycles among cabinets and sinkbasin and never reaches shelf 1 (P8:9, P8:50), and P10 cycles among fridge/countertops/cabinets for many steps before finding the apple (P10:6). Memory M3/M6 record that the anti-cycling/revisit-avoidance wording was not reliably followed and did not by itself break the cycling/step-limit failure, whereas added search breadth combined with exact-target guidance did help. The revised Update therefore makes the breadth requirement executable from the recent observations and the admissible 'go to' list, prioritizes sampling untried receptacle types, and retains the one-direction sweep, the open-closed-container rule, and the no-substitute constraint."
+        }
+      ],
+      "checks": null
+    },
+    "effective_plan": {
+      "goal": "Make search for the exact requested object coverage-oriented and step-efficient so the target is found, conditioned if required, and placed before the step budget is exhausted, without picking up, conditioning, or placing a substitute. Preserve the successful desklamp behavior (hold/co-locate the target and turn the lamp on at its receptacle), the direct acquire-then-place flow, and the correct clean/cool-then-place ordering already demonstrated.",
+      "updates": [
+        {
+          "id": "u1",
+          "text": "During any search for the exact requested object (or, once the target is in hand, for the desklamp), do not restrict the search to one container type or to a small set of locations. When the current observation shows the exact requested item is absent, choose the next destination from the admissible 'go to' list so that you sample a receptacle type not yet used in this search rather than another instance of the type just swept or a location you just saw was empty; for example, if a run of drawers has not yielded the target, go to cabinets, countertops, shelves, fridge, diningtable, or sinkbasin before re-entering the drawer series. While sweeping the numbered instances of one container type, move in one direction and do not return to an instance you just left empty. Keep the existing rule to open a closed cabinet/drawer/fridge on arrival and inspect its contents before leaving. Continue until the exact target is found or every receptacle type available in the room's action list has been sampled once. This is coverage for finding the exact target within the step budget; it does not permit picking up, conditioning, or placing a substitute object.",
+          "basis": [
+            "G2",
+            "G3",
+            "G4",
+            "P3:8",
+            "P6:6",
+            "P6:14",
+            "P6:16",
+            "P8:9",
+            "P10:6"
+          ]
+        },
+        {
+          "id": "u2",
+          "text": "Do not spend steps on actions that cannot change the world or reveal new information. If an action returns 'Nothing happens,' if a 'look' repeats the description you already have for the current receptacle, or if 'inventory' is issued while carrying nothing, do not repeat that action or an equivalent one. Instead immediately take a state-changing action: move to a new uninspected receptacle, open a closed container, take the target, perform the required clean/cool/heat, or place the target at the destination.",
+          "basis": [
+            "P1:4",
+            "P7:11",
+            "P7:12",
+            "P8:39",
+            "P10:25"
+          ]
+        }
+      ],
+      "checks": [
+        {
+          "id": "c1",
+          "update_ids": [
+            "u1"
+          ],
+          "question": "After a receptacle is inspected and the target is absent, does the Actor move to a new uninspected receptacle or switch receptacle type rather than returning to one already seen empty or re-sweeping the same series?"
+        },
+        {
+          "id": "c2",
+          "update_ids": [
+            "u2"
+          ],
+          "question": "Does the Actor avoid repeating no-op actions ('Nothing happens,' duplicate 'look,' empty-handed 'inventory') and instead choose a state-changing action?"
+        },
+        {
+          "id": "c3",
+          "update_ids": [
+            "u1",
+            "u2"
+          ],
+          "question": "When the exact target is found, does the Actor still complete the required conditioning and final placement with that target, and preserve the desklamp on-while-co-located success pattern?"
+        }
+      ]
+    }
+  },
+  "conclusion": "Direction-level response-grounded transformation signal; replacement construction not established as better; no behavioral causal result."
+}

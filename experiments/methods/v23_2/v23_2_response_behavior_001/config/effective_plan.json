@@ -1,0 +1,57 @@
+{
+  "goal": "Make target search converge under the actor's limited two-step history by using an ordered memory-independent sweep, and remove wasteful appliance toggling in heat/cool tasks by conditioning the held target directly at the appliance. Preserve successful behavior: exact-category acquisition, direct conditioning while holding, sequential delivery of two required instances, and not using the desklamp when the task does not require it.",
+  "updates": [
+    {
+      "id": "u1",
+      "text": "When a task requires a heat or cool conditioning step, perform that step directly at the conditioning appliance while holding the exact target. Go to the appliance, ensure the target is in hand (take it out first if it was stored inside), and issue the heat/cool action itself. Do not insert the target into the appliance and then repeatedly close and open it, and do not remove and reinsert the target before conditioning. Open the appliance only when you must retrieve the target from inside it or when the heat/cool action is not offered. After conditioning, go straight to the requested destination and place the target; the conditioning appliance is not the destination unless the task says so. Continue to reject near-match categories at the conditioning step.",
+      "basis": [
+        "G2",
+        "P4:6",
+        "P4:7",
+        "P4:14",
+        "P4:20",
+        "P5:5",
+        "P5:13",
+        "P5:15",
+        "P2:11"
+      ]
+    },
+    {
+      "id": "u2",
+      "text": "When the exact requested target is not visible in the initial observation, run a memory-independent family-rotation sweep rather than hopping among familiar locations. Derive candidate receptacle families from the current admissible go-to actions (using the room description if still available): cabinets, drawers, shelves, countertops/diningtables/sidetables, appliances such as fridge/microwave/sinkbasin/stoveburners/toaster. Within each family, advance through uninspected receptacles in ascending index order (cabinet 1, cabinet 2, and so on), opening and reading each closed container once and moving on immediately when it lacks the target. Do not exhaust one large family before checking another: after an ordered pass through part of a family, or when the current family has no promising uninspected member, switch to a genuinely uninspected family—prefer compact open surfaces and then appliances/fridge before returning to later members of a large closed-container family—and continue the same fixed order. Never return to a receptacle already seen empty and never cycle among the same few locations. Because only the two most recent observations are available, rely on this fixed family/index order rather than memory to guarantee progress. Continue until the exact target is found or all plausible families have been sampled once; when the step budget is tight, favor new unvisited families or containers over repeats and keep enough steps to complete any required conditioning and final placement. If all plausible families have been inspected once without the target, do not substitute a near-match or keep cycling.",
+      "basis": [
+        "G1",
+        "P3:8",
+        "P3:22",
+        "P3:50",
+        "P3:outcome",
+        "P1:34",
+        "P2:8"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "c1",
+      "update_ids": [
+        "u1"
+      ],
+      "question": "For heat/cool tasks, does the actor go to the correct conditioning appliance, apply the heat/cool action directly while holding the exact target, and then place it at the destination without repeated open/close or insert/remove cycles?"
+    },
+    {
+      "id": "c2",
+      "update_ids": [
+        "u2"
+      ],
+      "question": "When the target is initially not visible, does the actor advance through new receptacles and new families in an ordered sweep rather than cycling among the same few locations, reaching uninspected containers before the step budget runs out?"
+    },
+    {
+      "id": "c3",
+      "update_ids": [
+        "u1",
+        "u2"
+      ],
+      "question": "Do searches still end with conditioning and final placement of the exact requested category within budget, without substituting a near-match object or abandoning the task after locating the target?"
+    }
+  ]
+}

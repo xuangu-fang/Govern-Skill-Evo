@@ -1,0 +1,3 @@
+# 离线准备记录
+
+第一次P0准备在模型调用前停止：历史config包含旧max_input_bytes名称，恢复记录使用max_message_utf8_bytes；直接合并触发原校验器的Conflicting message byte capacities。按既有历史材料读取方式，在生效的容量恢复记录覆盖前移除旧别名。仅修改本次实验读取适配，不改正式配置、容量值或任何模块；未发生模型请求。重新运行P0核验。

@@ -33,6 +33,7 @@
 | v21 | [v21 实验入口](v21/README.md) | 1 |
 | v22 | [v22 实验与修订入口](v22/README.md) | 18 |
 | v23 | [v23 验证入口](v23/README.md) | 11 |
+| v23.2 | [实验材料与运行记录](v23_2/README.md) · [方法说明](../../docs/methods/v23_2/README.md) | 20 |
 
 ## 原始运行统一入口
 

@@ -1,0 +1,1069 @@
+# 实际模型输出全文对照
+
+所有文本均来自保存的真实结果，不人工修补。旧侧为历史有效阶段；新侧为本次按既有技术规则选定的首个合法结果。无效尝试单独列出，不能替代有效 Effective Plan。
+
+## R03
+
+旧来源：[Preconditioner](../../../../../artifacts/methods/v23/v23_alfworld_formal_001/S1/rounds/R03/preconditioner/attempts/002/preconditioner.json)；新来源：[有效阶段](../../../../../artifacts/methods/v23_2/v23_2_executability_001/fixed_R03/result.json)。
+
+### Original Plan
+
+```json
+{
+  "goal": "Improve completion of temperature-transformation tasks (cool/heat) by enforcing exact-target acquisition, performing the explicit temperature action before placement, and preventing step-budget exhaustion from substitute-object manipulation or repeated revisits, while preserving the successful exact-target search, cleaning, cooling/heating, and final placement behavior seen in successful runs.",
+  "updates": [
+    {
+      "id": "u1",
+      "text": "When the task names an exact object category, do not manipulate a similar but different category as a substitute. A pot is not a pan; a cup is not a mug. If only near-miss objects are visible at a location, treat the requested target as not found there and continue searching uninspected receptacles. Do not pick up, clean, cool, heat, or place a near-miss object, because doing so consumes steps without satisfying the requested task.",
+      "basis": [
+        "G2",
+        "P5:31",
+        "P5:33",
+        "P5:35",
+        "P5:outcome",
+        "P10:40",
+        "P10:46",
+        "P10:outcome"
+      ]
+    },
+    {
+      "id": "u2",
+      "text": "For tasks requiring a temperature change (for example, cooling an object or making it hot), after acquiring the exact target, carry it to the appropriate appliance: the fridge for cooling and the microwave for heating. Open the appliance if it is closed, then perform the explicit cool or heat action on the target, such as 'cool X with fridge' or 'heat X with microwave'. Do not treat moving the object into the appliance, closing and reopening the appliance door, or examining the appliance as completing the temperature change; do not leave the object in the appliance without applying the temperature action. After the temperature action succeeds, go directly to the requested destination and place the target there. Prefer performing the cool/heat action while holding the target so that unnecessary insertion, door toggling, and re-retrieval are avoided.",
+      "basis": [
+        "G1",
+        "G3",
+        "P2:18",
+        "P3:5",
+        "P6:36",
+        "P7:16",
+        "P8:33",
+        "P8:35",
+        "P9:37",
+        "P9:40",
+        "P10:46",
+        "P10:49",
+        "P10:50",
+        "P10:outcome"
+      ]
+    },
+    {
+      "id": "u3",
+      "text": "During search, track progress within the execution and avoid revisiting receptacles already inspected and visibly lacking the exact target. After opening a receptacle and seeing that the target is absent, the next move should be to a receptacle not yet inspected; if the nearby cabinets or fridge have been checked empty, expand to uninspected drawers, shelves, diningtable, or other listed receptacles instead of cycling among the same empty locations. Do not spend steps checking inventory while carrying nothing; use those steps to inspect a new location. If the step budget is becoming large and the exact target remains unfound, continue with a new uninspected receptacle rather than rechecking prior ones.",
+      "basis": [
+        "P4:9",
+        "P4:17",
+        "P4:28",
+        "P4:36",
+        "P4:41",
+        "P4:50",
+        "P4:outcome",
+        "P5:18",
+        "P5:26",
+        "P5:42",
+        "P5:outcome",
+        "P2:14",
+        "P2:15",
+        "P2:16",
+        "P6:32",
+        "P6:33"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "c1",
+      "update_ids": [
+        "u1"
+      ],
+      "question": "When the exact requested category is absent and a similar object is present, does the actor refrain from picking up, cooling/heating, or placing the substitute and instead continue searching for the exact category?"
+    },
+    {
+      "id": "c2",
+      "update_ids": [
+        "u2"
+      ],
+      "question": "Does the actor perform the explicit cool or heat action on the exact target and then move it to the requested destination, rather than only moving it into the appliance, toggling or examining the appliance, and leaving it there?"
+    },
+    {
+      "id": "c3",
+      "update_ids": [
+        "u3"
+      ],
+      "question": "Does the actor progress to previously uninspected receptacles, including drawers or shelves when cabinets/fridge are exhausted, and avoid repeated revisits of empty locations and idle inventory checks so the task finishes within the step budget?"
+    }
+  ]
+}
+```
+
+### V23 reason / Adjustments
+
+```json
+{
+  "decision": "ready",
+  "reason": "The exact-target and explicit temperature-action Updates are supported by the current runs. The search Update needs narrowing because the Actor cannot reliably track all prior receptacles; evidence and Memory M3 support concrete local choices such as opening closed containers, expanding to uninspected drawers/shelves, and avoiding idle inventory rather than relying on an abstract no-revisit rule. The temperature Update should prioritize the explicit action directly when available, since P5 shows cooling can succeed at a closed fridge and P10 shows insertion without heating fails.",
+  "adjustments": [
+    {
+      "from": [
+        "u2"
+      ],
+      "to": [
+        {
+          "id": "u2",
+          "text": "For tasks requiring a temperature change (cooling or heating), after acquiring the exact target, go to the appropriate appliance: the fridge for cooling and the microwave for heating. If the explicit 'cool X with fridge' or 'heat X with microwave' action is already admissible, perform it immediately, including while holding the target and without first inserting it; open the appliance only when needed to make the action available or to handle the target. Do not treat moving the object into the appliance, closing or reopening the door, or examining the appliance as completing the temperature change, and do not leave the object in the appliance without applying the temperature action. After the temperature action succeeds, go directly to the requested destination and place the target there."
+        }
+      ],
+      "basis": [
+        "P5:33",
+        "P2:18",
+        "P8:33",
+        "P9:37",
+        "P10:46",
+        "P10:outcome"
+      ],
+      "reason": "P5 shows that an explicit cool action succeeded at a closed fridge, while P2, P8, and P9 show successful tasks completing through the explicit temperature action followed by placement. P10 instead moved a substitute cup into the microwave and never heated it. This supports prioritizing the explicit temperature action directly when admissible, while preserving the warning against insertion or door toggling as a substitute."
+    },
+    {
+      "from": [
+        "u3"
+      ],
+      "to": [
+        {
+          "id": "u3",
+          "text": "During search for the exact target, use the current and recent observations to avoid immediate cycling: after arriving at a receptacle that is already open and visibly lacks the exact target, do not re-examine it or check inventory while carrying nothing; instead choose a different listed receptacle. When you reach a closed cabinet, drawer, or fridge, open it and inspect its contents before leaving. If the obvious cabinets or fridge have not yielded the target, inspect uninspected drawers, shelves, the diningtable, or other listed receptacles instead of returning to empty locations already seen. Continue opening new containers or visiting new locations until the exact target is found; if the step count is already high and the target remains unfound, prefer a new unopened container or unvisited listed location over another check of a prior empty receptacle."
+        }
+      ],
+      "basis": [
+        "P4:50",
+        "P4:outcome",
+        "P5:outcome",
+        "P10:outcome",
+        "M3"
+      ],
+      "reason": "P4 exhausted steps while repeatedly revisiting opened empty cabinets and the fridge and never inspecting the many listed drawers; P5 and P10 also revisited already-checked empty locations. Memory M3 indicates that opening closed containers and broadening search helped, whereas the abstract instruction not to revisit empty receptacles was not reliably followed on its own. The Update is therefore narrowed to observable local choices and concrete container-opening/search breadth."
+    }
+  ],
+  "checks": null
+}
+```
+
+### V23 Effective Plan
+
+```json
+{
+  "goal": "Improve completion of temperature-transformation tasks (cool/heat) by enforcing exact-target acquisition, performing the explicit temperature action before placement, and preventing step-budget exhaustion from substitute-object manipulation or repeated revisits, while preserving the successful exact-target search, cleaning, cooling/heating, and final placement behavior seen in successful runs.",
+  "updates": [
+    {
+      "id": "u1",
+      "text": "When the task names an exact object category, do not manipulate a similar but different category as a substitute. A pot is not a pan; a cup is not a mug. If only near-miss objects are visible at a location, treat the requested target as not found there and continue searching uninspected receptacles. Do not pick up, clean, cool, heat, or place a near-miss object, because doing so consumes steps without satisfying the requested task.",
+      "basis": [
+        "G2",
+        "P5:31",
+        "P5:33",
+        "P5:35",
+        "P5:outcome",
+        "P10:40",
+        "P10:46",
+        "P10:outcome"
+      ]
+    },
+    {
+      "id": "u2",
+      "text": "For tasks requiring a temperature change (cooling or heating), after acquiring the exact target, go to the appropriate appliance: the fridge for cooling and the microwave for heating. If the explicit 'cool X with fridge' or 'heat X with microwave' action is already admissible, perform it immediately, including while holding the target and without first inserting it; open the appliance only when needed to make the action available or to handle the target. Do not treat moving the object into the appliance, closing or reopening the door, or examining the appliance as completing the temperature change, and do not leave the object in the appliance without applying the temperature action. After the temperature action succeeds, go directly to the requested destination and place the target there.",
+      "basis": [
+        "G1",
+        "G3",
+        "P2:18",
+        "P3:5",
+        "P6:36",
+        "P7:16",
+        "P8:33",
+        "P8:35",
+        "P9:37",
+        "P9:40",
+        "P10:46",
+        "P10:49",
+        "P10:50",
+        "P10:outcome"
+      ]
+    },
+    {
+      "id": "u3",
+      "text": "During search for the exact target, use the current and recent observations to avoid immediate cycling: after arriving at a receptacle that is already open and visibly lacks the exact target, do not re-examine it or check inventory while carrying nothing; instead choose a different listed receptacle. When you reach a closed cabinet, drawer, or fridge, open it and inspect its contents before leaving. If the obvious cabinets or fridge have not yielded the target, inspect uninspected drawers, shelves, the diningtable, or other listed receptacles instead of returning to empty locations already seen. Continue opening new containers or visiting new locations until the exact target is found; if the step count is already high and the target remains unfound, prefer a new unopened container or unvisited listed location over another check of a prior empty receptacle.",
+      "basis": [
+        "P4:9",
+        "P4:17",
+        "P4:28",
+        "P4:36",
+        "P4:41",
+        "P4:50",
+        "P4:outcome",
+        "P5:18",
+        "P5:26",
+        "P5:42",
+        "P5:outcome",
+        "P2:14",
+        "P2:15",
+        "P2:16",
+        "P6:32",
+        "P6:33"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "c1",
+      "update_ids": [
+        "u1"
+      ],
+      "question": "When the exact requested category is absent and a similar object is present, does the actor refrain from picking up, cooling/heating, or placing the substitute and instead continue searching for the exact category?"
+    },
+    {
+      "id": "c2",
+      "update_ids": [
+        "u2"
+      ],
+      "question": "Does the actor perform the explicit cool or heat action on the exact target and then move it to the requested destination, rather than only moving it into the appliance, toggling or examining the appliance, and leaving it there?"
+    },
+    {
+      "id": "c3",
+      "update_ids": [
+        "u3"
+      ],
+      "question": "Does the actor progress to previously uninspected receptacles, including drawers or shelves when cabinets/fridge are exhausted, and avoid repeated revisits of empty locations and idle inventory checks so the task finishes within the step budget?"
+    }
+  ]
+}
+```
+
+### V23.2 reason / Adjustments
+
+```json
+{
+  "decision": "ready",
+  "reason": "The exact-target safeguard remains appropriate. The temperature-action Update should be strengthened so that, when the explicit cool/heat action is admissible while holding the target, it is performed immediately rather than after insertion and door toggling. The search Update should be revised because it relies on full-history tracking that the Actor cannot perform; historical Memory M3 also shows the no-revisit clause was not reliably followed and did not by itself break cycling.",
+  "adjustments": [
+    {
+      "from": [
+        "u2"
+      ],
+      "to": [
+        {
+          "id": "u2",
+          "text": "When the task requires a temperature change (for example, cooling an object or making it hot), acquire the exact target first. Carry the target to the appropriate appliance: the fridge for cooling and the microwave for heating. At the appliance, if the explicit action ('cool X with fridge' or 'heat X with microwave') is available while you are holding the target, perform that action immediately; do not first move the target into the appliance, close or reopen the door, examine the appliance, or otherwise toggle it. If the action is not yet available, open the appliance if needed, move the target in only when required, then take it back and perform the explicit temperature action; never leave the target in the appliance without applying the temperature change. Do not treat moving the object into the appliance, closing and reopening the door, or examining the appliance as completing the temperature change. After the temperature action succeeds, go directly to the requested destination and place the target there."
+        }
+      ],
+      "basis": [
+        "P2:18",
+        "P3:5",
+        "P6:36",
+        "P7:16",
+        "P8:20",
+        "P8:33",
+        "P9:24",
+        "P9:37",
+        "P10:46",
+        "C89",
+        "C108",
+        "C126"
+      ],
+      "reason": "Successful cooling runs perform the explicit cool action while holding the target, whereas P8 and P9 moved the target into the microwave and toggled the door before later taking it back to heat it, and P10 moved a cup into the microwave without ever heating it. The command sets show the heat or cool action was available while holding the target at the appliance, so strengthening the original preference into a condition-based requirement reduces insertion, door toggling, re-retrieval, and step-budget loss."
+    },
+    {
+      "from": [
+        "u3"
+      ],
+      "to": [
+        {
+          "id": "u3",
+          "text": "During search when the exact target is not visible, prioritize breadth over rechecking. Upon reaching a closed cabinet, drawer, or fridge, open it and inspect its contents before leaving. After opening a receptacle and seeing that the exact target is absent, do not immediately return to that same empty receptacle or cycle among the two or three locations shown in the recent observations; instead use the admissible actions to go to a different listed candidate, prioritizing closed containers and receptacle types not just checked. If the cabinets and fridge recently seen are empty, expand to drawers, shelves, diningtable, stoveburners, countertops, or other listed receptacles rather than repeating the same empty cabinets or fridge. Do not spend steps on inventory or look while carrying nothing unless needed to identify a newly presented object; use the step to move to a new candidate. If many steps have passed (for example, past the first third of the 50-step budget) and the exact target is still unfound, continue to a new listed receptacle or container rather than revisiting prior ones; revisit a location only after exhausting the listed candidate receptacles."
+        }
+      ],
+      "basis": [
+        "M3",
+        "P4:9",
+        "P4:17",
+        "P4:28",
+        "P4:36",
+        "P4:41",
+        "P4:50",
+        "P5:18",
+        "P5:26",
+        "P5:42",
+        "P2:14",
+        "P2:15",
+        "P2:16"
+      ],
+      "reason": "The original u3 asks the Actor to track all previously inspected receptacles, but the execution context provides only the last two pre-action observation/action pairs. Historical Memory M3 reports that the no-revisit guidance was not reliably followed and did not by itself break cycling, while P4 and P5 repeatedly revisited the same empty cabinets, stoveburners, and fridge and also spent idle inventory steps. The replacement keeps the useful breadth behavior but makes it executable through recent observations, admissible commands, opening closed containers, and concrete expansion to different receptacle types."
+    }
+  ],
+  "checks": [
+    {
+      "id": "c1",
+      "update_ids": [
+        "u1"
+      ],
+      "question": "When the exact requested category is absent and a similar object is present, does the actor refrain from picking up, cooling/heating, or placing the substitute and instead continue searching for the exact category?"
+    },
+    {
+      "id": "c2",
+      "update_ids": [
+        "u2"
+      ],
+      "question": "When the explicit cool or heat action is available while the exact target is held at the appliance, does the actor perform that action immediately rather than moving the target into the appliance, toggling or examining the door, or leaving the target there without the temperature action, and then place the target at the requested destination?"
+    },
+    {
+      "id": "c3",
+      "update_ids": [
+        "u3"
+      ],
+      "question": "When the exact target is not visible, does the actor open closed containers on reaching them, avoid immediately cycling among the same recently checked empty locations, and use admissible actions to move to a different listed candidate or receptacle type, especially after many steps have passed, rather than spending steps on idle inventory or look actions?"
+    }
+  ]
+}
+```
+
+### V23.2 Effective Plan
+
+```json
+{
+  "goal": "Improve completion of temperature-transformation tasks (cool/heat) by enforcing exact-target acquisition, performing the explicit temperature action before placement, and preventing step-budget exhaustion from substitute-object manipulation or repeated revisits, while preserving the successful exact-target search, cleaning, cooling/heating, and final placement behavior seen in successful runs.",
+  "updates": [
+    {
+      "id": "u1",
+      "text": "When the task names an exact object category, do not manipulate a similar but different category as a substitute. A pot is not a pan; a cup is not a mug. If only near-miss objects are visible at a location, treat the requested target as not found there and continue searching uninspected receptacles. Do not pick up, clean, cool, heat, or place a near-miss object, because doing so consumes steps without satisfying the requested task.",
+      "basis": [
+        "G2",
+        "P5:31",
+        "P5:33",
+        "P5:35",
+        "P5:outcome",
+        "P10:40",
+        "P10:46",
+        "P10:outcome"
+      ]
+    },
+    {
+      "id": "u2",
+      "text": "When the task requires a temperature change (for example, cooling an object or making it hot), acquire the exact target first. Carry the target to the appropriate appliance: the fridge for cooling and the microwave for heating. At the appliance, if the explicit action ('cool X with fridge' or 'heat X with microwave') is available while you are holding the target, perform that action immediately; do not first move the target into the appliance, close or reopen the door, examine the appliance, or otherwise toggle it. If the action is not yet available, open the appliance if needed, move the target in only when required, then take it back and perform the explicit temperature action; never leave the target in the appliance without applying the temperature change. Do not treat moving the object into the appliance, closing and reopening the door, or examining the appliance as completing the temperature change. After the temperature action succeeds, go directly to the requested destination and place the target there.",
+      "basis": [
+        "G1",
+        "G3",
+        "P2:18",
+        "P3:5",
+        "P6:36",
+        "P7:16",
+        "P8:33",
+        "P8:35",
+        "P9:37",
+        "P9:40",
+        "P10:46",
+        "P10:49",
+        "P10:50",
+        "P10:outcome"
+      ]
+    },
+    {
+      "id": "u3",
+      "text": "During search when the exact target is not visible, prioritize breadth over rechecking. Upon reaching a closed cabinet, drawer, or fridge, open it and inspect its contents before leaving. After opening a receptacle and seeing that the exact target is absent, do not immediately return to that same empty receptacle or cycle among the two or three locations shown in the recent observations; instead use the admissible actions to go to a different listed candidate, prioritizing closed containers and receptacle types not just checked. If the cabinets and fridge recently seen are empty, expand to drawers, shelves, diningtable, stoveburners, countertops, or other listed receptacles rather than repeating the same empty cabinets or fridge. Do not spend steps on inventory or look while carrying nothing unless needed to identify a newly presented object; use the step to move to a new candidate. If many steps have passed (for example, past the first third of the 50-step budget) and the exact target is still unfound, continue to a new listed receptacle or container rather than revisiting prior ones; revisit a location only after exhausting the listed candidate receptacles.",
+      "basis": [
+        "P4:9",
+        "P4:17",
+        "P4:28",
+        "P4:36",
+        "P4:41",
+        "P4:50",
+        "P4:outcome",
+        "P5:18",
+        "P5:26",
+        "P5:42",
+        "P5:outcome",
+        "P2:14",
+        "P2:15",
+        "P2:16",
+        "P6:32",
+        "P6:33"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "c1",
+      "update_ids": [
+        "u1"
+      ],
+      "question": "When the exact requested category is absent and a similar object is present, does the actor refrain from picking up, cooling/heating, or placing the substitute and instead continue searching for the exact category?"
+    },
+    {
+      "id": "c2",
+      "update_ids": [
+        "u2"
+      ],
+      "question": "When the explicit cool or heat action is available while the exact target is held at the appliance, does the actor perform that action immediately rather than moving the target into the appliance, toggling or examining the door, or leaving the target there without the temperature action, and then place the target at the requested destination?"
+    },
+    {
+      "id": "c3",
+      "update_ids": [
+        "u3"
+      ],
+      "question": "When the exact target is not visible, does the actor open closed containers on reaching them, avoid immediately cycling among the same recently checked empty locations, and use admissible actions to move to a different listed candidate or receptacle type, especially after many steps have passed, rather than spending steps on idle inventory or look actions?"
+    }
+  ]
+}
+```
+
+## R05
+
+旧来源：[Preconditioner](../../../../../artifacts/methods/v23/v23_alfworld_formal_001/S1/rounds/R05/preconditioner/attempts/001/preconditioner.json)；新来源：[有效阶段](../../../../../artifacts/methods/v23_2/v23_2_executability_001/fixed_R05/result.json)。
+
+### Original Plan
+
+```json
+{
+  "goal": "Improve target selection and search coverage when the exact requested item is not immediately visible: never satisfy a request with a near-but-different object category, and sweep uninspected receptacle families instead of looping over already-checked empty ones. Preserve the successful desklamp co-location/use pattern and the efficient exact acquire-condition-place sequences observed in completed runs.",
+  "updates": [
+    {
+      "id": "u1",
+      "text": "Before acquiring, conditioning, or placing an object, confirm that its exact category name matches the requested target. Do not complete the task with a functionally similar but differently named object: treat a knife as distinct from a butterknife, a soapbottle as distinct from a soapbar, a cup as distinct from a mug, and a spraybottle as distinct from a soapbottle. If only a near-match is present at the current location, leave it untouched and continue searching for the exact category; never clean, cool, heat, or place a near-match in place of the requested object.",
+      "basis": [
+        "G3",
+        "P7:5",
+        "P7:7",
+        "P7:9",
+        "G4",
+        "P9:2",
+        "P10:33"
+      ]
+    },
+    {
+      "id": "u2",
+      "text": "When the exact target is not visible, run a single-pass sweep that spreads across distinct receptacle families rather than exhausting or looping over one type. Open each closed container once and read its contents; if it lacks the target, continue to a receptacle you have not yet inspected. Use your most recent observations to avoid returning to a receptacle that was just confirmed empty, and when one family (for example drawers) yields nothing, switch to a different uninspected family (for example cabinets, shelves, countertops/other surfaces, or appliances) before revisiting any earlier location. Keep the sweep within the step budget so that unopened containers and uninspected surfaces are checked before any loop back.",
+      "basis": [
+        "G3",
+        "P6:50",
+        "P8:11",
+        "P8:22",
+        "P8:50",
+        "G4",
+        "P10:32"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "c1",
+      "update_ids": [
+        "u1"
+      ],
+      "question": "When the exact requested category is absent from the current receptacle, does the Actor ever take, clean/cool/heat, or place a different but similar category (e.g., knife for butterknife, soapbottle for soapbar) as if it were the target?"
+    },
+    {
+      "id": "c2",
+      "update_ids": [
+        "u2"
+      ],
+      "question": "After inspecting an empty receptacle, does the Actor move to an uninspected receptacle family instead of cycling back through already-seen empty cabinets/drawers, and does the search reach other families (shelves, surfaces, unopened containers) before the step limit?"
+    }
+  ]
+}
+```
+
+### V23 reason / Adjustments
+
+```json
+{
+  "decision": "ready",
+  "reason": "Keep both original Updates. u1 is directly supported by P7, where the Actor took, cleaned, and placed a knife for a clean-butterknife task instead of continuing the exact-category search; this matches the no-substitute guidance and historical M8. u2 is supported by P6 and P8 repeatedly revisiting already-empty drawers/cabinets and by P10 eventually finding the exact apple only after broader surface search. M6/M3 show that anti-cycling/search-breadth guidance is imperfectly followed, but they do not justify a different executable strategy or withdrawal; the proposed sweep remains compatible with the Actor's visible action list and last-two observation history. No check change is required.",
+  "adjustments": [],
+  "checks": null
+}
+```
+
+### V23 Effective Plan
+
+```json
+{
+  "goal": "Improve target selection and search coverage when the exact requested item is not immediately visible: never satisfy a request with a near-but-different object category, and sweep uninspected receptacle families instead of looping over already-checked empty ones. Preserve the successful desklamp co-location/use pattern and the efficient exact acquire-condition-place sequences observed in completed runs.",
+  "updates": [
+    {
+      "id": "u1",
+      "text": "Before acquiring, conditioning, or placing an object, confirm that its exact category name matches the requested target. Do not complete the task with a functionally similar but differently named object: treat a knife as distinct from a butterknife, a soapbottle as distinct from a soapbar, a cup as distinct from a mug, and a spraybottle as distinct from a soapbottle. If only a near-match is present at the current location, leave it untouched and continue searching for the exact category; never clean, cool, heat, or place a near-match in place of the requested object.",
+      "basis": [
+        "G3",
+        "P7:5",
+        "P7:7",
+        "P7:9",
+        "G4",
+        "P9:2",
+        "P10:33"
+      ]
+    },
+    {
+      "id": "u2",
+      "text": "When the exact target is not visible, run a single-pass sweep that spreads across distinct receptacle families rather than exhausting or looping over one type. Open each closed container once and read its contents; if it lacks the target, continue to a receptacle you have not yet inspected. Use your most recent observations to avoid returning to a receptacle that was just confirmed empty, and when one family (for example drawers) yields nothing, switch to a different uninspected family (for example cabinets, shelves, countertops/other surfaces, or appliances) before revisiting any earlier location. Keep the sweep within the step budget so that unopened containers and uninspected surfaces are checked before any loop back.",
+      "basis": [
+        "G3",
+        "P6:50",
+        "P8:11",
+        "P8:22",
+        "P8:50",
+        "G4",
+        "P10:32"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "c1",
+      "update_ids": [
+        "u1"
+      ],
+      "question": "When the exact requested category is absent from the current receptacle, does the Actor ever take, clean/cool/heat, or place a different but similar category (e.g., knife for butterknife, soapbottle for soapbar) as if it were the target?"
+    },
+    {
+      "id": "c2",
+      "update_ids": [
+        "u2"
+      ],
+      "question": "After inspecting an empty receptacle, does the Actor move to an uninspected receptacle family instead of cycling back through already-seen empty cabinets/drawers, and does the search reach other families (shelves, surfaces, unopened containers) before the step limit?"
+    }
+  ]
+}
+```
+
+### V23.2 reason / Adjustments
+
+```json
+{
+  "decision": "ready",
+  "reason": "Keep the exact-target/no-substitute requirement and adjust the search-sweep requirement. The original sweep depends on cumulative knowledge of all previously inspected locations, but the Actor only has the current observation and the last two observation-action pairs. Prior global anti-cycling and step-budget language was also not reliably followed. The replacement makes the search rule local and executable while preserving the intent to avoid same-family loops and broaden coverage.",
+  "adjustments": [
+    {
+      "from": [
+        "u2"
+      ],
+      "to": [
+        {
+          "id": "u2",
+          "text": "If the exact target is not visible, search without looping within a single receptacle family. Use the current observation and the last two observations: never move to an already-open receptacle that those observations show is empty of the exact target. If the last two inspected receptacles are both from the same family and both lack the target, choose the next admissible location from a different family, for example switching from drawers to cabinets, shelves, countertops or other surfaces, or an appliance. Otherwise, it is acceptable to open one new closed container in the current family, but after an empty inspection prefer a different family or an unopened container or surface that is not shown empty in the current or recent observations. When the step count is high and the target is still absent, prioritize opening a listed closed container whose contents are not yet known, or moving to a different family, over another visit to a location shown empty in the current or last two observations. Continue until the exact target is found or no admissible candidate from a different family remains."
+        }
+      ],
+      "basis": [
+        "P6:50",
+        "P8:50",
+        "M3",
+        "M6"
+      ],
+      "reason": "The original u2 requires a cumulative single-pass sweep and avoidance of all previously inspected receptacles, but the Actor only sees the current observation and the last two observation-action pairs. P6 and P8 show repeated same-family cycling to the step limit, and M3 and M6 record that broad anti-cycling/step-budget language was not reliably followed. The replacement makes the rule local and executable from recent observations while preserving the intent to avoid loops and spread across receptacle families."
+    }
+  ],
+  "checks": null
+}
+```
+
+### V23.2 Effective Plan
+
+```json
+{
+  "goal": "Improve target selection and search coverage when the exact requested item is not immediately visible: never satisfy a request with a near-but-different object category, and sweep uninspected receptacle families instead of looping over already-checked empty ones. Preserve the successful desklamp co-location/use pattern and the efficient exact acquire-condition-place sequences observed in completed runs.",
+  "updates": [
+    {
+      "id": "u1",
+      "text": "Before acquiring, conditioning, or placing an object, confirm that its exact category name matches the requested target. Do not complete the task with a functionally similar but differently named object: treat a knife as distinct from a butterknife, a soapbottle as distinct from a soapbar, a cup as distinct from a mug, and a spraybottle as distinct from a soapbottle. If only a near-match is present at the current location, leave it untouched and continue searching for the exact category; never clean, cool, heat, or place a near-match in place of the requested object.",
+      "basis": [
+        "G3",
+        "P7:5",
+        "P7:7",
+        "P7:9",
+        "G4",
+        "P9:2",
+        "P10:33"
+      ]
+    },
+    {
+      "id": "u2",
+      "text": "If the exact target is not visible, search without looping within a single receptacle family. Use the current observation and the last two observations: never move to an already-open receptacle that those observations show is empty of the exact target. If the last two inspected receptacles are both from the same family and both lack the target, choose the next admissible location from a different family, for example switching from drawers to cabinets, shelves, countertops or other surfaces, or an appliance. Otherwise, it is acceptable to open one new closed container in the current family, but after an empty inspection prefer a different family or an unopened container or surface that is not shown empty in the current or recent observations. When the step count is high and the target is still absent, prioritize opening a listed closed container whose contents are not yet known, or moving to a different family, over another visit to a location shown empty in the current or last two observations. Continue until the exact target is found or no admissible candidate from a different family remains.",
+      "basis": [
+        "G3",
+        "P6:50",
+        "P8:11",
+        "P8:22",
+        "P8:50",
+        "G4",
+        "P10:32"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "c1",
+      "update_ids": [
+        "u1"
+      ],
+      "question": "When the exact requested category is absent from the current receptacle, does the Actor ever take, clean/cool/heat, or place a different but similar category (e.g., knife for butterknife, soapbottle for soapbar) as if it were the target?"
+    },
+    {
+      "id": "c2",
+      "update_ids": [
+        "u2"
+      ],
+      "question": "After inspecting an empty receptacle, does the Actor move to an uninspected receptacle family instead of cycling back through already-seen empty cabinets/drawers, and does the search reach other families (shelves, surfaces, unopened containers) before the step limit?"
+    }
+  ]
+}
+```
+
+## R06
+
+旧来源：[Preconditioner](../../../../../artifacts/methods/v23/v23_alfworld_formal_001/S1/rounds/R06/preconditioner/attempts/001/preconditioner.json)；新来源：[有效阶段](../../../../../artifacts/methods/v23_2/v23_2_executability_001/fixed_R06/result.json)。
+
+### Original Plan
+
+```json
+{
+  "goal": "Make target search converge under the actor's limited two-step history by using an ordered memory-independent sweep, and remove wasteful appliance toggling in heat/cool tasks by conditioning the held target directly at the appliance. Preserve successful behavior: exact-category acquisition, direct conditioning while holding, sequential delivery of two required instances, and not using the desklamp when the task does not require it.",
+  "updates": [
+    {
+      "id": "u1",
+      "text": "When a task requires a heat or cool conditioning step, perform that step directly at the conditioning appliance while holding the exact target. Go to the appliance, ensure the target is in hand (take it out first if it was stored inside), and issue the heat/cool action itself. Do not insert the target into the appliance and then repeatedly close and open it, and do not remove and reinsert the target before conditioning. Open the appliance only when you must retrieve the target from inside it or when the heat/cool action is not offered. After conditioning, go straight to the requested destination and place the target; the conditioning appliance is not the destination unless the task says so. Continue to reject near-match categories at the conditioning step.",
+      "basis": [
+        "G2",
+        "P4:6",
+        "P4:7",
+        "P4:14",
+        "P4:20",
+        "P5:5",
+        "P5:13",
+        "P5:15",
+        "P2:11"
+      ]
+    },
+    {
+      "id": "u2",
+      "text": "When the requested exact target is not visible in the initial observation, run the search as a memory-independent ordered sweep rather than hopping among a few familiar locations. Derive the candidate receptacle families from the room description, then within the current family move through receptacles in ascending index order (for example cabinet 1, cabinet 2, and so on), opening and reading each closed container once and moving on immediately when it lacks the target. Do not return to a receptacle you have already seen empty, and do not cycle among the same few receptacles; because only the two most recent observations are available, rely on the fixed order rather than memory to guarantee progress. When the current family is exhausted without the target, switch to a genuinely uninspected family (other cabinets or drawers, countertops/diningtables/shelves, appliances such as microwave/sinkbasin/stoveburners/toaster, fridge) and keep enough remaining steps to complete any conditioning and the final placement.",
+      "basis": [
+        "G1",
+        "P3:8",
+        "P3:22",
+        "P3:50",
+        "P3:outcome",
+        "P1:34",
+        "P2:8"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "c1",
+      "update_ids": [
+        "u1"
+      ],
+      "question": "For heat/cool tasks, does the actor go to the correct conditioning appliance, apply the heat/cool action directly while holding the exact target, and then place it at the destination without repeated open/close or insert/remove cycles?"
+    },
+    {
+      "id": "c2",
+      "update_ids": [
+        "u2"
+      ],
+      "question": "When the target is initially not visible, does the actor advance through new receptacles and new families in an ordered sweep rather than cycling among the same few locations, reaching uninspected containers before the step budget runs out?"
+    },
+    {
+      "id": "c3",
+      "update_ids": [
+        "u1",
+        "u2"
+      ],
+      "question": "Do searches still end with conditioning and final placement of the exact requested category within budget, without substituting a near-match object or abandoning the task after locating the target?"
+    }
+  ]
+}
+```
+
+### V23 reason / Adjustments
+
+```json
+{
+  "decision": "ready",
+  "reason": "Both original Updates are evidence-grounded and executable. P4:4 offered 'heat tomato 2 with microwave 1' while the microwave was closed and the tomato was held, yet the actor inserted the tomato, repeatedly closed/opened the microwave, removed and reinserted it, and only then heated it (P4:6-P4:20); P5 shows the same pattern (P5:5-P5:15). P3 instead looped among previously inspected empty receptacles and never reached other uninspected families before step_limit (P3:1-P3:50). The Actor's fixed two-observation history makes an ordered, memory-independent sweep appropriate. Memory M7 corroborates the direct holding-conditioning benefit, while M6/M10 support the uninspected-family sweep as a direction even though it is not a guaranteed cure. The original Checks remain aligned with the effective Updates, so no adjustment is needed.",
+  "adjustments": [],
+  "checks": null
+}
+```
+
+### V23 Effective Plan
+
+```json
+{
+  "goal": "Make target search converge under the actor's limited two-step history by using an ordered memory-independent sweep, and remove wasteful appliance toggling in heat/cool tasks by conditioning the held target directly at the appliance. Preserve successful behavior: exact-category acquisition, direct conditioning while holding, sequential delivery of two required instances, and not using the desklamp when the task does not require it.",
+  "updates": [
+    {
+      "id": "u1",
+      "text": "When a task requires a heat or cool conditioning step, perform that step directly at the conditioning appliance while holding the exact target. Go to the appliance, ensure the target is in hand (take it out first if it was stored inside), and issue the heat/cool action itself. Do not insert the target into the appliance and then repeatedly close and open it, and do not remove and reinsert the target before conditioning. Open the appliance only when you must retrieve the target from inside it or when the heat/cool action is not offered. After conditioning, go straight to the requested destination and place the target; the conditioning appliance is not the destination unless the task says so. Continue to reject near-match categories at the conditioning step.",
+      "basis": [
+        "G2",
+        "P4:6",
+        "P4:7",
+        "P4:14",
+        "P4:20",
+        "P5:5",
+        "P5:13",
+        "P5:15",
+        "P2:11"
+      ]
+    },
+    {
+      "id": "u2",
+      "text": "When the requested exact target is not visible in the initial observation, run the search as a memory-independent ordered sweep rather than hopping among a few familiar locations. Derive the candidate receptacle families from the room description, then within the current family move through receptacles in ascending index order (for example cabinet 1, cabinet 2, and so on), opening and reading each closed container once and moving on immediately when it lacks the target. Do not return to a receptacle you have already seen empty, and do not cycle among the same few receptacles; because only the two most recent observations are available, rely on the fixed order rather than memory to guarantee progress. When the current family is exhausted without the target, switch to a genuinely uninspected family (other cabinets or drawers, countertops/diningtables/shelves, appliances such as microwave/sinkbasin/stoveburners/toaster, fridge) and keep enough remaining steps to complete any conditioning and the final placement.",
+      "basis": [
+        "G1",
+        "P3:8",
+        "P3:22",
+        "P3:50",
+        "P3:outcome",
+        "P1:34",
+        "P2:8"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "c1",
+      "update_ids": [
+        "u1"
+      ],
+      "question": "For heat/cool tasks, does the actor go to the correct conditioning appliance, apply the heat/cool action directly while holding the exact target, and then place it at the destination without repeated open/close or insert/remove cycles?"
+    },
+    {
+      "id": "c2",
+      "update_ids": [
+        "u2"
+      ],
+      "question": "When the target is initially not visible, does the actor advance through new receptacles and new families in an ordered sweep rather than cycling among the same few locations, reaching uninspected containers before the step budget runs out?"
+    },
+    {
+      "id": "c3",
+      "update_ids": [
+        "u1",
+        "u2"
+      ],
+      "question": "Do searches still end with conditioning and final placement of the exact requested category within budget, without substituting a near-match object or abandoning the task after locating the target?"
+    }
+  ]
+}
+```
+
+### V23.2 reason / Adjustments
+
+```json
+{
+  "decision": "ready",
+  "reason": "The heat/cool conditioning Update is directly supported and executable. The search Update needs adjustment because its instruction to exhaust a receptacle family in ascending order conflicts with the Parent Skill's family-spreading sweep and can consume the step budget before checking surfaces or appliances where the target is often found.",
+  "adjustments": [
+    {
+      "from": [
+        "u2"
+      ],
+      "to": [
+        {
+          "id": "u2",
+          "text": "When the requested exact target is not visible in the initial observation, run a memory-independent ordered sweep that samples families instead of exhausting one family. From the room description, list the candidate receptacle families (cabinets, drawers, shelves, countertops/diningtables/other open surfaces, appliances such as microwave/sinkbasin/stoveburners/toaster, and fridge). Within each family, order receptacles by ascending index, and visit only receptacles not already inspected. Open each closed container once when reached and read its contents; if it lacks the exact target, leave it and move on. Do not revisit a receptacle already seen empty and do not cycle among the same locations. After at most two consecutive empty receptacles from the same family, switch to a different uninspected family, and return to remaining receptacles of the earlier family only after the other families have been sampled and enough steps remain to complete conditioning and final placement. Continue until the exact target is found or all plausible receptacles and families have been inspected once. If the step count is already high, prioritize uninspected families not yet sampled, including open surfaces and appliances, over more checks in an already-sampled family, and preserve enough steps for conditioning and placement."
+        }
+      ],
+      "basis": [
+        "P1:34",
+        "P2:8",
+        "P3:8",
+        "P3:22",
+        "P3:50",
+        "M6",
+        "M10"
+      ],
+      "reason": "The original u2 tells the Actor to keep moving within the current family until it is exhausted. P1 reached countertop 2 only at step 34 after many cabinet checks, and P3 cycled among a few locations and hit the step limit, while P2 found the target on countertop 2. Historical Memory M10 supports a single-pass family sweep but notes that it can still consume extra steps and does not reliably prevent cycling; M6 likewise records mixed search behavior. Rotating across uninspected families while preserving ascending order within each family retains the memory-independent progress rule without letting one large family consume the budget needed for conditioning and placement."
+    }
+  ],
+  "checks": [
+    {
+      "id": "c1",
+      "update_ids": [
+        "u1"
+      ],
+      "question": "For heat/cool tasks, does the actor go to the correct conditioning appliance, apply the heat/cool action directly while holding the exact target, and then place it at the destination without repeated open/close or insert/remove cycles?"
+    },
+    {
+      "id": "c2",
+      "update_ids": [
+        "u2"
+      ],
+      "question": "When the exact target is initially not visible, does the actor sample uninspected receptacle families in a fixed non-repeating order, using ascending indices within families, instead of exhausting a single family or cycling among seen locations, and preserve enough steps to finish conditioning and placement?"
+    },
+    {
+      "id": "c3",
+      "update_ids": [
+        "u1",
+        "u2"
+      ],
+      "question": "Do searches still end with conditioning and final placement of the exact requested category within budget, without substituting a near-match object or abandoning the task after locating the target?"
+    }
+  ]
+}
+```
+
+### V23.2 Effective Plan
+
+```json
+{
+  "goal": "Make target search converge under the actor's limited two-step history by using an ordered memory-independent sweep, and remove wasteful appliance toggling in heat/cool tasks by conditioning the held target directly at the appliance. Preserve successful behavior: exact-category acquisition, direct conditioning while holding, sequential delivery of two required instances, and not using the desklamp when the task does not require it.",
+  "updates": [
+    {
+      "id": "u1",
+      "text": "When a task requires a heat or cool conditioning step, perform that step directly at the conditioning appliance while holding the exact target. Go to the appliance, ensure the target is in hand (take it out first if it was stored inside), and issue the heat/cool action itself. Do not insert the target into the appliance and then repeatedly close and open it, and do not remove and reinsert the target before conditioning. Open the appliance only when you must retrieve the target from inside it or when the heat/cool action is not offered. After conditioning, go straight to the requested destination and place the target; the conditioning appliance is not the destination unless the task says so. Continue to reject near-match categories at the conditioning step.",
+      "basis": [
+        "G2",
+        "P4:6",
+        "P4:7",
+        "P4:14",
+        "P4:20",
+        "P5:5",
+        "P5:13",
+        "P5:15",
+        "P2:11"
+      ]
+    },
+    {
+      "id": "u2",
+      "text": "When the requested exact target is not visible in the initial observation, run a memory-independent ordered sweep that samples families instead of exhausting one family. From the room description, list the candidate receptacle families (cabinets, drawers, shelves, countertops/diningtables/other open surfaces, appliances such as microwave/sinkbasin/stoveburners/toaster, and fridge). Within each family, order receptacles by ascending index, and visit only receptacles not already inspected. Open each closed container once when reached and read its contents; if it lacks the exact target, leave it and move on. Do not revisit a receptacle already seen empty and do not cycle among the same locations. After at most two consecutive empty receptacles from the same family, switch to a different uninspected family, and return to remaining receptacles of the earlier family only after the other families have been sampled and enough steps remain to complete conditioning and final placement. Continue until the exact target is found or all plausible receptacles and families have been inspected once. If the step count is already high, prioritize uninspected families not yet sampled, including open surfaces and appliances, over more checks in an already-sampled family, and preserve enough steps for conditioning and placement.",
+      "basis": [
+        "G1",
+        "P3:8",
+        "P3:22",
+        "P3:50",
+        "P3:outcome",
+        "P1:34",
+        "P2:8"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "c1",
+      "update_ids": [
+        "u1"
+      ],
+      "question": "For heat/cool tasks, does the actor go to the correct conditioning appliance, apply the heat/cool action directly while holding the exact target, and then place it at the destination without repeated open/close or insert/remove cycles?"
+    },
+    {
+      "id": "c2",
+      "update_ids": [
+        "u2"
+      ],
+      "question": "When the exact target is initially not visible, does the actor sample uninspected receptacle families in a fixed non-repeating order, using ascending indices within families, instead of exhausting a single family or cycling among seen locations, and preserve enough steps to finish conditioning and placement?"
+    },
+    {
+      "id": "c3",
+      "update_ids": [
+        "u1",
+        "u2"
+      ],
+      "question": "Do searches still end with conditioning and final placement of the exact requested category within budget, without substituting a near-match object or abandoning the task after locating the target?"
+    }
+  ]
+}
+```
+
+## R05 串联
+
+### diagnosis
+
+```json
+{
+  "decision": "revise",
+  "reason": "The batch contains clear skill-addressable failures: P7 takes, cleans, and places knife 1 when the task requests a butterknife, while P6 and P8 end at the step limit after repeatedly cycling among already-inspected same-type containers. Successful desklamp co-location and clean/cool conditioning should be preserved rather than replaced.",
+  "plan": {
+    "goal": "Reduce step-limit failures by enforcing exact target identity and a broader, non-looping search strategy when the requested object is not visible, while preserving successful direct acquisition, desklamp co-location/use, required state conditioning, and final placement behavior.",
+    "updates": [
+      {
+        "id": "u1",
+        "text": "Enforce exact target identity before any take, clean/cool/heat, or move action. Compare the object label in the current observation and candidate action with the exact target noun in the task (for example, a knife is not a butterknife and a soapbottle is not a soapbar). If only a similar-category object is present and the exact target has not been found, do not take, condition, or place the substitute; leave it and continue searching. Perform the required state change and placement only after acquiring the exact target.",
+        "basis": [
+          "G3",
+          "P7:5",
+          "P7:7",
+          "P7:9",
+          "P7:outcome"
+        ]
+      },
+      {
+        "id": "u2",
+        "text": "Use a breadth-first, category-aware search when the exact requested target is not visible. When reaching a closed container, open and inspect it before leaving; if it does not contain the exact target, do not return to that same empty/lacking receptacle or to another already-open empty one during the search. When recent observations and actions show repeated movement among same-type containers without acquiring the target, switch to a different available receptacle category (open surface, shelf/table/countertop, appliance, or other uninspected container) instead of continuing the same numbered series; do not spend the run opening one container series while leaving other visible categories unchecked. If the exact target is already visible at the current location, take it and proceed directly to the required state change/destination rather than adding search detours.",
+        "basis": [
+          "G3",
+          "P6:6",
+          "P6:7",
+          "P6:14",
+          "P6:15",
+          "P6:50",
+          "P8:27",
+          "P8:31",
+          "P8:50"
+        ]
+      }
+    ],
+    "checks": [
+      {
+        "id": "c1",
+        "update_ids": [
+          "u1"
+        ],
+        "question": "When the exact requested object is absent and only a similar object is available, does the Actor refrain from taking, conditioning, or placing the substitute and continue searching?"
+      },
+      {
+        "id": "c2",
+        "update_ids": [
+          "u2"
+        ],
+        "question": "Does the Actor stop cycling among already-inspected same-type containers and broaden the search across different receptacle categories while still opening closed candidates it reaches?"
+      },
+      {
+        "id": "c3",
+        "update_ids": [
+          "u1",
+          "u2"
+        ],
+        "question": "Do successful cases still take an already-visible exact target directly, complete any required clean/cool/heat conditioning before final placement, and preserve desklamp co-location/use when explicitly requested?"
+      }
+    ]
+  }
+}
+```
+
+### preconditioner
+
+```json
+{
+  "decision": "ready",
+  "reason": "The Plan remains directionally valid: P7 shows a near-miss substitute being taken, cleaned, and moved for a missing butterknife, while P6 and P8 show step-limit cycling without acquiring the exact target. Historical Memory supports exact-target abstention but shows that anti-cycling/search-breadth wording is not reliably followed and can still skip unchecked candidates. I therefore keep both Updates but make them executable within the Actor's limited history and refine the search rule to avoid both single-series exhaustion and repeated returns to the same checked instance.",
+  "adjustments": [
+    {
+      "from": [
+        "u1"
+      ],
+      "to": [
+        {
+          "id": "u1",
+          "text": "Treat exact target identity as a completion constraint. Before taking, cleaning/cooling/heating, or moving an object as the requested target, compare its label in the current observation and candidate action with the exact target noun in the task (for example, a knife is not a butterknife and a soapbottle is not a soapbar). If only a similar-category object is visible and the exact target has not been found, do not take, condition, or place that substitute; leave it and continue searching. Perform the required state change and placement only after acquiring the exact target. A different object may be used only when the task explicitly requires it for the action, but it must not be treated as satisfying the requested target."
+        }
+      ],
+      "basis": [
+        "G3",
+        "P7:5",
+        "P7:7",
+        "P7:9",
+        "P7:outcome",
+        "M8"
+      ],
+      "reason": "P7 concretely takes, cleans, and moves knife 1 when the task requests a butterknife, so exact-target abstention is justified. Memory M8 also shows that avoiding near-miss manipulation prevents wasted substitute actions, though it does not by itself guarantee success when the exact target is absent. The replacement keeps that prohibition while clarifying that it applies to objects treated as the requested target, so the rule does not unintentionally forbid an explicitly required tool."
+    },
+    {
+      "from": [
+        "u2"
+      ],
+      "to": [
+        {
+          "id": "u2",
+          "text": "Use a breadth-first, category-aware search when the exact requested target is not visible, using only the current observation, candidate actions, and the last two pre-action observation/action pairs. If an exact target is already visible at the current location, take it and proceed directly to the required state change/destination rather than adding search detours. When reaching a closed container, open and inspect it before leaving. Do not re-open or re-examine a receptacle that the current observation already shows open and lacking the exact target, and do not immediately return to an empty open receptacle shown in the last two observations. If recent actions show repeated visits within a numbered series of the same receptacle type without acquiring the exact target, stop that series and check a different uninspected category available in the observation/action list (open surface such as countertop, diningtable, or sidetable; shelf; appliance; or unopened container). When the chosen category has multiple unchecked listed instances, inspect each unchecked instance once before returning to an already checked instance; do not exhaust one container series before checking another broad category. Continue until the exact target is found or all plausible categories have been inspected once; if the exact target remains absent, do not substitute a similar object."
+        }
+      ],
+      "basis": [
+        "G3",
+        "P6:6",
+        "P6:7",
+        "P6:14",
+        "P6:15",
+        "P6:50",
+        "P8:27",
+        "P8:31",
+        "P8:50",
+        "M3",
+        "M6"
+      ],
+      "reason": "P6 keeps opening a long drawer series while cabinets are untouched, and P8 repeatedly cycles among the same cabinets and sinkbasin; both end at the step limit without the target. Memory M3 shows that repeated revisit restrictions were not reliably followed, while M6 contains both a useful broader-search success and a negative case where the Actor revisited one countertop while skipping another listed countertop. The replacement reduces reliance on unavailable full-history memory, explicitly switches away from repeated numbered-series visits, and requires checking unchecked instances of the chosen category before cycling back."
+    }
+  ],
+  "checks": null
+}
+```
+
+### effective_plan
+
+```json
+{
+  "goal": "Reduce step-limit failures by enforcing exact target identity and a broader, non-looping search strategy when the requested object is not visible, while preserving successful direct acquisition, desklamp co-location/use, required state conditioning, and final placement behavior.",
+  "updates": [
+    {
+      "id": "u1",
+      "text": "Treat exact target identity as a completion constraint. Before taking, cleaning/cooling/heating, or moving an object as the requested target, compare its label in the current observation and candidate action with the exact target noun in the task (for example, a knife is not a butterknife and a soapbottle is not a soapbar). If only a similar-category object is visible and the exact target has not been found, do not take, condition, or place that substitute; leave it and continue searching. Perform the required state change and placement only after acquiring the exact target. A different object may be used only when the task explicitly requires it for the action, but it must not be treated as satisfying the requested target.",
+      "basis": [
+        "G3",
+        "P7:5",
+        "P7:7",
+        "P7:9",
+        "P7:outcome"
+      ]
+    },
+    {
+      "id": "u2",
+      "text": "Use a breadth-first, category-aware search when the exact requested target is not visible, using only the current observation, candidate actions, and the last two pre-action observation/action pairs. If an exact target is already visible at the current location, take it and proceed directly to the required state change/destination rather than adding search detours. When reaching a closed container, open and inspect it before leaving. Do not re-open or re-examine a receptacle that the current observation already shows open and lacking the exact target, and do not immediately return to an empty open receptacle shown in the last two observations. If recent actions show repeated visits within a numbered series of the same receptacle type without acquiring the exact target, stop that series and check a different uninspected category available in the observation/action list (open surface such as countertop, diningtable, or sidetable; shelf; appliance; or unopened container). When the chosen category has multiple unchecked listed instances, inspect each unchecked instance once before returning to an already checked instance; do not exhaust one container series before checking another broad category. Continue until the exact target is found or all plausible categories have been inspected once; if the exact target remains absent, do not substitute a similar object.",
+      "basis": [
+        "G3",
+        "P6:6",
+        "P6:7",
+        "P6:14",
+        "P6:15",
+        "P6:50",
+        "P8:27",
+        "P8:31",
+        "P8:50"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "c1",
+      "update_ids": [
+        "u1"
+      ],
+      "question": "When the exact requested object is absent and only a similar object is available, does the Actor refrain from taking, conditioning, or placing the substitute and continue searching?"
+    },
+    {
+      "id": "c2",
+      "update_ids": [
+        "u2"
+      ],
+      "question": "Does the Actor stop cycling among already-inspected same-type containers and broaden the search across different receptacle categories while still opening closed candidates it reaches?"
+    },
+    {
+      "id": "c3",
+      "update_ids": [
+        "u1",
+        "u2"
+      ],
+      "question": "Do successful cases still take an already-visible exact target directly, complete any required clean/cool/heat conditioning before final placement, and preserve desklamp co-location/use when explicitly requested?"
+    }
+  ]
+}
+```
+
+## 全部请求及技术尝试
+
+| 阶段／attempt | 结果 | 秒 | 输入 Token | 输出 Token | 总 Token | 原始输出／错误 |
+|---|---|---:|---:|---:|---:|---|
+| fixed_R03/001 | adjustment.reason: unavailable historical reference | 60.03 | 230,366 | 10,790 | 241,156 | [原文](../../../../../artifacts/methods/v23_2/v23_2_executability_001/fixed_R03/attempts/001/raw_output.txt) / [错误](../../../../../artifacts/methods/v23_2/v23_2_executability_001/fixed_R03/attempts/001/error.json) |
+| fixed_R03/002 | valid | 49.72 | 230,366 | 9,590 | 239,956 | [原文](../../../../../artifacts/methods/v23_2/v23_2_executability_001/fixed_R03/attempts/002/raw_output.txt) |
+| fixed_R05/001 | reason: unavailable historical reference | 60.00 | 470,169 | 10,438 | 480,607 | [原文](../../../../../artifacts/methods/v23_2/v23_2_executability_001/fixed_R05/attempts/001/raw_output.txt) / [错误](../../../../../artifacts/methods/v23_2/v23_2_executability_001/fixed_R05/attempts/001/error.json) |
+| fixed_R05/002 | valid | 43.76 | 470,169 | 7,798 | 477,967 | [原文](../../../../../artifacts/methods/v23_2/v23_2_executability_001/fixed_R05/attempts/002/raw_output.txt) |
+| fixed_R06/001 | reason: unavailable historical reference | 50.21 | 432,893 | 7,492 | 440,385 | [原文](../../../../../artifacts/methods/v23_2/v23_2_executability_001/fixed_R06/attempts/001/raw_output.txt) / [错误](../../../../../artifacts/methods/v23_2/v23_2_executability_001/fixed_R06/attempts/001/error.json) |
+| fixed_R06/002 | Model response did not finish normally | 80.35 | 432,893 | 16,384 | 449,277 | [原文](../../../../../artifacts/methods/v23_2/v23_2_executability_001/fixed_R06/attempts/002/raw_output.txt) / [错误](../../../../../artifacts/methods/v23_2/v23_2_executability_001/fixed_R06/attempts/002/error.json) |
+| fixed_R06/003 | valid | 51.38 | 432,893 | 9,159 | 442,052 | [原文](../../../../../artifacts/methods/v23_2/v23_2_executability_001/fixed_R06/attempts/003/raw_output.txt) |
+| chain_R05_diagnosis/001 | valid | 42.91 | 65,377 | 7,698 | 73,075 | [原文](../../../../../artifacts/methods/v23_2/v23_2_executability_001/chain_R05_diagnosis/attempts/001/raw_output.txt) |
+| chain_R05_preconditioner/001 | valid | 48.22 | 459,300 | 7,498 | 466,798 | [原文](../../../../../artifacts/methods/v23_2/v23_2_executability_001/chain_R05_preconditioner/attempts/001/raw_output.txt) |
+
+技术引用错误保持原文：斜线并列执行写法（例如 `P6/P8`）被现有历史引用识别规则拒绝，未改解析器。`length` 保留截断响应，没有拼接或人工补全。

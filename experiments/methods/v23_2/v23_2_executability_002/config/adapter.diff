@@ -1,0 +1,59 @@
+--- previous/src/skill_evolution/v23_2/local_validation.py
++++ src/skill_evolution/v23_2/local_validation.py
+@@ -15,10 +15,11 @@
+ PROMPTS = {name: Path(__file__).with_name(f'{name}_prompt.md') for name in MODULES}
+ 
+ 
+-def messages_for(name, saved):
++def messages_for(name, saved, *, prompt_path=None):
+     """Replace only the system template; V23 owns the complete input assembly."""
+     messages = MODULES[name].messages_for(saved)
+-    messages[0]['content'] = render_prompt(PROMPTS[name].read_text(), saved['background'])
++    template = PROMPTS[name] if prompt_path is None else Path(prompt_path)
++    messages[0]['content'] = render_prompt(template.read_text(), saved['background'])
+     return messages
+ 
+ 
+@@ -30,13 +31,13 @@
+     return {**deepcopy(saved), 'preconditioner': value, 'effective_plan': effective}
+ 
+ 
+-def load_attempt(directory):
++def load_attempt(directory, *, prompt_path=None):
+     """Validate new-version archives without weakening any V23 historical loader."""
+     directory = Path(directory)
+     meta = evolution.read(directory/'run.json')
+     require(meta['version'] == 'V23.2' and meta['status'] == 'valid', 'Not a valid V23.2 attempt')
+     saved = evolution.read(directory/'input.json')
+-    messages = messages_for(meta['module'], saved)
++    messages = messages_for(meta['module'], saved, prompt_path=prompt_path)
+     require(evolution.read(directory/'messages.json') == messages, 'Saved messages differ')
+     require((directory/'prompt.md').read_text() == messages[0]['content'], 'Saved Prompt differs')
+     require(evolution.read(directory/'validation.json')['valid'] is True, 'Invalid saved validation')
+@@ -51,7 +52,7 @@
+     return result
+ 
+ 
+-def run_stage(name, saved, directory, config, *, generate=None):
++def run_stage(name, saved, directory, config, *, generate=None, prompt_path=None):
+     """One logical call, at most the existing V23 technical-attempt budget.
+ 
+     A legal semantic result always ends the stage. Existing directories are never
+@@ -60,7 +61,7 @@
+     require(name in MODULES and config['max_attempts'] == 3, 'Unsupported stage or retry budget')
+     directory = Path(directory)
+     directory.mkdir(parents=True, exist_ok=False)
+-    messages = messages_for(name, saved)
++    messages = messages_for(name, saved, prompt_path=prompt_path)
+     encoded = json.dumps(messages, ensure_ascii=False)
+     cfg = config.get('stage_configs', {}).get(name, config['call_config'])
+     limits = {'input_chars': len(encoded), 'input_utf8_bytes': len(encoded.encode('utf-8')),
+@@ -109,7 +110,7 @@
+             meta.update(finished_at=evolution.now(), elapsed_seconds=time.monotonic()-started)
+             evolution.save(attempt/'run.json', meta)
+         if meta['status'] == 'valid':
+-            loaded = load_attempt(attempt)
++            loaded = load_attempt(attempt, prompt_path=prompt_path)
+             evolution.save(directory/'result.json', {'path': str(attempt.relative_to(directory)),
+                                                     'decision': value['decision']})
+             return loaded
