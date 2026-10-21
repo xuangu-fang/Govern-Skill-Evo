@@ -1,0 +1,47 @@
+{
+  "decision": "ready",
+  "reason": "Current runs confirm the Plan's two intended problems but also expose an execution limit. In P1 the Actor repeatedly re-walked closed containers before eventually finding the box on coffeetable 1 (P1:15-39); in P3 and P6 the Actor searched only a subset of closed containers and never inspected many listed surfaces or appliances, then cycled and hit the step limit (P3:28-50; P6:7-50). However, the Actor only sees the last two pre-action observations, so a global 'already confirmed empty' memory guarantee is not reliably executable, and historical M3/M6/M9 show that broad anti-cycling wording was often followed only partially. I therefore keep the broad-search and anti-cycling requirements, weaken one unsupported frequency claim in u1, and recast u2 into observable recent-history triggers rather than an unverifiable global memory rule. The new same-type-container stuck-pattern switch is an executable hypothesis, not a proven fix.",
+  "adjustments": [
+    {
+      "from": ["u1"],
+      "to": [
+        {
+          "id": "u1",
+          "patch": "--- a/SKILL.md\n+++ b/SKILL.md\n@@ -1,3 +1,3 @@\n-- When the exact requested target is not visible at the start, search all plausible receptacle categories, not only closed cabinets and drawers: also inspect open surfaces (coffeetable, diningtable, sidetable, dresser top, countertop, sofa, armchair, ottoman) and appliances (fridge, microwave, stoveburner, sinkbasin, toaster, coffeemachine), because targets are frequently placed plainly visible on a surface or in an appliance.\n-- Inspect each candidate receptacle on first arrival (open it and read its contents) and prefer a candidate you have not yet observed over one you have already seen empty.\n-- Continue this first pass until the exact target, or the required number of target instances for a multi-target task, is located, or until all reachable candidate receptacles have been inspected once.\n+- When the exact requested target is not visible at the start, search every listed receptacle category, not only closed cabinets and drawers: also inspect open surfaces (coffeetable, diningtable, sidetable, dresser top, countertop, sofa, armchair, ottoman) and appliances (fridge, microwave, stoveburner, sinkbasin, toaster, coffeemachine), because a target may be lying plainly visible there or inside an appliance.\n+- Inspect each candidate receptacle on first arrival (open closed containers and read the contents of open surfaces and appliances) and prefer a candidate not shown in your recent observations over one you have already seen empty.\n+- Continue this first pass until the exact target, or the required number of target instances for a multi-target task, is located, or until all reachable candidate receptacles have been inspected once; do not make a second visit to one category (for example another cabinet) while a listed category such as an open surface or an appliance has not yet been visited.\n"
+        }
+      ],
+      "basis": ["G1", "P1:36", "P1:37", "P1:39", "P3:outcome", "P6:outcome", "M3", "M6"],
+      "reason": "The broad-search direction is supported: P1 eventually found the requested box on coffeetable 1 (P1:36-39), while P3 and P6 ended at the step limit after checking only cabinets/drawers and some surfaces, without inspecting many listed appliances or surfaces (P3:outcome; P6:outcome). Historical M3 also contains a case where exploring an additional receptacle (bathtubbasin) located the exact target. The edit keeps that behavioral requirement but weakens the unsupported frequency claim that targets are 'frequently' on surfaces or in appliances: these runs show a surface placement once (P1) and no appliance placement, so the claim is changed to a possibility. I also add an ordering condition: do not make a second visit to one category while another listed category is still uninspected. Limits: one run per task and no controlled pair isolate this ordering change; the added category priority is an executable hypothesis, not a proven step-budget improvement.",
+      "from_note": ""
+    },
+    {
+      "from": ["u2"],
+      "to": [
+        {
+          "id": "u2",
+          "patch": "--- a/SKILL.md\n+++ b/SKILL.md\n@@ -1,3 +1,3 @@\n-- After inspecting a receptacle that visibly lacks the exact target, do not re-open or re-walk a receptacle you have already confirmed empty; next travel to a receptacle that does not appear in your recent observation/action history and whose contents you have not yet seen.\n-- Do not cycle back and forth among the same small set of receptacles; before making any second pass over a container cluster, complete one inspection of the remaining untested receptacle types or instances.\n-- Treat a run of steps that only revisits already-open, empty containers as a stuck-search signal: break the pattern by moving to an uninspected surface or appliance instead of repeating the loop.\n+- After inspecting a receptacle that visibly lacks the exact target, do not immediately return to that receptacle or to an empty receptacle named in your two most recent observations; when the current observation shows no target, prefer an admissible destination that is neither of those locations.\n+- If two consecutive observations both show already-open, empty containers of the same type (for example cabinet after cabinet), treat that as a stuck pattern: choose a listed open surface or appliance not named in those two observations for the next move instead of another same-type container.\n+- Do not cycle back and forth among the same small set of receptacles; when a location visibly lacks the target in the current or recent observations, do not revisit it before trying a receptacle type or instance you have not yet observed.\n"
+        }
+      ],
+      "basis": ["G1", "P1:15", "P1:36", "P3:28", "P3:48", "P6:26", "P6:outcome", "M3", "M6", "M9"],
+      "reason": "The anti-repetition requirement is needed: P1 repeatedly re-walked cabinets 1-4 before reaching coffeetable 1 (P1:15-39), P3 cycled among already-open cabinets and countertop 1 (P3:28-50), and P6 cycled among drawers 1-4 (P6:7-50). But the Parent wording already told the Actor not to revisit an already-open empty receptacle, and historical M3/M6/M9 show this clause was not reliably followed; M6 also shows the Actor could not track a global visited set (it revisited countertop 2 repeatedly but never went to countertop 3). Since the Actor's realized history is only the two most recent pre-action observations, the original global 'already confirmed empty' branch is not reliably executable. I therefore narrow it to recent-observation triggers and add a concrete two-consecutive-same-type stuck-pattern switch to a listed open surface or appliance. This is coordination with u1 (same search domain, no conflict) and preserves the anti-cycling intent. The revised trigger is an executable hypothesis, not an established repair; no run yet shows it preventing cycling, and the step-limit failures may also reflect missing target instances.",
+      "from_note": ""
+    }
+  ],
+  "checks": [
+    {
+      "id": "c1",
+      "update_ids": ["u1", "u2"],
+      "question": "When the requested target is not found after inspecting a cluster of empty closed containers, does the Actor next choose an open surface or appliance that has not appeared in its recent observations, rather than opening another same-type container or re-visiting an empty one?"
+    },
+    {
+      "id": "c2",
+      "update_ids": ["u1", "u2"],
+      "question": "Does the Actor locate and acquire the exact requested target (or the required number of instances) within the step budget and complete the task, without substituting a different object or ending at the step limit?"
+    },
+    {
+      "id": "c3",
+      "update_ids": ["u1", "u2"],
+      "question": "While searching more broadly and with fewer repeats, does the Actor still perform the required clean/cool/heat at the correct appliance, place the target at the requested destination, and co-locate a target with a desklamp for desklamp-conditioned inspection without regression?"
+    }
+  ]
+}

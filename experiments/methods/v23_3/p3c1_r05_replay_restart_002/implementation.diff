@@ -1,0 +1,424 @@
+diff --git a/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_002/run.py b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_002/run.py
+new file mode 100644
+index 00000000..42de3e0b
+--- /dev/null
++++ b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_002/run.py
+@@ -0,0 +1,75 @@
++"""Three user-authorized serial continuation rounds, retrying only HTTP 429."""
++import json
++import os
++from pathlib import Path
++import subprocess
++import sys
++import time
++from experiments.methods.v23_3.p3c1_r05_replay_restart_001 import run as previous
++
++HERE=Path(__file__).resolve().parent
++ROOT=previous.original.ROOT
++read,save,now=previous.read,previous.save,previous.now
++JOBS=previous.JOBS
++COMPLETE={'success','step_limit','environment_ended'}
++
++def prepare():
++    cfg=previous.verify()
++    files=set(subprocess.check_output(['git','ls-files','--cached','--others','--exclude-standard'],cwd=ROOT,text=True).splitlines())
++    protected={str(ROOT/p):[(ROOT/p).stat().st_size,(ROOT/p).stat().st_mtime_ns] for p in files if (ROOT/p).is_file() and not (ROOT/p).is_relative_to(HERE)}
++    save(HERE/'baseline.json',{'at':now(),'head':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
++        'git_status':subprocess.check_output(['git','status','--short'],cwd=ROOT,text=True),
++        'git_diff':subprocess.check_output(['git','diff'],cwd=ROOT,text=True),'files':protected})
++    save(HERE/'config.json',{'at':now(),'original_config':cfg['original_config'],'jobs':JOBS,
++        'max_rounds':3,'backoff_seconds':60,'concurrency':1,'per_decision_http_attempts':1,
++        'max_new_episode_attempts':9,'max_new_actor_http':450,'previous_actor_http':90,'max_cumulative_actor_http':540,
++        'authorization':'Continue restarting on server rate limit, at most three attempts in this turn.'})
++    frozen=[HERE/'run.py',HERE/'PROTOCOL.md',HERE/'config.json',previous.HERE/'freeze.json']
++    save(HERE/'freeze.json',{'at':now(),'files':{str(p):previous.original.sha(p) for p in frozen}})
++
++def verify():
++    previous.verify()
++    for path,h in read(HERE/'freeze.json')['files'].items():assert previous.original.sha(path)==h,path
++    return read(HERE/'config.json')
++
++def episode(round_no,condition,ref):
++    cfg=verify()
++    previous.HERE=HERE/f'attempt_{round_no}'
++    previous.verify=lambda:{'original_config':cfg['original_config']}
++    previous.episode(condition,ref)
++
++def batch():
++    cfg=verify();(HERE/'batch.claim').open('x').close()
++    completed=set();results=[];stop='round_limit'
++    for round_no in range(1,cfg['max_rounds']+1):
++        folder=HERE/f'attempt_{round_no}';folder.mkdir(exist_ok=False)
++        rate_limited=False
++        for condition,ref in JOBS:
++            if (condition,ref) in completed:continue
++            with (folder/f'{condition}_{ref}.log').open('w') as log:
++                proc=subprocess.run([previous.original.PYTHON,'-B','-m','experiments.methods.v23_3.p3c1_r05_replay_restart_002.run','episode',str(round_no),condition,ref],cwd=ROOT,stdout=log,stderr=subprocess.STDOUT,env={**os.environ,'PYTHONDONTWRITEBYTECODE':'1'})
++            path=folder/f'episodes/{condition}/{ref}/trajectory.json'
++            r=read(path) if path.exists() else {}
++            status=r.get('status','setup_error')
++            transport=[t for s in r.get('steps',[]) for t in s.get('transport_attempts',[])]
++            http_status=transport[-1].get('http_status') if transport else None
++            row={'round':round_no,'condition':condition,'ref':ref,'exit':proc.returncode,'status':status,'last_http_status':http_status,'trajectory':str(path),'at':now()}
++            results.append(row)
++            if not proc.returncode and status in COMPLETE:completed.add((condition,ref))
++            save(HERE/'progress.json',{'at':now(),'results':results,'remaining':[j for j in JOBS if j not in completed]})
++            print(json.dumps(row,ensure_ascii=False),flush=True)
++            if proc.returncode or status not in COMPLETE:
++                rate_limited=(status=='error' and http_status==429)
++                if not rate_limited:stop='non_429_technical_error'
++                break
++            time.sleep(2)
++        if len(completed)==len(JOBS):stop='all_completed';break
++        if not rate_limited:break
++        if round_no<cfg['max_rounds']:
++            print(f'HTTP429: cooldown {cfg["backoff_seconds"]} seconds before round {round_no+1}',flush=True)
++            time.sleep(cfg['backoff_seconds'])
++    save(HERE/'results.json',{'at':now(),'stop_reason':stop,'results':results,'remaining':[j for j in JOBS if j not in completed]})
++
++if __name__=='__main__':
++    if sys.argv[1]=='episode':episode(*sys.argv[2:5])
++    else:globals()[sys.argv[1]]()
+
+diff --git a/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_002/parallel.py b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_002/parallel.py
+new file mode 100644
+index 00000000..0d76ba47
+--- /dev/null
++++ b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_002/parallel.py
+@@ -0,0 +1,60 @@
++"""User-requested concurrency-four continuation; adopts the active first episode."""
++import os
++import signal
++import subprocess
++import sys
++import time
++from . import run
++HERE=run.HERE
++read,save,now=run.read,run.save,run.now
++
++def verify():
++    run.verify()
++    for path,h in read(HERE/'parallel_freeze.json')['files'].items():assert run.previous.original.sha(path)==h,path
++
++def main():
++    verify();(HERE/'parallel.claim').open('x').close()
++    cfg=read(HERE/'parallel_config.json');done=set();results=[];spent=0;fatal=False;stop='round_limit'
++    for round_no in range(1,4):
++        folder=HERE/f'attempt_{round_no}';folder.mkdir(exist_ok=True)
++        queue=[j for j in run.JOBS if j not in done];active=[];limited=False
++        if round_no==1:
++            queue.remove(('Parent','P7'))
++            active.append({'condition':'Parent','ref':'P7','proc':None,'pid':cfg['adopted_episode_pid'],'adopted':True})
++        while active or (queue and not limited and not fatal):
++            while queue and len(active)<4 and not limited and not fatal and spent+50*(len(active)+1)<=450:
++                c,r=queue.pop(0);log=(folder/f'{c}_{r}.log').open('x')
++                proc=subprocess.Popen([run.previous.original.PYTHON,'-B','-m','experiments.methods.v23_3.p3c1_r05_replay_restart_002.run','episode',str(round_no),c,r],cwd=run.ROOT,stdout=log,stderr=subprocess.STDOUT,env={**os.environ,'PYTHONDONTWRITEBYTECODE':'1'})
++                log.close();active.append({'condition':c,'ref':r,'proc':proc,'pid':proc.pid,'adopted':False})
++                print(f'round {round_no}: started {c}/{r}, pid={proc.pid}',flush=True)
++            if not active:
++                if queue and not limited and not fatal:stop='request_budget_reservation';fatal=True
++                break
++            for job in active[:]:
++                c,r=job['condition'],job['ref'];path=folder/f'episodes/{c}/{r}/trajectory.json';audit=path.parent/'audit.json'
++                if job['adopted']:
++                    if not audit.exists():
++                        try:os.kill(job['pid'],0);continue
++                        except ProcessLookupError:pass
++                    exitcode=None
++                else:
++                    exitcode=job['proc'].poll()
++                    if exitcode is None:continue
++                rec=read(path) if path.exists() else {};status=rec.get('status','setup_error')
++                attempts=[t for s in rec.get('steps',[]) for t in s.get('transport_attempts',[])]
++                http=attempts[-1].get('http_status') if attempts else None
++                row={'round':round_no,'condition':c,'ref':r,'exit':exitcode,'adopted':job['adopted'],'status':status,'last_http_status':http,'http_requests':len(attempts),'trajectory':str(path),'at':now()}
++                results.append(row);spent+=len(attempts);active.remove(job)
++                if status in run.COMPLETE and exitcode in (None,0):done.add((c,r))
++                elif status=='error' and http==429:limited=True
++                else:fatal=True;stop='non_429_technical_error'
++                print(str(row),flush=True)
++            save(HERE/'parallel_progress.json',{'at':now(),'round':round_no,'results':results,'active':[{'condition':j['condition'],'ref':j['ref'],'pid':j['pid']} for j in active],'remaining':[j for j in run.JOBS if j not in done],'spent_http':spent,'stop_scheduling':limited or fatal})
++            if active:time.sleep(2)
++        if len(done)==len(run.JOBS):stop='all_completed';break
++        if fatal:break
++        if limited and round_no<3:
++            print('HTTP429: cooldown 60 seconds after all in-flight episodes finish',flush=True);time.sleep(60)
++    save(HERE/'results.json',{'at':now(),'stop_reason':stop,'results':results,'remaining':[j for j in run.JOBS if j not in done],'spent_http':spent,'parallel_user_amendment':True})
++
++if __name__=='__main__':main()
+
+diff --git a/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_002/recovery.py b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_002/recovery.py
+new file mode 100644
+index 00000000..f6b08c18
+--- /dev/null
++++ b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_002/recovery.py
+@@ -0,0 +1,67 @@
++"""Finish authorized rounds two and three after the documented handoff interruption."""
++import os
++import signal
++import subprocess
++import sys
++import time
++from . import run
++HERE=run.HERE
++read,save,now=run.read,run.save,run.now
++
++def verify():
++    from .parallel import verify as verify_parallel
++    verify_parallel()
++    for path,h in read(HERE/'recovery_freeze.json')['files'].items():assert run.previous.original.sha(path)==h,path
++
++def main():
++    verify();(HERE/'recovery.claim').open('x').close()
++    cfg=read(HERE/'parallel_config.json');prior=read(HERE/'results.json');results=list(prior['results'])
++    assert prior['stop_reason']=='non_429_technical_error'
++    unusual=[r for r in results if r['status'] not in run.COMPLETE and r.get('last_http_status')!=429]
++    assert len(unusual)==1 and unusual[0]['adopted'] and unusual[0]['condition']=='Parent' and unusual[0]['ref']=='P7'
++    done={(r['condition'],r['ref']) for r in results if r['status'] in run.COMPLETE}
++    spent=sum(r['http_requests'] for r in results);fatal=False;stop='round_limit'
++    print('Documented handoff recovery: cooldown 60 seconds before round 2',flush=True);time.sleep(60)
++    for round_no in range(2,4):
++        folder=HERE/f'attempt_{round_no}';folder.mkdir(exist_ok=True)
++        queue=[j for j in run.JOBS if j not in done];active=[];limited=False
++        if round_no==1:
++            queue.remove(('Parent','P7'))
++            active.append({'condition':'Parent','ref':'P7','proc':None,'pid':cfg['adopted_episode_pid'],'adopted':True})
++        while active or (queue and not limited and not fatal):
++            while queue and len(active)<4 and not limited and not fatal and spent+50*(len(active)+1)<=450:
++                c,r=queue.pop(0);log=(folder/f'{c}_{r}.log').open('x')
++                proc=subprocess.Popen([run.previous.original.PYTHON,'-B','-m','experiments.methods.v23_3.p3c1_r05_replay_restart_002.run','episode',str(round_no),c,r],cwd=run.ROOT,stdout=log,stderr=subprocess.STDOUT,env={**os.environ,'PYTHONDONTWRITEBYTECODE':'1'})
++                log.close();active.append({'condition':c,'ref':r,'proc':proc,'pid':proc.pid,'adopted':False})
++                print(f'round {round_no}: started {c}/{r}, pid={proc.pid}',flush=True)
++            if not active:
++                if queue and not limited and not fatal:stop='request_budget_reservation';fatal=True
++                break
++            for job in active[:]:
++                c,r=job['condition'],job['ref'];path=folder/f'episodes/{c}/{r}/trajectory.json';audit=path.parent/'audit.json'
++                if job['adopted']:
++                    if not audit.exists():
++                        try:os.kill(job['pid'],0);continue
++                        except ProcessLookupError:pass
++                    exitcode=None
++                else:
++                    exitcode=job['proc'].poll()
++                    if exitcode is None:continue
++                rec=read(path) if path.exists() else {};status=rec.get('status','setup_error')
++                attempts=[t for s in rec.get('steps',[]) for t in s.get('transport_attempts',[])]
++                http=attempts[-1].get('http_status') if attempts else None
++                row={'round':round_no,'condition':c,'ref':r,'exit':exitcode,'adopted':job['adopted'],'status':status,'last_http_status':http,'http_requests':len(attempts),'trajectory':str(path),'at':now()}
++                results.append(row);spent+=len(attempts);active.remove(job)
++                if status in run.COMPLETE and exitcode in (None,0):done.add((c,r))
++                elif status=='error' and http==429:limited=True
++                else:fatal=True;stop='non_429_technical_error'
++                print(str(row),flush=True)
++            save(HERE/'recovery_progress.json',{'at':now(),'round':round_no,'results':results,'active':[{'condition':j['condition'],'ref':j['ref'],'pid':j['pid']} for j in active],'remaining':[j for j in run.JOBS if j not in done],'spent_http':spent,'stop_scheduling':limited or fatal})
++            if active:time.sleep(2)
++        if len(done)==len(run.JOBS):stop='all_completed';break
++        if fatal:break
++        if limited and round_no<3:
++            print('HTTP429: cooldown 60 seconds after all in-flight episodes finish',flush=True);time.sleep(60)
++    save(HERE/'final_results.json',{'at':now(),'stop_reason':stop,'results':results,'remaining':[j for j in run.JOBS if j not in done],'spent_http':spent,'parallel_user_amendment':True})
++
++if __name__=='__main__':main()
+
+diff --git a/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_002/analyze.py b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_002/analyze.py
+new file mode 100644
+index 00000000..5e955532
+--- /dev/null
++++ b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_002/analyze.py
+@@ -0,0 +1,73 @@
++"""Offline accounting including every technical attempt and first completed outcomes."""
++from collections import Counter
++import subprocess
++from .run import HERE, ROOT, previous, read, save, verify, COMPLETE
++from src.adapters.alfworld.verify_skill_run import verify_record
++from src.skill_evolution.v23.replay import verify_pair
++
++def main():
++    verify();result=read(HERE/('final_results.json' if (HERE/'final_results.json').exists() else 'results.json'))
++    totals={};all_records={};rows=[];pairs=[]
++    scopes=[('original',previous.OLD),('prior_restart',previous.HERE)]+[(f'round_{i}',HERE/f'attempt_{i}') for i in range(1,4)]
++    for scope,base in scopes:
++        t=Counter()
++        for path in sorted((base/'episodes').glob('*/*/trajectory.json')):
++            r=read(path);a=verify_record(r);assert a['trace_valid'],(path,a)
++            t.update(a['reported_usage']);t['episodes']+=1;t['http']+=a['transport_attempts_recorded']
++            t['decisions']+=a['requests_recorded'];t['executed_steps']+=a['steps_executed'];t['complete']+=a['episode_complete']
++            t['unknown_usage_attempts']+=a['transport_attempts_with_unknown_usage']
++            for s in r['steps']:
++                u=s.get('model_response',{}).get('usage') or {}
++                t['reasoning_tokens']+=(u.get('completion_tokens_details') or {}).get('reasoning_tokens',0)
++                t['http_429']+=sum(x.get('http_status')==429 for x in s.get('transport_attempts',[]))
++            key=(path.parent.parent.name,path.parent.name)
++            all_records.setdefault(key,[]).append((path,r,a))
++        totals[scope]=dict(t)
++    selected={}
++    for condition in ['Parent','A','B']:
++        for ref in ['P3','P6','P7','P10']:
++            candidates=all_records.get((condition,ref),[])
++            if not candidates:rows.append({'condition':condition,'ref':ref,'status':'not_started'});continue
++            completed=[x for x in candidates if x[1]['status'] in COMPLETE]
++            path,r,a=completed[0] if completed else candidates[-1]
++            selected[(condition,ref)]=r;steps=[s for s in r['steps'] if s['phase']=='executed']
++            rows.append({'condition':condition,'ref':ref,'source':str(path),'attempts':len(candidates),**a,
++                'actions':[{'step':s['step'],'action':s['action'],'observation':s['observation']} for s in steps],
++                'invalid_steps':[s['step'] for s in steps if not s['action_in_admissible_commands']],
++                'nothing_happens_steps':[s['step'] for s in steps if s['observation'].strip()=='Nothing happens.']})
++    for ref in ['P3','P6','P7','P10']:
++        for arm in ['A','B']:
++            try:
++                p,q=selected[('Parent',ref)],selected[(arm,ref)];verify_pair(p,q)
++                assert p['request_policy']==q['request_policy']
++                pairs.append({'ref':ref,'arm':arm,'conditions_match':True,'both_complete':p['status'] in COMPLETE and q['status'] in COMPLETE})
++            except Exception as e:pairs.append({'ref':ref,'arm':arm,'conditions_match':False,'error':str(e)})
++    ab_pairs=[]
++    for ref in ['P3','P6','P7','P10']:
++        a,b=selected[('A',ref)],selected[('B',ref)]
++        verify_pair(a,b);assert a['request_policy']==b['request_policy']
++        ab_pairs.append({'ref':ref,'conditions_match':True,'both_complete':a['status'] in COMPLETE and b['status'] in COMPLETE})
++    new=Counter();combined=Counter()
++    for scope,cost in totals.items():
++        combined.update(cost)
++        if scope.startswith('round_'):new.update(cost)
++    editor={}
++    for arm in ['A','B']:
++        u=read(previous.OLD/f'editors/{arm}/response.json')['usage'];editor[arm]=u
++        combined.update({k:v for k,v in u.items() if k in {'prompt_tokens','completion_tokens','total_tokens'} and isinstance(v,int)})
++        combined['reasoning_tokens']+=(u.get('completion_tokens_details') or {}).get('reasoning_tokens',0)
++    combined['http']+=2;combined['editor_calls']=2
++    assert new['http']<=450 and combined['decisions']<=540
++    save(HERE/'analysis.json',{'execution':result,'rows':rows,'pairing':pairs,'ab_pairing':ab_pairs,'actor_costs':totals,'new_actor_cost':dict(new),'cumulative_including_editors':dict(combined),'editor_usage':editor})
++    baseline=read(HERE/'baseline.json');changed=[]
++    for name,stat in baseline['files'].items():
++        from pathlib import Path
++        p=Path(name)
++        if not p.exists() or [p.stat().st_size,p.stat().st_mtime_ns]!=stat:changed.append(name)
++    same_diff=baseline['git_diff']==subprocess.check_output(['git','diff'],cwd=ROOT,text=True)
++    save(HERE/'protection.json',{'checked_files':len(baseline['files']),'changed_existing_files':changed,'tracked_diff_unchanged':same_diff,'freezes_verified':True})
++    assert not changed and same_diff
++    for r in rows:print(r['condition'],r['ref'],r['status'],r.get('steps_executed'),r.get('native_success'))
++    print('New',dict(new));print('Cumulative',dict(combined))
++
++if __name__=='__main__':main()
+
+diff --git a/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_002/PROTOCOL.md b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_002/PROTOCOL.md
+new file mode 100644
+index 00000000..5cc31335
+--- /dev/null
++++ b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_002/PROTOCOL.md
+@@ -0,0 +1,11 @@
++# P3-C1 最多三轮续跑：发送前冻结
++
++用户明确授权继续重启，若再次服务端限流可继续，最多尝试3次。本轮将其解释为最多3轮串行续跑，总计至多3次429失败；每轮从未完成队列首项开始。顺序沿用Parent/P7、A/P7、A/P10、B/P3、B/P6、B/P7、B/P10。原五条完成结果保留，不重复运行；任何新完成结果（包括50步失败或原生结束失败）立即接受，不因效果重试。
++
++只在HTTP429导致技术中断时进入下一轮，等待60秒后从初始环境seed42重启失败Episode，再继续其他未完成项。已完成项跳过，非429技术故障停止。第3轮再遇429则停止，不自动增加轮次。所有旧失败及本轮失败均归档、计费，不选择更好的中途前缀。不接续失败前动作，不重试某个Actor决策，不改输出。
++
++每决策1次HTTP，串行并在每请求前等待2秒，Episode间2秒。复用前次独立入口的episode函数、原Actor与verify_record。模型、route、参数、timeout、上下文窗口、候选Skill、任务、环境、50步上限不变。60秒仅为有界退避选择，不保证服务恢复。
++
++7项待完成任务加前两轮至多2项重复失败，总计最多9 Episode尝试、450新Actor HTTP；此前90次Actor HTTP，累计理论上限540，低于原600次预算。Editor累计仍2次，不新增。所有返回usage相加，reasoning作为completion子集；无usage不补零，货币费用未知。
++
++每次单独子进程，attempt_1/2/3互不覆盖。冻结本文件、入口、配置，核验两轮既有freeze和每个真实reset。完成后检查来源文件保护、轨迹合法性与可比较条件。最终比较选每项首个新完成结果；若未完成则仅列最新技术失败（全量前次失败仍保留），其前缀不作为完整行为结果。不改Diagnosis、Preconditioner、Editor、Skill、Memory、默认配置、原报告或新Train预注册，不执行新Train/Gate/进化。
+
+diff --git a/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_002/PARALLEL_AMENDMENT.md b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_002/PARALLEL_AMENDMENT.md
+new file mode 100644
+index 00000000..3c28aafc
+--- /dev/null
++++ b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_002/PARALLEL_AMENDMENT.md
+@@ -0,0 +1,9 @@
++# 用户运行中修订：恢复 V23 并发 4
++
++用户在本轮Parent/P7运行中要求改为与V23相同的并行。核验原run.py:batch使用ThreadPoolExecutor(max_workers=4)。冻结本补充协议后，以并发4继续；正在运行的Parent/P7计入第1轮并占一个槽，不终止、不重复。原串行调度父进程暂停并结束，仅停止其后续派发；其Episode子进程由新调度器接管观察。
++
++最多3轮的限制不变。每轮仍按原队列顺序派发；出现429后停止派发该轮新任务，已在途任务运行到结束。全部在途结束后等待60秒，再启动下一轮仅未完成项。其他技术故障停止。成功、步数上限、原生结束均接受，绝不因语义结果重试。每项最多3次本轮Episode尝试（理论最多21项尝试），并非3次每决策HTTP自动重试。先前串行协议的9项尝试理论上限因并行失败批次不再适用。
++
++Actor请求预算仍维持本轮450、累计540。每启动一个Episode预留50请求，活动Episode均占预留；结束时按真实HTTP数归账并释放未用额度。剩余预算不能容纳50步完整Episode时停止新派发，避免预算内偷偷裁短轨迹。Parent/P7已运行部分同样计入450，不从计数中删除。
++
++模型、Prompt、Skill、环境、请求参数、50步上限不变。沿用本轮已使用的每请求前2秒间隔；与V23恢复一致的是并发数量和限流后停止新派发规则。开始阶段的Parent/P7串行前缀、不同时间及共享限流均记录为比较限制。新增parallel.py/config/freeze，不改原冻结代码和协议。其余保护、审计及禁止实验范围同PROTOCOL.md。
+
+diff --git a/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_002/HANDOFF_RECOVERY.md b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_002/HANDOFF_RECOVERY.md
+new file mode 100644
+index 00000000..d6130dd3
+--- /dev/null
++++ b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_002/HANDOFF_RECOVERY.md
+@@ -0,0 +1,7 @@
++# 调度交接中断及剩余两轮
++
++切换并发时，旧协调进程被SIGTERM结束后，其已脱离父进程的Parent/P7也消失。确切子进程终止信号未被捕获；工具会话/进程组清理是推断，不能伪称服务端限流。该轨迹保持原样status=running，49个已执行动作，第50次请求只有请求记录，无返回、无原生终局、无audit。侧记将其归类为调度交接技术中断，所有请求和已知usage照计，未知请求usage未知。不能报告50步失败或成功，也不能视为模型语义结果。
++
++parallel.py按预先规则把非429中断视为停点，等在途A任务结束，不继续派发。用户已授权重启中断失败并改为并发4；因此新增恢复入口，仅将此明确的交接中断纳入剩余第2/3轮队列，修复执行交接而不增加实验轮数。其他非429错误仍停止。保留原入口、freeze、结果和轨迹，不修补模型输出。
++
++新入口从第1轮所有真实完成/失败记录初始化，接受已完成项，按真实已发生HTTP扣减450本轮预算。等当前协调进程自然结束后，等待60秒再并发4启动第2轮；第3轮规则同PARALLEL_AMENDMENT。无进程接管、无终止在途任务。所有后续任务都是本入口自身的子进程，等其自然退出。总轮数依然3，每项最多3次本轮尝试；不增加HTTP预算，不重跑语义失败，不调用新模块。最终结果另存final_results.json，第一阶段results.json保留。
+
+diff --git a/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_002/REPORT.md b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_002/REPORT.md
+new file mode 100644
+index 00000000..37c7ae5e
+--- /dev/null
++++ b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_002/REPORT.md
+@@ -0,0 +1,67 @@
++# P3-C1：三轮重启与并发 4 结果
++
++**已按授权完成最多3轮续跑并停止。A/B四个任务均形成完整结果，二者都是3/4成功；Parent/P7最后仍HTTP429，不能计算完整Parent成功率或宣称完成四题三方对照。** 本次新增11个Episode尝试、294次Actor HTTP，接受6个新完整结果；4次429中断和1次调度交接中断全部保留。原5个完整结果不重跑。
++
++## 执行与停止
++
++第1轮先按串行启动Parent/P7，用户运行中要求与V23相同的并行。经核验原实验`batch()`并发为4，新增调度入口改为并发4；每请求前2秒间隔、模型/Skill/Actor协议/50步上限不变。遇429停止新派发，等在途任务自然结束，等待60秒后进入下一轮。已成功或达到步数上限的任务不重跑。
++
++| 轮次 | 本轮实际任务与结果 |
++|---|---|
++| 1 | Parent/P7交接中断：49动作、50请求；A/P7达到50步上限；A/P10成功12步；B/P3在8动作后第9次请求429 |
++| 2 | Parent/P7在48动作后第49次请求429；B/P3成功4步；B/P6成功11步；B/P7达到50步上限；B/P10在30动作后第31次请求429 |
++| 3 | Parent/P7在15动作后第16次请求429；B/P10成功12步 |
++
++**交接错误说明：** 第1轮结束旧调度父进程后，原本计划继续运行的Parent/P7子进程也消失。确切终止信号未捕获，工具会话/进程组清理是推断。轨迹原样保留`status=running`及第50次待返回请求，不能记作50步失败或服务429。这是本次执行的进程交接失误。已单独冻结[恢复说明](HANDOFF_RECOVERY.md)，在剩余第2/3轮重启，没有增加轮数、替换输出或隐去成本。之后仅使用由新入口创建并等待自然结束的子进程。
++
++第3轮结束后触及轮数上限，停止；未运行新Train、Gate、Memory更新、Editor或任何新策略生成。
++
++## 固定结果与可比较范围
++
++以下按“保留原完整结果＋每项首个新完整结果”固定选择；技术中断全部另列，不从多个成功输出中择优。Parent/P7只显示最新中断，原48/49步前缀仍保留。
++
++| R05任务 | Parent | A：自由替换Candidate | B：Patch Candidate |
++|---|---:|---:|---:|
++| P3 | 成功，4步（原） | 成功，4步（原） | 成功，4步（第2轮） |
++| P6 | 成功，10步（原） | 成功，8步（原） | 成功，11步（第2轮） |
++| P7 | 技术中断，15动作／16请求（第3轮） | 50步上限，未成功（第1轮） | 50步上限，未成功（第2轮） |
++| P10 | 成功，14步（原） | 成功，12步（第1轮） | 成功，12步（第3轮） |
++
++原`verify_record`校验所有已归档轨迹通过，包括未完成前缀；这不意味着中断Episode完成。`verify_pair`确认四组A/B运行条件相符且均完整。Parent–A/B的P3/P6/P10完整，P7条件相符但Parent不完整。轨迹、逐步动作、来源、校验与成本见[analysis.json](analysis.json)。串行前缀、后续并发、不同运行时段、技术重启和温度1采样意味着这些不是独立重复的性能估计。
++
++## 行为观察及归因边界
++
++- **P3：** 三者4步成功，B执行取mug及交付sidetable，没有可见步数优势。
++- **P6：** A为8步、Parent10步、B11步。B先查看两个抽屉，再到countertop找到butterknife，随后清洗并交付；必要处理与交付保留。不能把本次搜索顺序差异直接归因于Memory或Patch。
++- **P7：** A/B都达到50步，存在反复搜索，均没有take/clean/move动作。没有观察到替代目标操作，但也没有解决目标定位。第2轮Parent的中断前缀确实反复取放knife，第21/41步清洗knife，第23/43步放入drawer，目标却是butterknife；这是该前缀中的具体错误，不是完整Parent终局，也不是候选稳定改善的因果证明。最新Parent前缀15步不能覆盖或抹除该历史证据。
++- **P10：** A/B最终都正确取apple、cool并交付microwave，均12步。B第3轮第2步的原模型content有两个`<action>`、一个`</action>`，既有`project_action`按第一对标签提取，得到包含其他文本和内嵌标签的命令；该命令不在菜单中，环境返回`Nothing happens.`。第3步合法打开fridge，最终成功。此处不是“open fridge不在菜单”：菜单明确含该动作。归类为模型输出格式与既有投影逻辑交互的无效动作，不能证明Patch策略判断错误。未修补输出或重跑该成功Episode。
++
++固定结果中只有上述B/P10出现1次非菜单动作和1次`Nothing happens.`；其他固定结果未见这两项。合法动作、少量文本修改、成功率或步数单一指标均不能替代语义分析。
++
++**本次能支持：** B现在有真实完整Replay，A/B在这四个开发任务中各3/4成功；A在P6少3步，P3/P10步数相同，P7都未解决。**不能支持：** Patch比自由替换稳定更好、Memory历史响应导致某个收益、完整Parent成功率、独立泛化或最终Test性能。R05参与过方法设计；需要另行授权的未参与设计案例及重复执行才能检验稳定性，本次不启动。
++
++## 全量成本与预算
++
++| 项目 | 本次三轮新增 | P3-C1系列累计（含原2次Editor） |
++|---|---:|---:|
++| Episode尝试 | 11 | 21 |
++| 完整Episode | 6 | 11 |
++| Actor决策／HTTP | 294／294 | 384／384 |
++| 全部HTTP（含Editor） | 294 | 386 |
++| 已执行Actor动作 | 289 | 374 |
++| HTTP429 | 4 | 9 |
++| 调度交接中断 | 1 | 1 |
++| 已知input tokens | 417,811 | 545,359 |
++| 已知completion tokens | 170,475 | 216,615 |
++| 已知total tokens | **588,286** | **761,974** |
++| 其中reasoning（已包含在completion） | 145,391 | 182,919 |
++| 无usage请求 | 5 | 10 |
++
++累计范围是原`p3c1_r05_replay_001`、前次`restart_001`和本目录，不含更早Diagnosis/Preconditioner研究调用。缺失usage不补零；reasoning不重复计费；货币费用未知。新入口按每个活动Episode预留50请求、完成后按真实用量释放余额，实际294低于本轮450上限；累计384 Actor请求低于冻结累计540及原600上限。并发修订后理论Episode上限为21个本轮尝试，实际11；旧串行9个上限已明确在PARALLEL_AMENDMENT中替换，未隐瞒。
++
++## 来源保护与归档
++
++- [原协议](PROTOCOL.md)、[并发修订](PARALLEL_AMENDMENT.md)、[交接恢复](HANDOFF_RECOVERY.md)及三份freeze保留，真实结果在`attempt_1/2/3`。
++- `results.json`保留第1阶段停点，最终全量调度记录为[final_results.json](final_results.json)，后续分析不覆盖旧实验。
++- 开始前Git状态、HEAD、原Diff见baseline.json；结束状态与本次新增实现Diff另存。检查5,135个既有文件，尺寸/mtime均未变化，原tracked Diff未变，全部来源freeze通过，见[protection.json](protection.json)。
++- 正式V23/V23.3代码、Prompt、候选Skill、Memory、原归档及新Train预注册未修改。没有自动进入下一阶段。

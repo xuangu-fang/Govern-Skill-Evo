@@ -1,0 +1,740 @@
+diff --git a/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_001/BEHAVIOR_COMPARISON.md b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_001/BEHAVIOR_COMPARISON.md
+new file mode 100644
+index 00000000..e2c5bd43
+--- /dev/null
++++ b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_001/BEHAVIOR_COMPARISON.md
+@@ -0,0 +1,25 @@
++# Effective Update → Skill Diff → 行为：部分证据
++
++本表先依据EDITOR_REPORT和REPLAY_REPORT中的独立观察，再比较；后验解释不是独立因果检验。B没有成功模型动作，不能完成两方法行为归因。
++
++| 上游要求 | 实际Skill变换 | Actor观察 | 解释边界 |
++|---|---|---|---|
++| A u1加入具体近似类别例子，B保留Original精确目标要求 | 两个Editor都重写general step2；只有A有knife/butterknife等新增例子 | A/P6:3取准确butterknife；A/P7:7看到knife、:8离开；新Parent/P7前缀也未取knife | 与防替代方向一致，但没有证明例子独立起效；P7未完成，不能比较最终成功 |
++| A u2要求同类实例覆盖和开放表面，B原始u2要求若干同类检查后换类 | A step1包含remaining same-type及强先后条件；B step1保留不同类至少一个的条件 | A/P6:1–2检查countertop1/2并找到目标；A/P7:1–3检查countertop1–3后转cabinet再drawer | A的实际路线与覆盖方向相符；新Parent/P6同样检查countertop1/2，不是A独有能力，B暂无数据 |
++| A u2扩大新位置探索 | A step1具体列出更多表面，保留搜索到找到目标等旧边界 | A/P10:5看到apple；Parent/P10:8看到；随后A被429中断 | 可说本次更早发现，不能说更早完成；无预算耗尽或提前停止的策略证据 |
++| A u2与u3可能冲突；B u3同样禁止候选外动作 | 两组新增step5；A step1的“导航不在候选则换位置”仍在 | 72个已执行动作均合法，无Nothing happens；没有已执行的对应冲突场景 | 未触发不等于冲突已解决，无法验证A是否会错过direct action |
++| Goal保留精确目标的成功处理/交付 | 两组保留原clean与placement及desklamp段落 | P3 Parent/A同四步成功；P6 Parent/A都完成clean/交付，A少两步 | 仅两个完整配对的保留与效率线索；无照明、多实例行为验证 |
++
++## 与历史响应的联系
++
++M3/M6过去出现扩大覆盖的收益，也有循环和遗漏；A在P6/P7/P10的可见前缀展现了表面/实例覆盖，与这种正向现象相容，但没有测试足够长的失败搜索来排除同样的副作用。M8的防近似替代方向与A/P7看到knife后离开的前缀相容，新Parent前缀也避免了替代，所以不能独立归因于Memory、例子或某条Diff。没有B行为，不存在B与历史响应一致/冲突的结果可供判断。
++
++## 区分三层变化
++
++1. **Preconditioner**：A真实改u1/u2，B真实Keep；没有重生成。
++2. **Editor**：两者都在Parent上改step1/2并新增step5，文本不同；共同保留其他段落。其措辞融合是独立一次模型生成，即使大部分差异可追溯上游，也不能忽略Editor随机性。
++3. **Actor**：当前只完整观察到Parent–A两个配对，一个持平、一个少两步；B完全缺少可评价动作。不能将B“没有动作”误解为其Skill无效。
++
++旧R05 Parent与新Parent也出现明显差别（旧P3为16步、新为4步；旧P6耗尽50步、新10步成功；旧P10为38步、新14步）。它们模型路由/实现条件不同且执行随机，不能量化纯随机性，但说明**不可把旧Parent与新Candidate差值直接归功于Skill更新**。本报告只用新Parent作为行为配对基线。
++
++本轮支持“不同Effective经同一Editor形成不同真实Skill”以及“A在一个完整配对中出现局部效率线索”。不支持“V23或V23.3方法获胜”、Patch粒度优势、历史预条件化因果增益或ALFWorld总体收益。完成缺失行为证据比据此新增D/S/C机制更优先。
+diff --git a/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_001/EDITOR_REPORT.md b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_001/EDITOR_REPORT.md
+new file mode 100644
+index 00000000..3172d26e
+--- /dev/null
++++ b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_001/EDITOR_REPORT.md
+@@ -0,0 +1,29 @@
++# R05 Editor 结果
++
++两组各一次真实 HTTP，均 HTTP 200、finish=stop、原 JSON/Patch 契约通过，原 load_editor 重载得到相同 Candidate 和 actual.diff。没有修补或重新生成。B 的 Preconditioner Keep 仍正常形成 Skill Patch；两份 Candidate 不同。
++
++| 项目 | A | B |
++|---|---|---|
++| 状态 | candidate | candidate |
++| input tokens | 3,033 | 2,827 |
++| completion tokens | 7,419 | 7,573 |
++| 其中 reasoning | 6,531 | 6,831 |
++| total tokens | 10,452 | 10,400 |
++
++合计20,852 tokens；reasoning已含completion，费用未返回。输入消息和真实HTTP、原始回答、parsed、patch.diff、candidate.md、actual.diff、validation/run元数据分别保存在 editors/A 与 editors/B。输入来源见 inputs/*_upstream.json；两组使用同一原Editor Prompt、Parent和Actor背景，只有Effective Plan不同。
++
++## Effective Update → 实际 Skill
++
++| 要求 | A实际落实 | B实际落实 |
++|---|---|---|
++| u1 精确目标 | 重写general step2，加入knife/butterknife等明确类别例子、表面近似物品不操作、不得把替代处理当进展 | 重写step2，保留Original exact noun phrase、禁止近似物品acquire/clean/cool/heat/place及进展误判 |
++| u2 搜索 | 重写step1，加入未检查位置、开放表面、剩余同类及不同类先于回访、导航不可用则换位置 | 重写step1，加入检查同类若干次后扩展至少一个其他类、开放表面、避免回访 |
++| u3 候选动作 | 新增step5，检查admissible并保留适当direct action分支 | 同样新增step5，内容与A基本一致 |
++
++两组都保留desklamp部分、原开闭容器要求、空手避免重复inventory、必要clean与最终placement，以及原“找到目标或所有合理位置检查一次”的边界。没有新增“每类一次就结束”的边界。温度显式正向处理规则本来不在Parent，Editor没有擅自增加；不能把未添加说成丢失已有温度条款。尚无照明/多目标执行，文本保留不等于行为已验证。
++
++A把Effective要求直接融合进已有段落，未发现需要靠额外策略才能解释的大幅新增。但同类穷尽/跨类顺序仍过强，u2“导航不可用则去别处”与新增step5的direct-action分支仍可能冲突。B仍依赖未限定历史的未检查/已检查状态。两组这些风险主要可追溯到Effective文本，并非Editor独立发明；Editor也没有自行消除风险。
++
++本次“语义核查”是人工对照要求与实际Diff，原程序保证结构、精确应用与归档一致，不保证策略正确。两组均有可用Candidate，因此按原协议放行Replay，不以风险作为筛选或修正理由。
++
++两组都改写step1/2并新增step5；实际差异可追溯到Preconditioner对u1/u2的不同选择，但Editor各只调用一次，其融合措辞也可能影响执行，不能据此隔离上游方法的因果作用。
+diff --git a/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_001/NEW_TRAIN_CASES.md b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_001/NEW_TRAIN_CASES.md
+new file mode 100644
+index 00000000..5a147c25
+--- /dev/null
++++ b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_001/NEW_TRAIN_CASES.md
+@@ -0,0 +1,40 @@
++# P3-A2 新 Train 案例预注册
++
++冻结于 2026-10-21T02:39:11.466718+00:00，早于任何本轮 Editor/Actor 输出。未调用新案例的模型、环境 reset 或读取其游戏内容/答案。
++
++## 身份筛选与抽样
++
++原始池只枚举 `/Users/didi/.cache/alfworld/json_2.1.1/train`，共 3553 个游戏文件。任务族取目录名，实例取规范路径和 trial ID，不以文件名不同认定独立。排除旧 39 条 Train edition 全部实例及仓库开发归档提及的实例，实际排除 39 个原始 Train 游戏。六族固定顺序为 pick_and_place_simple, pick_clean_then_place_in_recep, pick_heat_then_place_in_recep, pick_cool_then_place_in_recep, look_at_obj_in_light, pick_two_obj_and_place。
++
++种子 230302；规范路径字典序排序；Python Random(seed) 每族不放回抽两条，第一/第二条分别放入批次 1/2；不足不补采其他族。共选 12 条，任务请求将由未来环境初始观察提取，本轮不猜写请求。
++
++排重扫描 artifacts/methods、experiments/methods、docs 的元数据及文本身份，排除显式 Test/final 路径、原始 HTTP 响应、模型请求正文等。读 131888 份文件，每份至多前 131072 字节，11295 份存在未扫描尾部。另完整读取旧 Train items。只读身份，未访问最终 Test 数据目录或运行 Test。详细排除来源见 new_train_exclusions.json。
++
++**暴露边界**：排除 R04/R05/R06 的规范实例（这些也位于不同原始 split），旧 Train edition 和扫描范围内 V23.2/V23.3/P1-R/Memory 来源可定位的实例；不能排除仅用自然语言、另一别名、截断尾部或仓库外记录的先前暴露。因此称“在已核查身份范围内未发现暴露”，不称绝对独立泛化集。
++
++下面的 task_id 是本实验新建的局部 Train 标签，**不是**已有 39 条 edition 的编号；规范 gamefile 为权威身份。未来执行需用独立 manifest/合法输入适配，不能覆盖默认清单或冒用旧编号。
++
++| 批次 | task_id | 任务族 | 规范 gamefile |
++|---|---|---|---|
++| 1 | `train:p3a2_1_01` | pick_and_place_simple | `json_2.1.1/train/pick_and_place_simple-Box-None-ArmChair-217/trial_T20190907_170746_281017/game.tw-pddl` |
++| 1 | `train:p3a2_1_02` | pick_clean_then_place_in_recep | `json_2.1.1/train/pick_clean_then_place_in_recep-Kettle-None-Cabinet-5/trial_T20190909_042851_438667/game.tw-pddl` |
++| 1 | `train:p3a2_1_03` | pick_heat_then_place_in_recep | `json_2.1.1/train/pick_heat_then_place_in_recep-Mug-None-CoffeeMachine-23/trial_T20190906_194121_936472/game.tw-pddl` |
++| 1 | `train:p3a2_1_04` | pick_cool_then_place_in_recep | `json_2.1.1/train/pick_cool_then_place_in_recep-Apple-None-DiningTable-15/trial_T20190906_192043_926936/game.tw-pddl` |
++| 1 | `train:p3a2_1_05` | look_at_obj_in_light | `json_2.1.1/train/look_at_obj_in_light-AlarmClock-None-DeskLamp-318/trial_T20190906_180754_637797/game.tw-pddl` |
++| 1 | `train:p3a2_1_06` | pick_two_obj_and_place | `json_2.1.1/train/pick_two_obj_and_place-Watch-None-Dresser-205/trial_T20190907_181954_161870/game.tw-pddl` |
++| 2 | `train:p3a2_2_01` | pick_and_place_simple | `json_2.1.1/train/pick_and_place_simple-HandTowel-None-CounterTop-421/trial_T20190909_145525_802579/game.tw-pddl` |
++| 2 | `train:p3a2_2_02` | pick_clean_then_place_in_recep | `json_2.1.1/train/pick_clean_then_place_in_recep-DishSponge-None-Shelf-1/trial_T20190908_114111_289794/game.tw-pddl` |
++| 2 | `train:p3a2_2_03` | pick_heat_then_place_in_recep | `json_2.1.1/train/pick_heat_then_place_in_recep-Potato-None-Fridge-30/trial_T20190907_193517_118086/game.tw-pddl` |
++| 2 | `train:p3a2_2_04` | pick_cool_then_place_in_recep | `json_2.1.1/train/pick_cool_then_place_in_recep-Cup-None-SideTable-21/trial_T20190906_192855_164902/game.tw-pddl` |
++| 2 | `train:p3a2_2_05` | look_at_obj_in_light | `json_2.1.1/train/look_at_obj_in_light-CD-None-DeskLamp-302/trial_T20190907_154641_341365/game.tw-pddl` |
++| 2 | `train:p3a2_2_06` | pick_two_obj_and_place | `json_2.1.1/train/pick_two_obj_and_place-KeyChain-None-SideTable-322/trial_T20190909_034001_524438/game.tw-pddl` |
++
++## 下一轮固定条件草案（本轮不执行）
++
++两批均优先使用本轮 parent.md 与 memory_v3_integration_001/config/full_payload.json.memory（M1/M2/M3/M6/M7/M8/M9），不吸收本轮或新任务的后验响应。两个批次互不更新 Parent/Memory；若接口不兼容须在未来开跑前重新冻结，不能看输出后更换。
++
++每批先在六条共同任务执行 Parent，再同一 Grouping、一次共同多行 Diagnosis，冻结 Original 后分别 V23 自由更新与 V23.3 Patch，随后同配置 Editor 和配对 Candidate Replay。相同当前证据与历史输入，单次生成不择优。
++
++预算草案：每批 Grouping 1、Diagnosis 1、Preconditioner 2、Editor 2，共 6 次模块调用；最多 18 Episode（6 Parent+6 A+6 B）、900 Actor 决策。两批合计最多 12 模块调用、36 Episode、1800 Actor 决策；技术重试/模型/超时在未来单独冻结，当前未授权执行。合法停点缩减依赖调用，不增补样本。
++
++评价：原生成功、步数、类别与实例覆盖、无信息重复、无效动作、精确目标、必要处理/数量/交付、实际 Skill Diff 和退化；分别报告技术有效性、更新构造及行为结果。保留全部预注册案例，不据胜负筛除；不用于最终 Test 调参。
+diff --git a/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_001/P3C1_DECISION.md b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_001/P3C1_DECISION.md
+new file mode 100644
+index 00000000..1525154c
+--- /dev/null
++++ b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_001/P3C1_DECISION.md
+@@ -0,0 +1,37 @@
++# P3-C1 阶段结论
++
++**Editor与新Train预注册完成；R05 Replay受服务端Token速率限制中断，未完成A/B三方行为比较。** 两组Candidate均真实有效，B Preconditioner Keep仍导致Skill更新。现有完整配对只有Parent–A的P3/P6；不能判断V23.3是否优于V23。
++
++| 最终问题 | 回答 |
++|---|---|
++| 1. A/B是否生成Candidate？ | 是，各一次真实Editor，HTTP200/stop，原Patch应用与load_editor复核通过，无修补。 |
++| 2. B全部Keep是否仍更新Skill？ | 是。Editor落实Diagnosis Original的u1/u2/u3，改写搜索/精确目标段落并新增候选动作规则。 |
++| 3. 实际Diff差异？ | A有明确近似类别例子和强同类覆盖/回访顺序；B保留原跨类别触发及exact noun phrase。两者均保留原clean/placement/desklamp条款。 |
++| 4. 哪些三方配对有效？ | 没有完整三方配对。Parent–A/P3、P6为严格条件下的完整两方配对；其他已启动配对状态一致但结果截断，B三条未启动。 |
++| 5. 相对Parent成功与退化？ | P3均4步成功；P6 Parent10步、A8步成功。无完整样本证明A退化，但覆盖不足。B无有效动作，无法判断。 |
++| 6. A新约束是否实际造成问题？ | 文本风险存在，未观察到可归于它的行为退化；P7/P10的中断是429，不得记作过强约束失败。 |
++| 7. B旧要求是否影响执行？ | 无法确认。B/P3首请求被限流，其他未启动。 |
++| 8. 哪些差异可能来自Editor？ | 要求融合/措辞位置与Actor随机响应均可能影响行为。大部分Skill差异对应上游文本，但每组Editor只生成一次，无法隔离其影响。 |
++| 9. 有无初步行为收益？ | A/P6少2步且必要处理保留，A/P10更早看到目标的前缀线索；只前者是完整配对，均不是稳定方法收益证明。 |
++| 10. 新Train是否预注册？ | 是，2批×6，六族各一条/批；确定性种子230302，规范实例排重及暴露核查边界已记录，早于本轮Editor/Actor输出。新案例未执行。 |
++| 11. 优先改哪一层？ | 当前首先需要可完成的行为实验与事先冻结的速率/技术失败处理方案，补足观察，而非据缺失结果选改某一策略层。原审计中更新决策可见性/关联问题仍值得研究；Editor已大致忠实落实，尚无证据优先重写它。 |
++| 12. 足够决定实现D/S/C？ | 不足。不得把B缺失结果或A单例少两步当作新增机制依据。 |
++
++## 范围与成本
++
++本轮实际2次Editor、9条启动Episode、76次Actor决策HTTP（72个执行动作，4次429）；0重试，共78 HTTP。可见usage合计152,524 tokens；reasoning含在completion内，4个429 usage未知，货币费用未知。未超出2 Editor/12 Episode/600决策上限。
++
++共性错误是模型级及租户级mix TPM限流，未返回可用恢复时间。已停止提交剩余B任务，未等待后暗中重跑、未换路由/模型/策略，也未启动Gate、Memory更新或新Train案例。故本轮主研究问题保持部分未答，不能宣称完整任务行为验证已完成。
++
++后续如另行安排执行，应先冻结服务容量内的调度与只处理技术错误的重试/续跑规则，明确哪些是新调用、哪些旧Episode保持失败记录；不能回填本轮结果成完整无中断配对。本次不自动进行。
++
++## 交付与保护
++
++- [PROTOCOL.md](PROTOCOL.md)：调用前协议和预算。
++- [EDITOR_REPORT.md](EDITOR_REPORT.md)：真实Skill变换。
++- [REPLAY_REPORT.md](REPLAY_REPORT.md)：全部12个预注册位置的完整/中断/未启动状态及配对证据。
++- [BEHAVIOR_COMPARISON.md](BEHAVIOR_COMPARISON.md)：更新、Skill和行为三层对应。
++- [NEW_TRAIN_CASES.md](NEW_TRAIN_CASES.md)：两批固定Train身份、排重边界及未来预算草案。
++- inputs、editors、episodes、analysis.json、freeze.json、new_train_cases.json保留真实输入输出和配置；baseline.json/git_before.diff与最终protection.json记录保护检查。
++
++正式源码/Prompt及既有实验归档未修改，用户原有未提交修改保留，不提交或清理。只新增本实验目录；完成文档后停止。
+diff --git a/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_001/PROTOCOL.md b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_001/PROTOCOL.md
+new file mode 100644
+index 00000000..f00a5289
+--- /dev/null
++++ b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_001/PROTOCOL.md
+@@ -0,0 +1,54 @@
++# P3-C1 R05 Candidate Replay 协议
++
++本协议在任何真实 Editor/Actor 调用前冻结。比较两种方法各一次 Preconditioner 结果、各一次 Editor Candidate 的探索性端到端行为，不能分离 Prompt、输出表示及 Editor 随机性的独立作用。取消输出格式对照。本轮只执行 R05 和新 Train 预注册，不进入下一轮。
++
++## 来源与阶段门
++
++读取并重新解析 memory_v3_integration_001：A 用其原适配层 load_a 复核真实 raw/parsed/Effective；B 用正式 V23.3 load_preconditioner 恢复。原 compile_effective_plan 复核，Editor 使用原 editor_input/messages_for/validate_editor/apply_patch/actual_diff/load_editor。Adapter 只负责输入衔接、一次调用与归档，A 不伪装成 Update Patch。
++
++Original、Parent、历史 Memory 和当前证据相同；A 修改 u1/u2，B ready/全部 Keep。两组 Editor 输入只有 Effective Plan 不同；B Keep 不等于 Editor 不改 Skill。Parent/Original/Memory/Effective 不人工修正，不运行 Diagnosis/Preconditioner、Replay 知识生成、Gate 或 Memory 更新。
++
++阶段0：来源装配、新任务清单、两次无动作 reset、协议、配置和预算全部冻结。阶段1：A 然后 B 各一次 Editor，解析/应用/重载且完成实际 Diff 审计后才能 Replay。合法 Editor no_change/needs_revision 或格式失败不重采样；无有效 Candidate 的分支不运行，另一有效组可与 Parent 比较但不宣称完整三方对照。共性环境或调用契约阻碍停止受阻分支。
++
++## Editor 固定配置
++
++原 V23 Editor Prompt，渲染原 Actor background；内网 `http://llm-proxy.intra.xiaojukeji.com/chat/completions`，`deepseek-v4.1-flash`，temperature=1、thinking enabled、reasoning_effort=medium、max_tokens=16384、stream=false。采用原生产 Editor 生成预算；timeout=(60,300)。每组只一次 HTTP，无技术重试，无格式/内容修补。冻结 messages 完整保存。
++
++## 四个固定开发实例与 Parent 重执行
++
++| 原编号 | task_id | 原归档任务请求 | 任务族 |
++|---|---|---|---|
++| P3 | val:0003 | put some mug on sidetable. | pick_and_place_simple |
++| P6 | val:0006 | put a clean butterknife in drawer. | pick_clean_then_place_in_recep |
++| P7 | val:0007 | clean some butterknife and put it in drawer. | pick_clean_then_place_in_recep |
++| P10 | val:0010 | cool some apple and put it in microwave. | pick_cool_then_place_in_recep |
++
++规范 gamefile、实例、原 run_id 对应轨迹、文件摘要保存于 tasks.json。它们是原实验优化池里的 valid_seen/val 开发任务，**不是新的 Train 任务，也不是最终 Test**。来源由 Grouping sources→历史 trajectory→edition manifest 三者核对，不从报告猜测。
++
++历史 Parent 轨迹有效，固定 seed=42 的新环境两次 reset 与历史初始观察和完整候选菜单相等。但旧 Actor 为外网 deepseek-flash，当前 route 使用内网 deepseek-v4.1-flash，且执行实现摘要不同，不能证明模型与实现完全等价。因此不把历史 Parent 当严格配对基线；在预算内重执行四条 Parent，A/B 使用同一新冻结 Actor 配置。旧结果仅作开发背景，不与新结果混算。新三组配对成立不代表与旧外网运行等价。
++
++## Actor、环境与预算
++
++复用原 run_task_skill.run_episode、build_skill_messages、chat、project_action 和 verify_record。模型请求参数与原 R05 一致（max_tokens=16384、temperature=1、thinking enabled、reasoning_effort=medium），模型路由统一改为上面的当前内网配置。原 system/initial/history 模板、最近两对动作前历史、每次请求固定 Skill、50 步、合法动作候选协议不变。只过滤精确等于 `help` 的候选，其他内容/顺序/重复保留；不强制修改模型选择的非法动作。
++
++TextWorld PDDL + AlfredDemangler(shuffle=False)，每条 Episode 新环境 seed=42/reset 一次。实际版本、协议和源码摘要存 preflight.json；执行前检查版本与游戏/manifest 冻结。每条首次模型调用前核验初始 observation 和完整原始菜单与预检相等。之后不同动作产生不同状态属正常。每对结束后核对 task/split/model/backend/protocol/versions/game/manifest/initial/implementation；不一致保留并单列非严格配对。
++
++上限：2 Editor + 12 Episode（Parent/A/B 各四条）×50 步 = 最多600 Actor 决策。并发最多4 Episode，按 Parent、A、B 及 P3/P6/P7/P10 的固定提交顺序；不因先前输赢改变后续任务。Actor 使用原 timeout=(10,300)，每个决策只1 HTTP、strict_response=True；**关闭原客户端对截断/格式错误的再生成**，技术失败也不重试、不重启 Episode。总 HTTP 上限602，无额外 Judge 或知识生成调用。预算上限输出为602×16384=9,863,168 tokens，实际 input 不设虚构计费；usage 缺失和货币成本记未知，reasoning 不重复累计。
++
++成功以原生 won/done 及合法 verifier 为准。任务失败/step_limit 与技术异常分别报告；请求内容缺少 action 标签沿用原 look fallback，非空但不合法策略不触发重采样。空响应或 finish!=stop 停止该 Episode，保留原始 HTTP。若出现共性鉴权/路由/环境错误，停止未启动分支，不追加请求。
++
++## 冻结评价
++
++先逐组分析，再按 task 配对。每条记录 native_success、episode_complete、执行动作数、决策请求数、最后状态、50步上限、错误及初始状态验证。技术未完成的 native_success 记不可判定，不当作语义失败；同时完整列出预注册总数和可评价分母，不筛掉不利结果。
++
++行为指标：唯一实际导航位置与类型；打开/查看位置和不同实例；重复导航及其前后观察是否重复（这仅是代理指标，有效回返另标）；候选外动作、Nothing happens、fallback、可用 direct action；精确目标 acquire、近似物品操作；按任务要求 clean/cool 和最终交付；找到目标后预算不足、过早结束。当前实验没有照明/多实例任务，不能据此证明这些能力保留。不凭关键词/次数单独判断策略好坏。
++
++Editor 审计逐条检查 Effective Update→实际 Diff，区分原要求落实、遗漏、新增未要求策略与必要能力保留；即使有策略风险，只要 Candidate 通过原契约仍照预注册执行，不人工修改。Actor 比较区分与 Skill Diff 一致的观察和随机/环境等可能解释；不作小样本显著性或总体成功率估计。
++
++特别关注 A 的覆盖顺序是否导致过多检查、延迟有效返回、跳过 direct action；B 原始探索是否减少循环、是否仍依赖不可获得的全局访问状态。两方向都允许，Keep 不自动得分。
++
++## 新 Train 与保护
++
++NEW_TRAIN_CASES.md 与 new_train_cases.json 必须先于 Editor/Replay 冻结。只读身份筛选，未来共同 Parent/Memory 保持 R05 时间边界。本轮不 reset/执行新任务，不访问最终 Test，不因 R05结果改样本。
++
++只新增本目录的适配入口和归档；保留已有未提交修改，正式源码/Prompt、旧 Parent/Memory/输入输出/报告不改。开始保存 baseline/Git diff，结束核查既有文件。freeze.json 验证输入、接口源码、协议、清单与游戏。完成报告后停止。
+diff --git a/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_001/REPLAY_REPORT.md b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_001/REPLAY_REPORT.md
+new file mode 100644
+index 00000000..c9361d8e
+--- /dev/null
++++ b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_001/REPLAY_REPORT.md
+@@ -0,0 +1,74 @@
++# R05 Replay：因服务端限流中断的部分结果
++
++**没有完成三方行为比较。** 已启动9/12条Episode：5条原生成功，4条HTTP 429技术中断；剩余B/P6、B/P7、B/P10按冻结停止规则未启动。无重试、无任务重启、无策略修补。预注册12条全部列出，没有筛除不利任务。
++
++## 原生结果与配对
++
++“步数”为已执行环境动作数；技术中断不记任务失败，成功未知。括号注明发出但被拒绝的下一次决策。
++
++| Task | Parent成功 | A成功 | B成功 | Parent步数 | A步数 | B步数 |
++|---|---|---|---|---:|---:|---:|
++| P3 / val:0003 | 是 | 是 | 未知：429 | 4 | 4 | 0（首请求拒绝） |
++| P6 / val:0006 | 是 | 是 | 未启动 | 10 | 8 | — |
++| P7 / val:0007 | 未知：429 | 未知：429 | 未启动 | 19（第20请求拒绝） | 8（第9请求拒绝） | — |
++| P10 / val:0010 | 是 | 未知：429 | 未启动 | 14 | 5（第6请求拒绝） | — |
++
++Parent：完成3/4条，完成的3条均成功；A：完成2/4条，完成的2条均成功；B：启动1/4、完成0条，成功率不可估。不得把4条技术中断和3条未启动算作行为失败，或仅凭完成子集声称方法成功率100%。所有已执行步骤无50步触顶，72个执行动作均合法，未出现Nothing happens或fallback。
++
++原 `verify_record` 对9份轨迹均通过，包括保留pending请求的中断轨迹；这些轨迹的 `episode_complete=false`、`native_success=null` 被保留。所有已启动Episode初始观察/完整候选与预检一致。原 verify_pair 及额外request_policy/实现摘要核查确认已启动的Parent–A四对与Parent–B/P3配置一致，但只有 **Parent–A/P3、P6是双方完成的有效结果配对**。其余是条件相同的截断记录，不能比较完整结果；没有一个完整三方配对。
++
++两组都使用同一游戏/manifest、seed42、ALFWorld0.4.2、TextWorld1.7.0、同模型/route/Prompt/两步历史/50步协议与固定Skill。旧外网Parent不混入统计。逐项结果和配对核查见 [analysis.json](analysis.json)，实际请求/轨迹/native反馈在 episodes/{Parent,A,B}/{P3,P6,P7,P10}/。
++
++## 逐组观察（先独立记录）
++
++### Parent
++
++- P3：:1到diningtable，:2取mug，:3到sidetable，:4交付成功，没有循环。
++- P6：:1先到sinkbasin，:2 countertop1，:3 countertop2发现butterknife，:4取物；:5到drawer1但未打开，:6回sinkbasin，:7清洗，:8返回drawer1，:9打开，:10交付成功。成功保留精确类别和必要处理，存在提前去目的地的额外访问。
++- P7：:1–14依次访问/打开drawer1–7，:15–17检查countertop1–3，:18–19又回drawer1/2；看到knife但已执行前缀中没有取走替代物。第20请求429，不能推断最后会失败、成功或替代。
++- P10：:1–2检查fridge，:3 countertop1，:4–5到/查看cabinet1，:6–7回访fridge/countertop1，:8到diningtable发现apple；:9取物、:11cool、:14放入microwave原生成功。部分重复没有带来目标，但取得目标后的fridge回返是必要处理。
++
++### Candidate A
++
++- P3：四步动作及环境反馈与新Parent相同，准确取mug并交付。
++- P6：:1 countertop1→:2 countertop2发现准确butterknife→:3取物→:4 sinkbasin→:5clean→:6 drawer1→:7open→:8move。检查两个同类表面的不同实例，没有近似物品操作、无效导航或提前去目的地。
++- P7：:1–3先查countertop1–3，:4–5查cabinet1，再:6–7查drawer1，:8到drawer2。相比Parent前缀，观察到更早的同类表面扩展和跨类切换；看到knife后下一步离开，没有操作替代物。第9请求429，尚未找到butterknife，不证明其不存在或已实现可靠防替代。
++- P10：前四步与Parent相同；:5直接到diningtable看见apple，Parent到:8才看到。第6请求429，**发现目标但未取得/处理/交付是技术中断，不能归因于步数耗尽或过强策略**。
++
++### Candidate B
++
++P3已完成reset，但第一次模型请求即HTTP429，0个环境动作；其余未启动。没有B的有效动作、成功或退化证据。不能把它当作No Skill/No Change轨迹，也不能称其稳健或无效。
++
++## 配对行为与指标解释
++
++| 完整配对 | Parent → A | 可以报告 | 不可归因 |
++|---|---|---|---|
++| P3 | 4步成功 → 4步成功；同动作序列 | 当前样本内保留该成功路径 | 未证明搜索新规则改进策略，也未检验其困难条件 |
++| P6 | 10步成功 → 8步成功 | 减少2步；准确目标、清洁、交付均保留 | 差值不能单独归于Preconditioner、同类覆盖或Editor；单次随机样本 |
++
++P6两步差值可具体对应：Parent有早期sinkbasin访问和清洁前的drawer目的地访问；A直接从两个countertops搜索后取物、清洁、交付。不是笼统“少回访就是更好”。Parent的清洁/交付所需返回同一位置是有效动作，不能计为有害循环。
++
++自动统计仅为描述：不同到达位置数 Parent P3/P6/P7/P10 为2/4/10/5，A为2/4/6/4；不同长度的截断前缀不可比较覆盖优劣。`same_location_observation_revisits` 只计相同导航位置且返回文本相同，Parent P6/P10各2次，其余0；它既可能计入有效回返，又可能漏掉首次“closed”后再见“open”的旧位置，**不等于无信息动作数**。关键重复与有效回返以上述逐步核查为准。
++
++没有观察到A因强约束造成完成任务退化，但可比较范围只有两个成功任务，P7/P10被截断，不能据此排除风险。没有B可观察行为；没有照明、多实例任务，不能验证那些能力。本轮没有足够证据判断Actor全局访问历史依赖如何影响长期搜索，也没有命中导航缺失但direct action可用的对照情景。
++
++## 技术中断、预算与费用
++
++按原调度顺序，B/P3在首次请求遇到模型级 `mix TPM rate limit`；在途A/P10、A/P7、Parent/P7随后收到租户级相同类限流，错误类型均 `throttling_error`。完整原始错误保存在对应trajectory_responses/*.body；报告不复制租户标识或内部限流键。返回未说明何时恢复；这不是余额耗尽、策略失败或本轮600步预算超限的证据，也不能将共享服务的限流阈值当成本实验的实际Token用量。
++
++调度器在首个技术错误后停止提交新Episode；已在途者正常结束或记录错误。因此没有启动剩余三条B，也没有通过等待后重试改变冻结的零重试规则。不能用“B晚运行且无结果”推出B方法更差。
++
++| 消耗 | 实测 |
++|---|---:|
++| Editor逻辑/HTTP | 2 / 2 |
++| Actor逻辑决策/HTTP | 76 / 76 |
++| Actor已执行环境动作 | 72 |
++| Actor启动/完成/中断/未启动Episode | 9 / 5 / 4 / 3 |
++| 429响应 | 4 |
++| 自动重试 | 0 |
++| Actor已知 input / completion / total tokens | 104,465 / 27,207 / 131,672 |
++| Editor已知 input / completion / total tokens | 5,860 / 14,992 / 20,852 |
++| 合计已知 input / completion / total tokens | 110,325 / 42,199 / **152,524** |
++| 其中 reasoning（已含completion） | 34,718 |
++
++4个429没有usage，未知部分不补零；货币费用未返回。完整成功HTTP均返回deepseek-v4.1-flash。共78个HTTP，低于602上限。没有执行额外模型评价、Gate或Memory更新。流程因共性服务限流停止，剩余行为问题保持未解。
+diff --git a/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_001/analyze.py b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_001/analyze.py
+new file mode 100644
+index 00000000..a388fb8a
+--- /dev/null
++++ b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_001/analyze.py
+@@ -0,0 +1,53 @@
++"""Offline trace summaries; descriptive counts are not semantic quality scores."""
++from collections import Counter
++from .run import HERE, read, save
++from src.adapters.alfworld.verify_skill_run import verify_record
++from src.skill_evolution.v23.replay import verify_pair
++
++def main():
++    records={};rows=[];total=Counter();pairs=[]
++    for condition in ['Parent','A','B']:
++        for task in read(HERE/'tasks.json'):
++            ref=task['ref'];path=HERE/f'episodes/{condition}/{ref}/trajectory.json'
++            if not path.exists():
++                rows.append({'condition':condition,'ref':ref,'status':'not_started'});continue
++            r=read(path);records[(condition,ref)]=r;audit=verify_record(r)
++            steps=[s for s in r['steps'] if s['phase']=='executed'];visits=[];repeat=[];seen=set()
++            for s in steps:
++                if s['action'].startswith('go to '):
++                    location=s['action'][6:];visits.append(location)
++                    key=(location,s['observation'])
++                    if key in seen:repeat.append(s['step'])
++                    seen.add(key)
++            row={'condition':condition,'ref':ref,'task_id':r['task']['id'],**audit,
++                 'locations':list(dict.fromkeys(visits)),
++                 'navigation_count':len(visits),'same_location_observation_revisits':repeat,
++                 'invalid_steps':[s['step'] for s in steps if not s['action_in_admissible_commands']],
++                 'nothing_happens_steps':[s['step'] for s in steps if s['observation'].strip()=='Nothing happens.'],
++                 'key_actions':[{'step':s['step'],'action':s['action'],'observation':s['observation']} for s in steps
++                                if s['action'].split(' ')[0] in {'take','move','clean','heat','cool','use'}],
++                 'final_observation':steps[-1]['observation'] if steps else r.get('initial_observation')}
++            rows.append(row);total.update(audit['reported_usage'])
++            total['actor_http_requests']+=audit['transport_attempts_recorded']
++            total['actor_decisions']+=audit['requests_recorded'];total['episodes_started']+=1
++    for task in read(HERE/'tasks.json'):
++        for arm in ['A','B']:
++            ref=task['ref'];p=records.get(('Parent',ref));q=records.get((arm,ref))
++            if p is None or q is None: pairs.append({'ref':ref,'arm':arm,'paired':False,'reason':'not_started'});continue
++            try:
++                verify_pair(p,q)
++                assert p['implementation']['files']==q['implementation']['files']
++                assert p['request_policy']==q['request_policy']
++                pairs.append({'ref':ref,'arm':arm,'paired':True,'complete':p['status'] in {'success','step_limit','environment_ended'} and q['status'] in {'success','step_limit','environment_ended'}})
++            except Exception as exc:pairs.append({'ref':ref,'arm':arm,'paired':False,'reason':str(exc)})
++    editors={}
++    for arm in ['A','B']:
++        response=read(HERE/f'editors/{arm}/response.json');editors[arm]=response['usage']
++    save(HERE/'analysis.json',{'rows':rows,'pairing':pairs,'actor_totals':dict(total),'editor_usage':editors})
++    for r in rows:
++        print(r['condition'],r['ref'],r['status'],r.get('steps_executed'),r.get('native_success'),
++              'visits',len(r.get('locations',[])),'repeat',len(r.get('same_location_observation_revisits',[])),
++              'invalid',r.get('invalid_steps'),flush=True)
++    print('Actor totals',dict(total))
++
++if __name__=='__main__':main()
+diff --git a/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_001/parent.md b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_001/parent.md
+new file mode 100644
+index 00000000..281a607b
+--- /dev/null
++++ b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_001/parent.md
+@@ -0,0 +1,31 @@
++# Desklamp-Conditioned Inspection
++
++Use this procedure only when the task explicitly requires inspecting, examining, or using an object under or with a desklamp. For ordinary put, clean, or transfer tasks where no desklamp is required, do not spend steps searching for, turning on, or co-locating with a desklamp; follow the general retrieval, cleaning, and placement procedure below instead.
++
++## Procedure
++
++1. Locate the desklamp and one matching target object.
++2. Establish co-location at the desklamp's receptacle before completing the task:
++   - If the target is already on the desklamp's receptacle, remain there.
++   - If the target and lamp are on different receptacles, pick up one candidate target and carry it to the desklamp, or place it at the desklamp's receptacle.
++3. Turn on the desklamp.
++4. Pick up the target there (or keep holding it) and perform the requested look/examine, or use the lamp, while the target is held or otherwise co-located at that receptacle.
++
++## Constraints
++
++- Ensure the desklamp is on and the target is held or otherwise co-located at that receptacle before finishing.
++- Inspecting the receptacle alone is not a substitute for interacting with the requested object.
++- Do not repeatedly toggle the lamp while the target is at a different receptacle.
++- Do not move the target away after turning on the lamp.
++- Do not shuttle multiple same-type candidates between locations; remain at the lamp and finish with one co-located target.
++
++## General Non-Desklamp Retrieval, Cleaning, and Placement
++
++For ordinary put, clean, or transfer tasks where no desklamp is required, use this procedure instead.
++
++1. Identify and search for the exact requested target. If it is not visible, search systematically: open any closed cabinet, drawer, or fridge immediately upon reaching it and inspect its contents before leaving. Do not immediately revisit an already-open receptacle that visibly lacks the target; choose a different uninspected candidate location instead. Do not repeatedly check inventory while carrying nothing. Continue until the exact target is found or all plausible candidate receptacles have been inspected once.
++2. Manipulate only the exact requested target category. Do not pick up, clean, or place a substitute object when the exact target is absent; for example, do not transfer a soapbottle when the task requests a dishsponge. If the exact target has not yet been found, continue the systematic search rather than completing the transfer with a non-target object.
++3. Acquire the exact target. If the task requires the object to be clean, carry it to an appropriate cleaning receptacle such as a sinkbasin and perform the clean action. If no cleaning is requested, skip the cleaning detour.
++4. Go directly to the requested destination. Open it first if it is closed, then place or move the target there. Do not detour to unrelated receptacles or release the target before the requested placement is completed.
++
++Keep the successful search, acquisition, and placement behavior used in non-desklamp transfer tasks.
+diff --git a/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_001/run.py b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_001/run.py
+new file mode 100644
+index 00000000..a4498fda
+--- /dev/null
++++ b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_001/run.py
+@@ -0,0 +1,245 @@
++"""Isolated, bounded R05 Editor and Actor orchestration; no policy changes."""
++import argparse
++from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
++from datetime import datetime, timezone
++import hashlib
++import json
++import os
++from pathlib import Path
++import subprocess
++import sys
++import traceback
++
++from dotenv import dotenv_values
++import requests
++from src.skill_evolution.v23 import editor, preconditioner as old_pc
++from src.skill_evolution.v23_3 import preconditioner as pc
++from src.skill_evolution.v22.diagnosis_editor import parse_json_response
++from src.adapters.alfworld.skill_runtime import load_skill, make_record, digest, write_record
++from experiments.methods.v23_3.memory_v3_integration_001.run import load_a
++
++HERE = Path(__file__).resolve().parent
++ROOT = HERE.parents[3]
++SOURCE = HERE.parent / 'memory_v3_integration_001'
++FORMAL = ROOT / 'artifacts/methods/v23/v23_alfworld_formal_001/S1/rounds/R05'
++PYTHON = '/Users/didi/miniforge3/envs/alfworld/bin/python'
++
++def read(p):
++    return json.loads(Path(p).read_text())
++
++def save(p, value):
++    p = Path(p); p.parent.mkdir(parents=True, exist_ok=True)
++    write_record(p, value)
++
++def now():
++    return datetime.now(timezone.utc).isoformat()
++
++def sha(p):
++    return digest(Path(p).read_bytes())
++
++def credentials():
++    values = {**dotenv_values(ROOT / '.env'), **os.environ}
++    return values['OPENAI_API_KEY'], values['OPENAI_BASE_URL'].rstrip('/')
++
++def verify_freeze():
++    frozen = read(HERE / 'freeze.json')
++    for path, expected in frozen['files'].items():
++        assert sha(ROOT / path) == expected, path
++    return read(HERE / 'config.json')
++
++def upstreams():
++    saved = read(SOURCE / 'config/common_saved.json')
++    a = load_a(SOURCE / 'runs/A', saved)
++    b = pc.load_preconditioner(SOURCE / 'runs/B')
++    assert a['facts'] == b['facts'] and a['diagnosis'] == b['diagnosis']
++    assert old_pc.preconditioner_input(a) == read(SOURCE / 'config/full_payload.json')
++    assert b['effective_plan'] == read(SOURCE / 'config/model_input.json')['plan']
++    assert len(a['preconditioner']['adjustments']) == 2
++    assert b['preconditioner']['adjustments'] == []
++    return {'A': a, 'B': b}
++
++def prepare():
++    key, base = credentials()
++    assert '.intra.' in base and key
++    cfg = {'endpoint': base + '/chat/completions', 'model': 'deepseek-v4.1-flash',
++           'editor_max_tokens': 16384, 'actor_max_tokens': 16384,
++           'temperature': 1.0, 'thinking': {'type': 'enabled'}, 'reasoning_effort': 'medium',
++           'stream': False, 'editor_timeout': [60,300], 'actor_timeout': [10,300],
++           'http_attempts_per_logical_call': 1, 'max_editors': 2, 'max_episodes': 12,
++           'max_steps': 50, 'max_actor_decisions': 600, 'concurrency': 4,
++           'actor_python': PYTHON, 'seed': 42, 'reuse_historical_parent': False}
++    save(HERE/'config.json',cfg)
++    ups = upstreams()
++    parent = ups['A']['facts']['parent']
++    (HERE/'parent.md').write_text(parent)
++    for arm,saved in ups.items():
++        save(HERE/f'inputs/{arm}_upstream.json',saved)
++        save(HERE/f'inputs/{arm}_effective.json',saved['effective_plan'])
++        save(HERE/f'inputs/{arm}_messages.json',editor.messages_for(saved))
++    assert editor.messages_for(ups['A'])[0] == editor.messages_for(ups['B'])[0]
++    grouping=read(FORMAL/'grouping/attempts/002/input.json')
++    from src.adapters.alfworld.run_task import SPLIT_ROOT
++    manifest=read(SPLIT_ROOT/'val/items.json')
++    tasks=[]
++    for ref in ['P3','P6','P7','P10']:
++        source=next(s for s in grouping['sources'] if s['ref']==ref)
++        paths=list((FORMAL/'parent_runs'/source['task_id'].replace(':','_')).rglob('trajectory.json'))
++        path=next(p for p in paths if read(p)['run_id']==source['run_id'])
++        record=read(path)
++        assert record['skill']['text']==parent
++        item=next(x for x in manifest if x['id']==source['task_id'])
++        assert item==record['task']
++        tasks.append({'ref':ref,'item':item,'goal':record['goal'],'historical_trajectory':str(path),
++                      'gamefile':record['gamefile'],'game_sha256':sha(record['gamefile']),
++                      'manifest':str(SPLIT_ROOT/'val/items.json')})
++    save(HERE/'tasks.json',tasks)
++    print('Prepared source handoffs and four task identities',flush=True)
++
++def preflight():
++    from src.adapters.alfworld.run_task_skill import environment_modules,installed_versions
++    from src.adapters.alfworld.skill_runtime import execution_protocol,implementation_metadata
++    from src.adapters.alfworld.verify_skill_run import verify_record
++    tw,wrapper=environment_modules();results=[]
++    for task in read(HERE/'tasks.json'):
++        old=read(task['historical_trajectory']);verify_record(old)
++        resets=[]
++        for _ in range(2):
++            env=tw.start(task['gamefile'],tw.EnvInfos(won=True,admissible_commands=True),wrappers=[wrapper(shuffle=False)])
++            try:
++                env.seed(42);state=env.reset()
++                resets.append({'observation':state.feedback,'commands':list(state.admissible_commands)})
++            finally:env.close()
++        assert resets[0]==resets[1]
++        assert resets[0]['observation']==old['initial_observation']
++        assert resets[0]['commands']==old['initial_admissible_commands']
++        assert old['protocol']==execution_protocol(50)
++        results.append({'ref':task['ref'],'reset':resets[0],'same_historical_reset':True,
++                        'historical_trace_valid':True,'historical_model':old['model'],
++                        'implementation_equal':old['implementation']['files']==implementation_metadata()['files']})
++    save(HERE/'preflight.json',{'at':now(),'versions':installed_versions(),
++         'protocol':execution_protocol(50),'implementation':implementation_metadata(),'tasks':results})
++    print('Four deterministic resets match historical initial states',flush=True)
++
++def freeze():
++    assert (HERE/'NEW_TRAIN_CASES.md').is_file() and (HERE/'preflight.json').is_file()
++    files=[HERE/'run.py',HERE/'select_train.py',HERE/'PROTOCOL.md',HERE/'NEW_TRAIN_CASES.md',HERE/'new_train_cases.json',
++           HERE/'config.json',HERE/'tasks.json',HERE/'preflight.json',HERE/'parent.md']
++    files+=list((HERE/'inputs').glob('*.json'))
++    files+=list((ROOT/'src/skill_evolution/v23').glob('*.py'))+list((ROOT/'src/skill_evolution/v23').glob('*.md'))
++    files+=list((ROOT/'src/skill_evolution/v23_3').glob('*.py'))+list((ROOT/'src/skill_evolution/v23_3').glob('*.md'))
++    files+=list((ROOT/'src/adapters/alfworld').glob('*.py'))
++    files += [Path(t['gamefile']) for t in read(HERE/'tasks.json')]
++    files += [Path(read(HERE/'tasks.json')[0]['manifest'])]
++    # Absolute external game paths are legal keys; ROOT/path preserves them.
++    save(HERE/'freeze.json',{'at':now(),'files':{str(p.relative_to(ROOT)) if p.is_relative_to(ROOT) else str(p):sha(p) for p in files}})
++    print('Stage 0 frozen',flush=True)
++
++def editor_call(arm):
++    cfg=verify_freeze();key,base=credentials();assert cfg['endpoint']==base+'/chat/completions'
++    upstream=upstreams()[arm]
++    assert upstream==read(HERE/f'inputs/{arm}_upstream.json')
++    out=HERE/'editors'/arm;out.mkdir(parents=True,exist_ok=False)
++    messages=editor.messages_for(upstream);assert messages==read(HERE/f'inputs/{arm}_messages.json')
++    cc={'endpoint':cfg['endpoint'],'model':cfg['model'],'max_tokens':cfg['editor_max_tokens'],
++        'timeout_seconds':300,'temperature':cfg['temperature'],'thinking':cfg['thinking'],
++        'reasoning_effort':cfg['reasoning_effort'],'stream':False}
++    for name,value in [('upstream',upstream),('input',editor.editor_input(upstream)),
++                       ('background',upstream['background']),('messages',messages)]:save(out/f'{name}.json',value)
++    (out/'prompt.md').write_text(messages[0]['content'])
++    meta={'round_id':upstream['round_id'],'call_config':cc,'started_at':now(),'status':'requesting'}
++    save(out/'run.json',meta)
++    try:
++        from experiments.methods.v23_3.p3a_transport_retry_001.run import send_once
++        body={k:v for k,v in cc.items() if k not in ('endpoint','timeout_seconds')};body['messages']=messages
++        http=out/'http/001';http.mkdir(parents=True)
++        response=send_once({'endpoint':cfg['endpoint'],'body':body},key,http,
++                           {'connect_upload_timeout_seconds':60,'read_timeout_seconds':300})
++        save(out/'response.json',response);(out/'raw_output.txt').write_text(response.get('content') or '')
++        assert response.get('finish_reason')=='stop'
++        parsed=parse_json_response(response['content']);save(out/'parsed.json',parsed)
++        if isinstance(parsed,dict) and isinstance(parsed.get('patch'),str):(out/'patch.diff').write_text(parsed['patch'])
++        status,candidate=editor.validate_editor(parsed,upstream['facts']['parent'])
++        save(out/'editor.json',parsed)
++        if candidate is not None:
++            (out/'candidate.md').write_text(candidate)
++            (out/'actual.diff').write_text(editor.actual_diff(upstream['facts']['parent'],candidate))
++        save(out/'validation.json',{'valid':True,'error':None});meta.update(status='valid',outcome=status)
++    except Exception as exc:
++        (out/'traceback.txt').write_text(traceback.format_exc())
++        save(out/'validation.json',{'valid':False,'error_type':type(exc).__name__,'error':str(exc)})
++        meta.update(status='invalid',error_type=type(exc).__name__)
++    finally:
++        meta['finished_at']=now();save(out/'run.json',meta)
++    if meta['status']=='valid':
++        editor.load_editor(out,expected_preconditioner=upstream,expected_call_config=cc)
++    print(arm,meta['status'],meta.get('outcome'),flush=True)
++
++def episode(condition,ref):
++    from src.adapters.alfworld.run_task_skill import environment_modules,installed_versions,run_episode,RecordingSession
++    from src.adapters.alfworld.run_task_upstream import chat
++    from src.adapters.alfworld.verify_skill_run import verify_record
++    cfg=verify_freeze();key,base=credentials();assert cfg['endpoint']==base+'/chat/completions'
++    for arm in ['A','B']:assert (HERE/f'editors/{arm}/run.json').is_file()
++    skillfile=HERE/'parent.md' if condition=='Parent' else HERE/f'editors/{condition}/candidate.md'
++    if condition!='Parent':
++        saved=editor.load_editor(HERE/'editors'/condition)
++        assert saved['editor_status']=='candidate' and skillfile.read_text()==saved['candidate_text']
++    task=next(t for t in read(HERE/'tasks.json') if t['ref']==ref)
++    out=HERE/'episodes'/condition/ref;out.mkdir(parents=True,exist_ok=False)
++    record=make_record(item=task['item'],split='val',purpose='optimization',skill=load_skill(skillfile),
++        model=cfg['model'],max_steps=50,gamefile=Path(task['gamefile']),manifest_path=Path(task['manifest']),
++        versions=installed_versions(),backend_id=digest(cfg['endpoint'].encode()))
++    assert record['versions']==read(HERE/'preflight.json')['versions']
++    record['request_policy']={'max_attempts':1,'strict_response':True};output=out/'trajectory.json'
++    tw,wrapper=environment_modules();env=tw.start(task['gamefile'],tw.EnvInfos(won=True,admissible_commands=True),wrappers=[wrapper(shuffle=False)])
++    try:
++        env.seed(42)
++        with requests.Session() as session:
++            session.trust_env=False
++            recording=RecordingSession(session,record,output,archive_responses=True)
++            expected=next(t['reset'] for t in read(HERE/'preflight.json')['tasks'] if t['ref']==ref)
++            def generate(messages):
++                assert record['initial_observation']==expected['observation']
++                assert record['initial_admissible_commands']==expected['commands']
++                return chat(recording,cfg['endpoint'],key,cfg['model'],messages,max_attempts=1,strict_response=True)
++            run_episode(env,generate,record,output)
++    finally:env.close()
++    save(out/'audit.json',verify_record(record))
++    print(condition,ref,record['status'],len(record['steps']),flush=True)
++
++def batch():
++    verify_freeze()
++    # Explicit Editor-result audit gate; no requests before both arms reviewed.
++    assert read(HERE/'editor_gate.json')['replay_allowed']
++    jobs=[(c,t['ref']) for c in ['Parent','A','B'] for t in read(HERE/'tasks.json')
++          if c=='Parent' or (HERE/f'editors/{c}/candidate.md').is_file()]
++    assert len(jobs)<=12
++    (HERE/'batch.claim').open('x').close()
++    def one(job):
++        c,r=job;log=HERE/f'episodes/{c}_{r}.log';log.parent.mkdir(exist_ok=True)
++        with log.open('w') as output:
++            result=subprocess.run([PYTHON,'-m','experiments.methods.v23_3.p3c1_r05_replay_001.run','episode',c,r],
++                                   cwd=ROOT,stdout=output,stderr=subprocess.STDOUT)
++        print(c,r,'exit',result.returncode,flush=True)
++        trajectory=HERE/f'episodes/{c}/{r}/trajectory.json'
++        return {'condition':c,'ref':r,'exit':result.returncode,
++                'status':read(trajectory)['status'] if trajectory.exists() else 'setup_error'}
++    results=[];index=0;stop=False
++    with ThreadPoolExecutor(max_workers=4) as pool:
++        pending=set()
++        while pending or (index<len(jobs) and not stop):
++            while len(pending)<4 and index<len(jobs) and not stop:
++                pending.add(pool.submit(one,jobs[index]));index+=1
++            done,pending=wait(pending,return_when=FIRST_COMPLETED)
++            for future in done:
++                result=future.result();results.append(result)
++                # Conservative: any technical failure stops further scheduling.
++                if result['exit'] or result['status'] not in {'success','step_limit','environment_ended'}:stop=True
++            save(HERE/'batch_progress.json',{'at':now(),'results':results,'stop_scheduling':stop,'not_started':jobs[index:]})
++    save(HERE/'batch_results.json',results)
++
++if __name__=='__main__':
++    action=sys.argv[1]
++    if action=='editor':editor_call(sys.argv[2])
++    elif action=='episode':episode(sys.argv[2],sys.argv[3])
++    else:globals()[action]()
+diff --git a/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_001/select_train.py b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_001/select_train.py
+new file mode 100644
+index 00000000..0efbb8e6
+--- /dev/null
++++ b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_001/select_train.py
+@@ -0,0 +1,92 @@
++"""Read-only identity screening; no environment or model execution for new cases."""
++import json
++from pathlib import Path
++import random
++import re
++from collections import Counter
++from .run import HERE, ROOT, save, now, sha
++
++SEED = 230302
++FAMILIES = ['pick_and_place_simple','pick_clean_then_place_in_recep',
++            'pick_heat_then_place_in_recep','pick_cool_then_place_in_recep',
++            'look_at_obj_in_light','pick_two_obj_and_place']
++
++def main():
++    # Inspect metadata/text identities, not final-test trajectories or game solutions.
++    seen=set();hits={};scanned=0;truncated=0
++    pattern=re.compile(r'trial_T\d{8}_\d{6}_\d+')
++    excluded={'test','tests','final','final_test','final_evaluation','eval_test','test_runs'}
++    for base in ['artifacts/methods','experiments/methods','docs']:
++        for p in (ROOT/base).rglob('*'):
++            if not p.is_file() or HERE in p.parents or p.suffix not in {'.json','.md'}:continue
++            if any(x.lower() in excluded or 'final_test' in x.lower() or 'test_evaluation' in x.lower() for x in p.parts):continue
++            # Request/response bodies and game snapshots are not needed for identity screening.
++            if p.name in {'http_response.json','response.json','request.json','messages.json','baseline.json','freeze.json','implementation.json'}:continue
++            with p.open('rb') as stream:blob=stream.read(131072)
++            scanned+=1;truncated+=p.stat().st_size>len(blob)
++            trials=set(pattern.findall(blob.decode('utf-8',errors='ignore')))
++            for trial in trials:
++                seen.add(trial);hits.setdefault(trial,[])
++                if len(hits[trial])<4:hits[trial].append(str(p.relative_to(ROOT)))
++    # Exclude every instance in the original training edition, whether used or merely allocated.
++    legacy=ROOT/'benchmarks/alfworld/editions/skillopt_39_18_134/train/items.json'
++    for item in json.loads(legacy.read_text()):
++        for trial in pattern.findall(item['gamefile']):
++            seen.add(trial);hits.setdefault(trial,[]).append(str(legacy.relative_to(ROOT)))
++    data=Path('/Users/didi/.cache/alfworld')
++    paths=sorted((data/'json_2.1.1/train').glob('*/*/game.tw-pddl'))
++    eligible={f:[] for f in FAMILIES};excluded_items=[]
++    for p in paths:
++        family=p.parent.parent.name.split('-')[0];trial=p.parent.name
++        if trial in seen:excluded_items.append({'gamefile':str(p.relative_to(data)),'identity':trial,'sources':hits[trial]});continue
++        if family in eligible:eligible[family].append(p)
++    rng=random.Random(SEED);selected=[]
++    for family in FAMILIES:
++        choices=rng.sample(eligible[family],min(2,len(eligible[family])))
++        for batch,p in enumerate(choices,1):
++            selected.append({'batch':batch,'id':f'train:p3a2_{batch}_{FAMILIES.index(family)+1:02}',
++                             'gamefile':str(p.relative_to(data)),'task_type':family,'instance':p.parent.name,
++                             'legacy_task_id':None})
++    selected.sort(key=lambda x:(x['batch'],FAMILIES.index(x['task_type'])))
++    save(HERE/'new_train_cases.json',{'frozen_at':now(),'seed':SEED,'source_root':str(data/'json_2.1.1/train'),
++        'selection':'lexicographic canonical game paths; fixed family order; Random(seed).sample two per family; first/second to batches 1/2',
++        'identity':'canonical game path plus globally excluded trial identity; IDs here are new experiment-local labels',
++        'scanned_files':scanned,'prefix_truncated_files':truncated,'read_limit_bytes':131072,
++        'raw_train_count':len(paths),'excluded_count':len(excluded_items),
++        'eligible_counts':{k:len(v) for k,v in eligible.items()},'tasks':selected})
++    save(HERE/'new_train_exclusions.json',excluded_items)
++    rows='\n'.join(f"| {x['batch']} | `{x['id']}` | {x['task_type']} | `{x['gamefile']}` |" for x in selected)
++    text=f'''# P3-A2 新 Train 案例预注册
++
++冻结于 {now()}，早于任何本轮 Editor/Actor 输出。未调用新案例的模型、环境 reset 或读取其游戏内容/答案。
++
++## 身份筛选与抽样
++
++原始池只枚举 `/Users/didi/.cache/alfworld/json_2.1.1/train`，共 {len(paths)} 个游戏文件。任务族取目录名，实例取规范路径和 trial ID，不以文件名不同认定独立。排除旧 39 条 Train edition 全部实例及仓库开发归档提及的实例，实际排除 {len(excluded_items)} 个原始 Train 游戏。六族固定顺序为 {', '.join(FAMILIES)}。
++
++种子 {SEED}；规范路径字典序排序；Python Random(seed) 每族不放回抽两条，第一/第二条分别放入批次 1/2；不足不补采其他族。共选 {len(selected)} 条，任务请求将由未来环境初始观察提取，本轮不猜写请求。
++
++排重扫描 artifacts/methods、experiments/methods、docs 的元数据及文本身份，排除显式 Test/final 路径、原始 HTTP 响应、模型请求正文等。读 {scanned} 份文件，每份至多前 131072 字节，{truncated} 份存在未扫描尾部。另完整读取旧 Train items。只读身份，未访问最终 Test 数据目录或运行 Test。详细排除来源见 new_train_exclusions.json。
++
++**暴露边界**：排除 R04/R05/R06 的规范实例（这些也位于不同原始 split），旧 Train edition 和扫描范围内 V23.2/V23.3/P1-R/Memory 来源可定位的实例；不能排除仅用自然语言、另一别名、截断尾部或仓库外记录的先前暴露。因此称“在已核查身份范围内未发现暴露”，不称绝对独立泛化集。
++
++下面的 task_id 是本实验新建的局部 Train 标签，**不是**已有 39 条 edition 的编号；规范 gamefile 为权威身份。未来执行需用独立 manifest/合法输入适配，不能覆盖默认清单或冒用旧编号。
++
++| 批次 | task_id | 任务族 | 规范 gamefile |
++|---|---|---|---|
++{rows}
++
++## 下一轮固定条件草案（本轮不执行）
++
++两批均优先使用本轮 parent.md 与 memory_v3_integration_001/config/full_payload.json.memory（M1/M2/M3/M6/M7/M8/M9），不吸收本轮或新任务的后验响应。两个批次互不更新 Parent/Memory；若接口不兼容须在未来开跑前重新冻结，不能看输出后更换。
++
++每批先在六条共同任务执行 Parent，再同一 Grouping、一次共同多行 Diagnosis，冻结 Original 后分别 V23 自由更新与 V23.3 Patch，随后同配置 Editor 和配对 Candidate Replay。相同当前证据与历史输入，单次生成不择优。
++
++预算草案：每批 Grouping 1、Diagnosis 1、Preconditioner 2、Editor 2，共 6 次模块调用；最多 18 Episode（6 Parent+6 A+6 B）、900 Actor 决策。两批合计最多 12 模块调用、36 Episode、1800 Actor 决策；技术重试/模型/超时在未来单独冻结，当前未授权执行。合法停点缩减依赖调用，不增补样本。
++
++评价：原生成功、步数、类别与实例覆盖、无信息重复、无效动作、精确目标、必要处理/数量/交付、实际 Skill Diff 和退化；分别报告技术有效性、更新构造及行为结果。保留全部预注册案例，不据胜负筛除；不用于最终 Test 调参。
++'''
++    (HERE/'NEW_TRAIN_CASES.md').write_text(text)
++    print('New train cases frozen',len(selected),'excluded',len(excluded_items),flush=True)
++
++if __name__=='__main__':main()

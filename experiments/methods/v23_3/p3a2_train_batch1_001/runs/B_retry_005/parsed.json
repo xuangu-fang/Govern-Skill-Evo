@@ -1,0 +1,28 @@
+{
+  "decision": "ready",
+  "reason": "The localization problem is real (P6 never visits sofa/armchairs/diningtable/ottoman and hits the step limit; P3 never reaches the mug and cycles), and broadening is supported: in P1 the box was found only after reaching coffeetable 1 (P1:36), which is exactly the surface class u1 adds. u1 is therefore kept. u2's problem is executable scope: the Actor can see only the current observation and the last two observation/action pairs, so 'a receptacle you have already confirmed empty' and 'a run of steps that only revisits... as a stuck-search signal' are not determinable global-state triggers. Memory M3 and M6 record that this same anti-cycling wording was added previously and was not reliably followed, with cycling/step-limit failures persisting (P1:15/P1:20/P1:24, P3:28-P3:30, P6:26/P6:38 all re-walk already-seen empty containers). Instead of repeating a non-executable absolute more strongly, I narrow u2 to local, Actor-visible triggers: do not re-examine the currently-open receptacle that visibly lacks the target, avoid destinations named in the current observation or last two pairs, and break an observable A-B-A bounce, keeping the first-pass completion boundary. The narrowed u2 does not conflict with u1 (inspect each candidate on first arrival) and the necessary non-repetition behavior is preserved. The existing Checks still observe u1/u2 behavior and are kept unchanged.",
+  "adjustments": [
+    {
+      "from": [
+        "u2"
+      ],
+      "to": [
+        {
+          "id": "u2",
+          "patch": "--- a/SKILL.md\n+++ b/SKILL.md\n@@ -1,3 +1,3 @@\n-- After inspecting a receptacle that visibly lacks the exact target, do not re-open or re-walk a receptacle you have already confirmed empty; next travel to a receptacle that does not appear in your recent observation/action history and whose contents you have not yet seen.\n-- Do not cycle back and forth among the same small set of receptacles; before making any second pass over a container cluster, complete one inspection of the remaining untested receptacle types or instances.\n-- Treat a run of steps that only revisits already-open, empty containers as a stuck-search signal: break the pattern by moving to an uninspected surface or appliance instead of repeating the loop.\n+- After arriving at a receptacle that is already open and visibly lacks the exact target, do not examine or re-open it again; choose a different admissible go-to destination instead.\n+- When choosing the next destination, avoid any receptacle that appears in your current observation or in the last two observation/action pairs; prefer one you have not just visited, so consecutive moves do not bounce between the same two receptacles.\n+- Keep breaking an observed A-B-A bounce by moving on to another listed receptacle type or instance; continue until the exact target is located or the remaining untested receptacles you can identify from the current listing have been visited once.\n"
+        }
+      ],
+      "basis": [
+        "G1",
+        "P1:15",
+        "P3:28",
+        "P6:26",
+        "P6:outcome",
+        "M3",
+        "M6"
+      ],
+      "reason": "u2 as written requires knowledge the Actor lacks (full history of which receptacles were 'already confirmed empty', and detection of a multi-step 'stuck-search' pattern). Runs show the broadened-search failure mode with continued re-walking of already-seen empty containers (P1:15, P1:20, P1:24; P3:28-P3:30; P6:26, P6:38), and M3/M6 record that this anti-cycling language was added before and was not reliably followed. To keep the necessary non-repetition behavior executable, I narrow u2 to triggers visible in the current observation and the last two observation/action pairs, retain the observable A-B-A bounce rule, and keep the first-pass completion boundary. No global guarantee is asserted; whether this local formulation reduces re-walking is an unverified hypothesis to be observed, not a proven benefit."
+    }
+  ],
+  "checks": null
+}

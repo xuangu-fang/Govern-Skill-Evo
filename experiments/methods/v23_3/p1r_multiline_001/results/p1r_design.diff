@@ -1,0 +1,228 @@
+diff --git a/experiments/methods/v23_3/p1r_multiline_001/before/V23_3_METHOD_DESIGN.md b/experiments/methods/v23_3/V23_3_METHOD_DESIGN.md
+index ecd2bb79..b6fe4a28 100644
+--- a/experiments/methods/v23_3/p1r_multiline_001/before/V23_3_METHOD_DESIGN.md
++++ b/experiments/methods/v23_3/V23_3_METHOD_DESIGN.md
+@@ -9,7 +9,7 @@ V23 已有历史响应、范围调整、拆合/撤回等概念和权限。V23.3
+ 1. 对照历史**实际 Diff**与条件相容的响应，确定当前哪条行为关系受到支持、反例或不确定性约束。
+ 2. 分别决定纠错、方向探索与无关要求保留；混合响应不再作为整段策略的统一背书。
+ 3. 只有“不改会矛盾、不可执行或破坏必要行为”的要求进入必要配套；其余新增改变必须有独立问题动机。
+-4. 将所选变化直接构造为 Patch，由程序得到完整 Update 与原格式 Adjustment。不能另交完整 text 覆盖补丁结果。
++4. 将所选变化映射到多行 Update 中对应的完整行为要求，直接构造 Patch，由程序得到完整 Update 与原格式 Adjustment。不能先自由重写全文再反向生成 Patch，也不能另交完整 text 覆盖补丁结果。
+ 5. 用实际行为差异检验并修订历史认识。
+ 
+ 决策规则见[算法](V23_3_PRECONDITIONING_ALGORITHM.md)；工程载体见[集成](V23_3_PATCH_INTEGRATION.md)。它是待检验的方法设计，尚未证明比 V23 更稳定，也没有优化器的数学收敛性质。
+@@ -18,13 +18,15 @@ V23 已有历史响应、范围调整、拆合/撤回等概念和权限。V23.3
+ 
+ | 模块 | 本方法中的责任 | 是否立即改实现 |
+ |---|---|---|
+-| Diagnosis | 从当前 Parent/Grouping/执行提出改善目标、可调整的策略假设、保留能力与可观察 Checks；不读取 Memory，不必独立选出最优策略 | 不改代码、Schema 或 Prompt。现有 Prompt 已要求 Goal 不锁实现，先冻结以隔离 Preconditioner 效应 |
++| Diagnosis | 从当前 Parent/Grouping/执行提出改善目标、可调整的策略假设、保留能力与可观察 Checks；不读取 Memory，不必独立选出最优策略 | P1-R 不改现有代码、Schema 或正式 Prompt；未来 V23.3 直接生成多行 `Update.text`，每行尽量为可独立判断的完整行为要求 |
+ | Memory | 保存真实编辑、混合行为响应、观察条件和联合编辑/单次执行的归因限制；knowledge 是可修订认识，sources 是核查依据 | 不重写、不压缩、不修补历史档案。M10 的错误在使用时依据 sources 限定；后续可独立比较修正 summary |
+ | Preconditioner | 根据条件化响应选择 Keep/收窄/放宽/替换/撤回，检查可观测条件、协调必要关联，并明确探索的可检验预期 | P2 仅实现这一决策契约及 Patch 衔接；一次模型调用，不加审核 Agent |
+ | Editor | 落实 Effective Plan 到 Parent Skill；不再重选策略 | 复用现有接口和实现核心；只适配上游归档加载 |
+ | Replay/Memory commit | 测量真实 Parent/Candidate 差异，将收益、反例和限制继续写回现有 knowledge/evidence | 沿用闭环，实验阶段再运行 |
+ 
+-Diagnosis 不立即改，不等于认可所有历史 Goal。遇到 Goal 实现绑定，必须单列兼容修正与上游阻断；不能给 Preconditioner 暗中改 Goal 的权力。如果后续反复出现此障碍，再做独立 Diagnosis 对照，不把它混入本轮机制收益。
++P0/P1 原先冻结 Diagnosis；P1-R 仅修订未来输出的文本组织，不改变职责、Schema 或历史 Plan。触发条件与动作同处一行，依据不同的调度、回访、完成等要求尽量分行，不按标点机械拆分。原单行档案保持；人工表示副本与策略修改分开。详见 [P1-R 表示规范](p1r_multiline_001/P1R_UPDATE_REPRESENTATION.md)。
++
++这不等于认可所有历史 Goal。遇到 Goal 实现绑定，必须单列兼容修正与上游阻断；不能给 Preconditioner 暗中改 Goal 的权力。如果后续反复出现此障碍，再做独立 Diagnosis 对照，不把它混入预条件化收益。
+ 
+ ## 3. 三种修改关系，不增加三种字段
+ 
+@@ -50,4 +52,4 @@ Diagnosis 不立即改，不等于认可所有历史 Goal。遇到 Goal 实现
+ 
+ P1 交付的是明确决策规则、真实案例推演和工程方案；不是模型已遵守规则的证明。若后续只有 reason 更长、Patch 格式变化，而实际 Update 仍夹带无据结束条件，方法验收失败。
+ 
+-应区分三种证据：确定性应用通过、变换决策有据、任务行为改善。三者各自验收；前者不能替代后两者。若要将收益归因于响应决策而非 Patch 表示，需要额外的表示/决策拆分对照，见[验证计划](V23_3_VALIDATION_PLAN.md)。
++应区分多行表示带来的编辑粒度、确定性应用、响应驱动的决策质量及真实任务收益。未修改行由程序保留，但一个被替换行仍可能夹带多个无据承诺。表示收益不能归为 Memory 收益，工程通过也不能替代语义或行为验证，见[验证计划](V23_3_VALIDATION_PLAN.md)。
+diff --git a/experiments/methods/v23_3/p1r_multiline_001/before/V23_3_PRECONDITIONING_ALGORITHM.md b/experiments/methods/v23_3/V23_3_PRECONDITIONING_ALGORITHM.md
+index 11bae12b..2e9926bc 100644
+--- a/experiments/methods/v23_3/p1r_multiline_001/before/V23_3_PRECONDITIONING_ALGORITHM.md
++++ b/experiments/methods/v23_3/V23_3_PRECONDITIONING_ALGORITHM.md
+@@ -4,7 +4,7 @@
+ 
+ ## 1. 决策单位与证据使用规则
+ 
+-对 Original Update 中实际影响选择的关系，理解其**触发条件、行为选择、作用对象、强度、退出条件**。这些是阅读和评价维度，不序列化为新字段，也不按句号自动切分。
++对 Original Update 中可独立保留、修改或撤回的行为要求，理解其**触发条件、行为选择、作用对象、强度、退出条件**。P1-R 规定未来 Diagnosis 将这类完整要求尽量分别组织成行，但决策对象仍是行为含义，不是行号本身。这些维度不序列化为新字段，也不按句号自动切分。
+ 
+ 对每个相关历史条目，按以下顺序判定能否使用：
+ 
+@@ -22,7 +22,7 @@
+ 
+ | 决定 | 何时有依据 | 如何改变实际要求 | 适用边界与可反驳点 |
+ |---|---|---|---|
+-| **Keep** | 当前要求可执行且与目标相容；历史无关、条件不可迁移，或正反响应已被现有边界涵盖；没有独立修改动机 | 不提交该 Update 的 Adjustment，保留原文 | 不能仅因没有 Memory 就宣称要求正确；已有不可见状态要求或反例未处理时，Keep 的解释不成立 |
++| **Keep** | 当前要求可执行且与目标相容；历史无关、条件不可迁移，或正反响应已被现有边界涵盖；没有独立修改动机 | 不修改对应要求所在行；整个 Update 均保留时才省略该 Adjustment | 不能仅因没有 Memory 就宣称要求正确；已有不可见状态要求或反例未处理时，Keep 的解释不成立 |
+ | **收窄** | 原要求量化过强，当前事实/相容历史反例只支持某些状态；存在可见条件可区别适用与不适用情形 | 将无条件命令/禁令改为状态限定，降低“必须/永不”的强度；保留有依据的核心 | R04 “closed 就 open”不能由成功链推出必要；R05 无效后永久禁同类动作须限定状态未变、无新信息。单个反例否定普遍保证，不证明所有相反动作都更好 |
+ | **放宽** | 原策略排除了仍有价值、合法且目标相关的选择；正例或混合响应支持扩大选择空间 | 撤掉硬前提或增加可观察例外，不要求新选择总是优先 | R04 已知剩余目标回源；R05 不必等穷尽才能探索其他类别。扩大可选集合不证明新增顺序最优，不允许据此降低完成标准 |
+ | **替换** | 现有行为关系与能力不相容，或相容的混合响应使单纯加严/重复旧指导缺乏理由；新策略有自己的问题动机，能在可见条件下执行 | 用可检验的新选择规则替代旧调度，可大幅重写；reason 明示未知收益，Checks 包含反例 | R05 可尝试近期无进展时跨类探索；不能写成“历史证明跨类必优”。无反例区分信息时，不假装找到了精确最优触发阈值 |
+@@ -43,16 +43,20 @@
+ 
+ 这不是语义判定器的代码保证。规则规定应作什么选择，既有 reason 提供可审阅理由，后续人工评价检验理由是否成立；不新增审核 Agent 或第二次模型调用。
+ 
++P1-R 对应关系：先选择受历史响应约束的行为要求，再定位其原文行；配套要求依据具体冲突同时修改，可以跨行、跨 Hunk、跨 Update。一个触发条件及其动作不拆散；关联含义由既有 reason 解释，不增加行 ID 或依赖图。没有独立理由的行保持原文，有据的大范围修改仍允许，不以最少行数为目标。不能先生成整段替代策略，再反向生成 Diff 给既成改动补理由。
++
++旧单行 Original 不自动拆分；它仍受整行替换限制。R04/R05/R06 的多行副本是人工设计材料，表示层保留旧问题，后续测试 Patch 才改变策略；见 [P1-R 走查](p1r_multiline_001/P1R_CASE_WALKTHROUGH.md)。行级保护不等于行内语义保护，新增出口或排他禁令仍需独立评价。
++
+ ## 4. 完整流程、输入和输出
+ 
+ | 步骤/责任 | 输入与决策依据 | 输出 |
+ |---|---|---|
+-| 1 Diagnosis | 当前 Parent、Grouping、执行；目标/可调整策略/保留能力 | Original Plan；若非 revise 沿用原停点 |
++| 1 Diagnosis | 当前 Parent、Grouping、执行；目标/可调整策略/保留能力 | Original Plan，未来直接生成按完整行为要求分行的 text；若非 revise 沿用原停点 |
+ | 2 输入装配程序 | 原 `preconditioner_input`，冻结的 Active Memory 与 sources | 现有 payload；记录实际选入的当前执行，不暗补证据 |
+ | 3 Preconditioner | Original 行为关系与历史实际 Diff/响应；按第1节检查条件与反例 | 相关支持范围，写入已有 reason/basis；没有独立中间协议 |
+ | 4 Preconditioner | 第2节决定表，当前可执行条件及 Goal 权限 | Keep 或一组修改/探索意图 |
+ | 5 Preconditioner | 第3节的范围投影、依赖反事实、独立动机和闭合检查 | 完整修改内容、依据、必要配套及观察问题 |
+-| 6 同一次 Preconditioner | 选定内容与 Original 精确文本 | Unified Diff 形式的 Update 调整，既有 Checks 保留或替换 |
++| 6 同一次 Preconditioner | 选定行为要求、必要配套及 Original 精确行 | 一个或多个 Hunk 的 Unified Diff；未选行保留，Checks 保留或合法替换 |
+ | 7 确定性程序 | ID 选取、原补丁应用器、原 Adjustment 校验/编译 | 正式 Adjustment + Effective Plan；出错不发布部分结果 |
+ | 8 Editor | Parent + Effective Plan + Actor 背景 | Skill Patch、Candidate、actual.diff；本阶段不调用 |
+ | 9 Actor/Replay/Memory | 同条件 Parent/Candidate 执行与真实 Diff，成功/退化/条件差异 | Replay knowledge/evidence 经现有 Memory 提交进入下一轮；本阶段不运行 |
+@@ -89,7 +93,9 @@ inside ONE Preconditioner generation:
+     if essential Goal meaning cannot be resolved consistently:
+         return need_evidence with reason requesting upstream Goal clarification,
+                adjustments=[], checks=null  # 不自动重调 Diagnosis
+-    emit patches against original texts plus existing basis/reason/checks
++    locate selected requirements and necessary companions in original text lines
++    emit hunks directly against those original lines plus existing basis/reason/checks
++    # Do not auto-split historical single lines or rewrite the whole Update first.
+ 
+ formal_result = normalize_update_patches(raw_response, payload)
+ Effective = v23.compile_effective_plan(formal_result, payload)
+@@ -136,7 +142,7 @@ M6 实际来自 S1_R03 联合编辑：扩展搜索以及精确类别、处理/
+ 
+ 这可以形成一次大幅 u1 重写和一项独立 u2 收窄，均由现有单 Update Unified Diff 表达。只读走查没有选出唯一优胜搜索算法。R05 当时没有 M10，不能拿 R06 的后验 Memory 指导 R05。
+ 
+-为使“改变实际 Update”可审阅，下面给出**人工拟议的完整 u1 文本**，仅在文档中展示，不保存为模型响应或 Effective Plan，也不作为通用 Prompt 的正确答案：
++为保留 P1 设计历史，以下仍展示当时**人工拟议的完整 u1 文本**。它不是 P1-R 的人工多行 Original，也不是未来先全文重写再造 Patch 的流程；P1-R 按原始要求组织的副本及所选行修改另见走查。该文本不保存为模型响应或 Effective Plan，也不作为通用 Prompt 的正确答案：
+ 
+ > During search for the exact requested object, or for the required lamp while holding that object, choose available actions from the current observation and admissible candidates. Inspect a reached closed container by opening it when necessary to see its contents. When current and recent observations show no target and repeated unproductive visits or successive unproductive checks of one type, try another plausible available receptacle, including a different type; do not require exhausting that type first. Do not exclude another instance of the same type or a known useful destination merely because its type or location was visited before. Use only currently observable or recently available evidence to avoid immediate uninformative repetition; do not infer that all locations have been inspected. Finding the exact object ends object search and starts the required acquisition, conditioning and delivery; lamp tasks must preserve holding and co-location requirements. Sampling each type once is not evidence that the search or task is complete. Do not acquire, condition or place substitutes.
+ 
+diff --git a/experiments/methods/v23_3/p1r_multiline_001/before/V23_3_PATCH_INTEGRATION.md b/experiments/methods/v23_3/V23_3_PATCH_INTEGRATION.md
+index fc307537..fa7356df 100644
+--- a/experiments/methods/v23_3/p1r_multiline_001/before/V23_3_PATCH_INTEGRATION.md
++++ b/experiments/methods/v23_3/V23_3_PATCH_INTEGRATION.md
+@@ -2,6 +2,8 @@
+ 
+ 前提见 [P0 审计](V23_3_EDITOR_PATCH_AUDIT.md)。复用 `v23.editor.apply_patch`，不修改 V23、不移植 P3-C2 协议、不新增 Patch 引擎。
+ 
++P1-R 已用三例人工多行副本验证现有函数的行级编辑与纯交接能力，见 [兼容报告](p1r_multiline_001/P1R_PATCH_COMPATIBILITY.md)。它不等于本节拟议的正式适配器/归档 runner 已实现。
++
+ ## 1. 单一选择
+ 
+ 原 Adjustment 外壳 `from/to/basis/reason` 和顶层 `decision/reason/adjustments/checks` 保留。模型侧 `to` 项的 **`text` 改为 Editor 已有的 `patch` 字符串**；确定性程序应用后恢复 `text`，再调用原编译器。模型不能同时交 patch 和最终 text。
+@@ -45,6 +47,16 @@ P2 最小支持范围：
+ 
+ 程序将 `to[0]` 转为 `{"id":"u1","text":"Revised guidance.\n"}`，其他字段不改。`P1:1` 必须真实存在于输入；示例不授权造引用。真实单行无 LF 文本需标准 EOF 标记，不自动规范化。
+ 
++### P1-R：多行文本和 Hunk 约定
++
++正式 Update 仍为 `id/text/basis`，text 仍为字符串。未来 Diagnosis 直接按独立行为要求组织 `- ` 开头的多行文本，触发条件和动作保持完整；JSON 使用正常的 `\n` 转义。新生成文本约定 LF 分行、末尾一个 LF，不作段落宽度自动折行。该约定是生成规范，不是新增字段或历史迁移器。
++
++解析、补丁应用和保存保持原字符串。旧文本无末尾换行或含 CRLF 时，不补 LF、不 strip、不归一化；补丁必须精确匹配，并按需使用标准 `\ No newline at end of file` 标记。形式不理想的旧长行仍按旧粒度处理，不假装拥有行内保护。
++
++单要求通常只需一个行 Hunk；必要关联可以由同一 Patch 的多个 Hunk 完成。旧行号相对 Original，新行号计入此前增删的偏移；上下文同样会消费原行，重叠上下文应合并为一个 Hunk，不能期待应用器搜索或修复。多 Hunk 不等于多次调用，整个 Update 由原函数一次成功返回。
++
++只删除一行要求使用普通 Diff；删空整个 Update 仍不能由 apply_patch 表达，继续用既有 `to: []`。未改行精确保留；被改行可以新增无据承诺，仍需语义评价。详见 [表示规范](p1r_multiline_001/P1R_UPDATE_REPRESENTATION.md)。
++
+ 虚拟 `SKILL.md` 文件头无需更名为 `UPDATE.md`，函数只处理字符串，不读写该文件。实际目标来自 `from` 绑定的 Original text。无需 SHA-256、额外 old_text、专用锚点或路径映射。
+ 
+ ## 3. 确定性边界
+@@ -90,14 +102,17 @@ P2 最小方案：
+ 
+ Editor 模型输入和策略职责保持不变；“入口适配”不等于把策略审核移到 Editor。P2 不接管完整 `evolution.run_round`，不新增真实执行入口；以后接入闭环时再显式路由本版 loader/runner，正式 V23 默认链不动。
+ 
++P1-R 增加的 Diagnosis 输出组织也有同类边界：原 `diagnosis.messages_for/load_diagnosis` 按 V23 固定 Prompt 重建并核对保存消息，原 `preconditioner.read_upstream` 又调用该 loader。未来采用本版多行生成说明时，须使本版 Diagnosis 的消息/加载与本版 Preconditioner 上游读取使用同一版本，复用原 `diagnosis_input/validate_diagnosis`；不能只改 Prompt 却仍宣称旧 loader 原样接受，也不能把人工副本伪装成旧模型原始响应。无需改 Schema、旧归档或借用不同 Checks 契约的 legacy 模板通道。本次纯函数测试不覆盖这一磁盘加载链。
++
+ ## 5. P2 最小函数与验收范围
+ 
+ | 拟议位置/函数 | 必须完成的责任 |
+ |---|---|
++| V23.3 Diagnosis 的本版输出组织说明及消息/归档加载适配 | 复用原 Plan Schema/校验与无 Memory 输入；直接生成完整行为要求分行的 text；本版 Preconditioner 使用匹配的上游 loader。不得修改 V23 正式 Prompt，也不增加运行时拆句器 |
+ | `v23_3/update_patch.py::normalize_update_patches` | 选择精确原 text，调用原 apply_patch，构造原 Adjustment，调用原 compiler；不实现新 Diff 解析器 |
+ | `v23_3/preconditioner.py::messages_for` | 复用 `preconditioner_input/render_prompt`，换成本设计的单次决策与输出契约；不加 Memory 检索调用 |
+ | 同文件 `run_preconditioner/load_preconditioner` | 一次生成的注入式入口、原始/派生文件分离、重载一致性；先用离线固定响应测试 |
+ | `v23_3/editor.py::run_editor` 薄适配 | 上述加载边界；复用原 Editor 核心与归档契约，不改模型输入 |
+ | `tests/skill_evolution/v23_3/` | 真实单行/多行 Update、跨 Update、撤回/Keep/停点、失败不发布、Checks、原始响应与派生文件、Editor 纯交接；语义风险应能结构通过 |
+ 
+-不新增通用保存框架、响应模型、依赖图、审核器或自动 Prompt 修复器。P2 是未来实现范围，本次只设计，尚无这些 Python 文件。
++不新增通用保存框架、响应模型、依赖图、审核器或自动 Prompt 修复器。P1-R 仅新增实验目录中的人工夹具和纯函数测试；上述正式 Python 实现仍属 P2，尚未创建。
+diff --git a/experiments/methods/v23_3/p1r_multiline_001/before/V23_3_VALIDATION_PLAN.md b/experiments/methods/v23_3/V23_3_VALIDATION_PLAN.md
+index 22bd2270..6fde1379 100644
+--- a/experiments/methods/v23_3/p1r_multiline_001/before/V23_3_VALIDATION_PLAN.md
++++ b/experiments/methods/v23_3/V23_3_VALIDATION_PLAN.md
+@@ -1,11 +1,12 @@
+ # V23.3 P1：后续验证计划
+ 
+-此文件是后续协议设计，不是执行授权或新结果。先完成 P2 离线实现与契约验证，再冻结模型实验配置。当前唯一运行结果是 [P0 的 99 项既有测试](V23_3_EDITOR_PATCH_AUDIT.md)通过。
++此文件是后续协议设计，不是执行授权或行为结果。先完成 P2 离线实现与契约验证，再冻结模型实验配置。已完成 [P0 的既有测试](V23_3_EDITOR_PATCH_AUDIT.md)和 [P1-R 的多行纯函数兼容验证](p1r_multiline_001/P1R_PATCH_COMPATIBILITY.md)，均不是模型或任务表现验证。
+ 
+ ## 1. 验证层次与判定标准
+ 
+ | 层次 | 必须观察什么 | 不足以通过的结果 |
+ |---|---|---|
++| 表示粒度 | 独立行为要求分行后，能只修改选定要求并精确保留其他行；触发与动作仍完整 | 行数更多、机械按句号拆分、夹具中悄悄纠正旧策略 |
+ | 工程 | Patch 精确应用、错误拒绝、真实 raw→Adjustment→Effective→Editor handoff 可重载，Goal/未改项保持 | 单纯能解析 JSON；用手填最终 text 绕开 Patch；伪造旧归档 |
+ | 算法决策 | 最终 Update 改变与实际历史响应及其条件对应；合理纠错/探索保留，无据附带承诺减少 | reason 提及 M6、解释变长、修改变少或全部 Keep |
+ | 行为 | 同条件 Candidate 比 Parent/旧机制改善任务表现且保留必要能力 | 单次成功、5/7、一个 rescue、仅类别覆盖增加 |
+@@ -24,6 +25,15 @@
+ 
+ A 同时改变决策程序和输出表示，只能证明整体方法差异。若要归因于“响应决策”而非 Diff，增加两项离线构造消融：**旧决策 + 同一 Patch 表示**、**新决策 + 完整 text 表示**，构成 2×2；输入和评价不变。没有这项拆分证据，不声称收益专由算法或 Patch 引起。
+ 
++P1-R 再明确区分**文本分行方式**与**输出是 Patch 还是全文**，它们不是同一个变量：
++
++- 表示对照固定策略语义、事实、Memory、模型和决策规则，比较单行与人工审核的多行表示下 Patch 的实际作用范围、未选要求的保留、行内附带承诺及格式错误。人工副本仅用于开发表示对照，不能作为真实 Diagnosis 输出统计。
++- 响应决策对照与有/无 Memory 对照，在各组使用同一份多行 Original；不能一组用旧单行 Diagnosis、另一组用重新生成且策略也变化的多行 Diagnosis，再归因于 Memory。
++- 自然生成多行的遵循率另测：触发/动作完整性、独立要求粒度、语义遗漏、Goal 实现绑定；只是输出有换行不算合格。当前未调用 Diagnosis，不能预先确认遵循率。
++- 无据附带承诺与最终行为仍分别评价。一行替换也可能夹带类别一次结束，新增行不因格式独立而有证据；表现改善不能全部归给分行或 Memory。
++
++为控制实验规模，可先固定多行表示完成原 A/B，再单独做表示对照；不要求立即开展全因子大规模实验。每次对照冻结 representation 版本，保留原始单行来源和人工组织差异。
++
+ B 的有/无 Memory 差异也包含上下文长度变化。不同不等于因果已隔离；可后续独立比较相关来源消融或等预算证据，先不同时压缩 Memory。M6 正反证据、M10 正确 summary 与原 summary 的消融是诊断性实验副本，不修改历史条目、不假装是主 A/B。
+ 
+ ## 3. 样本、重复、选择和污染控制
+diff --git a/experiments/methods/v23_3/p1r_multiline_001/before/P0_P1_DECISION.md b/experiments/methods/v23_3/P0_P1_DECISION.md
+index 3a03e34b..b7a9f8a4 100644
+--- a/experiments/methods/v23_3/p1r_multiline_001/before/P0_P1_DECISION.md
++++ b/experiments/methods/v23_3/P0_P1_DECISION.md
+@@ -17,14 +17,14 @@
+ 
+ 1. **新增机制是什么？** 按“实际编辑—相容条件—混合响应”限定具体行为关系的变换，再以必要关联的反事实检验限制附带修改。V23 已有宽泛的历史响应原则；新增的是有分支、可反驳的选择规则与落实过程，尚不是已验证性能创新。
+ 2. **历史如何改变 Update？** 正例支持扩大或替换策略的探索方向，反例收窄触发/保证、保留仍有价值的选择，执行不稳阻止把旧文字重复加严当必然解；条件不相容则不直接迁移。M6 可支持重新分配搜索机会，同时反对用类别一次代替实例覆盖。
+-3. **Diagnosis/Memory 立即改吗？** 不改实现、Schema 或历史内容，先冻结。Goal 已锁实现时需上游处理具体障碍；Memory summary 错误按 sources 限定使用。后续分别对照，不混改。
++3. **Diagnosis/Memory 立即改吗？** 不改现有实现、Schema 或历史内容。P1-R 将未来本版 Diagnosis 的多行输出组织列为最小修订；Memory 仍冻结。Goal 已锁实现时需上游处理具体障碍；Memory summary 错误按 sources 限定使用。后续分别对照，不混改。
+ 4. **如何决定方向、范围和关联？** 方向用五种决定表；范围必须可从 Actor 当前/两步历史判断；配套必须说明“保留旧要求为何使新选择矛盾或不可执行”。其他修改需自身问题动机。
+ 5. **Editor Patch 能直接复用吗？** `apply_patch` 可以直接作用于 Update 字符串，固定 `SKILL.md` 是虚拟标签，不解析文档结构。无需新引擎；完整 Editor runner 则不能直接接收新归档。
+ 6. **最小兼容是什么？** 原 Adjustment 外壳不变，模型侧 `to` 项用原 ID + Unified Diff `patch`，程序恢复 `id/text`；撤回沿用 `to:[]`，再调用原 `compile_effective_plan`。本版 loader 和薄 Editor 入口负责原始/派生归档衔接。
+ 7. **为何不增加 D/S/C、role、依赖 Schema？** 它们描述决策关系；现有 basis/reason/checks 与多个同时 Adjustment 足以说明和落实。新字段本身不能证明配套必要或证据充分。
+ 8. **怎样允许探索而避免附带承诺？** 给探索独立的问题动机、可执行触发、反例 Checks；新增出口/强禁令不因方向证据自动获得支持。不以修改长度限制探索，也不承诺程序能消灭语义越界。
+ 9. **什么能保证、什么需验证？** 程序保证定位、基本应用冲突、结构/引用/Checks、Goal 与未改项保留、派生一致性；模型/人工评价判断事实支持、条件迁移和关联必要性；Replay 检验真实行为与收益。单行整行替换不能保护内部未意图修改的语义。
+-10. **P2 最少实现什么？** `normalize_update_patches`；本版 `messages_for/run_preconditioner/load_preconditioner`；薄 `editor.run_editor` 加载适配；必要离线契约/交接测试。原补丁引擎、compiler、Diagnosis、Memory、Editor Prompt/模型接口、Replay 数据契约均复用。
++10. **P2 最少实现什么？** `normalize_update_patches`；本版 `messages_for/run_preconditioner/load_preconditioner`；薄 `editor.run_editor` 加载适配；必要离线契约/交接测试。P1-R 增加本版 Diagnosis 的多行输出组织说明及匹配的消息/归档加载边界。原补丁引擎、compiler、Diagnosis 数据契约/校验、Memory、Editor Prompt/模型接口、Replay 数据契约均复用。
+ 
+ ## 已确定与未确定
+ 
+@@ -34,10 +34,20 @@
+ 
+ P2 工程完成不自动授权模型实验；本次更不自动进入 P2。后续应先完成原始响应→规范化 Adjustment→原 compiler→原 Editor 接口的离线验证，再按冻结协议开展实验。
+ 
+-## 本阶段检查
++## P0/P1 初始阶段检查（历史保留）
+ 
+ - 只新增本目录七份 Markdown 与 `src/skill_evolution/v23_3/README.md`，无 Python/Prompt/默认配置修改。
+ - 既有补丁和编译相关离线测试 **99 passed**；没有新增实现测试冒充新算法通过。
+ - Git 基线到 HEAD 的正式 V23 相关 Diff 为空；工作区原有 `docs/04_EXPERIMENT_LOG.md` 的 16 行删除保持。
+ - 已核查文档引用和范围；最终 Git 检查用于确认正式源码、测试与旧研究归档没有新增差异。未建立额外哈希保护体系。
+ - 全仓 `git diff --check` 报告既有 `docs/04_EXPERIMENT_LOG.md:6854` 的 EOF 空行；该文件是开始时已有修改，未修动。新文档另作独立空白检查，不把既有告警计为本次新增。
++
++## P1-R：多行表示与更新粒度修订
++
++单行 Original 使 Unified Diff 往往替换多个混合承诺，必须在 P2 前明确表示粒度。未来 V23.3 Diagnosis 直接生成多行 text：可依据不同证据独立判断的要求尽量分行，触发条件和动作保持完整。历史单行档案原样保留，不按标点自动拆分；三例只建立人工设计副本。
++
++算法主线不变：历史响应先确定目标要求和必要关联，随后生成对应 Hunk；禁止先自由重写全文再反向生成 Patch。未改行由原应用器保留，但被改行仍可能夹带无据承诺，不能将行级保护当作语义保证。表示收益、Memory 决策增量和任务收益分别评价。
++
++本轮 **119 项纯离线测试通过（65 项人工兼容 + 54 项既有）**，验证多行增删替换、多 Hunk、失败拒绝、未改行/Goal/其他 Updates/Checks 保留与合法更新，以及原 compiler/Editor 纯交接。没有实现正式 Preconditioner、归档 loader 或 runner，也未调用模型、Actor、ALFWorld、Replay、Gate 或最终 Test。
++
++设计与纯函数兼容前提满足，可以据此开展未来最小 P2；本次停止，不自动进入。详见 [P1-R 决策及归档](p1r_multiline_001/P1R_DECISION.md)。初始五份文档在归档 before 中保留，差异以 Git no-index Diff 记录。

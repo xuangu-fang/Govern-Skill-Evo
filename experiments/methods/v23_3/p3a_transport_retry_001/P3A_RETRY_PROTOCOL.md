@@ -1,0 +1,15 @@
+# P3-A 传输配置重跑
+
+用户已明确授权改用 `(60, 300)` 并重跑。此为独立归档，不覆盖或增补上一轮调用额度。
+
+只重跑 A、B，不调用 Diagnosis。复用上一轮唯一真实多行 Original、Parent、当前执行、Grouping、Actor 背景、全部 Memory，以及两份逐字不变的请求 body。原协议的语义评价规则完整冻结于 [original_protocol.md](config/original_protocol.md)，继续先独立评价 A、B，再比较。
+
+唯一传输设置变化：连接/发送正文阶段 socket 超时 60 秒，读取阶段 300 秒，显式传给 requests。urllib3 在 `conn.request` 前使用 connect_timeout，之后切换 read_timeout；这不是 requests 提供了独立 write_timeout 参数，也不是总请求时限。实际请求正文按 PreparedRequest 编码，记录确切字节数和 Content-Length。用 Python HTTP audit event 记录发送块长度、时间和 socket 超时，不记录认证头或正文内容。
+
+每组一次逻辑调用，最多 3 个 HTTP 请求；顺序 A 后 B，总最多 2 次逻辑调用、6 个请求。仅 Timeout、连接中断（不含 SSL 配置错误）及 HTTP 408/429/500/502/503/504 技术重试，间隔 5/10 秒。已返回模型的格式、Patch、编译或语义不理想均不重试。每次异常保存完整 traceback，失败用量未知，不记零。
+
+不裁剪 Memory、不改 Prompt、模型和采样参数，不变更正式 V23/V23.3 实现。旧生成器写死 `(10, timeout)` 且无独立 connect 参数，因此本实验只保留少量原请求/响应处理步骤并显式配置传输；复用原 `response_value`、解析、compiler 和 Patch 转换器。没有另建模型调用框架。
+
+请求在发送前与上一轮请求 body 比较，并验证 A/B user message 完全相同。新增超时字段仅为实验传输元数据，不发送给模型。保存每次实际请求、HTTP 原文、usage、耗时、stack、实际 socket 超时及正文大小。无 Editor、Actor、Replay、Gate 或 Memory 更新。
+
+当前没有新结果，无法预先确认故障解决。若仍失败，按预算停止；若正常返回，按原标准评价策略，不能因传输修复而预设 B 更好。

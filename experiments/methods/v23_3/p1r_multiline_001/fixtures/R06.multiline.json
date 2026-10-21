@@ -1,0 +1,68 @@
+{
+  "decision": "revise",
+  "reason": "P3 failed by step_limit after repeatedly cycling among the same few inspected receptacles without finding an apple (G1), while P1 and P2 succeeded only after eventually reaching a new surface. P4 and P5 each wasted many steps in close/open/remove/reinsert microwave cycles before a single successful heat action (G2). P6 and P7 show successful sequential delivery of two exact instances that should be preserved (G3). The Parent Skill covers generic sweeping and exact-category matching but lacks local-progress search guidance and any heat/cool conditioning rule.",
+  "plan": {
+    "goal": "Improve non-desklamp execution so that (1) search for an initially hidden exact target advances through new receptacles rather than oscillating, and stays within the 50-step budget; (2) tasks requiring cooling or heating perform one conditioning action on the exact held target at the open appliance without close/open or remove/reinsert cycles, then proceed to the destination; and (3) successful exact-category multi-instance delivery is preserved. Respect the Actor's limited two-step history by making rules depend on the current observation, admissible commands, and numbered receptacle names rather than a global visited set. Preserve the existing exact-category matching, general acquisition/placement, and desklamp-scoped rules.",
+    "updates": [
+      {
+        "id": "u1",
+        "text": "- For tasks whose exact target is not initially visible, run a single forward search sweep that does not oscillate.\n- During that search, treat each inspected receptacle as consumed; the next move should go to a different receptacle, ideally one not just inspected.\n- During that search, use numbered receptacle names as a local progress cue.\n- During that search, after checking an instance of a family, prefer the next higher-numbered unvisited instance or a wholly uninspected family or surface instead of jumping back to an earlier location.\n- During that search, open each closed container once and read its contents; if it is empty, continue forward to a new receptacle rather than cycling back through earlier ones.\n- During that search, include cheap surface checks (countertops, desks, beds, tables, shelves) early in the sweep.\n- Continue searching until the exact requested category is found or all plausible receptacles have been inspected once, keeping within the step budget.\n",
+        "basis": [
+          "G1",
+          "P3:1",
+          "P3:22",
+          "P3:outcome",
+          "P1:34",
+          "P2:8"
+        ]
+      },
+      {
+        "id": "u2",
+        "text": "- For tasks requiring the exact target to be cooled or heated, after acquiring the target, go to the required appliance (fridge for cool, microwave for heat) and open it if closed.\n- For such cooling or heating, perform the cool/heat action directly on the held target while at the open appliance; holding the target is sufficient in the observed environment.\n- If the conditioning action is not offered for the held target, place the target inside once and perform the action.\n- During conditioning, never replace conditioning with repeated close/open or remove/reinsert cycles.\n- Perform one conditioning action, then carry the target to the requested destination (opening it if closed) and place it there.\n- If the conditioning appliance is also the destination, condition the target and then place it there.\n",
+        "basis": [
+          "G2",
+          "P4:7",
+          "P4:20",
+          "P5:6",
+          "P5:15",
+          "P1:38",
+          "P2:11"
+        ]
+      },
+      {
+        "id": "u3",
+        "text": "- For ordinary multi-instance placement requiring two or more instances of the exact category, deliver them sequentially.\n- After placing the first exact instance at the destination, continue searching (from remaining uninspected receptacles or a known source) for another instance of the same exact category and repeat until the requested count is placed.\n- For ordinary multi-instance placement, do not stop after one.\n- For ordinary multi-instance placement, do not substitute a differently named near-match.\n- Do not apply the desklamp rule of finishing with one co-located target to ordinary multi-instance put tasks.\n",
+        "basis": [
+          "G3",
+          "P6:18",
+          "P6:24",
+          "P7:5",
+          "P7:10"
+        ]
+      }
+    ],
+    "checks": [
+      {
+        "id": "c1",
+        "update_ids": [
+          "u1"
+        ],
+        "question": "After the update, do non-desklamp search runs move to new receptacles with forward progress rather than oscillating among the same few, and does the exact target get acquired within the step budget? Counterexample: a run that revisits a small set or hits the step limit with the target still uninspected."
+      },
+      {
+        "id": "c2",
+        "update_ids": [
+          "u2"
+        ],
+        "question": "After acquiring the target for a cool/heat task, does the run perform one conditioning action on the held target at the open appliance without close/open or remove/reinsert cycles, then go to the destination?"
+      },
+      {
+        "id": "c3",
+        "update_ids": [
+          "u3"
+        ],
+        "question": "For two-instance tasks, does the run deliver both exact instances without substituting a different category or stopping after one?"
+      }
+    ]
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "decision": "ready",
+  "reason": "I keep u1 unchanged and rewrite u2. u1 (broaden beyond closed cabinets/drawers to surfaces and appliances) is executable and supported: the sole success in the batch (P1) was reached only after the Actor left the cabinet/drawer cluster and arrived at coffeetable 1, a surface the old closed-container search did not cover (P1:36-39), while the two failures never inspected obvious surfaces/appliances (P3 never reached diningtable 1; P6 never visited armchairs, ottoman, sofa, or sidetable 3), consistent with M3/M6/M9. u2 is not kept as written because it depends on state the Actor cannot observe (the protocol exposes only the current observation, admissible actions, step count and the last two observation/action pairs), and its unverifiable global triggers ('already confirmed empty', 'second pass over a container cluster', 'a run of steps') match anti-cycling wording that M3 and M6 record as repeatedly not followed and unable to break the cycling/step-limit failure mode. The rewrite keeps the Goal-mandated non-repetition intent but conditions it on Actor-visible signals (the two-step history and the visible step count) and drops the global guarantees. The step-budget clause is an explicitly unverified hypothesis, since M6 showed step-priority language was unreliable; its benefit is not claimed.",
+  "adjustments": [
+    {
+      "from": ["u2"],
+      "to": [
+        {
+          "id": "u2",
+          "patch": "--- a/SKILL.md\n+++ b/SKILL.md\n@@ -1,3 +1,3 @@\n-- After inspecting a receptacle that visibly lacks the exact target, do not re-open or re-walk a receptacle you have already confirmed empty; next travel to a receptacle that does not appear in your recent observation/action history and whose contents you have not yet seen.\n-- Do not cycle back and forth among the same small set of receptacles; before making any second pass over a container cluster, complete one inspection of the remaining untested receptacle types or instances.\n-- Treat a run of steps that only revisits already-open, empty containers as a stuck-search signal: break the pattern by moving to an uninspected surface or appliance instead of repeating the loop.\n+- After inspecting a receptacle that visibly lacks the exact target, do not immediately move back to the receptacle you arrived from and do not re-open or re-walk a receptacle whose contents you have already seen to lack the exact target in your recent observations; choose your next destination from the other receptacles in your current observation whose contents you have not already seen.\n+- Do not cycle back and forth among the same small set of receptacles. If the current receptacle and those in your recent observation/action history are all ones you have already seen to lack the exact target, pick a receptacle that is not among them and, where possible, a receptacle type you have not yet inspected.\n+- When the exact target has still not been found and you have already spent more than half of the step budget, treat continued returns to already-open, empty containers as a stuck-search signal: break the pattern by moving to a different receptacle type, such as a surface or appliance, instead of repeating the loop.\n"
+        }
+      ],
+      "basis": ["G1", "P1:36", "P1:39", "P3:50", "P6:50", "P3:outcome", "P6:outcome", "M3", "M6"],
+      "reason": "The old u2 asked the Actor to avoid re-walking receptacles it had 'already confirmed empty', to finish one inspection pass before any second pass, and to recognize a 'run of steps' as a stuck-search signal. Those triggers require cross-step memory of the whole run, but the Actor only receives the current observation, admissible actions, step count and the last two observation/action pairs, so the conditions are largely non-executable. M3 reports the 'do not immediately revisit an already-open empty receptacle' clause was not reliably followed and did not break the cycling/step-limit failure mode, and M6 reports the anti-cycling/step-budget-priority rewrite was mixed and did not prevent cycling (e.g. the paired cool-bread case where the Actor skipped countertop 3). The replacement preserves the Goal's non-repetition requirement using Actor-visible triggers: the content of the current observation and the last two history entries for immediate back-and-forth, and the visible step count for the budget condition. This is a testable executable hypothesis, not a proven fix; M6's step-priority evidence means the new budget clause may also be only partially followed, and the failure of both P3 and P6 also reflects the exact target being unvisited/unlocated rather than cycling alone.",
+      "checks": null
+    }
+  ],
+  "checks": [
+    {
+      "id": "c1",
+      "update_ids": ["u1", "u2"],
+      "question": "When the exact requested target is not found in the first inspected cluster of closed cabinets/drawers, does the Actor next move to uninspected receptacle types such as surfaces (diningtable, coffeetable, sofa, armchair, ottoman, sidetable, dresser) and appliances, rather than continuing to open more same-type containers or returning to receptacles it has already seen to lack the target?"
+    },
+    {
+      "id": "c2",
+      "update_ids": ["u1", "u2"],
+      "question": "Does the Actor locate and acquire the exact requested target within the step budget and complete the task, without substituting a different object or ending at the step limit?"
+    },
+    {
+      "id": "c3",
+      "update_ids": ["u1", "u2"],
+      "question": "While broadening the search, does the Actor still perform the required clean/cool/heat at the correct appliance, place the target at the requested destination, and co-locate a target with a desklamp for desklamp-conditioned inspection without regression?"
+    }
+  ]
+}

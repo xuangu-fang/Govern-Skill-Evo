@@ -1,0 +1,400 @@
+diff --git a/experiments/methods/v23_3/p3a_transport_retry_001/P3A_DECISION.md b/experiments/methods/v23_3/p3a_transport_retry_001/P3A_DECISION.md
+new file mode 100644
+index 00000000..22eca660
+--- /dev/null
++++ b/experiments/methods/v23_3/p3a_transport_retry_001/P3A_DECISION.md
+@@ -0,0 +1,23 @@
++# 传输修订重跑决策
++
++**已按 `(60, 300)` 完成 A/B 真实重跑。两组均 HTTP 200、无重试；但均返回 length 且最终 content 为空，仍未形成有效模型更新对照。**
++
++本次两次逻辑调用、两次 HTTP 请求；没有重做 Diagnosis。正文实际分别为 1,629,326 和 1,632,149 字节，发送时 socket timeout 实测均为 60 秒。完整请求、响应、超时记录及完整性失败堆栈均已保存。
++
++新的阻碍是输出预算：每组 completion=16,384，全部计为 reasoning，没有可解析的最终 Update。未提高 max_tokens、改 Thinking 设置、修 Prompt 或继续重采样。
++
++因此对原研究问题仍不能作优劣判断：
++
++- **更新粒度是否改善：** 未获得实际 Patch/替代文本，未知。
++- **历史是否参与修改决定：** 相同历史已发送，但没有最终决定，未知。
++- **策略质量与探索是否改善：** 无 Effective A/B，无法评价。
++
++下一步应把输出/思考预算作为单独的运行配置问题处理，事先统一两组参数并冻结新预算后再授权实验；当前结果不支持先改算法 Prompt。原多行 Diagnosis 与共同证据可继续复用。没有有效候选，暂不进入 Editor 或 Candidate Replay。
++
++本次已返回总用量 **982,834 tokens**（prompt 950,066，completion 32,768；reasoning 32,768 已包含其中），货币费用未知。
++
++只新增本重跑目录，旧实验、P0—P2、正式源码与 Prompt、Memory、Parent 及用户既有修改保持不变。未提交、暂存或重置；[保护检查](results/final_checks.json)和 [Git Diff](results/experiment.diff)已归档。
++
++报告：[预注册修订](P3A_RETRY_PROTOCOL.md)、[执行与超时实测](P3A_EXECUTION_REPORT.md)、[独立评价和对照边界](P3A_UPDATE_COMPARISON.md)。
++
++**停止。未执行 Editor、Actor、Replay、Gate、Memory 更新或完整进化。**
+diff --git a/experiments/methods/v23_3/p3a_transport_retry_001/P3A_EXECUTION_REPORT.md b/experiments/methods/v23_3/p3a_transport_retry_001/P3A_EXECUTION_REPORT.md
+new file mode 100644
+index 00000000..5c90ac03
+--- /dev/null
++++ b/experiments/methods/v23_3/p3a_transport_retry_001/P3A_EXECUTION_REPORT.md
+@@ -0,0 +1,58 @@
++# `(60, 300)` 真实重跑结果
++
++**两组传输均成功；两组模型均因 completion 预算耗尽而未产生最终内容。** 没有获得实际 Update、Patch 或 Effective Plan，仍不构成有效语义对照。
++
++本次是用户授权的新重跑：只调用 A/B，复用上一轮真实 Diagnosis。旧归档完整保留；只调整实验传输配置，不修改正式生成器、Prompt、模型或采样参数。
++
++## HTTP 实测
++
++| 指标 | A：自由替换 | B：Patch |
++|---|---:|---:|
++| 实际 HTTP 请求数 | 1 | 1 |
++| 自动重试 | 0 | 0 |
++| 正文编码后字节数 | 1,629,326 | 1,632,149 |
++| Content-Length | 1,629,326 | 1,632,149 |
++| 传给 HTTP 层的 timeout | `(60, 300)` | `(60, 300)` |
++| 正文发送时 socket timeout | 60.0 秒 | 60.0 秒 |
++| HTTP 状态 | 200 | 200 |
++| 单次 HTTP 耗时 | 111.80 秒 | 116.99 秒 |
++| 完整阶段耗时 | 111.90 秒 | 117.13 秒 |
++| 响应模型 | deepseek-v4.1-flash | deepseek-v4.1-flash |
++| finish_reason | length | length |
++| 最终 content 字符数 | 0 | 0 |
++
++字节数来自 requests PreparedRequest 的实际编码 body，不是格式化 request.json 文件大小。HTTP audit 记录只保存发送块长度、时间、socket timeout，不保存认证头。完整原始 HTTP 响应、模型 envelope 和最终空内容均照实保存。
++
++本机 urllib3 的调用顺序是设置 connect_timeout → `conn.request`（含正文发送）→ 设置 read_timeout → 读取响应；因此 `(60, 300)` 的第一项也作用于请求发送阶段。它不是独立 write_timeout，也不是 60 秒总耗时。两组均记录正文发送时 socket 为 60 秒，随后收到 HTTP 200，表明本次不再被旧 10 秒传输条件阻断。上一轮没有完整堆栈，本报告不追补不存在的旧栈证据。
++
++## 新的失败阶段
++
++本次网络传输和 HTTP 响应解码均成功。阶段在检查 finish_reason 时停止，没有进入模型 JSON 解析、Patch 应用或 compiler；不能标记为非法 JSON、Patch 定位错误、Keep 或策略质量失败。
++
++两组服务端返回的 16,384 completion tokens 均计为 reasoning，最终 content 为空。遵守既有预注册：截断不技术重试，不增大 max_tokens，不把内部 reasoning 当作正式 Update，也不人工补出 JSON。阶段完整异常堆栈分别在：
++
++- [A traceback](runs/A/traceback.txt)
++- [B traceback](runs/B/traceback.txt)
++
++异常是本地完整性门的 `AssertionError: Model response did not finish normally`，不是新的网络超时。HTTP 成功所以没有 HTTP 层异常堆栈；若传输异常，入口会另存每次请求的 traceback。
++
++## 参数与费用
++
++仍为 temperature=1、Thinking enabled、reasoning_effort=medium、max_tokens=16384、stream=false，读取超时 300 秒。A/B 请求 body 与上一轮分别完全相同，user message 在两组之间完全相同，没有裁剪 Memory。
++
++| usage | A | B | 本次合计 |
++|---|---:|---:|---:|
++| prompt_tokens | 474,697 | 475,369 | 950,066 |
++| completion_tokens | 16,384 | 16,384 | 32,768 |
++| 其中 reasoning_tokens | 16,384 | 16,384 | 32,768 |
++| total_tokens | 491,081 | 491,753 | 982,834 |
++
++reasoning 已包含在 completion 内，不重复计费或加总。货币费用未返回，记未知。表内仅为本次两次请求，不重复计入上一轮 Diagnosis，也不猜测旧失败请求的用量。
++
++## 归档
++
++- [A 实际请求](runs/A/http/001/request.json)、[发送事件](runs/A/http/001/send_events.json)、[HTTP 原文](runs/A/http/001/http_response.txt)、[模型 envelope](runs/A/response.json)。
++- [B 实际请求](runs/B/http/001/request.json)、[发送事件](runs/B/http/001/send_events.json)、[HTTP 原文](runs/B/http/001/http_response.txt)、[模型 envelope](runs/B/response.json)。
++- [实际超时配置](config/transport.json)、[完整执行汇总](results/execution_summary.json)、[三项离线检查](results/offline_tests.log)。
++
++没有创建虚假 parsed/Effective 文件或以 null 冒充合法停点。没有调用 Diagnosis、Editor、Actor、Replay、Gate、Memory 更新或完整进化。
+diff --git a/experiments/methods/v23_3/p3a_transport_retry_001/P3A_RETRY_PROTOCOL.md b/experiments/methods/v23_3/p3a_transport_retry_001/P3A_RETRY_PROTOCOL.md
+new file mode 100644
+index 00000000..abc5def6
+--- /dev/null
++++ b/experiments/methods/v23_3/p3a_transport_retry_001/P3A_RETRY_PROTOCOL.md
+@@ -0,0 +1,15 @@
++# P3-A 传输配置重跑
++
++用户已明确授权改用 `(60, 300)` 并重跑。此为独立归档，不覆盖或增补上一轮调用额度。
++
++只重跑 A、B，不调用 Diagnosis。复用上一轮唯一真实多行 Original、Parent、当前执行、Grouping、Actor 背景、全部 Memory，以及两份逐字不变的请求 body。原协议的语义评价规则完整冻结于 [original_protocol.md](config/original_protocol.md)，继续先独立评价 A、B，再比较。
++
++唯一传输设置变化：连接/发送正文阶段 socket 超时 60 秒，读取阶段 300 秒，显式传给 requests。urllib3 在 `conn.request` 前使用 connect_timeout，之后切换 read_timeout；这不是 requests 提供了独立 write_timeout 参数，也不是总请求时限。实际请求正文按 PreparedRequest 编码，记录确切字节数和 Content-Length。用 Python HTTP audit event 记录发送块长度、时间和 socket 超时，不记录认证头或正文内容。
++
++每组一次逻辑调用，最多 3 个 HTTP 请求；顺序 A 后 B，总最多 2 次逻辑调用、6 个请求。仅 Timeout、连接中断（不含 SSL 配置错误）及 HTTP 408/429/500/502/503/504 技术重试，间隔 5/10 秒。已返回模型的格式、Patch、编译或语义不理想均不重试。每次异常保存完整 traceback，失败用量未知，不记零。
++
++不裁剪 Memory、不改 Prompt、模型和采样参数，不变更正式 V23/V23.3 实现。旧生成器写死 `(10, timeout)` 且无独立 connect 参数，因此本实验只保留少量原请求/响应处理步骤并显式配置传输；复用原 `response_value`、解析、compiler 和 Patch 转换器。没有另建模型调用框架。
++
++请求在发送前与上一轮请求 body 比较，并验证 A/B user message 完全相同。新增超时字段仅为实验传输元数据，不发送给模型。保存每次实际请求、HTTP 原文、usage、耗时、stack、实际 socket 超时及正文大小。无 Editor、Actor、Replay、Gate 或 Memory 更新。
++
++当前没有新结果，无法预先确认故障解决。若仍失败，按预算停止；若正常返回，按原标准评价策略，不能因传输修复而预设 B 更好。
+diff --git a/experiments/methods/v23_3/p3a_transport_retry_001/P3A_UPDATE_COMPARISON.md b/experiments/methods/v23_3/p3a_transport_retry_001/P3A_UPDATE_COMPARISON.md
+new file mode 100644
+index 00000000..54048b45
+--- /dev/null
++++ b/experiments/methods/v23_3/p3a_transport_retry_001/P3A_UPDATE_COMPARISON.md
+@@ -0,0 +1,28 @@
++# 重跑后的独立评价与比较
++
++沿用上一轮冻结的语义评价标准，先分别保存 [A 独立评价](evaluations/A_independent.json)、[B 独立评价](evaluations/B_independent.json)，再形成此比较。由同一分析者完成，不声称双盲。
++
++两组均 HTTP 200，但 finish_reason=length、最终 content 为空，没有实际修改可作语义评价。reasoning token 数不是正式 Update，也不从内部推理补造模型最终答案。
++
++| 评价维度 | A：自由替换 | B：Patch |
++|---|---|---|
++| 传输有效性 | 成功，1 次 HTTP，无重试 | 成功，1 次 HTTP，无重试 |
++| 输出完整性 | completion 预算耗尽，空最终内容 | completion 预算耗尽，空最终内容 |
++| 调整/编译有效性 | 未进入解析编译 | 未进入 Patch 应用/编译 |
++| 更新对象准确性 | 无实际更新，不可评价 | 无实际 Patch，不可评价 |
++| 历史响应利用 | 请求含冻结历史；决定中的使用不可观察 | 同左 |
++| 条件和强度 | 不可评价 | 不可评价 |
++| 新增无据附带承诺 | 未知，不能记零 | 未知，不能记零 |
++| 必要行为保留 | 不可评价 | 不可评价 |
++| 具体可执行探索 | 不可评价 | 不可评价 |
++| 实际行为收益 | 未执行 | 未执行 |
++
++每份独立评价均记录六个原定语义栏目；缺少输出时为“不可观察/不可评价”，不因技术失败把 Original 的旧问题记为模型未修正，也不以没有生成新承诺而判更好。
++
++**更新粒度：** 唯一真实多行 Original 已存在，但本轮没有实际更新，不能确认 B 比 A 更准确。
++
++**历史参与：** 相同 Memory 确实发出且服务端有正常 HTTP 返回，但仍没有最终决定，无法确认历史如何改变方向、范围或关联。
++
++**策略质量：** 无 Effective A/B，无法判断质量改善、探索保留或方法优越性。两组相同的预算耗尽不是策略等效证据。
++
++本次验证的是更长的连接/发送超时能让冻结的大请求获得 HTTP 响应；这解决了一个实验执行障碍，没有回答预条件化研究问题。
+diff --git a/experiments/methods/v23_3/p3a_transport_retry_001/run.py b/experiments/methods/v23_3/p3a_transport_retry_001/run.py
+new file mode 100644
+index 00000000..03436abe
+--- /dev/null
++++ b/experiments/methods/v23_3/p3a_transport_retry_001/run.py
+@@ -0,0 +1,170 @@
++"""Authorized A/B rerun: same frozen bodies; explicit (60, 300) transport."""
++from datetime import datetime, timezone
++import importlib.util
++import json
++from pathlib import Path
++import sys
++import time
++import traceback
++
++sys.dont_write_bytecode = True
++E = Path(__file__).resolve().parent
++OLD = E.parent / "p3a_first_live_comparison_001"
++spec = importlib.util.spec_from_file_location("p3a_frozen_source", OLD / "run.py")
++base = importlib.util.module_from_spec(spec)
++spec.loader.exec_module(base)
++import requests
++from src.skill_evolution.v23 import grouping, preconditioner as v23
++from src.skill_evolution.v23_3 import diagnosis, preconditioner as v233
++from src.skill_evolution.v23_3.update_patch import normalize_update_patches
++from src.skill_evolution.v22.diagnosis_editor import parse_json_response
++
++read, save, now = base.read, base.save, base.now
++active_send = None
++
++
++def audit(event, args):
++    if event == "http.client.send" and active_send is not None:
++        conn, data = args
++        # Never serialize data or headers; lengths and socket state suffice.
++        active_send["events"].append({
++            "at": now(), "bytes": len(data), "is_body": len(data) == active_send["body_bytes"],
++            "socket_timeout_seconds": conn.sock.gettimeout() if conn.sock is not None else None})
++
++
++sys.addaudithook(audit)
++
++
++def prepare():
++    base.verify_frozen()
++    _, _, cfg = base.env_config()
++    assert cfg == read(OLD / "config/call_config.json")
++    save(E / "config/transport.json", {"connect_upload_timeout_seconds": 60,
++                                     "read_timeout_seconds": 300, "max_http_per_arm": 3})
++    save(E / "config/freeze.json", {
++        "at": now(), "source_experiment": str(OLD), "same_request_bodies": True,
++        "diagnosis_reused": str(OLD / "runs/diagnosis"),
++        "call_config": cfg, "protocol": (E / "P3A_RETRY_PROTOCOL.md").read_text()})
++    for arm in ("A", "B"):
++        save(E / f"config/{arm}_request.json", read(OLD / f"requests/{arm}.json"))
++    print("Frozen rerun; no Diagnosis call", flush=True)
++
++
++def send_once(req, key, dest, transport):
++    global active_send
++    timeout = (transport["connect_upload_timeout_seconds"], transport["read_timeout_seconds"])
++    assert timeout == (60, 300)
++    with requests.Session() as session:
++        session.trust_env = False
++        assert all(a.max_retries.total == 0 for a in session.adapters.values())
++        prepared = session.prepare_request(requests.Request(
++            "POST", req["endpoint"], json=req["body"], headers={"Authorization": f"Bearer {key}"}))
++        body = prepared.body
++        assert isinstance(body, bytes)
++        assert json.loads(body) == req["body"]
++        active_send = {"body_bytes": len(body), "events": []}
++        save(dest / "request.json", {"endpoint": req["endpoint"], "body": req["body"],
++                                    "timeout": list(timeout), "actual_body_bytes": len(body),
++                                    "content_length": int(prepared.headers["Content-Length"]),
++                                    "allow_redirects": False, "transport_retries": 0})
++        try:
++            raw = session.send(prepared, timeout=timeout, allow_redirects=False)
++            (dest / "http_response.txt").write_bytes(raw.content)
++            save(dest / "http_status.json", {"status_code": raw.status_code, "received_at": now()})
++            if not 200 <= raw.status_code < 300:
++                raise ValueError(f"Model API returned HTTP {raw.status_code}")
++            return grouping.response_value(raw.json())
++        finally:
++            save(dest / "send_events.json", active_send)
++            active_send = None
++
++
++def generate(arm, out):
++    base.verify_frozen()
++    _, key, cfg = base.env_config()
++    freeze = read(E / "config/freeze.json")
++    assert cfg == freeze["call_config"]
++    assert freeze["protocol"] == (E / "P3A_RETRY_PROTOCOL.md").read_text()
++    assert (E / "config/original_protocol.md").read_bytes() == (OLD / "P3A_EXPERIMENT_PROTOCOL.md").read_bytes()
++    req = read(E / f"config/{arm}_request.json")
++    assert req == read(OLD / f"requests/{arm}.json")
++    transport = read(E / "config/transport.json")
++    assert transport == {"connect_upload_timeout_seconds": 60, "read_timeout_seconds": 300, "max_http_per_arm": 3}
++    save(E / f"results/{arm}_claim.json", {"at": now(), "max_http": 3})
++    for attempt in range(1, 4):
++        dest = out / "http" / f"{attempt:03}"
++        dest.mkdir(parents=True, exist_ok=False)
++        started = time.monotonic()
++        meta = {"arm": arm, "attempt": attempt, "started_at": now(), "timeout": [60, 300]}
++        error = None
++        try:
++            response = send_once(req, key, dest, transport)
++            save(dest / "response.json", response)
++            meta["status"] = "response_received"
++        except Exception as exc:
++            error = exc
++            (dest / "traceback.txt").write_text(traceback.format_exc(), encoding="utf-8")
++            code = read(dest / "http_status.json")["status_code"] if (dest / "http_status.json").exists() else None
++            transient = code in (408, 429, 500, 502, 503, 504) or (
++                isinstance(exc, (requests.Timeout, requests.ConnectionError))
++                and not isinstance(exc, requests.exceptions.SSLError))
++            meta.update(status="technical_failure", transient=transient,
++                        error_type=type(exc).__name__, error=str(exc))
++        finally:
++            meta.update(finished_at=now(), elapsed_seconds=time.monotonic() - started)
++            save(dest / "attempt.json", meta)
++            print(arm, attempt, meta["status"], round(meta["elapsed_seconds"], 2), flush=True)
++        if error is None: return response
++        if not meta["transient"] or attempt == 3: raise error
++        time.sleep(5 if attempt == 1 else 10)
++
++
++def run(arm):
++    assert arm in ("A", "B")
++    if arm == "B": assert (E / "results/A_execution.json").exists()
++    original = diagnosis.load_diagnosis(OLD / "runs/diagnosis")
++    saved = read(OLD / "config/common_saved.json")
++    assert saved == {**original, "memory": read(OLD / "config/memory.json")}
++    payload = v23.preconditioner_input(saved)
++    assert payload == read(OLD / "config/common_payload.json")
++    req = read(E / f"config/{arm}_request.json")
++    assert req["body"]["messages"] == (v23 if arm == "A" else v233).messages_for(saved)
++    assert read(E / "config/A_request.json")["body"]["messages"][1] == read(E / "config/B_request.json")["body"]["messages"][1]
++    out = E / "runs" / arm
++    out.mkdir(exist_ok=False)
++    save(out / "input.json", saved)
++    save(out / "messages.json", req["body"]["messages"])
++    started = time.monotonic()
++    meta = {"arm": arm, "started_at": now(), "stage": "transport"}
++    try:
++        response = generate(arm, out)
++        save(out / "response.json", response)
++        (out / "raw_output.txt").write_bytes(response["content"].encode())
++        meta.update(stage="completion", finish_reason=response.get("finish_reason"),
++                    response_model=response.get("response_model"), usage=response.get("usage"))
++        assert response.get("finish_reason") == "stop", "Model response did not finish normally"
++        meta["stage"] = "parse"
++        parsed = parse_json_response(response["content"])
++        save(out / "parsed.json", parsed)
++        meta["stage"] = "schema_patch_compile"
++        normalized, effective = ((parsed, v23.compile_effective_plan(parsed, payload)) if arm == "A"
++                                 else normalize_update_patches(parsed, payload))
++        save(out / "preconditioner.json", normalized)
++        save(out / "effective_plan.json", effective)
++        assert v23.compile_effective_plan(normalized, payload) == effective
++        meta.update(status="valid", decision=parsed["decision"], stage="complete")
++        save(out / "validation.json", {"valid": True, "effective_null": effective is None})
++    except Exception as exc:
++        (out / "traceback.txt").write_text(traceback.format_exc(), encoding="utf-8")
++        meta.update(status="technical_failure", error_type=type(exc).__name__, error=str(exc))
++        save(out / "validation.json", {"valid": False, "stage": meta["stage"],
++                                      "error_type": type(exc).__name__, "error": str(exc)})
++    meta.update(finished_at=now(), elapsed_seconds=time.monotonic() - started)
++    save(out / "run.json", meta)
++    save(E / f"results/{arm}_execution.json", meta)
++    print(json.dumps(meta, ensure_ascii=False), flush=True)
++
++
++if __name__ == "__main__":
++    if sys.argv[1] == "prepare": prepare()
++    else: run(sys.argv[1])
+diff --git a/experiments/methods/v23_3/p3a_transport_retry_001/test_transport.py b/experiments/methods/v23_3/p3a_transport_retry_001/test_transport.py
+new file mode 100644
+index 00000000..85cbd560
+--- /dev/null
++++ b/experiments/methods/v23_3/p3a_transport_retry_001/test_transport.py
+@@ -0,0 +1,70 @@
++"""Offline timeout/byte/traceback checks; never sends a network request."""
++import importlib.util
++from pathlib import Path
++import json
++
++import pytest
++import requests
++
++
++def module():
++    spec = importlib.util.spec_from_file_location("timeout_retry_fixture", Path(__file__).with_name("run.py"))
++    m = importlib.util.module_from_spec(spec)
++    spec.loader.exec_module(m)
++    return m
++
++
++@pytest.mark.parametrize("fail", [False, True])
++def test_prepared_bytes_and_actual_timeout(tmp_path, monkeypatch, fail):
++    m = module()
++    req = {"endpoint": "http://example.invalid", "body": {"messages": [{"content": "中文\n"}]}}
++
++    def fake_send(session, prepared, **kwargs):
++        assert kwargs == {"timeout": (60, 300), "allow_redirects": False}
++        assert session.trust_env is False
++        assert json.loads(prepared.body) == req["body"]
++        if fail: raise requests.ConnectionError("offline transport failure")
++        r = requests.Response()
++        r.status_code = 200
++        r._content = b'{"choices":[{"message":{"content":"{}"},"finish_reason":"stop"}],"model":"offline"}'
++        return r
++
++    monkeypatch.setattr(requests.Session, "send", fake_send)
++    transport = {"connect_upload_timeout_seconds": 60, "read_timeout_seconds": 300}
++    if fail:
++        with pytest.raises(requests.ConnectionError): m.send_once(req, "fake", tmp_path, transport)
++    else:
++        assert m.send_once(req, "fake", tmp_path, transport)["finish_reason"] == "stop"
++    record = m.read(tmp_path / "request.json")
++    expected_bytes = len(requests.Request("POST", req["endpoint"], json=req["body"]).prepare().body)
++    assert record["actual_body_bytes"] == record["content_length"] == expected_bytes
++    assert record["timeout"] == [60, 300]
++    assert "fake" not in (tmp_path / "request.json").read_text()
++    assert (tmp_path / "send_events.json").exists()
++
++
++def test_three_attempt_limit_and_tracebacks(tmp_path, monkeypatch):
++    m = module()
++    original = m.E
++    for name in ["transport.json", "freeze.json", "A_request.json", "original_protocol.md"]:
++        (tmp_path / "config").mkdir(exist_ok=True)
++        (tmp_path / "config" / name).write_bytes((original / "config" / name).read_bytes())
++    (tmp_path / "P3A_RETRY_PROTOCOL.md").write_bytes((original / "P3A_RETRY_PROTOCOL.md").read_bytes())
++    monkeypatch.setattr(m, "E", tmp_path)
++    cfg = m.read(tmp_path / "config/freeze.json")["call_config"]
++    monkeypatch.setattr(m.base, "env_config", lambda: ("unused", "fake", cfg))
++    monkeypatch.setattr(m.base, "verify_frozen", lambda: None)
++    monkeypatch.setattr(m.time, "sleep", lambda _: None)
++    calls = []
++
++    def fail(*args):
++        calls.append(1)
++        raise requests.ConnectionError("offline failed body send")
++
++    monkeypatch.setattr(m, "send_once", fail)
++    with pytest.raises(requests.ConnectionError): m.generate("A", tmp_path / "out")
++    assert len(calls) == 3
++    assert len(list((tmp_path / "out/http").glob("*/traceback.txt"))) == 3
++    assert "ConnectionError" in (tmp_path / "out/http/001/traceback.txt").read_text()
++    with pytest.raises(FileExistsError): m.generate("A", tmp_path / "out")
++    assert len(calls) == 3

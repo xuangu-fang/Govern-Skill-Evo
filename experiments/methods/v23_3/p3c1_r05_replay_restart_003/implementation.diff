@@ -1,0 +1,253 @@
+diff --git a/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_003/run.py b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_003/run.py
+new file mode 100644
+index 00000000..e1de3798
+--- /dev/null
++++ b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_003/run.py
+@@ -0,0 +1,65 @@
++"""Finish only Parent/P7; preserve every failed attempt and all completed cases."""
++import os
++from pathlib import Path
++import subprocess
++import sys
++import time
++from experiments.methods.v23_3.p3c1_r05_replay_restart_002 import run as prior, recovery
++HERE=Path(__file__).resolve().parent
++ROOT=prior.ROOT
++read,save,now=prior.read,prior.save,prior.now
++COMPLETE=prior.COMPLETE
++
++def prepare():
++    recovery.verify()
++    a=read(prior.HERE/'analysis.json')
++    unfinished=[(r['condition'],r['ref']) for r in a['rows'] if r['status'] not in COMPLETE]
++    assert unfinished==[('Parent','P7')]
++    assert read(prior.HERE/'final_results.json')['results'][-1]['last_http_status']==429
++    files=subprocess.check_output(['git','ls-files','--cached','--others','--exclude-standard'],cwd=ROOT,text=True).splitlines()
++    save(HERE/'baseline.json',{'at':now(),'head':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
++        'git_status':subprocess.check_output(['git','status','--short'],cwd=ROOT,text=True),
++        'git_diff':subprocess.check_output(['git','diff'],cwd=ROOT,text=True),
++        'files':{str(ROOT/p):[(ROOT/p).stat().st_size,(ROOT/p).stat().st_mtime_ns] for p in files if (ROOT/p).is_file() and not (ROOT/p).is_relative_to(HERE)}})
++    save(HERE/'config.json',{'at':now(),'original_config':prior.verify()['original_config'],
++        'previous_actor_http':a['cumulative_including_editors']['decisions'],'cumulative_actor_http_max':600,
++        'backoff_seconds':[120,240,300],'task':['Parent','P7'],'max_steps':50,'per_decision_http_attempts':1,
++        'authorization':'User explicitly asks to keep restarting Parent/P7 so all tasks reach completion; previous three-round cap superseded.'})
++    paths=[HERE/'run.py',HERE/'PROTOCOL.md',HERE/'config.json',prior.HERE/'analysis.json',prior.HERE/'final_results.json']
++    save(HERE/'freeze.json',{'at':now(),'files':{str(p):prior.previous.original.sha(p) for p in paths}})
++
++def verify():
++    recovery.verify()
++    for path,h in read(HERE/'freeze.json')['files'].items():assert prior.previous.original.sha(path)==h,path
++    return read(HERE/'config.json')
++
++def episode(attempt):
++    cfg=verify();prior.previous.HERE=HERE/f'attempt_{attempt}'
++    prior.previous.verify=lambda:{'original_config':cfg['original_config']}
++    prior.previous.episode('Parent','P7')
++
++def batch():
++    cfg=verify();(HERE/'batch.claim').open('x').close()
++    results=[];spent=0;stop='budget_reservation';attempt=1
++    while cfg['previous_actor_http']+spent+50<=cfg['cumulative_actor_http_max']:
++        folder=HERE/f'attempt_{attempt}';folder.mkdir(exist_ok=False)
++        with (folder/'Parent_P7.log').open('x') as log:
++            proc=subprocess.run([prior.previous.original.PYTHON,'-B','-m','experiments.methods.v23_3.p3c1_r05_replay_restart_003.run','episode',str(attempt)],cwd=ROOT,stdout=log,stderr=subprocess.STDOUT,env={**os.environ,'PYTHONDONTWRITEBYTECODE':'1'})
++        path=folder/'episodes/Parent/P7/trajectory.json';r=read(path) if path.exists() else {}
++        transports=[t for s in r.get('steps',[]) for t in s.get('transport_attempts',[])]
++        status=r.get('status','setup_error');http=transports[-1].get('http_status') if transports else None
++        spent+=len(transports)
++        row={'attempt':attempt,'at':now(),'exit':proc.returncode,'status':status,'last_http_status':http,'http_requests':len(transports),'trajectory':str(path)}
++        results.append(row);save(HERE/'progress.json',{'at':now(),'results':results,'spent_http':spent});print(row,flush=True)
++        if not proc.returncode and status in COMPLETE:stop='all_tasks_completed';break
++        if proc.returncode or status!='error' or http!=429:stop='non_429_technical_error';break
++        if cfg['previous_actor_http']+spent+50>cfg['cumulative_actor_http_max']:break
++        delay=cfg['backoff_seconds'][min(attempt-1,2)]
++        print(f'HTTP429: wait {delay}s, then restart only Parent/P7',flush=True)
++        for _ in range(delay//30):time.sleep(30)
++        attempt+=1
++    save(HERE/'results.json',{'at':now(),'stop_reason':stop,'results':results,'spent_http':spent})
++
++if __name__=='__main__':
++    if sys.argv[1]=='episode':episode(sys.argv[2])
++    else:globals()[sys.argv[1]]()
+
+diff --git a/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_003/resume.py b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_003/resume.py
+new file mode 100644
+index 00000000..63146307
+--- /dev/null
++++ b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_003/resume.py
+@@ -0,0 +1,41 @@
++"""Continue after a documented response-less ReadTimeout; never retry model outputs."""
++import os
++import subprocess
++import time
++from . import run
++HERE=run.HERE
++read,save,now=run.read,run.save,run.now
++
++def verify():
++    cfg=run.verify()
++    for path,h in read(HERE/'resume_freeze.json')['files'].items():assert run.prior.previous.original.sha(path)==h,path
++    return cfg
++
++def main():
++    cfg=verify();(HERE/'resume.claim').open('x').close()
++    prev=read(HERE/'results.json');results=list(prev['results']);spent=prev['spent_http'];stop='budget_reservation'
++    assert prev['stop_reason']=='non_429_technical_error'
++    r=read(results[-1]['trajectory']);assert r['error_type']=='ReadTimeout' and r['error_stage']=='model_request'
++    print('ReadTimeout archived; cooldown 60 seconds before attempt 3',flush=True);time.sleep(60)
++    attempt=len(results)+1
++    while cfg['previous_actor_http']+spent+50<=cfg['cumulative_actor_http_max']:
++        folder=HERE/f'attempt_{attempt}';folder.mkdir(exist_ok=False)
++        with (folder/'Parent_P7.log').open('x') as log:
++            proc=subprocess.run([run.prior.previous.original.PYTHON,'-B','-m','experiments.methods.v23_3.p3c1_r05_replay_restart_003.run','episode',str(attempt)],cwd=run.ROOT,stdout=log,stderr=subprocess.STDOUT,env={**os.environ,'PYTHONDONTWRITEBYTECODE':'1'})
++        path=folder/'episodes/Parent/P7/trajectory.json';r=read(path) if path.exists() else {}
++        transports=[t for s in r.get('steps',[]) for t in s.get('transport_attempts',[])]
++        status=r.get('status','setup_error');http=transports[-1].get('http_status') if transports else None
++        spent+=len(transports)
++        row={'attempt':attempt,'at':now(),'exit':proc.returncode,'status':status,'last_http_status':http,'error_type':r.get('error_type'),'http_requests':len(transports),'trajectory':str(path)}
++        results.append(row);save(HERE/'resume_progress.json',{'at':now(),'results':results,'spent_http':spent});print(row,flush=True)
++        if not proc.returncode and status in run.COMPLETE:stop='all_tasks_completed';break
++        timeout=r.get('error_type')=='ReadTimeout' and r.get('error_stage')=='model_request' and r['steps'][-1].get('model_response') is None
++        if proc.returncode or status!='error' or not (http==429 or timeout):stop='other_technical_error';break
++        if cfg['previous_actor_http']+spent+50>cfg['cumulative_actor_http_max']:break
++        delay=60 if timeout else cfg['backoff_seconds'][min(attempt-1,2)]
++        print(f'Transport interruption: cooldown {delay}s before next attempt',flush=True)
++        for _ in range(delay//30):time.sleep(30)
++        attempt+=1
++    save(HERE/'final_results.json',{'at':now(),'stop_reason':stop,'results':results,'spent_http':spent,'response_less_read_timeout_recovery':True})
++
++if __name__=='__main__':main()
+
+diff --git a/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_003/analyze.py b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_003/analyze.py
+new file mode 100644
+index 00000000..f8011ede
+--- /dev/null
++++ b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_003/analyze.py
+@@ -0,0 +1,52 @@
++"""Audit final twelve selected trajectories and preserve all technical-attempt costs."""
++from collections import Counter
++from pathlib import Path
++import subprocess
++from .run import HERE,ROOT,prior,read,save,verify,COMPLETE
++from src.adapters.alfworld.verify_skill_run import verify_record
++from src.skill_evolution.v23.replay import verify_pair
++
++def main():
++    verify();execution=read(HERE/('final_results.json' if (HERE/'final_results.json').exists() else 'results.json'));old=read(prior.HERE/'analysis.json')
++    new=Counter();records=[];attempts=[]
++    for row in execution['results']:
++        p=Path(row['trajectory']);r=read(p);a=verify_record(r);assert a['trace_valid']
++        new.update(a['reported_usage']);new['episodes']+=1;new['http']+=a['transport_attempts_recorded']
++        new['decisions']+=a['requests_recorded'];new['executed_steps']+=a['steps_executed']
++        new['complete']+=a['episode_complete'];new['unknown_usage_attempts']+=a['transport_attempts_with_unknown_usage']
++        for s in r['steps']:
++            u=s.get('model_response',{}).get('usage') or {}
++            new['reasoning_tokens']+=(u.get('completion_tokens_details') or {}).get('reasoning_tokens',0)
++            new['http_429']+=sum(t.get('http_status')==429 for t in s.get('transport_attempts',[]))
++        records.append((p,r,a));attempts.append({'source':str(p),**a})
++    completed=[x for x in records if x[1]['status'] in COMPLETE]
++    p,r,a=completed[0] if completed else records[-1]
++    steps=[s for s in r['steps'] if s['phase']=='executed']
++    replacement={'condition':'Parent','ref':'P7','source':str(p),**a,
++        'actions':[{'step':s['step'],'action':s['action'],'observation':s['observation']} for s in steps],
++        'invalid_steps':[s['step'] for s in steps if not s['action_in_admissible_commands']],
++        'nothing_happens_steps':[s['step'] for s in steps if s['observation'].strip()=='Nothing happens.']}
++    rows=[replacement if (x['condition'],x['ref'])==('Parent','P7') else x for x in old['rows']]
++    selected={}
++    for x in rows:
++        saved=read(x['source']);assert verify_record(saved)['trace_valid'];selected[(x['condition'],x['ref'])]=saved
++    pairs=[]
++    for ref in ['P3','P6','P7','P10']:
++        for arm in ['A','B']:
++            p,q=selected[('Parent',ref)],selected[(arm,ref)];verify_pair(p,q);assert p['request_policy']==q['request_policy']
++            pairs.append({'ref':ref,'arm':arm,'conditions_match':True,'both_complete':p['status'] in COMPLETE and q['status'] in COMPLETE})
++    total=Counter(old['cumulative_including_editors']);total.update(new)
++    assert total['decisions']<=600
++    save(HERE/'analysis.json',{'execution':execution,'attempts':attempts,'rows':rows,'pairing':pairs,
++        'all_twelve_complete':all(x['episode_complete'] for x in rows),'new_actor_cost':dict(new),'cumulative_including_editors':dict(total)})
++    before=read(HERE/'baseline.json');changed=[]
++    for name,st in before['files'].items():
++        p=Path(name)
++        if not p.exists() or [p.stat().st_size,p.stat().st_mtime_ns]!=st:changed.append(name)
++    same=before['git_diff']==subprocess.check_output(['git','diff'],cwd=ROOT,text=True)
++    save(HERE/'protection.json',{'checked_files':len(before['files']),'changed_existing_files':changed,'tracked_diff_unchanged':same,'freezes_verified':True})
++    assert not changed and same
++    for x in rows:print(x['condition'],x['ref'],x['status'],x['steps_executed'],x['native_success'])
++    print('New',dict(new));print('Cumulative',dict(total))
++
++if __name__=='__main__':main()
+
+diff --git a/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_003/PROTOCOL.md b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_003/PROTOCOL.md
+new file mode 100644
+index 00000000..a3fa7b0e
+--- /dev/null
++++ b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_003/PROTOCOL.md
+@@ -0,0 +1,11 @@
++# Parent/P7 完结续跑
++
++用户明确要求继续重启Parent/P7，确保所有任务结束，解除前次三轮停止限制。只执行这一条尚未完成的Episode；原已完成11条（含A/B的50步失败）全部固定，不重跑、不择优。只有一个未完成任务，因此并发槽位只占一个，整体并发4设置无需为其他槽位生成重复任务。
++
++复用既有真实episode入口：同Parent、实例、seed42、模型与参数、Actor历史及动作投影、50步上限，每决策一次HTTP，保持每请求前2秒间隔。每次从初始环境开始，冻结reset与来源核验不变。不改Skill/Prompt/Memory/正式代码/旧归档，不重新调用Editor或任何策略生成，不跑新Train。
++
++首次完整结果即接受：success、step_limit或environment_ended均为正常结束，不能把“确保结束”解释为“必须成功”。HTTP429保留全量轨迹后自动等待120秒、240秒、之后300秒再重启；不是同一决策自动HTTP重试。其他技术错误保留并停止，不修补输出。每个Episode在独立子进程中自然退出，不交接或终止在途进程。
++
++延用原累计600 Actor请求预算，已有384，剩余216；每次开局预留完整50次，实际消耗按记录归账。未获授权另改原600预算；若剩余预算不足完整Episode则报告预算阻断，不能裁短轨迹伪称结束。所有额外失败均计成本、不删除；缺失usage未知，reasoning不重复计算，货币费用未知。
++
++新增本目录并冻结协议、入口、配置和上轮最终选择，原结果保持不变。完结后验证所有12项真实终局、配对条件、全量成本与既有文件保护，生成补充总表和报告后停止。
+
+diff --git a/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_003/TRANSPORT_RECOVERY.md b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_003/TRANSPORT_RECOVERY.md
+new file mode 100644
+index 00000000..9449f123
+--- /dev/null
++++ b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_003/TRANSPORT_RECOVERY.md
+@@ -0,0 +1,7 @@
++# 传输读取超时后的续跑修订
++
++第2次Parent/P7尝试在第16次Actor请求触发ReadTimeout，原记录error_stage=model_request、没有响应正文或动作。run.py按原非429停点保存results.json并退出。本修订在下一次调用前冻结，依据用户明确要求继续重启直到全部任务结束，将“无响应的ReadTimeout”这一技术中断纳入续跑范围；不把语义失败、JSON/标签问题、截断输出或模型有效响应纳入重采样。
++
++保留前两次所有数据与results.json。resume.py从attempt_3开始，继续同一Parent/P7、原模型与300秒读取超时、同样50步上限、每决策一次HTTP；无进程交接，子进程自然结束。仅429或model_request阶段的ReadTimeout可触发后续完整Episode重启，其他错误仍停止。429按既有退避240/300秒；ReadTimeout后等待60秒。当前已有429次累计Actor请求，仍不超过600总预算，每次开局预留50。
++
++最终记录另存final_results.json，旧停止结果不覆盖。第一次正常终局即接受，不要求成功。除这项传输故障范围外，原输入、保护、归档、禁止事项不变。
+
+diff --git a/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_003/REPORT.md b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_003/REPORT.md
+new file mode 100644
+index 00000000..a6134f08
+--- /dev/null
++++ b/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_003/REPORT.md
+@@ -0,0 +1,36 @@
++# Parent/P7 续跑：内网域名解析阻断
++
++**尚未补齐Parent/P7，不能宣称所有任务正常结束。** 只重启这一条，原11条完整结果全部保持；本次先后遇到429、读取超时及连接失败。随后三次不调用模型的DNS/TCP检查均在DNS阶段失败，当前无法建立到公司模型网关的连接。内网/VPN是否连接未得到确认，不能把VPN断开当作已证实根因。需要先恢复域名解析和网关可达性。
++
++## 本次尝试
++
++| 尝试 | 已执行动作 | 客户端传输尝试 | 结果 |
++|---|---:|---:|---|
++| 1 | 28 | 29 | 第29次返回HTTP429；原始正文为TPM throttling，非insufficient_quota |
++| 2 | 15 | 16 | 第16次ReadTimeout，无模型输出；没有改变原300秒读超时 |
++| 3 | 0 | 1 | ConnectionError，无HTTP响应；后续诊断确认域名不能解析 |
++
++第1次失败后等待120秒。原入口在ReadTimeout停点归档退出；依照用户继续重启中断任务的授权，在后续调用前冻结TRANSPORT_RECOVERY.md与resume.py，将无响应ReadTimeout纳入恢复，等待60秒再启动第3次。没有修改已冻结的入口或原始轨迹。第3次连接失败后停止模型请求，三次连通性检查没有携带凭据、没有调用模型，也没有重置环境。
++
++不能把连接失败算作服务端已收到的HTTP请求：表中46为客户端记录的传输尝试，第3次DNS失败未建立连接；ReadTimeout的服务端执行与计费状态未知。没有对任何有效输出、正常任务失败或50步上限进行语义重采样。每个尝试从相同seed42环境、固定Parent和Actor配置开始。
++
++## 当前完整结果
++
++| 任务 | Parent | A | B |
++|---|---|---|---|
++| P3 | 成功4步 | 成功4步 | 成功4步 |
++| P6 | 成功10步 | 成功8步 | 成功11步 |
++| P7 | 技术未完成 | 50步上限、未成功 | 50步上限、未成功 |
++| P10 | 成功14步 | 成功12步 | 成功12步 |
++
++A/B仍各3/4成功且四题完整；Parent/P7仍缺终局，不能把最新0动作连接失败作为行为失败。所有更早中断前缀保留，不选择较长/较好的前缀。原verify_record验证已保存轨迹通过；配对条件相符，但Parent/P7的配对不完整，见analysis.json。不会为填满并发槽位重跑其他11条任务。
++
++## 成本与保护
++
++本次新增：3个Episode尝试、46次客户端传输尝试、43个实际动作、0个新完整Episode；已知input 54,853、completion 12,217、total **67,070 tokens**，reasoning 9,036已包含于completion，不重复加算。3个未返回usage的请求未知，货币费用未知。
++
++P3-C1执行系列累计（原实验及三次重启归档，含2次原Editor）：430个Actor决策/传输尝试、432个总传输尝试、24个Episode尝试、11个完整Episode；已知input 600,212、completion 228,832、total **829,044 tokens**；reasoning 191,955已含于completion，13次usage未知。累计Actor计数430仍在原600预算内，目前阻断原因是网络而非预算。
++
++保护检查：5160个既有文件尺寸/mtime未变，原tracked Git Diff未变，原来源及本次冻结均通过。正式V23/V23.3代码、Prompt、Parent、A/B候选、Memory、历史归档与新Train预注册未修改。没有新增Editor、策略生成、Gate或新Train调用。
++
++所有尝试在attempt_1/2/3；原停点在results.json，传输恢复记录在final_results.json，诊断在connectivity_checks.json。模型进程已退出，不留后台生成或定时重试。内网恢复后，只需继续Parent/P7，首个真实正常终局即接受；成功与50步失败都算任务正常结束，不能强求成功输出。

@@ -1,0 +1,397 @@
+--- before/src/skill_evolution/v23_3/preconditioner.py
++++ after/src/skill_evolution/v23_3/preconditioner.py
+@@ -2,7 +2,8 @@
+ 
+ Only the stage-specific request/save skeleton is retained from V23: its runner
+ hardcodes the old prompt, loader and response==Adjustment relation. Input assembly,
+-parsing, Memory validation, patch application and compilation remain V23 code.
++parsing, full Memory validation, patch application and compilation remain V23 code.
++Only the model receives the versioned compact historical evidence projection.
+ """
+ from copy import deepcopy
+ from datetime import datetime, timezone
+@@ -19,13 +20,19 @@
+ from src.skill_evolution.v23.preconditioner import preconditioner_input
+ from src.skill_evolution.v23.prompts import render_prompt
+ from .update_patch import normalize_update_patches
++from .memory_view import FORMAT, LEGACY, project_messages, project_payload
+ 
+ PROMPT_PATH = Path(__file__).with_name("preconditioner_prompt.md")
+ 
+ 
+-def messages_for(saved):
+-    return [{"role": "system", "content": render_prompt(PROMPT_PATH.read_text(encoding="utf-8"), saved["background"])},
+-            {"role": "user", "content": json.dumps(preconditioner_input(saved), ensure_ascii=False, separators=(",", ":"))}]
++def model_input(saved, *, memory_view=FORMAT):
++    return project_payload(preconditioner_input(saved), memory_view)
++
++
++def messages_for(saved, *, memory_view=FORMAT):
++    messages = [{"role": "system", "content": render_prompt(PROMPT_PATH.read_text(encoding="utf-8"), saved["background"])},
++                {"role": "user", "content": json.dumps(preconditioner_input(saved), ensure_ascii=False, separators=(",", ":"))}]
++    return project_messages(messages, memory_view)
+ 
+ 
+ def read_upstream(grouping_directory, diagnosis_directory):
+@@ -33,7 +40,8 @@
+     return load_diagnosis(diagnosis_directory, expected_grouping=grouped)
+ 
+ 
+-def load_preconditioner(directory, *, expected_diagnosis=None, expected_call_config=...):
++def load_preconditioner(directory, *, expected_diagnosis=None, expected_call_config=...,
++                       expected_memory_view=...):
+     """Reparse raw Patch output, reapply and compile; verify the upstream chain."""
+     directory = Path(directory)
+     read = lambda name: json.loads((directory / name).read_text(encoding="utf-8"))
+@@ -46,7 +54,13 @@
+     require(meta["round_id"] == saved["round_id"] and meta["status"] == "valid", "Invalid saved run")
+     if expected_call_config is not ...:
+         require(meta["call_config"] == expected_call_config, "Saved Preconditioner call configuration differs")
+-    messages = messages_for(saved)
++    memory_view = meta.get("memory_view", LEGACY)
++    if expected_memory_view is not ...:
++        require(memory_view == expected_memory_view, "Saved Memory view differs")
++    messages = messages_for(saved, memory_view=memory_view)
++    if "memory_view" in meta:
++        require(read("model_input.json") == json.loads(messages[1]["content"]),
++                "Saved model input differs from Memory projection")
+     require(read("messages.json") == messages, "Saved Preconditioner prompt/input differs")
+     require(_read_text(directory / "prompt.md") == messages[0]["content"], "Saved prompt differs")
+     require(read("validation.json")["valid"] is True, "Saved Preconditioner is not valid")
+@@ -62,10 +76,10 @@
+ 
+ 
+ def run_preconditioner(grouping_directory, diagnosis_directory, directory, *, generate,
+-                       max_input_chars=100000, call_config=None, memory=None):
++                       max_input_chars=100000, call_config=None, memory=None, memory_view=FORMAT):
+     saved = {**read_upstream(grouping_directory, diagnosis_directory),
+              "memory": deepcopy(empty_memory() if memory is None else memory)}
+-    messages = messages_for(saved)
++    messages = messages_for(saved, memory_view=memory_view)
+     size = len(json.dumps(messages, ensure_ascii=False))
+     require(size <= max_input_chars, "Preconditioner input exceeds the declared character budget")
+     generated_config = getattr(generate, "call_config", None)
+@@ -74,14 +88,17 @@
+     call_config = call_config if call_config is not None else generated_config
+     directory = Path(directory)
+     if directory.exists():
+-        return load_preconditioner(directory, expected_diagnosis=saved, expected_call_config=call_config)
++        return load_preconditioner(directory, expected_diagnosis=saved, expected_call_config=call_config,
++                                   expected_memory_view=memory_view)
+     directory.mkdir(parents=True, exist_ok=False)
+     write_record(directory / "input.json", saved)
++    write_record(directory / "model_input.json", json.loads(messages[1]["content"]))
+     write_record(directory / "messages.json", messages)
+     (directory / "prompt.md").write_text(messages[0]["content"], encoding="utf-8")
+     meta = {"round_id": saved["round_id"], "grouping_directory": str(Path(grouping_directory).resolve()),
+             "diagnosis_directory": str(Path(diagnosis_directory).resolve()), "memory": saved["memory"],
+             "memory_contract": "entries_sources",
++            "memory_view": memory_view,
+             "started_at": datetime.now(timezone.utc).isoformat(), "input_chars": size,
+             "max_input_chars": max_input_chars, "call_config": call_config, "status": "requesting"}
+     write_record(directory / "run.json", meta)
+@@ -105,4 +122,5 @@
+     finally:
+         meta["finished_at"] = datetime.now(timezone.utc).isoformat()
+         write_record(directory / "run.json", meta)
+-    return load_preconditioner(directory, expected_diagnosis=saved, expected_call_config=call_config)
++    return load_preconditioner(directory, expected_diagnosis=saved, expected_call_config=call_config,
++                               expected_memory_view=memory_view)
+--- before/src/skill_evolution/v23_3/memory_view.py
++++ after/src/skill_evolution/v23_3/memory_view.py
+@@ -0,0 +1,112 @@
++"""Deterministic model-only Memory projection; full archives remain authoritative."""
++from copy import deepcopy
++import json
++from pathlib import Path
++
++from src.skill_evolution.v23.facts import require
++from src.skill_evolution.v23.memory import validate_memory
++
++FORMAT = "memory_evidence_view_v3"
++LEGACY = "entries_sources"
++FORMAT_PATH = Path(__file__).with_name("memory_view_prompt.md")
++
++
++def ranges(numbers):
++    result = []
++    for number in sorted(set(numbers)):
++        if result and number == result[-1][1] + 1:
++            result[-1][1] = number
++        else:
++            result.append([number, number])
++    return result
++
++
++def compact_memory(memory):
++    """Fixed ±2 citation windows, exact menus, explicit states and qualified IDs.
++
++    Preserve all actions and feedback. Sources without numeric citations retain
++    all detailed steps. Outcome citations alone do not localize a state window.
++    """
++    validate_memory(memory)
++    anchors = {}
++    for entry in memory["entries"]:
++        for ref in entry["evidence"]:
++            context, local = ref.rsplit("/", 1)
++            if local == "diff":
++                continue
++            run, _, position = local.partition(":")
++            positions = anchors.setdefault(f"{context}/{run}", set())
++            if position.isdecimal():
++                positions.add(int(position))
++    view = {"format": FORMAT, "policy": {"radius": 2, "full": False, "shared_menus": True},
++            "entries": deepcopy(memory["entries"]), "sources": {}, "command_pool": {}}
++    menu_ids = {}
++    for key, source in memory["sources"].items():
++        if key.endswith("/diff"):
++            view["sources"][key] = deepcopy(source)
++            continue
++        run = source["run"]
++        count = len(run["steps"])
++        localized = anchors.get(key, set())
++        selected = set(range(1, count + 1)) if not localized else {
++            n for anchor in localized
++            for n in range(max(1, anchor - 2), min(count, anchor + 2) + 1)}
++        states = [run["initial"]]
++        for n in sorted(selected):
++            states.extend(run["steps"][n - 1][side] for side in ("before", "after"))
++        used = {s["commands_ref"] for s in states} - {None}
++        aliases = {}
++        # Preserve established pool numbering, including unused menus in full-detail sources.
++        for cid, commands in source["command_sets"].items():
++            if localized and cid not in used:
++                continue
++            encoded = json.dumps(commands, ensure_ascii=False, separators=(",", ":"))
++            if encoded not in menu_ids:
++                mid = f"menu_{len(menu_ids) + 1}"
++                menu_ids[encoded] = mid
++                view["command_pool"][mid] = deepcopy(commands)
++            aliases[cid] = menu_ids[encoded]
++
++        def state(value):
++            return {"observation": value["observation"],
++                    "commands_ref": None if value["commands_ref"] is None else aliases[value["commands_ref"]]}
++
++        context = key.rsplit("/", 1)[0]
++        trace, details = [], []
++        for n, step in enumerate(run["steps"], 1):
++            qualified = f"{context}/{step['step']}"
++            require(qualified == f"{key}:{n}", "Historical step/source identity differs")
++            trace.append({"step": qualified, "action": step["action"],
++                          "feedback": deepcopy(step["feedback"])})
++            if n in selected:
++                details.append({"step": qualified, "before": state(step["before"]),
++                                "action": step["action"], "after": state(step["after"])})
++        view["sources"][key] = {
++            "run": {"ref": run["ref"], "task": run["task"], "initial": state(run["initial"]),
++                    "trace": trace, "outcome": deepcopy(run["outcome"])},
++            "detail_reason": "reference_windows" if localized else "unlocalized_reference",
++            "detail_coverage": "complete" if len(selected) == count else "partial",
++            "windows": [{"start": start, "end": end} for start, end in ranges(selected)],
++            "omitted_detail_ranges": ranges(set(range(1, count + 1)) - selected),
++            "detailed_steps": details,
++        }
++    return view
++
++
++def project_payload(payload, memory_view=FORMAT):
++    require(memory_view in (FORMAT, LEGACY), "Unsupported Memory view")
++    result = deepcopy(payload)
++    if memory_view == FORMAT:
++        result["memory"] = compact_memory(payload["memory"])
++    return result
++
++
++def project_messages(messages, memory_view=FORMAT):
++    """Also usable by the free-replacement A arm without changing its policy."""
++    require(memory_view in (FORMAT, LEGACY), "Unsupported Memory view")
++    result = deepcopy(messages)
++    if memory_view == FORMAT:
++        payload = project_payload(json.loads(result[1]["content"]), memory_view)
++        result[1]["content"] = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
++        result[0]["content"] += "\n\n" + FORMAT_PATH.read_text(encoding="utf-8")
++    return result
+--- before/src/skill_evolution/v23_3/memory_view_prompt.md
++++ after/src/skill_evolution/v23_3/memory_view_prompt.md
+@@ -0,0 +1,36 @@
++## Historical Memory evidence view v3
++
++`memory.format = memory_evidence_view_v3` is a model-input projection, not the full
++stored archive. Entries and evidence references are unchanged. Historical edit
++sources retain the original Parent, actual Diff and execution context. A knowledge
++claim is not automatically verified by being listed.
++
++Every historical execution contains its original task, initial state, outcome and
++the complete ordered `trace` of fully qualified step IDs, actions and raw feedback.
++Every trace step and detailed step includes its historical source, for example
++S1_R03/Q4:13. Identical run/step numbers in different historical sources are
++different steps. Match the entire ID, including the historical source prefix.
++When an answer requests step IDs, copy these full IDs exactly; never remove or
++replace the historical source prefix.
++
++`detailed_steps` contains explicit records with fully qualified step IDs. Each
++record gives that exact step's `before`, `action` and `after`. Read these states
++directly. You do not need to derive a before-state from another array element.
++The step's original feedback is still in the complete trace.
++
++Every non-null `commands_ref` in an initial, before or after state is a DIRECT
++global key into `memory.command_pool`. Resolve it once there. There is no local
++C-ID mapping to look up. Global keys may be shared only when command lists have
++exactly the same contents and ordering. A null reference means unknown, not empty.
++
++`windows` lists inclusive start/end numbers describing which steps have detailed
++records. `omitted_detail_ranges` marks steps without full before/after evidence.
++Initial states and neighboring detailed records may expose additional boundary
++states, but never carry a state across an unobserved gap.
++
++The fixed numeric citation radius and conservative unlocalized-source fallback
++are unchanged. All actions, feedback and outcomes remain visible. Do not infer an
++omitted observation, inventory condition, command menu or global object absence.
++Complete action order is not complete state evidence. Cite original qualified
++source/step IDs, and state a limitation if the supplied evidence cannot justify a
++state-dependent claim. No extra evidence-reading or model-selection call exists.
+--- before/src/skill_evolution/v23_3/README.md
++++ after/src/skill_evolution/v23_3/README.md
+@@ -1,6 +1,6 @@
+ # Govern V23.3
+ 
+-状态：2026-10-20 完成 P0/P1、P1-R 和 P2 最小工程实现与离线验证；未注册默认方法，未运行真实模型或环境实验。
++状态：2026-10-21 已将通过用户验收的 Memory v3 视图接入 v23.3 Preconditioner 默认模型输入。未注册为全局默认方法；真实生成及 A/B 结果见 [本轮接入报告](../../../experiments/methods/v23_3/memory_v3_integration_001/REPORT.md)。
+ 
+ 代码基线是正式 V23 commit `08c442f202f05a25a0c30412ef89f8312df0c0f0`，不是 V23.2。复用 V23 的事实输入、Schema 校验、Unified Diff 引擎、编译器和 Editor 策略；只增加本版 Prompt、转换器与必要加载入口。
+ 
+@@ -14,7 +14,17 @@
+ - `preconditioner.run_preconditioner(grouping_directory, diagnosis_directory, directory, generate=..., memory=...)`
+ - `editor.run_editor(preconditioner_directory, directory, generate=...)`
+ 
+-每个入口均有同模块 `load_*`，并沿版本匹配的上游链恢复验证。`generate(messages, directory)` 沿用已有注入式接口；本次只使用 Fake。恢复时必须传回相同 Memory 和调用配置。大体积历史输入需显式声明合适的 `max_input_chars`，不自动截断。
++每个入口均有同模块 `load_*`，并沿版本匹配的上游链恢复验证。`generate(messages, directory)` 沿用已有注入式接口。恢复时必须传回相同 Memory、视图版本和调用配置。大体积历史输入需显式声明合适的 `max_input_chars`，不自动截断。
++
++## Memory 模型输入
++
++`memory_view.py` 在本地确定性构建 `memory_evidence_view_v3`，不增加模型调用：保留全部 active entries、原引用 sources、完整动作/反馈 trace 和结果；数字证据锚点取 ±2 详细状态窗口，无数字锚点的来源保留全部详细步骤。详细步骤显式包含 before/after；状态直接引用按完整内容及顺序共享的全局菜单；所有 trace 与详细步骤使用带历史来源的完整 ID。
++
++`preconditioner_input(saved)` 仍返回完整原始数据供 Patch 编译校验；`model_input(saved)` 返回模型视图，`messages_for(saved)` 默认发送该视图并追加通用格式说明。新归档的 `input.json` 和 `run.json.memory` 保留完整 Memory，`model_input.json` 保存实际模型输入，`run.json.memory_view` 标识版本。加载时重新投影并验证消息，再重新解析、应用 Patch 和编译；Editor 接口不变。
++
++旧归档没有 `memory_view` 时按 `entries_sources` 恢复。需要显式运行或恢复旧格式时传 `memory_view="entries_sources"`，不同版本的请求不能静默复用同一目录。原 V23 默认输入不变；A/B 的自由替换侧通过 `memory_view.project_messages(v23.messages_for(saved))` 适配，与 B 使用完全相同的 user 输入。
++
++该视图省略窗口之外的详细状态，保留遗漏范围；完整归档可用于校验，不意味着模型看到了被省略状态。格式验收接受来源计数 16/17 的非阻断误差，不放宽来源、动作、状态、菜单或引用要求。
+ 
+ `normalize_update_patches(result, payload)` 返回 `(normalized, effective_plan)`；结构拆合和新 ID 暂不支持。旧单行 text 不迁移，合法停点不进入 Editor。
+ 
+@@ -25,4 +35,4 @@
+ PYTHONDONTWRITEBYTECODE=1 python experiments/methods/v23_3/p2_offline_001/build_mock_archive.py
+ ```
+ 
+-最终回归 434 项通过，仅证明工程贯通。第二条命令使用明确标记的人工 Mock，已有归档则只重载；没有真实模型、Replay 或完整自进化入口。P2 完成后停止，P3 需另行授权。
++P2 当时最终回归 434 项通过，仅证明工程贯通。第二条命令使用明确标记的人工 Mock；其旧归档应使用旧视图恢复，当前加载器兼容这些历史结果。当前版本的回归可运行 `python -m pytest tests/skill_evolution/v23_3 tests/skill_evolution/v23`。真实模型调用、已知开发案例验证及费用分别保存在实验目录，不将离线 Mock 等同于行为收益。
+--- before/tests/skill_evolution/v23_3/test_preconditioner.py
++++ after/tests/skill_evolution/v23_3/test_preconditioner.py
+@@ -50,7 +50,9 @@
+     assert read(out / "parsed.json") == raw
+     assert read(out / "response.json") == fake.response
+     assert (out / "raw_output.txt").read_bytes().decode() == fake.response["content"]
+-    assert json.loads(fake.messages[1]["content"]) == pc.preconditioner_input(saved)
++    assert json.loads(fake.messages[1]["content"]) == pc.model_input(saved)
++    assert read(out / "model_input.json") == pc.model_input(saved)
++    assert read(out / "input.json")["memory"] == saved["memory"]
+     assert pc.load_preconditioner(out) == result
+     # Existing output reloads with matching config; no second generation.
+     assert pc.run_preconditioner(upstream[0], upstream[1], out, generate=fake,
+@@ -92,7 +94,7 @@
+ 
+ 
+ @pytest.mark.parametrize("filename", [
+-    "input.json", "messages.json", "prompt.md", "response.json", "raw_output.txt",
++    "input.json", "model_input.json", "messages.json", "prompt.md", "response.json", "raw_output.txt",
+     "parsed.json", "preconditioner.json", "effective_plan.json", "validation.json", "run.json",
+ ])
+ @pytest.mark.parametrize("mutation", ["missing", "tamper"])
+--- before/tests/skill_evolution/v23_3/test_memory_view.py
++++ after/tests/skill_evolution/v23_3/test_memory_view.py
+@@ -0,0 +1,84 @@
++"""Integration with accepted views, complete archives, and old saved runs."""
++from copy import deepcopy
++import json
++from pathlib import Path
++
++import pytest
++
++from src.skill_evolution.v23 import preconditioner as old_pc
++from src.skill_evolution.v23.memory import empty_memory
++from src.skill_evolution.v23_3 import preconditioner as pc
++from src.skill_evolution.v23_3.memory_view import FORMAT, LEGACY, compact_memory, project_messages
++from tests.skill_evolution.v23_3.helpers import Fake, keep, read
++from tests.skill_evolution.v23_3.test_preconditioner import upstream
++
++ACCEPTED = Path("experiments/methods/v23_3/memory_compaction_v3_validation_001")
++ORIGINAL = ACCEPTED.parent / "memory_compaction_offline_001"
++
++
++@pytest.mark.parametrize("case", ["R04", "R05", "R06", "P3A_A", "P3A_B"])
++def test_projection_equals_accepted_view_exactly(case):
++    full = read(ORIGINAL / "cases" / case / "original_payload.json")["memory"]
++    untouched = deepcopy(full)
++    assert compact_memory(full) == read(ACCEPTED / "cases" / case / "compact_payload.json")["memory"]
++    assert full == untouched
++
++
++def test_empty_memory_and_invalid_source():
++    assert compact_memory(empty_memory())["sources"] == {}
++    full = read(ORIGINAL / "cases/R05/original_payload.json")["memory"]
++    full["sources"]["S1_R03/Q6"]["run"]["steps"][25]["step"] = "Q5:26"
++    with pytest.raises(ValueError):
++        compact_memory(full)
++
++
++def test_same_ab_input_and_unchanged_original_policy(upstream):
++    saved = upstream[2]
++    a = project_messages(old_pc.messages_for(saved))
++    b = pc.messages_for(saved)
++    assert a[1] == b[1]
++    assert a[0]["content"].startswith(old_pc.messages_for(saved)[0]["content"])
++    assert b[0]["content"].startswith(pc.messages_for(saved, memory_view=LEGACY)[0]["content"])
++    assert json.loads(b[1]["content"])["memory"]["format"] == FORMAT
++    assert "format" not in old_pc.preconditioner_input(saved)["memory"]
++
++
++def test_old_archive_and_editor_still_reload():
++    root = Path("experiments/methods/v23_3/p2_offline_001/mock_chain")
++    saved = pc.load_preconditioner(root / "preconditioner")
++    assert "memory_view" not in read(root / "preconditioner/run.json")
++    assert read(root / "preconditioner/messages.json") == pc.messages_for(saved, memory_view=LEGACY)
++    from src.skill_evolution.v23_3.editor import load_editor
++    assert load_editor(root / "editor")["effective_plan"] == saved["effective_plan"]
++
++
++def test_archive_view_version_resume_and_tamper(upstream):
++    gd, dd, saved, out = upstream
++    fake = Fake(keep())
++    result = pc.run_preconditioner(gd, dd, out, generate=fake, memory=saved["memory"],
++                                  max_input_chars=4000000)
++    assert result["memory"] == saved["memory"]
++    assert read(out / "run.json")["memory_view"] == FORMAT
++    with pytest.raises(ValueError):
++        pc.run_preconditioner(gd, dd, out, generate=fake, memory=saved["memory"],
++                              memory_view=LEGACY, max_input_chars=4000000)
++    assert fake.calls == 1
++    meta = read(out / "run.json")
++    meta["memory_view"] = "unknown"
++    (out / "run.json").write_text(json.dumps(meta))
++    with pytest.raises(ValueError):
++        pc.load_preconditioner(out)
++    # Removing the version must not allow a compact archive to masquerade as legacy.
++    del meta["memory_view"]
++    (out / "run.json").write_text(json.dumps(meta))
++    with pytest.raises(ValueError):
++        pc.load_preconditioner(out)
++
++
++def test_new_explicit_legacy_archive(upstream):
++    gd, dd, saved, out = upstream
++    fake = Fake(keep())
++    result = pc.run_preconditioner(gd, dd, out, generate=fake, memory=saved["memory"],
++                                  memory_view=LEGACY, max_input_chars=4000000)
++    assert read(out / "model_input.json") == old_pc.preconditioner_input(saved)
++    assert pc.load_preconditioner(out) == result

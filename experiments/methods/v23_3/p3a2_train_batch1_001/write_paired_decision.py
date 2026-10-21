@@ -1,0 +1,49 @@
+"""Final decision from verified paired metrics, no model or environment calls."""
+from .run import HERE,read,now
+
+
+def main():
+    metrics=read(HERE/'final_metrics.json');data=read(HERE/'analysis.json')
+    agg=metrics['aggregate'];assert 'B' in agg
+    rows={(r['ref'],r['arm']):r for r in data['rows']};tot=data['totals']
+    gains={};losses={}
+    for arm in ['A','B']:
+        gains[arm]=[f'P{i}' for i in range(1,7) if not rows[(f'P{i}','Parent')]['native_success'] and rows[(f'P{i}',arm)]['native_success']]
+        losses[arm]=[f'P{i}' for i in range(1,7) if rows[(f'P{i}','Parent')]['native_success'] and not rows[(f'P{i}',arm)]['native_success'] and rows[(f'P{i}',arm)]['episode_complete']]
+    summary='；'.join(f"{arm} 成功 {v['success']}/6、{v['steps']} 步" for arm,v in agg.items())
+    paired=metrics['valid_three_way_pairs']
+    text=f'''# P3-A2 最终阶段决策（A2/B7 授权恢复后）
+
+**第七次 B 生成首次完整有效，两个 Editor 各一次成功，已完成三方 Replay。** {summary}。三方有效配对 {paired}/6。首次 A/B 都是契约失败；A 用2次、B用7次生成才取得首个有效方案，不能视为等预算一次生成的端到端方法对照。全部失败与成本保留。
+
+1. **第一批六条任务是否执行？** 固定 Batch-1 六例，没有重抽样/替换。Parent/A/B 正常结束分别 {agg['Parent']['complete']}/6、{agg['A']['complete']}/6、{agg['B']['complete']}/6，完整轨迹和技术记录在归档。任务此前未参与已核查范围内的方法开发，但已用于本轮 Diagnosis，Replay 属于本轮训练内检验，不是独立 Test 泛化证明。
+2. **有效配对？** 三方 {paired}/6；各配对数 {metrics['valid_pairs']}。实例、初始状态、Actor模型/参数/协议/实现匹配。Parent 前三例串行，后续改四并发，B 连续429后自动降单并发；真实调度时点差异须保留为限制。
+3. **A/B 如何更新 Skill？** A2 重写 u1/u2，按不同类别首轮搜索、近期重复后换类；B7 Keep u1、调整 u2 的局部触发/备选条件，允许未检查关闭容器。两份 Editor actual.diff 将相应要求落实，Candidate 不相同。
+4. **B 是否生成真实 Patch？** 是，B7 原样应用、原编译和严格重载均通过。前六次失败不删除：多余字段两次、理由引用三次、Diff 原文不匹配一次。B7 是首个有效，不是从多个有效方案择优。
+5. **Keep 是否充分？** u1 的扩大搜索方向有当前 P1 与 M6/M9 正例支持，但“所有候选打开”、完整访问集合、频率主张并未解决；不能同意模型所谓没有确定缺陷。保留 u1 也不代表 Editor 不修改 Skill。
+6. **是否减少附带承诺？** 相对选定 A2，B7 避免把位置级完成条件改成每类别一次，并保留同类新实例搜索，是较合适边界的局部线索。B7 的 untried/global coverage、局部触发误报和未协调 Checks 仍有问题；其他 B 失败提案也包含强排序/阈值。不能将首个有效的局部优点推成方法稳定优势。
+7. **Memory 是否参与？** 实际理由明确利用 M3/M6/M9 的旧编辑混合响应和条款不可靠性；历史支持重新考虑触发、保留同类实例边界。当前轨迹本身也支持减少循环，没有无 Memory 消融，不能确认历史的因果增量。
+8. **Editor 是否落实？** 两组原校验及 upstream 严格重载通过，主要要求忠实落实。A 的类别终点与 B 的位置终点来自各自 Effective；B 未改 u1 的风险也照样进入 Skill。两组没有新增完整 heat/cool 流程，成功不能归因于新增温控条款。
+9. **真实任务哪组更好？** {summary}。相对 Parent 新成功：{gains}；正常结束中的原成功退化：{losses}。详细逐例步骤、覆盖、重复、目标获取与处理见 REPLAY_REPORT.md。次数少、生成机会不等，不能直接推出稳定性能排序。
+10. **失败性质？** Diagnosis 401 是无输出技术失败，经用户授权恢复；A1/B1–B6 是生成后的契约失败；正常 step_limit 是行为结果；A P6 动作格式错误产生候选外动作，未重采样。Actor 候选外动作 A={agg['A']['invalid']}、B={agg['B']['invalid']}，Nothing happens A={agg['A']['nothing']}、B={agg['B']['nothing']}；技术不完整与行为失败分别统计。
+11. **429 是否恢复？** 本轮 HTTP429 {tot['http_429']} 次；具体调用与恢复见 B_429_recovery_audit.json 和 RETRY_REPORT.md。重试仅在同一步发送相同请求，不提交重复环境动作；连续429触发预注册单并发。未突破每调用5次、累计等待上限或重置预算。
+12. **共同瓶颈？** 原校验兼容性/引用表达成本突出；有限历史与全局已访要求仍矛盾；“缺目标”被模型误称“空”的当前证据错误未消失。实际剩余搜索循环、遗漏和目标未发现以逐例轨迹为准，不能只看理由文字更合理。
+13. **支持继续研究方向/范围/关联吗？** 支持：B7 保留位置级终点和未检查关闭容器的边界值得检验，但局部触发仍不能保证完整覆盖；Checks c1 原样偏向换表面/设备，与 B7 允许新容器存在张力。新策略探索、必要配套和无依据附带承诺要继续分别评估。
+14. **下一步 Batch-2 还是先处理问题？** 建议先单独冻结新研究阶段处理反复出现的输出契约/引用边界，并验证有限历史下哪些搜索条件确实可观察。以本批已暴露问题作为开发回归，随后再一次性运行未参与修改的 Batch-2；不修改本轮历史输出或把修复后结果混回本轮。不自动启动下一阶段。
+
+## 对核心研究问题的回答
+
+**更新决策质量：** B7 的目标调整较集中，避开了 A2 缺乏充分依据的完成边界变更，并允许具体局部探索；仍有全局条件残留、Keep 遗留问题、事实错误和 Checks 张力。七次才首次有效，不能宣称整体方法已更可靠。
+
+**Editor 落实质量：** 两组都可原样生成并验证 Candidate；差异确实进入 Skill。工程通过与策略合理性分开。
+
+**ALFWorld 表现：** {summary}。需同时看成功、步数、循环及必要行为，不能由 Patch 粒度或理由推断收益。没有 Memory 消融、重复随机试验或最终 Test，本轮不支持稳定优越性/泛化声明。
+
+最值得做的一项后续实验：在单独预注册的新阶段固定 Original、Parent、Memory、当前证据和模型，对 A/B 设置相同次数预算，分别统计未经修补的契约通过率与语义质量；若修改引用/Schema 接口，则记录为新版本并冻结共同规则。后续行为评估使用预留任务，不能把七次机会的首个有效样本当作一次采样质量。
+
+本轮结束：不运行 Batch-2、Gate，不更新 Memory，不进入完整自进化。版本保护和成本核查见 FINAL_PROTECTION_CHECK.json、RETRY_REPORT.md。更新时间 {now()}。
+'''
+    (HERE/'P3A2_DECISION.md').write_text(text)
+
+
+if __name__=='__main__':main()

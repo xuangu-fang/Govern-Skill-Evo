@@ -1,0 +1,77 @@
+{
+  "decision": "ready",
+  "reason": "The Original u1/u2 correctly aim at broad search and anti-cycling, but current executions show the same failure pattern persists. In P1 the Actor only reaches the box on coffeetable 1 at P1:36 after cycling through empty cabinets and drawers from P1:15 onward. P3 and P6 hit the step limit: P3 repeatedly cycles cabinets and countertop, and P6 repeatedly revisits empty drawers, dresser, and sidetables while never testing diningtable, sofa, armchair, ottoman, or other listed surfaces. Historical Memory M3, M6, and M9 independently report that preference-style anti-revisit wording was not reliably followed and did not break cycling. I therefore replace the preference wording with two executable local rules. u1 makes the container/non-container distinction explicit and forbids two consecutive container go-to actions. u2 confines anti-revisit and diversity to what the Actor can see in the current and last two observations. This is a testable behavioral hypothesis, not a proven improvement; P3/P6 may also lack the exact target, and one trial per task limits attribution. Exact-target/no-substitute, cleaning/cooling/heat, placement, and desklamp co-location remain covered outside these Updates.",
+  "adjustments": [
+    {
+      "from": [
+        "u1"
+      ],
+      "to": [
+        {
+          "id": "u1",
+          "patch": "--- a/SKILL.md\n+++ b/SKILL.md\n@@ -1,3 +1,4 @@\n-- When the exact requested target is not visible at the start, search all plausible receptacle categories, not only closed cabinets and drawers: also inspect open surfaces (coffeetable, diningtable, sidetable, dresser top, countertop, sofa, armchair, ottoman) and appliances (fridge, microwave, stoveburner, sinkbasin, toaster, coffeemachine), because targets are frequently placed plainly visible on a surface or in an appliance.\n-- Inspect each candidate receptacle on first arrival (open it and read its contents) and prefer a candidate you have not yet observed over one you have already seen empty.\n-- Continue this first pass until the exact target, or the required number of target instances for a multi-target task, is located, or until all reachable candidate receptacles have been inspected once.\n+- When the exact requested target has not yet been acquired, search by receptacle type using the admissible `go to` list, and avoid long runs of the same category.\n+- Classify cabinet, drawer, fridge, and microwave as closed containers requiring an open action; classify diningtable, coffeetable, sidetable, sofa, armchair, bed, dresser, countertop, stoveburner, sinkbasin, toaster, and coffeemachine as non-container surfaces/appliance tops.\n+- When you go to a closed container, open it on arrival and read its contents. After that container visit, the next `go to` must be a non-container surface/appliance if one is available from the admissible list; otherwise choose a different container type. Do not take two consecutive container `go to` actions. On reaching either category, take the exact target immediately if it is visible.\n+- Continue this alternating pass until the exact target (or the required number of target instances for a multi-target task) is acquired, or until every available candidate location from the admissible list has been visited once.\n"
+        }
+      ],
+      "basis": [
+        "P1:15",
+        "P1:36",
+        "P3:37",
+        "P3:outcome",
+        "P6:15",
+        "P6:50",
+        "P6:outcome",
+        "G1",
+        "M6",
+        "M9"
+      ],
+      "reason": "Current P6 shows the Actor staying in drawer/dresser/sidetable cycles and never issuing `go to` to diningtable, sofa, armchair, ottoman, or garbagecan, even though those locations are in the admissible list. P3 similarly cycles cabinets and countertop without inspecting many appliances or surfaces. P1 only finds the box after first exhausting empty cabinets and drawers and reaching coffeetable 1 at P1:36. Memory M6 and M9 report that broadening language alone did not reliably overcome container-local cycling. The patch replaces the recommendation with a locally checkable schedule: classify closed containers versus non-container surfaces/appliances and require a non-container go-to after any container go-to, with an explicit fallback. This is an unverified search-order hypothesis; it cannot guarantee the target exists, and P1 success shows the old text was not universally wrong."
+    },
+    {
+      "from": [
+        "u2"
+      ],
+      "to": [
+        {
+          "id": "u2",
+          "patch": "--- a/SKILL.md\n+++ b/SKILL.md\n@@ -1,3 +1,3 @@\n-- After inspecting a receptacle that visibly lacks the exact target, do not re-open or re-walk a receptacle you have already confirmed empty; next travel to a receptacle that does not appear in your recent observation/action history and whose contents you have not yet seen.\n-- Do not cycle back and forth among the same small set of receptacles; before making any second pass over a container cluster, complete one inspection of the remaining untested receptacle types or instances.\n-- Treat a run of steps that only revisits already-open, empty containers as a stuck-search signal: break the pattern by moving to an uninspected surface or appliance instead of repeating the loop.\n+- After inspecting a receptacle that visibly lacks the exact target, do not choose `go to`/`open` on that same receptacle again; if the observation shows it is already open and empty, treat it as checked and choose a different admissible `go to` target instead.\n+- Do not cycle back and forth among the same small set of receptacles. If the last two observations show the same receptacle category, choose a different category from the admissible list, preferring one that does not appear in those two observations; if none exists, move to a different receptacle instance that is not shown as already open and empty.\n+- Treat a run of two steps whose observations both show opened, empty containers as a stuck-search signal: break it by moving to a different receptacle category, even if no target has yet been seen there.\n"
+        }
+      ],
+      "basis": [
+        "P1:15",
+        "P3:48",
+        "P6:17",
+        "P6:26",
+        "P3:outcome",
+        "P6:outcome",
+        "M3",
+        "M6",
+        "M9"
+      ],
+      "reason": "P1:15 re-enters cabinet 1 already shown open and empty. P3:48 re-enters cabinet 1 after repeated empty visits. P6:17 and P6:26 re-enter drawer 1 after already opening it. Memory M3 and M6 specifically note that the 'do not immediately revisit an already-open empty receptacle' wording was not reliably followed, and M9 shows cycling persisted when requested instances were absent. The old phrase 'whose contents you have not yet seen' is not projectable beyond the Actor's last-two-observation memory, so the patch narrows the requirement to the current observation and the last two observations, and adds a same-category diversity rule. Exact-target and completion requirements are untouched."
+    }
+  ],
+  "checks": [
+    {
+      "id": "c1",
+      "update_ids": [
+        "u1"
+      ],
+      "question": "When the exact target has not been acquired, does the Actor alternate between closed containers and non-container surfaces/appliances (never two consecutive container go-to actions), rather than opening a long run of cabinets or drawers?"
+    },
+    {
+      "id": "c2",
+      "update_ids": [
+        "u2"
+      ],
+      "question": "After an observation shows an open, empty container or an already-checked receptacle, does the Actor avoid re-walking that same receptacle and choose a different admissible category or instance, rather than repeating the empty loop?"
+    },
+    {
+      "id": "c3",
+      "update_ids": [
+        "u1",
+        "u2"
+      ],
+      "question": "Does the Actor still acquire and use the exact requested target (or required count), perform any required clean/cool/heat action at the correct appliance, reach the requested destination within the step budget, and preserve desklamp co-location in desklamp-conditioned tasks, without substituting a similar object or regressing those capabilities?"
+    }
+  ]
+}
