@@ -1,0 +1,64 @@
+{
+  "adjustments": [
+    {
+      "target": "u1",
+      "focus": [
+        "S"
+      ],
+      "change": "Reframe the search preference so it is usable with the Actor's limited history: prefer a destination outside the recent empty sequence, open closed containers including a plausible fridge before judging them empty, and avoid turning closed-container priority into an exhaustive same-class sweep; preserve immediate pickup and transform-before-delivery.",
+      "reason": "The `P6` run ended at the step limit after cycling cabinets and countertop 1 (`P6:24`, `P6:28`, `P6:32`, `P6:38`) without ever opening the fridge; `P7:22`, `P7:50`, `P10:28`, and `P10:45` show similar repeated sweeps. `P2:12` shows a fridge containing plate 2 and mug 2, making it a plausible holder for the plate/mug targets in `P6` and `P10`. `M3` reports that a prior class-priority container search kept the Candidate inside one large container class and never selected surfaces holding the target, producing step-limit regressions. The execution protocol also gives the Actor only the current observation and the last two pre-action pairs, so global conditions about remaining unopened or all previously observed locations are not reliably usable. The revision keeps the useful fridge/closed-container preference but makes it recent-history based, permits surfaces and other classes, and preserves the successful pickup/transform order. The exact contents of the unopened fridges in `P6` and `P10` remain unobserved; their relevance rests on `P2:12`.",
+      "to": {
+        "patch": "--- a/SKILL.md\n+++ b/SKILL.md\n@@\n-- When the required goal object has not been found on any surface or container already observed, treat the remaining unopened closed containers (cabinets, drawers, fridge) as the priority and open them, rather than returning to open surfaces that were already observed empty.\n-- In particular, before falling back to any repeated location, go to the fridge and open it: the fridge is a closed container that has been observed to hold target-type items (e.g., plate 2 and mug 2 in P2:12), so it must be inspected during search for a not-yet-seen object.\n-- Choose the next destination from the admissible list so that it is a closed container or goal-relevant appliance that has not just been inspected, instead of a surface you have already seen to be empty.\n-- Once the goal object is found, take it immediately and proceed to the required transform, keeping the existing transform-before-delivery order.\n+- When the required goal object has not been found, prefer going to a closed container or to a surface outside the recent empty sequence, and open any closed container at that destination before judging it empty, rather than returning to a location just observed empty.\n+- If the target is a type the fridge can hold (for example food, a plate, or a mug), and the fridge is not one of the locations just inspected empty, inspect it (opening it if closed) before repeating cabinet, drawer, or surface sweeps that have just produced nothing.\n+- Do not let the closed-container priority become an exhaustive sweep of one large container class: when the recent locations are all empty cabinets or drawers, choose a surface (countertop, shelf, diningtable) or a different container/appliance class outside that recent sequence as the next destination.\n+- Once the goal object is found, take it immediately and proceed to the required transform, keeping the existing transform-before-delivery order.\n"
+      }
+    },
+    {
+      "target": "u2",
+      "focus": [
+        "S"
+      ],
+      "change": "Replace full cycle detection with a feasible local rule: when the current and two most recent locations produced no required object and are the same container class, switch to a different class; avoid destinations in the last two pairs unless a necessary revisit is required; allow revisits needed for transforms or held objects.",
+      "reason": "The current failures show repeated travel: `P6:24`, `P6:28`, `P6:32`, and `P6:38` cycle among cabinets and countertop 1, while `P10:28` and `P10:45` repeat countertop/cabinet sweeps. The Original's four-site loop examples require remembering locations older than the last two pre-action pairs, which the Actor cannot do. `M3` also reports that a last-two anti-revisit clause alone left three-or-more-site cycles and that class-priority sweeps caused failures. The revised rule detects same-class empty sweeps from visible history and forces a class switch, while preserving necessary revisits. A possible tradeoff is less depth within one class, but the observed failures are specifically repeated same-class travel under the step budget.",
+      "to": {
+        "patch": "--- a/SKILL.md\n+++ b/SKILL.md\n@@\n-- Avoid non-consecutive cycles as well as consecutive repeats: if the destinations you are selecting form a repeating loop that produces no new object (e.g., cabinet 1 -> cabinet 2 -> cabinet 4 -> cabinet 3 -> cabinet 1 in P6:24-49, or the repeated cabinet 1/2/3 sweep with countertop 1 in P10:28-45), stop that loop.\n-- To break the loop, select an admissible destination that is outside the cycle and is a container or appliance you have not recently checked, so that search coverage expands rather than repeats.\n-- This does not forbid a single necessary revisit to retrieve a held object or apply a transform; it targets repeated unproductive travel among the same locations.\n+- Break unproductive repetition using the visible history: if the current location and the two most recent locations produced no required object and are instances of the same class (for example cabinets or drawers), do not choose another instance of that class when an admissible destination of a different class (fridge, shelf, countertop, diningtable, or another container/appliance type) is available.\n+- Do not choose a destination that appears in the last two observation/action pairs unless you must return to retrieve a held object or apply a required transform.\n+- This targets repeated unproductive travel among the same locations; a single necessary revisit for a held object or a transform is allowed.\n"
+      }
+    },
+    {
+      "target": "u3",
+      "focus": [],
+      "change": "KEEP",
+      "reason": "Current successful runs show direct transforms while holding: `P1:7` clean, `P2:27` cool, `P5:33` cool, and `P8:6` heat. The adverse `P9:7`, `P9:8`, `P9:11`, and `P9:13` sequence moves the egg into the microwave and toggles it, but u3 already requires applying the transform to the held object and forbids idle open/close toggling; this is non-adherence rather than a defect in the proposal. The preservation boundary that the state change must complete before delivery remains supported by the successful runs.",
+      "to": null
+    }
+  ],
+  "checks": [
+    {
+      "id": "c1",
+      "update_ids": [
+        "u1"
+      ],
+      "question": "When the goal object has not been found, does the actor prefer a destination outside the recent empty sequence, open closed containers including a plausible fridge before judging them empty, and avoid an exhaustive same-class sweep while still taking a found object immediately?"
+    },
+    {
+      "id": "c2",
+      "update_ids": [
+        "u2"
+      ],
+      "question": "When the current and two most recent locations are empty and of the same container class, or a destination is in the last two pairs, does the actor switch to a different class or outside destination rather than continuing the repetition, while allowing necessary revisits for transforms or held objects?"
+    },
+    {
+      "id": "c3",
+      "update_ids": [
+        "u3"
+      ],
+      "question": "Does the actor apply the transform directly to the held object at the appliance without moving it into the appliance or toggling open/closed, and complete the transform before delivery?"
+    },
+    {
+      "id": "c4",
+      "update_ids": [
+        "u1",
+        "u3"
+      ],
+      "question": "Does the actor still take a visible required object immediately and deliver the transformed object directly to the target receptacle, preserving the successful behavior of completed runs?"
+    }
+  ]
+}

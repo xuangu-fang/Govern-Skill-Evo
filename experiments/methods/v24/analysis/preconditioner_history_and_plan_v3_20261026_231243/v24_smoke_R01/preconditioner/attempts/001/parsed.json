@@ -1,0 +1,54 @@
+{
+  "adjustments": [
+    {
+      "target": "u1",
+      "focus": [
+        "D",
+        "S",
+        "C"
+      ],
+      "change": "Replace the memory-dependent cycle-avoidance clause with a local rule: when arriving at an already-open container, treat it as searched, do not examine or close/reopen it, and immediately proceed to a different location, preferably a closed container or the next location in the admissible \"go to\" list. Remove the \"not opened by your immediately preceding action\" exception and the requirement to remember previously inspected containers. Preserve the search-phase-only condition and the no-application-while-carrying condition.",
+      "reason": "The original u1 required the Actor to know whether a container was opened by its immediately preceding action and to avoid cycles through containers already observed open or empty. The execution context provides only the current observation, admissible actions, and the last two observation/action pairs, so the Actor cannot reliably track the set of already-observed containers across a pass. In `P6`, the Actor repeatedly navigated to already-open drawers (e.g., `P6:14`, `P6:23`, `P6:32`, `P6:38`). The admissible \"go to\" list (e.g., `C37`) provides a stable ordered checklist that can be used with the immediately preceding action to choose the next location without global memory. Removing the \"not opened by your immediately preceding action\" exception and the memory-dependent cycle clause makes the rule usable. This is a feasibility correction; Memory is empty. The rule remains limited to the search phase and does not apply once the required object is carried.",
+      "to": {
+        "patch": "--- a/SKILL.md\n+++ b/SKILL.md\n@@\n-- During the search phase for a still-missing required object or tool, when you arrive at a container (drawer/cabinet/fridge) that is already open and was not opened by your immediately preceding action, treat it as already searched: do not re-examine its contents and do not re-open it.\n-- Instead, move to a closed container and open it to check its contents, or to a location not observed earlier in the current search pass.\n-- Do not complete or repeat a cycle back through a set of containers already observed open or empty; if the most recent observed locations are containers you have already seen open, switch to a different, not-yet-inspected location.\n-- This rule applies only while the required object or tool is still missing; it does not apply once you are carrying the required object and are looking for the placement receptacle.\n+- During the search phase for a still-missing required object or tool, when you arrive at a container (drawer/cabinet/fridge) that is already open, treat it as already searched: do not examine it again and do not close or re-open it. Instead, immediately leave and proceed to a different location, preferably a closed container or the next location in the admissible \"go to\" list.\n+- Do not repeat a cycle back through containers already seen open or empty; continue forward through the admissible \"go to\" list rather than returning to a container you have already visited in the current pass.\n+- This rule applies only while the required object or tool is still missing; it does not apply once you are carrying the required object and are looking for the placement receptacle.\n"
+      }
+    },
+    {
+      "target": "u2",
+      "focus": [
+        "D",
+        "S",
+        "C"
+      ],
+      "change": "Replace the requirement to track 'not yet inspected in this pass' with a checklist-order traversal: during search, start with the first location in the current admissible \"go to\" list and proceed to each next location in order, opening closed containers upon arrival. After a location is checked without finding the target, continue to the next list location rather than re-traversing checked locations. Preserve the acquisition/delivery behavior: once the target is visible, take it immediately and go directly to the required next location (desklamp or destination receptacle) without further search moves.",
+      "reason": "The original u2 required the Actor to know which locations had not yet been inspected in the current pass. The Actor's protocol provides only the current observation, admissible actions, and the last two observation/action pairs; it cannot maintain a global set of inspected locations. In `P6`, the Actor cycled through drawers 1-6 and shelves 1-2 multiple times (e.g., `P6:23`, `P6:24`, `P6:25`, `P6:26`, `P6:27`, `P6:28`, `P6:32`, `P6:33`, `P6:34`, `P6:35`, `P6:36`, `P6:37`, `P6:38`, `P6:39`, `P6:40`, `P6:41`, `P6:42`, `P6:43`, `P6:44`) instead of progressing to sidetable 1, which was the next uninspected location in the admissible list `C37`; it found the cellphone only at `P6:45` and `P6:46`. Similar cycling appears in `P8:2` through `P8:12` before finding the pencil on shelf 1; see `P8:2`, `P8:7`, `P8:12`. The admissible \"go to\" list is a stable ordered checklist available at every step; using it with the immediately preceding action allows systematic progression without global memory. This correction addresses the observed inefficiency and makes the rule usable under the Actor's information access. It preserves the successful acquisition/delivery behavior shown in `P6:46`, `P6:48`, `P8:13`, `P8:15`, `P10:12`, `P10:14`, `P1:2`, `P1:4`, `P5:17`, `P5:18`, `P9:2`, `P9:4`.",
+      "to": {
+        "patch": "--- a/SKILL.md\n+++ b/SKILL.md\n@@\n-- During the search phase, after checking the closed containers and surfaces currently reachable, if the required object or tool is still missing, proceed to a location or furniture type that has not yet been inspected in this pass (e.g., a sidetable, dresser, coffeetable, armchair, sofa, bed, or garbagecan) rather than re-traversing locations already checked.\n-- Each successive search destination should be a location that could plausibly hold the missing object/tool and has not already been observed in the current pass; do not re-enter the same limited subset of locations repeatedly.\n-- Once the required object or tool becomes visible, stop searching: take it immediately, and then go directly to the required next location (the desklamp for examine tasks, or the destination receptacle for pick-and-place) without further search moves.\n+- During the search phase, when the required object or tool is still missing, start with the first location in the current admissible \"go to\" list and then traverse the remaining locations in the order they appear. After checking a location and not finding the target, proceed to the next location in that list rather than re-traversing locations already checked.\n+- Open closed containers when you arrive at them to check their contents.\n+- Do not re-enter the same limited subset of locations repeatedly; if you reach the end of the list without finding the target, continue searching other locations that could plausibly hold it rather than repeating the same cycle.\n+- Once the required object or tool becomes visible, stop searching: take it immediately, and then go directly to the required next location (the desklamp for examine tasks, or the destination receptacle for pick-and-place) without further search moves.\n"
+      }
+    }
+  ],
+  "checks": [
+    {
+      "id": "c1",
+      "update_ids": [
+        "u1"
+      ],
+      "question": "During search, when the Actor arrived at an already-open container, did it avoid examining or closing/reopening it and immediately proceed to a different location, preferably the next in the admissible \"go to\" list?"
+    },
+    {
+      "id": "c2",
+      "update_ids": [
+        "u2"
+      ],
+      "question": "During search, did the Actor start with the first location in the admissible \"go to\" list and then proceed to the next locations in order, opening closed containers upon arrival, rather than repeating cycles over already-checked locations?"
+    },
+    {
+      "id": "c3",
+      "update_ids": [
+        "u1",
+        "u2"
+      ],
+      "question": "Once the required object or tool became visible, did the Actor take it immediately and go directly to the desklamp (examine tasks) or the destination receptacle (pick-and-place) without further search moves?"
+    }
+  ]
+}

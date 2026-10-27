@@ -1,0 +1,66 @@
+{
+  "adjustments": [
+    {
+      "target": "u1",
+      "focus": [
+        "D",
+        "S"
+      ],
+      "change": "Keep the priority on not-yet-inspected closed containers (including the fridge) over re-checking locations already observed empty, but widen the object of that preference from 'closed container or goal-relevant appliance' to any not-yet-inspected location, explicitly including surfaces not yet observed; condition the fridge clause on the fridge not yet having been opened; retain the take-immediately and transform-before-delivery requirement.",
+      "reason": "The current `G2` failures (`P6`, `P7`, `P10`) hit the step limit (`P6:50`, `P7:50`, `P10:50`) while repeatedly re-entering locations already seen to contain nothing (`P6:24`, `P6:28`, `P6:32`, `P6:38`; `P7:23`, `P7:28`; `P10:29`, `P10:35`) and never opening the fridge, although the fridge is present and was observed to hold target-type items (`P2:12`, plate 2 and mug 2); `P5` only succeeded after its cabinet sweep reached cabinet 9 (`P5:30`, `P5:31`). This supports retaining priority on unopened closed containers, including the fridge. However `M3` reports that a container-class-priority sweep made a candidate stay inside one container class and never try surfaces that held the target (`M3`, evidence `S1_R02/P7:1`, `S1_R02/P7:2`, `S1_R02/Q7:1`, `S1_R02/Q7:39`), so the object of the preference is widened to any not-yet-inspected location (surfaces included) and the fridge clause is made conditional on its not having been opened. `M3` also reports no detour where a direct route was already followed (`S1_R01/P9:2`, `S1_R01/P9:4`). The completed-run behaviors (immediate pickup, transform before delivery) are preserved. Whether the widened preference measurably improves coverage within the budget is an unverified hypothesis.",
+      "to": {
+        "patch": "--- a/SKILL.md\n+++ b/SKILL.md\n@@\n-- When the required goal object has not been found on any surface or container already observed, treat the remaining unopened closed containers (cabinets, drawers, fridge) as the priority and open them, rather than returning to open surfaces that were already observed empty.\n-- In particular, before falling back to any repeated location, go to the fridge and open it: the fridge is a closed container that has been observed to hold target-type items (e.g., plate 2 and mug 2 in P2:12), so it must be inspected during search for a not-yet-seen object.\n-- Choose the next destination from the admissible list so that it is a closed container or goal-relevant appliance that has not just been inspected, instead of a surface you have already seen to be empty.\n+- When the required goal object has not been found on any surface or container already observed, prefer not-yet-inspected locations - the remaining unopened closed containers (cabinets, drawers, fridge) and surfaces not yet observed - over returning to open surfaces or containers that were already observed empty.\n+- In particular, if the closed fridge has not yet been opened, go to the fridge and open it before falling back to any repeated location: the fridge is a closed container that has been observed to hold target-type items (e.g., plate 2 and mug 2 in P2:12) and went unopened in budget-exhausting runs (P6, P7, P10).\n+- Choose the next destination from the admissible list so that it is a location not yet inspected in this search - an unopened closed container (especially the fridge) or a not-yet-observed surface - instead of a location you have already seen to be empty.\n - Once the goal object is found, take it immediately and proceed to the required transform, keeping the existing transform-before-delivery order.\n"
+      }
+    },
+    {
+      "target": "u2",
+      "focus": [
+        "D",
+        "S"
+      ],
+      "change": "Narrow the cycle-breaking trigger to what the actor's recent observations can support (do not return to a location just shown to contain no new object), and change the break action to select a destination that expands coverage - an unopened closed container (especially the fridge) or a not-yet-observed surface - rather than a 'container or appliance not recently checked'; retain the carve-out for a single necessary revisit.",
+      "reason": "Current runs show repeated non-adjacent travel with no new object (`P6:24`-`P6:49`; `P7:23`, `P7:28`; `P10:29`, `P10:35`), matching the original concern. But `M3` reports that a literal last-two anti-revisit restriction did not remove cycles of three or more sites, and that the actor sees only the current observation, the admissible actions and the last two observation/action pairs with no persistent notes (`M3`, evidence `S1_R02/Q4:21`, `S1_R02/Q4:50`, `S1_R02/Q8:44`, `S1_R02/Q8:50`), and that joint anti-revisit/search guidance did not uniformly reduce sweeps (`M3`, evidence `S1_R01/Q6:14`, `S1_R01/Q6:23`, `S1_R01/Q8:7`, `S1_R01/Q8:9`). The trigger is therefore narrowed to returns detectable from recent observations, and the break destination is re-pointed to a location that expands coverage (an unopened closed container, notably the fridge, or a not-yet-observed surface), consistent with the widened preference in `u1`. The necessary-revisit carve-out is preserved. Whether this weaker, feasible trigger actually reduces cycling is an unverified hypothesis.",
+      "to": {
+        "patch": "--- a/SKILL.md\n+++ b/SKILL.md\n@@\n-- Avoid non-consecutive cycles as well as consecutive repeats: if the destinations you are selecting form a repeating loop that produces no new object (e.g., cabinet 1 -> cabinet 2 -> cabinet 4 -> cabinet 3 -> cabinet 1 in P6:24-49, or the repeated cabinet 1/2/3 sweep with countertop 1 in P10:28-45), stop that loop.\n-- To break the loop, select an admissible destination that is outside the cycle and is a container or appliance you have not recently checked, so that search coverage expands rather than repeats.\n+- Avoid repeated unproductive travel: when your most recent observations already showed that a location you are about to revisit contained no new object, do not return there. Instead, select an admissible destination that expands coverage - an unopened closed container (especially the fridge) or a not-yet-observed surface - rather than a location you have already seen to be empty.\n+- If your recent observations do not reveal a not-yet-inspected location, choose an admissible destination other than the one you just visited, so that the search does not cycle among the same few sites.\n - This does not forbid a single necessary revisit to retrieve a held object or apply a transform; it targets repeated unproductive travel among the same locations.\n"
+      }
+    },
+    {
+      "target": "u3",
+      "focus": [],
+      "change": "KEEP",
+      "reason": "Every supplied transform run that applied the state change directly to the held object succeeded (`P1:7` clean, `P2:27` cool, `P3:6`, `P4:13`, `P5:33`, `P8:6` heat while holding, `P9:13`), with outcomes success in `P1`, `P2`, `P3`, `P4`, `P5`, `P8`, `P9`. The one run that first moved the object into the appliance and then cycled it open/closed (`P9:7`, `P9:8`, `P9:11`) still only applied the heat at `P9:13`, and `P8` re-heated an already-hot apple (`P8:11`), matching the clause against unnecessary move-into-appliance and toggle idling. No supplied historical understanding (`M2`, `M3`) contradicts applying the transform to the held object or completing it before delivery; `M2` concerns examine-in-light tasks, a different task type. The whole Update therefore remains appropriate as written.",
+      "to": null
+    }
+  ],
+  "checks": [
+    {
+      "id": "c1",
+      "update_ids": [
+        "u1"
+      ],
+      "question": "When the goal object is not found on already-observed surfaces, does the actor open the still-unopened fridge and other unopened closed containers and try not-yet-observed surfaces before re-checking locations already observed empty, and does it then acquire and place the object within the step budget?"
+    },
+    {
+      "id": "c2",
+      "update_ids": [
+        "u2"
+      ],
+      "question": "When recent observations show a return to a location already containing no new object, does the actor switch to a location that expands coverage (an unopened closed container or a not-yet-observed surface) instead of repeating the visit?"
+    },
+    {
+      "id": "c3",
+      "update_ids": [
+        "u3"
+      ],
+      "question": "Does the actor apply the transform to the held object at the appliance without unnecessary move-into-appliance or open/close toggling, and still complete the transform before delivery?"
+    },
+    {
+      "id": "c4",
+      "update_ids": [
+        "u1",
+        "u3"
+      ],
+      "question": "Does the actor still take a visible required object immediately and deliver the transformed object directly to the target receptacle, preserving the successful behavior of the completed runs?"
+    }
+  ]
+}

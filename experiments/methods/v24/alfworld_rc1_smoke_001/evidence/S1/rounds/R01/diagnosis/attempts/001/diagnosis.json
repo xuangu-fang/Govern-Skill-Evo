@@ -1,0 +1,66 @@
+{
+  "decision": "revise",
+  "reason": "All ten executions succeeded, so task outcome alone does not show a defect. However, P6 shows a directly observed behavioral problem: after opening drawers 1-6 and finding no cellphone, the Actor re-traversed the same drawers and shelf 1-2 repeatedly from P6:14 to P6:44, reaching the target cellphone at sidetable 1 only at P6:45 and finishing on step 48 of 50. This is not a task failure but a near-budget-exhausting redundant re-examination cycle. The Parent Skill already tells the Actor to 'search each surface/container exactly once' and to 'keep track' of checked locations, but that guidance assumes a persistent visited-set that the Actor's protocol does not provide, and the 'avoid loops' rule only covers repeating the same action consecutively, not an A-B-C-A-B-C cycle across many locations. The evidence supports a memory-independent revision keyed on the observation itself (open container = already searched) plus a search-expansion policy, while preserving the verified immediate-acquire/direct-deliver behavior seen in P1, P2, P4, P6, P9.",
+  "plan": {
+    "goal": "Improve search-phase efficiency by (a) treating an already-open container as already searched so the Actor does not re-examine it, and (b) replacing repeated cycles over the same location subset with progression to locations not yet inspected in the current pass. Scope is the search phase while a required object or tool is still missing. Preserve the successful behavior shown across the batch: when a required object/tool becomes visible, take it immediately, and once acquired, go directly to the required next location (the desklamp for examine tasks, or the destination receptacle for pick-and-place) without extra detours.",
+    "updates": [
+      {
+        "id": "u1",
+        "text": "- During the search phase for a still-missing required object or tool, when you arrive at a container (drawer/cabinet/fridge) that is already open and was not opened by your immediately preceding action, treat it as already searched: do not re-examine its contents and do not re-open it.\n- Instead, move to a closed container and open it to check its contents, or to a location not observed earlier in the current search pass.\n- Do not complete or repeat a cycle back through a set of containers already observed open or empty; if the most recent observed locations are containers you have already seen open, switch to a different, not-yet-inspected location.\n- This rule applies only while the required object or tool is still missing; it does not apply once you are carrying the required object and are looking for the placement receptacle.\n",
+        "basis": [
+          "G3",
+          "P6:14",
+          "P6:23",
+          "P6:24",
+          "P6:44",
+          "P6:outcome",
+          "P8:7",
+          "P8:9"
+        ]
+      },
+      {
+        "id": "u2",
+        "text": "- During the search phase, after checking the closed containers and surfaces currently reachable, if the required object or tool is still missing, proceed to a location or furniture type that has not yet been inspected in this pass (e.g., a sidetable, dresser, coffeetable, armchair, sofa, bed, or garbagecan) rather than re-traversing locations already checked.\n- Each successive search destination should be a location that could plausibly hold the missing object/tool and has not already been observed in the current pass; do not re-enter the same limited subset of locations repeatedly.\n- Once the required object or tool becomes visible, stop searching: take it immediately, and then go directly to the required next location (the desklamp for examine tasks, or the destination receptacle for pick-and-place) without further search moves.\n",
+        "basis": [
+          "G3",
+          "P6:45",
+          "P6:46",
+          "P6:48",
+          "P6:outcome",
+          "P8:12",
+          "P8:13",
+          "P10:11",
+          "P5:16",
+          "G1",
+          "P1:2",
+          "P1:3",
+          "P9:3"
+        ]
+      }
+    ],
+    "checks": [
+      {
+        "id": "c1",
+        "update_ids": [
+          "u1"
+        ],
+        "question": "While the target/tool was still missing, when the Actor arrived at a container that was already open, did it move to a closed or unsearched location instead of re-examining the open container?"
+      },
+      {
+        "id": "c2",
+        "update_ids": [
+          "u2"
+        ],
+        "question": "After completing a pass over the reachable containers/surfaces without finding the target, did the Actor move to a location or furniture type not yet inspected rather than repeating the same subset of locations?"
+      },
+      {
+        "id": "c3",
+        "update_ids": [
+          "u1",
+          "u2"
+        ],
+        "question": "Once the required object or tool became visible, did the Actor take it immediately and go directly to the desklamp (examine tasks) or the destination receptacle (pick-and-place), preserving the batch's successful acquisition and delivery behavior?"
+      }
+    ]
+  }
+}

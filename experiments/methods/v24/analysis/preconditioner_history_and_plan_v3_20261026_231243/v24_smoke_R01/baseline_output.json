@@ -1,0 +1,53 @@
+{
+  "adjustments": [
+    {
+      "target": "u1",
+      "focus": [
+        "D",
+        "S",
+        "C"
+      ],
+      "change": "Refine the already-open-container rule so it uses locally observable state: inspect the currently shown contents, take a visible required object/tool immediately, and only treat the container as searched when its contents have already been exposed. Avoid repeating same-type open/empty container cycles by switching furniture type when the current or immediately preceding observations show such a cycle; otherwise allow moving to a closed container whose contents are not yet shown or to a different furniture type. Preserve the search-only scope while the target/tool is still missing.",
+      "reason": "`P6:14`, `P6:23`, `P6:24`, and `P6:44` show repeated arrivals at already-open, empty drawers; `P8:7` and `P8:9` show the same pattern on a smaller scale, while `P6:outcome` shows that this repeated search can still end in success after wasting steps. The original open-container cue is locally observable and useful, but its wording could treat a first-encounter open container as searched even if the target is visible, and its references to a set of already-observed containers presume full-pass memory. The execution protocol supplies only the current observation and last two observation/action pairs, so the revision keeps the trigger local and preserves immediate visible-object acquisition shown by `P1:2`, `P9:2`, `P5:17`, and `P8:13`. No active Memory entries are supplied, so this is grounded in current run evidence.",
+      "to": {
+        "patch": "--- a/SKILL.md\n+++ b/SKILL.md\n@@\n-- During the search phase for a still-missing required object or tool, when you arrive at a container (drawer/cabinet/fridge) that is already open and was not opened by your immediately preceding action, treat it as already searched: do not re-examine its contents and do not re-open it.\n-- Instead, move to a closed container and open it to check its contents, or to a location not observed earlier in the current search pass.\n-- Do not complete or repeat a cycle back through a set of containers already observed open or empty; if the most recent observed locations are containers you have already seen open, switch to a different, not-yet-inspected location.\n-- This rule applies only while the required object or tool is still missing; it does not apply once you are carrying the required object and are looking for the placement receptacle.\n+- During the search phase for a still-missing required object or tool, when you arrive at a container (drawer/cabinet/fridge) that is already open and was not opened by your immediately preceding action, inspect only the contents currently shown. If the required object/tool is visible there, take it immediately instead of treating the container as searched. Otherwise, do not re-open it or linger. If the current or immediately preceding observation shows another already-open or empty container of the same furniture type, prefer a different furniture type from the admissible actions whose contents have not just been shown; otherwise move to a closed container whose contents have not yet been shown, or to a different furniture type.\n+- Do not complete or repeat a cycle through containers that the current observation or the last two observation/action pairs show are already open or empty; when those recent observations show repeated containers of the same furniture type, switch to a different furniture type from the admissible actions rather than trying another container in that set.\n+- This rule applies only while the required object or tool is still missing; it does not apply once you are carrying the required object and are looking for the placement receptacle.\n"
+      }
+    },
+    {
+      "target": "u2",
+      "focus": [
+        "S",
+        "C"
+      ],
+      "change": "Replace the full-pass inspection requirement with a locally usable progression rule: do not return to locations just checked, break cycles among the same locations or already-open/empty containers of one furniture type, and prefer distinct furniture types, locations, or closed containers whose contents have not just been shown in the current observation or the last two observation/action pairs. Preserve the visible-object acquisition and direct move to the desklamp or destination receptacle.",
+      "reason": "`P6:14`, `P6:15`, `P6:23`, `P6:24`, and `P6:44` show repeated drawer cycles before the target was found; `P6:45`, `P6:46`, `P6:47`, and `P6:48` show that switching to sidetable 1 eventually produced the cellphone and delivery. `P8:12`, `P8:13`, `P8:14`, and `P8:15` and `P10:11`, `P10:12`, `P10:13`, and `P10:14` similarly show moving to an uninspected sidetable or shelf followed by immediate acquisition and direct delivery. The original wording not yet inspected in this pass and not already observed requires total pass tracking that the Actor does not have; the revision uses recent observations to detect local cycles and preserves the successful visible-take/direct-next behavior. `G3` groups these search cases.",
+      "to": {
+        "patch": "--- a/SKILL.md\n+++ b/SKILL.md\n@@\n-- During the search phase, after checking the closed containers and surfaces currently reachable, if the required object or tool is still missing, proceed to a location or furniture type that has not yet been inspected in this pass (e.g., a sidetable, dresser, coffeetable, armchair, sofa, bed, or garbagecan) rather than re-traversing locations already checked.\n-- Each successive search destination should be a location that could plausibly hold the missing object/tool and has not already been observed in the current pass; do not re-enter the same limited subset of locations repeatedly.\n-- Once the required object or tool becomes visible, stop searching: take it immediately, and then go directly to the required next location (the desklamp for examine tasks, or the destination receptacle for pick-and-place) without further search moves.\n+- During the search phase, while the required object or tool is still missing, do not return to a location or furniture type that the current observation or the last two observation/action pairs show you have just checked without finding it. When the recent observations show you are cycling among the same locations or among already-open or empty containers of one furniture type, stop that cycle and choose a different furniture type or location from the admissible actions (e.g., a sidetable, dresser, coffeetable, armchair, sofa, bed, or garbagecan) whose contents have not just been shown.\n+- Otherwise continue through distinct locations, including closed containers whose contents are not currently shown; when choosing among admissible actions, prefer a location or furniture type whose contents are not shown in the current observation or the last two observation/action pairs, and do not choose another same-type container when the recent observations already show a same-type cycle. Do not re-enter the same limited subset of locations repeatedly.\n+- Once the required object or tool becomes visible, stop searching: take it immediately, and then go directly to the required next location (the desklamp for examine tasks, or the destination receptacle for pick-and-place) without further search moves.\n"
+      }
+    }
+  ],
+  "checks": [
+    {
+      "id": "c1",
+      "update_ids": [
+        "u1"
+      ],
+      "question": "While the required object/tool was still missing and the Actor encountered an already-open container that it had not just opened, did it avoid re-opening or cycling through that container set, while still taking the required object/tool immediately if visible?"
+    },
+    {
+      "id": "c2",
+      "update_ids": [
+        "u2"
+      ],
+      "question": "When the current location and recent observations did not contain the required object/tool, did the Actor choose a different furniture type or a location not shown in those recent observations instead of re-entering the same recent subset?"
+    },
+    {
+      "id": "c3",
+      "update_ids": [
+        "u1",
+        "u2"
+      ],
+      "question": "Once the required object or tool became visible, did the Actor take it immediately and go directly to the desklamp for examine tasks or the destination receptacle for pick-and-place, with no further search moves?"
+    }
+  ]
+}

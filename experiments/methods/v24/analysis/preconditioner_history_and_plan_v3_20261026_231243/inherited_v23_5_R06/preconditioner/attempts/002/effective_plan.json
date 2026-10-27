@@ -1,0 +1,58 @@
+{
+  "goal": "Improve two behaviors while preserving the established locate-take-transform-deliver workflow. (1) In tasks requiring two or more instances of the same object, after the first instance is placed, retrieve the next instance from the already-observed source location instead of resuming a broad sweep. (2) While the required object has not been acquired, break cycles of revisiting already-checked locations and widen coverage to untried locations. Preserve the successful direct transform-then-deliver ordering, taking an object as soon as it is visible, opening closed destination containers before placement, and stopping as soon as the required object is acquired or placed.",
+  "updates": [
+    {
+      "id": "u1",
+      "text": "- In a task requiring two or more instances of the same object, when you take the first required instance from a location whose current observation also shows one or more additional instances of that same object, treat that location as the source for the remaining instances.\n- After you place the first instance at the goal receptacle, make retrieving the next instance your immediate next sub-goal: navigate back to that same source location and take the remaining instance there, rather than resuming a broad search sweep or re-checking unrelated locations; this return to the known source takes precedence over any general instruction to resume or broaden the search sweep while that source is known to hold the remaining instance.\n- Do not abandon or re-sweep past the source location while it still offers an additional instance of the required object; only widen the search for the remaining instance if the source location no longer shows the expected instance.\n- Keep the existing locate-take-deliver ordering and continue until the required number of instances has been placed at the same goal receptacle instance that received the first; this retrieval priority applies only during the acquisition/retrieval phase and does not add extra transforms or intermediate stops.\n",
+      "basis": [
+        "G3",
+        "P6:5",
+        "P6:6",
+        "P6:8",
+        "P6:39",
+        "P6:43",
+        "P7:6",
+        "P7:9",
+        "P6:outcome"
+      ]
+    },
+    {
+      "id": "u2",
+      "text": "- During the locate/acquire phase, while the required object has not yet been acquired and is not held, choose each `go to` so that it advances to a destination that does not already appear as your current location or in your recent observations and actions whenever the admissible list contains such an untried destination.\n- Treat any `go to` that leads to a location already observed without the target as a stall to be avoided; if your recent observations show you returning to the same few already-checked locations without gaining new information, break the cycle by choosing an instance of a location type that does not appear as your current location or in your recent observations and actions.\n- Systematically cover untried locations, including opening each untried closed container (cabinet, drawer, fridge) on arrival so a hidden target is not missed, and do not conclude the object is absent or stop the search while untried admissible `go to` destinations remain.\n- This widening rule does not apply when you are returning to a previously observed source location to retrieve a remaining instance of the same object under the multi-instance retrieval rule; that return is required progress, not a stall.\n- Exit this widening rule as soon as the required object is acquired or already held, and then resume the normal transform-then-deliver behavior without adding extra searches.\n",
+      "basis": [
+        "G2",
+        "P3:1",
+        "P3:4",
+        "P3:10",
+        "P3:22",
+        "P3:35",
+        "P3:50",
+        "P3:outcome"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "c1",
+      "update_ids": [
+        "u1"
+      ],
+      "question": "After placing the first instance of a multi-instance goal, does the Actor return directly to the source location already observed to hold the remaining instance (as at P7:6) instead of resuming a broad sweep, and does it deliver both instances to the same goal receptacle instance without adding extra transforms or unrelated searches?"
+    },
+    {
+      "id": "c2",
+      "update_ids": [
+        "u2"
+      ],
+      "question": "While the required object has not been acquired and is not held, does the Actor choose go to destinations that are not its current location and do not appear in its recent observation/action pairs, widening to untried instances such as the cabinet instances left unvisited in P3 rather than cycling among the same few checked locations, and does it avoid concluding the object is absent while untried admissible destinations remain?"
+    },
+    {
+      "id": "c3",
+      "update_ids": [
+        "u1",
+        "u2"
+      ],
+      "question": "When both a remaining-instance source return and the general widening rule apply, does the Actor treat the required return to the known source as progress rather than a stall, while still widening coverage once the source no longer shows the expected instance?"
+    }
+  ]
+}

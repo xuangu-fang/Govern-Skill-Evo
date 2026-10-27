@@ -1,0 +1,223 @@
+{
+  "completed_at": "2026-10-26T15:27:19.810343+00:00",
+  "scope": "V24 steps 1-4: prompt/contract/documentation update, local tests, isolated Preconditioner replays only",
+  "prompt_version": "v24_preconditioner_knowledge_only_history_and_plan_v3",
+  "local_validation": {
+    "tests_passed": 121,
+    "frozen_files_checked": 114,
+    "frozen_files_unchanged": true,
+    "patch_and_output_sections_unchanged": true
+  },
+  "original_archives_unchanged": true,
+  "comparison_limits": [
+    "只有第一例是 V24 真实运行；另两例来自 V24 迁移来源 v23.5，明确标记为历史兼容案例。",
+    "旧归档早于 history_primary_v2，模型输入还发生既定的 grouping 移除；不是只改变 v2/v3 Prompt 的因果对照。",
+    "其余原始输入字段保持一致；未重写 Memory，未运行 Actor、Editor、Gate 或发布 Memory。",
+    "结构、引用与补丁校验通过不代表语义正确。没有新 Candidate 分数，不能推断成功率提升。",
+    "每例取首个有效输出，没有按语义好坏反复采样。R06 首次输出达到上限，按原规则重试一次。"
+  ],
+  "cases": {
+    "v24_smoke_R01": {
+      "source": "/Users/didi/Desktop/Govern-Skill-Evo/artifacts/methods/v24/alfworld_rc1_smoke_001/S1",
+      "round": "R01",
+      "memory_entries": 0,
+      "status": "valid",
+      "operations": [
+        {
+          "target": "u1",
+          "focus": [
+            "D",
+            "S",
+            "C"
+          ],
+          "change": "Replace the memory-dependent cycle-avoidance clause with a local rule: when arriving at an already-open container, treat it as searched, do not examine or close/reopen it, and immediately proceed to a different location, preferably a closed container or the next location in the admissible \"go to\" list. Remove the \"not opened by your immediately preceding action\" exception and the requirement to remember previously inspected containers. Preserve the search-phase-only condition and the no-application-while-carrying condition."
+        },
+        {
+          "target": "u2",
+          "focus": [
+            "D",
+            "S",
+            "C"
+          ],
+          "change": "Replace the requirement to track 'not yet inspected in this pass' with a checklist-order traversal: during search, start with the first location in the current admissible \"go to\" list and proceed to each next location in order, opening closed containers upon arrival. After a location is checked without finding the target, continue to the next list location rather than re-traversing checked locations. Preserve the acquisition/delivery behavior: once the target is visible, take it immediately and go directly to the required next location (desklamp or destination receptacle) without further search moves."
+        }
+      ],
+      "requests": [
+        {
+          "attempt": "001",
+          "finish_reason": "stop",
+          "usage": {
+            "completion_tokens": 32342,
+            "prompt_tokens": 29430,
+            "total_tokens": 61772,
+            "completion_tokens_details": {
+              "audio_tokens": 0,
+              "reasoning_tokens": 30454
+            }
+          }
+        }
+      ],
+      "assessment": {
+        "verdict": "无 Memory 时主动调整了计划，但关键缺陷未得到可靠纠正，不能视为通过语义验证。",
+        "positive": [
+          "识别了全局搜索访问集合超出 Actor 两组历史窗口的问题。",
+          "保留搜索阶段适用范围及 u2 的发现目标后立即拿取和直接交付要求。"
+        ],
+        "problems": [
+          "把动态 admissible go-to 菜单当作稳定遍历清单，提出按菜单顺序搜索的新策略，却未充分说明状态变化后的游标与覆盖条件；这不是已验证的可行性修复。",
+          "删除 immediately preceding action 例外没有得到两组历史窗口的支持：紧邻动作本来就在可见窗口内。",
+          "宣称去除整轮访问记忆要求，但补丁仍引用 current pass 中已经访问的容器。",
+          "已经打开不等于内容已检查；u1 立即离开的要求与 u2 可见目标立即拿取之间仍缺少明确优先级。不能据此断言实际丢失了目标，因为未运行 Actor。"
+        ],
+        "comparison": "旧归档也修改了两个 Updates，并且明确检查当前可见内容；不能把新版修改数量当作改进。",
+        "scope": "新遍历策略仍围绕原搜索问题，没有明显发现无关问题；主要问题是依据不足和可执行性判断失误。"
+      }
+    },
+    "inherited_v23_5_R03": {
+      "source": "/Users/didi/Desktop/Govern-Skill-Evo/artifacts/methods/v23_5/alfworld_verified_feedback_001/S1",
+      "round": "R03",
+      "memory_entries": 2,
+      "status": "valid",
+      "operations": [
+        {
+          "target": "u1",
+          "focus": [
+            "S"
+          ],
+          "change": "Reframe the search preference so it is usable with the Actor's limited history: prefer a destination outside the recent empty sequence, open closed containers including a plausible fridge before judging them empty, and avoid turning closed-container priority into an exhaustive same-class sweep; preserve immediate pickup and transform-before-delivery."
+        },
+        {
+          "target": "u2",
+          "focus": [
+            "S"
+          ],
+          "change": "Replace full cycle detection with a feasible local rule: when the current and two most recent locations produced no required object and are the same container class, switch to a different class; avoid destinations in the last two pairs unless a necessary revisit is required; allow revisits needed for transforms or held objects."
+        },
+        {
+          "target": "u3",
+          "focus": [],
+          "change": "KEEP"
+        }
+      ],
+      "requests": [
+        {
+          "attempt": "001",
+          "finish_reason": "stop",
+          "usage": {
+            "completion_tokens": 23572,
+            "prompt_tokens": 79585,
+            "total_tokens": 103157,
+            "completion_tokens_details": {
+              "reasoning_tokens": 21646,
+              "text_tokens": 1926
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_creation_tokens": 0
+            },
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0
+          }
+        }
+      ],
+      "assessment": {
+        "verdict": "历史经验与当前计划审查得到整合，且保留了合理要求；具体启发式仍待执行验证。",
+        "positive": [
+          "依据 M3 的同类位置搜索退化与当前循环轨迹，收窄搜索范围及冰箱优先条件。",
+          "u1、u2 调整 S，u3 保持 KEEP，没有为了增加调整而改写所有要求。"
+        ],
+        "problems": [
+          "当前及最近两组位置都属于同类时切换类别，是新的具体启发式；历史退化不能证明这个阈值最优。",
+          "解释 Parent 行为时不能把尚未落实的 Original Update 当作已经执行的指令。"
+        ]
+      }
+    },
+    "inherited_v23_5_R06": {
+      "source": "/Users/didi/Desktop/Govern-Skill-Evo/artifacts/methods/v23_5/alfworld_verified_feedback_001/S1",
+      "round": "R06",
+      "memory_entries": 5,
+      "status": "valid",
+      "operations": [
+        {
+          "target": "u1",
+          "focus": [
+            "C"
+          ],
+          "change": "Keep the multi-instance source-retrieval rule, but state that the required return to the known source takes precedence over any general instruction to resume or broaden the search sweep while that source still holds the remaining instance, and specify that the second and later instances go into the same goal receptacle instance that received the first."
+        },
+        {
+          "target": "u2",
+          "focus": [
+            "S",
+            "C"
+          ],
+          "change": "Retain the widening/anti-cycle direction but redefine the cycle-break destination by what the Actor can actually see: choose an instance of a location type that does not appear as the current location or in the recent observations and actions, instead of 'a location family you have not yet checked at all'. Add an explicit exception so that returning to a previously observed source location to fetch a remaining same-object instance under the multi-instance retrieval rule is treated as required progress, not a stall."
+        }
+      ],
+      "requests": [
+        {
+          "attempt": "001",
+          "finish_reason": "length",
+          "usage": {
+            "completion_tokens": 32768,
+            "prompt_tokens": 37509,
+            "total_tokens": 70277,
+            "completion_tokens_details": {
+              "audio_tokens": 0,
+              "reasoning_tokens": 32768
+            },
+            "prompt_tokens_details": {
+              "audio_tokens": 0,
+              "cached_tokens": 0
+            },
+            "cache_read_input_tokens": 0
+          }
+        },
+        {
+          "attempt": "002",
+          "finish_reason": "stop",
+          "usage": {
+            "completion_tokens": 29137,
+            "prompt_tokens": 37509,
+            "total_tokens": 66646,
+            "completion_tokens_details": {
+              "audio_tokens": 0,
+              "reasoning_tokens": 27321
+            },
+            "prompt_tokens_details": {
+              "audio_tokens": 0,
+              "cached_tokens": 37504
+            },
+            "cache_read_input_tokens": 37504
+          }
+        }
+      ],
+      "assessment": {
+        "verdict": "体现了历史经验揭示计划问题及多 Update 协调，但短窗口可执行性仍有残留。",
+        "positive": [
+          "u1 的 C 和 u2 的 S/C 明确已知来源返回优先于通用反复访问限制。",
+          "利用 M5 的分放不同容器退化，补充后续物体放到同一目标容器实例的要求。",
+          "将从未检查过的类别条件改为当前与最近历史可判断的范围，并明确留下更长循环风险。"
+        ],
+        "problems": [
+          "P6 交付后决定第 9 步时，最近两组动作前观察仍能显示物体取自 bed 1，但显示第二本书仍在该处的第 6 步动作前观察已移出窗口；来源身份可见不等于剩余实例状态可见。",
+          "模型注明来源信息跨交付过程的可靠性尚未验证。更长交付流程及其余全局覆盖要求仍需实际执行检查。"
+        ]
+      }
+    }
+  },
+  "usage": {
+    "requests": 4,
+    "prompt_tokens": 184033,
+    "completion_tokens": 117819,
+    "total_tokens": 301852
+  },
+  "overall": "历史经验仍发挥核心作用，缺少 Memory 时也能触发调整；但无 Memory 案例出现不充分的可执行性论证与新策略替换，尚不足以证明设计目标稳定实现。",
+  "next_review_focus": [
+    "区分具体计划缺陷、可追溯修复与尚未验证的新策略。",
+    "审查同一计划中立即离开、拿取目标等行为要求的优先级。",
+    "逐决策点检查 Actor 可见信息，区分来源身份与剩余物体状态。"
+  ],
+  "new_full_training_started": false,
+  "additional_semantic_resampling": false
+}

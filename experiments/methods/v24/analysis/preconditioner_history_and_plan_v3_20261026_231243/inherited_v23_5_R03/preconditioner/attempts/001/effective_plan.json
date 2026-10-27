@@ -1,0 +1,85 @@
+{
+  "goal": "Improve the acquisition search and appliance-interaction behavior so the goal object is reliably found and transformed within the step budget: prioritize not-yet-opened closed containers (including the fridge) over re-examining locations already observed empty, break repeating location cycles, and apply required transforms to the held object at the correct appliance. Preserve successful behavior: immediate pickup of a visible required object, completing the state change before delivery, and direct delivery to the target receptacle.",
+  "updates": [
+    {
+      "id": "u1",
+      "text": "- When the required goal object has not been found, prefer going to a closed container or to a surface outside the recent empty sequence, and open any closed container at that destination before judging it empty, rather than returning to a location just observed empty.\n- If the target is a type the fridge can hold (for example food, a plate, or a mug), and the fridge is not one of the locations just inspected empty, inspect it (opening it if closed) before repeating cabinet, drawer, or surface sweeps that have just produced nothing.\n- Do not let the closed-container priority become an exhaustive sweep of one large container class: when the recent locations are all empty cabinets or drawers, choose a surface (countertop, shelf, diningtable) or a different container/appliance class outside that recent sequence as the next destination.\n- Once the goal object is found, take it immediately and proceed to the required transform, keeping the existing transform-before-delivery order.\n",
+      "basis": [
+        "G2",
+        "P6:20",
+        "P6:50",
+        "P7:22",
+        "P7:50",
+        "P10:4",
+        "P10:50",
+        "P5:30",
+        "P5:31",
+        "P2:12"
+      ]
+    },
+    {
+      "id": "u2",
+      "text": "- Break unproductive repetition using the visible history: if the current location and the two most recent locations produced no required object and are instances of the same class (for example cabinets or drawers), do not choose another instance of that class when an admissible destination of a different class (fridge, shelf, countertop, diningtable, or another container/appliance type) is available.\n- Do not choose a destination that appears in the last two observation/action pairs unless you must return to retrieve a held object or apply a required transform.\n- This targets repeated unproductive travel among the same locations; a single necessary revisit for a held object or a transform is allowed.\n",
+      "basis": [
+        "G2",
+        "P6:24",
+        "P6:28",
+        "P6:32",
+        "P6:38",
+        "P7:23",
+        "P7:28",
+        "P10:29",
+        "P10:35"
+      ]
+    },
+    {
+      "id": "u3",
+      "text": "- When holding the required object at the appropriate appliance, apply the transform directly to the held object with the appliance command (clean X with sinkbasin 1, cool X with fridge 1, heat X with microwave 1); it is not necessary to first move the object into the appliance, as successful runs demonstrate (P1:7 clean, P2:27 cool, P8:6 heat while holding).\n- Do not idle by cycling the appliance open and closed: if the transform has not yet been applied, issue the transform command instead of toggling the appliance (P9:8-P9:11 toggled open/close/open/close without applying heat before P9:13).\n- Preserve the requirement that the state change must be completed before the object is delivered to the target receptacle.\n",
+      "basis": [
+        "G3",
+        "G1",
+        "P1:7",
+        "P2:27",
+        "P3:6",
+        "P4:13",
+        "P8:6",
+        "P8:11",
+        "P9:7",
+        "P9:8",
+        "P9:11",
+        "P9:13"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "c1",
+      "update_ids": [
+        "u1"
+      ],
+      "question": "When the goal object has not been found, does the actor prefer a destination outside the recent empty sequence, open closed containers including a plausible fridge before judging them empty, and avoid an exhaustive same-class sweep while still taking a found object immediately?"
+    },
+    {
+      "id": "c2",
+      "update_ids": [
+        "u2"
+      ],
+      "question": "When the current and two most recent locations are empty and of the same container class, or a destination is in the last two pairs, does the actor switch to a different class or outside destination rather than continuing the repetition, while allowing necessary revisits for transforms or held objects?"
+    },
+    {
+      "id": "c3",
+      "update_ids": [
+        "u3"
+      ],
+      "question": "Does the actor apply the transform directly to the held object at the appliance without moving it into the appliance or toggling open/closed, and complete the transform before delivery?"
+    },
+    {
+      "id": "c4",
+      "update_ids": [
+        "u1",
+        "u3"
+      ],
+      "question": "Does the actor still take a visible required object immediately and deliver the transformed object directly to the target receptacle, preserving the successful behavior of completed runs?"
+    }
+  ]
+}
