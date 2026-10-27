@@ -17,10 +17,25 @@ def raw_path(path):
 
 
 def resolve(path):
-    """Resolve a saved file; existing curated files keep their original location."""
+    """Prefer saved files; new paths follow their nearest existing parent.
+
+    A parent present in both locations stays in experiments for new curated
+    files. An archive-only parent keeps new descendants in the archive.
+    """
     path = Path(path)
+    if path.exists():
+        return path
     archived = raw_path(path)
-    return archived if not path.exists() and archived.exists() else path
+    if archived.exists():
+        return archived
+    source = path.absolute()
+    if source.is_relative_to(EXPERIMENTS):
+        for parent in source.parents:
+            if not parent.is_relative_to(EXPERIMENTS) or parent.exists():
+                break
+            if raw_path(parent).is_dir():
+                return archived
+    return path
 
 
 def archive_glob(path, pattern, *, recursive=False):
