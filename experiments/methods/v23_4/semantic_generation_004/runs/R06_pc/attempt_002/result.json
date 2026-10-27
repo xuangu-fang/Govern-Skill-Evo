@@ -1,0 +1,164 @@
+{
+  "raw_preconditioner": {
+    "adjustments": [
+      {
+        "target": "u1",
+        "focus": [
+          "S",
+          "C"
+        ],
+        "change": "Keep the expand-and-stop-cycling direction, but remove the clause 'open closed containers one after another', which would exhaust a single receptacle type and conflicts with the Parent's family-spread sweep. Instead treat each container and open surface as its own candidate, do not conclude a family merely because one or two of its members were empty, continue spreading the sweep across families, and always prefer an unopened container or uninspected surface over returning to any location already observed. Retain the already-open-empty departure rule, the recurring-small-set rule, and the no-empty-inventory rule.",
+        "reason": "Current `G1` evidence shows the search defect persisting: `P3:1` and `P3:50` cycle among a small set and `P3:outcome` is step_limit, whereas `P1:34`, `P1:35`, `P2:8` and `P2:9` succeed only after reaching an uninspected surface. However, the frozen Parent already contains the family-spread sweep; `M10` found that sweep rescued some cases yet did not prevent cycling, and `M6` found the anti-cycling wording was not reliably followed, so u1's transferable value is its additive parts (per-container candidacy, not finishing a family after one or two empty members, abandoning a recurring set). Its phrase 'open closed containers one after another' contradicts the Parent's 'rather than exhausting or looping over one type', so the change reconciles the two and preserves the expand/anti-revisit direction and the necessary coverage behavior. Effectiveness in unseen rooms remains unverified.",
+        "to": {
+          "patch": "--- a/SKILL.md\n+++ b/SKILL.md\n@@ -1 +1 @@\n-- When a non-desklamp task requires an exact object that is not visible in the current observation, treat each individual closed container (cabinet, drawer, fridge, microwave, safe, etc.) and each open surface as a separate candidate, and open closed containers one after another rather than considering a receptacle family finished after one or two members.\n+- When a non-desklamp task requires an exact object that is not visible in the current observation, treat each individual closed container (cabinet, drawer, fridge, microwave, safe, etc.) and each open surface as a separate candidate; do not treat a container family as finished merely because one or two of its members were empty, but keep spreading the sweep across families and prefer any unopened container or uninspected surface over returning to a location already observed.\n"
+        }
+      },
+      {
+        "target": "u2",
+        "focus": [
+          "S"
+        ],
+        "change": "Widen the trigger so the heat/cool action is performed directly on the held target as soon as the explicit action is admissible, even before opening the appliance, and open the appliance only when the action is otherwise unavailable. Keep the single-conditioning-action rule, the prohibition on close/open cycles and on moving the target in and out of the appliance, and the go-straight-to-the-destination rule, and state the preserved direct-cooling behavior without requiring the fridge to be open.",
+        "reason": "`M7` supports acting on the held target immediately once the explicit heat/cool action is available, current `P1:38` and `P2:11` show the direct cooling to preserve, and `P4:7`, `P4:20`, `P5:6`, `P5:15` show the close/open toggling this Update targets; the Parent has no temperature step, so the direction fills a real gap. The 'at the open appliance' precondition is needlessly narrow: `C22` at `P1:36` and `C50` at `P4:4` already offer cool/heat while the appliance is closed, so requiring it open adds opens without changing admissibility. The change widens the trigger accordingly and keeps the single-action, no-toggle and straight-to-destination boundaries; the exact wording is unverified.",
+        "to": {
+          "patch": "--- a/SKILL.md\n+++ b/SKILL.md\n@@ -1 +1 @@\n-- When the task requires heating or cooling an exact target with an appliance (microwave or fridge), bring the target and appliance together and then perform the conditioning action directly on the held target at the open appliance; a single heat/cool action is sufficient.\n+- When the task requires heating or cooling an exact target with an appliance (microwave or fridge), bring the target and appliance together and then perform the conditioning action directly on the held target as soon as the explicit heat/cool action is admissible, even before opening the appliance; open the appliance only if the action is not otherwise available, and a single heat/cool action is sufficient.\n@@ -3 +3 @@\n-- Preserve the established direct-cooling behavior of performing the cool action on the held object at the open fridge without any door toggling.\n+- Preserve the established direct-cooling behavior of performing the cool action on the held object at the fridge without any door toggling.\n"
+        }
+      }
+    ],
+    "checks": null
+  },
+  "preconditioner": {
+    "decision": "ready",
+    "reason": "Deterministically compiled from validated V23.4 adjustments.",
+    "adjustments": [
+      {
+        "from": [
+          "u1"
+        ],
+        "to": [
+          {
+            "id": "u1",
+            "text": "- When a non-desklamp task requires an exact object that is not visible in the current observation, treat each individual closed container (cabinet, drawer, fridge, microwave, safe, etc.) and each open surface as a separate candidate; do not treat a container family as finished merely because one or two of its members were empty, but keep spreading the sweep across families and prefer any unopened container or uninspected surface over returning to a location already observed.\n- After arriving at a receptacle that is already open and empty, or whose visible contents match a location already inspected, do not open, re-examine, or linger there; leave immediately for a receptacle that has not yet been inspected.\n- Expand the sweep to unopened containers and uninspected surfaces before returning to any earlier location; if the same small set of locations keeps reappearing in the recent observations without yielding the target, stop revisiting them and continue to new candidates while the step budget allows.\n- Do not repeatedly check inventory while carrying nothing.\n"
+          }
+        ],
+        "basis": [
+          "G1",
+          "P3:1",
+          "P3:13",
+          "P3:34",
+          "P3:50",
+          "P3:outcome",
+          "P1:34",
+          "P1:35",
+          "P2:8",
+          "P2:9",
+          "M10",
+          "M6"
+        ],
+        "reason": "target=u1; focus=S,C; change=Keep the expand-and-stop-cycling direction, but remove the clause 'open closed containers one after another', which would exhaust a single receptacle type and conflicts with the Parent's family-spread sweep. Instead treat each container and open surface as its own candidate, do not conclude a family merely because one or two of its members were empty, continue spreading the sweep across families, and always prefer an unopened container or uninspected surface over returning to any location already observed. Retain the already-open-empty departure rule, the recurring-small-set rule, and the no-empty-inventory rule.; reason=Current `G1` evidence shows the search defect persisting: `P3:1` and `P3:50` cycle among a small set and `P3:outcome` is step_limit, whereas `P1:34`, `P1:35`, `P2:8` and `P2:9` succeed only after reaching an uninspected surface. However, the frozen Parent already contains the family-spread sweep; `M10` found that sweep rescued some cases yet did not prevent cycling, and `M6` found the anti-cycling wording was not reliably followed, so u1's transferable value is its additive parts (per-container candidacy, not finishing a family after one or two empty members, abandoning a recurring set). Its phrase 'open closed containers one after another' contradicts the Parent's 'rather than exhausting or looping over one type', so the change reconciles the two and preserves the expand/anti-revisit direction and the necessary coverage behavior. Effectiveness in unseen rooms remains unverified."
+      },
+      {
+        "from": [
+          "u2"
+        ],
+        "to": [
+          {
+            "id": "u2",
+            "text": "- When the task requires heating or cooling an exact target with an appliance (microwave or fridge), bring the target and appliance together and then perform the conditioning action directly on the held target as soon as the explicit heat/cool action is admissible, even before opening the appliance; open the appliance only if the action is not otherwise available, and a single heat/cool action is sufficient.\n- Do not impose extra close/open cycles on the appliance door, and do not repeatedly move the target into and out of the appliance between conditioning attempts.\n- Preserve the established direct-cooling behavior of performing the cool action on the held object at the fridge without any door toggling.\n- Once the target is conditioned, carry it directly to the requested destination and complete the placement without detours.\n"
+          }
+        ],
+        "basis": [
+          "G2",
+          "P4:7",
+          "P4:14",
+          "P4:19",
+          "P4:20",
+          "P4:22",
+          "P5:6",
+          "P5:13",
+          "P5:14",
+          "P5:15",
+          "P1:38",
+          "P2:11",
+          "M7",
+          "C22",
+          "P1:36",
+          "C50",
+          "P4:4"
+        ],
+        "reason": "target=u2; focus=S; change=Widen the trigger so the heat/cool action is performed directly on the held target as soon as the explicit action is admissible, even before opening the appliance, and open the appliance only when the action is otherwise unavailable. Keep the single-conditioning-action rule, the prohibition on close/open cycles and on moving the target in and out of the appliance, and the go-straight-to-the-destination rule, and state the preserved direct-cooling behavior without requiring the fridge to be open.; reason=`M7` supports acting on the held target immediately once the explicit heat/cool action is available, current `P1:38` and `P2:11` show the direct cooling to preserve, and `P4:7`, `P4:20`, `P5:6`, `P5:15` show the close/open toggling this Update targets; the Parent has no temperature step, so the direction fills a real gap. The 'at the open appliance' precondition is needlessly narrow: `C22` at `P1:36` and `C50` at `P4:4` already offer cool/heat while the appliance is closed, so requiring it open adds opens without changing admissibility. The change widens the trigger accordingly and keeps the single-action, no-toggle and straight-to-destination boundaries; the exact wording is unverified."
+      }
+    ],
+    "checks": [
+      {
+        "id": "c1",
+        "update_ids": [
+          "u1"
+        ],
+        "question": "When the exact target is still not located, does the actor move on to unopened/uninspected receptacles and refrain from reopening or lingering at receptacles it has already observed as empty or unchanged, until all plausible candidates are covered or the target is found?"
+      },
+      {
+        "id": "c2",
+        "update_ids": [
+          "u2"
+        ],
+        "question": "When heating or cooling an exact target at the microwave or fridge, does the actor perform the conditioning action directly on the co-located/held target without repeated close/open door cycles or repeated inserting and removing of the target, and then proceed straight to the destination?"
+      }
+    ]
+  },
+  "effective_plan": {
+    "goal": "Improve two behaviorally addressable gaps in the non-desklamp general procedure: (1) target search must expand to uninspected receptacles and stop looping on already-observed locations, and (2) heat/cool conditioning with an appliance must be performed directly on the held target without repeated door toggling. Preserve the successful exact-category acquisition and placement, the direct cooling behavior (P1:38, P2:11), and the sequential two-item delivery that won P6 and P7.",
+    "updates": [
+      {
+        "id": "u1",
+        "text": "- When a non-desklamp task requires an exact object that is not visible in the current observation, treat each individual closed container (cabinet, drawer, fridge, microwave, safe, etc.) and each open surface as a separate candidate; do not treat a container family as finished merely because one or two of its members were empty, but keep spreading the sweep across families and prefer any unopened container or uninspected surface over returning to a location already observed.\n- After arriving at a receptacle that is already open and empty, or whose visible contents match a location already inspected, do not open, re-examine, or linger there; leave immediately for a receptacle that has not yet been inspected.\n- Expand the sweep to unopened containers and uninspected surfaces before returning to any earlier location; if the same small set of locations keeps reappearing in the recent observations without yielding the target, stop revisiting them and continue to new candidates while the step budget allows.\n- Do not repeatedly check inventory while carrying nothing.\n",
+        "basis": [
+          "G1",
+          "P3:1",
+          "P3:13",
+          "P3:34",
+          "P3:50",
+          "P3:outcome",
+          "P1:34",
+          "P1:35",
+          "P2:8",
+          "P2:9"
+        ]
+      },
+      {
+        "id": "u2",
+        "text": "- When the task requires heating or cooling an exact target with an appliance (microwave or fridge), bring the target and appliance together and then perform the conditioning action directly on the held target as soon as the explicit heat/cool action is admissible, even before opening the appliance; open the appliance only if the action is not otherwise available, and a single heat/cool action is sufficient.\n- Do not impose extra close/open cycles on the appliance door, and do not repeatedly move the target into and out of the appliance between conditioning attempts.\n- Preserve the established direct-cooling behavior of performing the cool action on the held object at the fridge without any door toggling.\n- Once the target is conditioned, carry it directly to the requested destination and complete the placement without detours.\n",
+        "basis": [
+          "G2",
+          "P4:7",
+          "P4:14",
+          "P4:19",
+          "P4:20",
+          "P4:22",
+          "P5:6",
+          "P5:13",
+          "P5:14",
+          "P5:15",
+          "P1:38",
+          "P2:11"
+        ]
+      }
+    ],
+    "checks": [
+      {
+        "id": "c1",
+        "update_ids": [
+          "u1"
+        ],
+        "question": "When the exact target is still not located, does the actor move on to unopened/uninspected receptacles and refrain from reopening or lingering at receptacles it has already observed as empty or unchanged, until all plausible candidates are covered or the target is found?"
+      },
+      {
+        "id": "c2",
+        "update_ids": [
+          "u2"
+        ],
+        "question": "When heating or cooling an exact target at the microwave or fridge, does the actor perform the conditioning action directly on the co-located/held target without repeated close/open door cycles or repeated inserting and removing of the target, and then proceed straight to the destination?"
+      }
+    ]
+  }
+}

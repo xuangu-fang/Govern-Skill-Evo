@@ -1,0 +1,3 @@
+# V3 bounded validation
+User supplied main Prompt is copied byte-for-byte. R05/R06 factual messages and system suffix are frozen from P6. Same model configuration, schema, validation and bounded retry policy; first legal output only. No semantic retries. P4/V2 outputs reused. Production and prior artifacts protected.
+Stage 2 requires independently verified Skill lineage and unused execution feedback. No invented continuous loop. If no eligible evidence exists, report the limitation and do not call. If a controlled offline revision is justified, freeze it separately and identify its limitations before execution. At most one such logical call.

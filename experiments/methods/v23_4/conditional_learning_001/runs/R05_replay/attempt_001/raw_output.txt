@@ -1,0 +1,794 @@
+..." with action "take soapbar 1 from countertop 1" but flagged action_in_admissible_commands:false, and "Nothing happens"). Then P9:3 inventory, P9:4 take soapbar 1. So Parent's extra step was due to an invalid action (the step 2 failed, then inventory, then take). Candidate Q9 took soapbar 1 directly at step 2. So Candidate was more efficient — plausibly related to the admissible-actions guidance? Well, the Parent's failure was a malformed generation (the action text got garbled — it included "tags." prefix). That's a protocol/output issue, not exactly the admissible-list issue. Hmm. Actually the feedback says action_in_admissible_commands:false because the raw output was malformed and fell back. Note invalid_output_policy: "missing_action_tag_or_empty_content_falls_back_to_look". Hmm, but the action recorded is the garbled string. Anyway, it's a malformed output, not an inadmissible action.
+
+Hmm, actually the recorded "action" is the garbled text, so it wasn't a valid action; the system recorded it as not admissible. This is a generation anomaly. It's plausibly unrelated to the edit.
+
+P10/Q10 (cool apple and put in microwave): P10 14 steps success, Q10 11 steps success. Let's compare:
+- P10: go to fridge 1, open fridge 1, go to countertop 1, go to cabinet 1, go to countertop 2, go to fridge 1, go to countertop 1, go to diningtable 1, take apple 1, go to fridge 1, cool apple 1 with fridge 1, go to microwave 1, open microwave 1, move apple 1 to microwave 1. 14 steps.
+- Q10: go to fridge 1, open fridge 1, go to countertop 1, go to countertop 2, go to diningtable 1, take apple 1, go to fridge 1, cool apple 1 with fridge 1, go to microwave 1, open microwave 1, move apple 1 to microwave 1. 11 steps.
+
+Q10 skipped: "go to cabinet 1" (P10:4) and one extra "go to fridge 1"/"go to countertop 1" cycle (P10:6-7). So Q10 searched fewer locations but found apple on diningtable. Actually Q10 went countertop 1, countertop 2, diningtable 1 — broader open surfaces. P10 went countertop 1, cabinet 1, countertop 2, fridge, countertop 1, diningtable. So P10 did more cycling. Q10's more efficient path may reflect u2 (avoid cycles, include open surfaces). But it's one instance.
+
+Hmm, interesting: this is a cool task. The parent (before current edit) had already received temperature guidance in prior rounds (M7: S1_R03 added temperature; S1_R04 added temp-conditioned placement). But the current parent given here is only the "General Non-Desklamp Retrieval, Cleaning, and Placement" with 4 items, no temperature item! Wait, let me recheck.
+
+Current parent text: 
+"## General Non-Desklamp Retrieval, Cleaning, and Placement
+For ordinary put, clean, or transfer tasks where no desklamp is required, use this procedure instead.
+1. Identify and search for the exact requested target... 
+2. Manipulate only the exact requested target category...
+3. Acquire the exact target...
+4. Go directly to the requested destination..."
+
+Hmm, so the current parent is a skill version that does NOT include the temperature item or multi-instance item. Interesting — that means this round's parent is from an earlier point (like the S1_R02 version). Wait, but the task list includes "cool some apple and put it in microwave" (P10/Q10). And the parent item 3 says "If the task requires the object to be clean, carry it to an appropriate cleaning receptacle... If no cleaning is requested, skip the cleaning detour." No mention of temp. So the parent skill doesn't have temperature guidance.
+
+Hmm, so this is a different branch of the evolution. The current parent resembles the S1_R02 diff's result (which added the general procedure). Actually S1_R02/diff parent was the desklamp skill; S1_R02/diff added the general procedure with items 1-4. And the resulting candidate for S1_R02 is the parent for S1_R03. But S1_R03's diff added temperature... so S1_R03's parent should have been the S1_R02 candidate. Hmm, but the S1_R03 parent text (shown in the diff) includes temperature? Let me check S1_R03/diff's parent: it says "## General Non-Desklamp Retrieval, Cleaning, and Placement ... 1. ... Do not immediately revisit ... 2. Manipulate only the exact requested target category... 3. Acquire ... 4. Go directly...". Actually S1_R03/diff's parent (the "parent" field in S1_R03/diff source) — hmm I need to look. The S1_R03/diff source entry has "parent" = the S1_R02 result? Let me re-read.
+
+Actually, the S1_R03 source's "parent" field (in sources) is: "# Desklamp-Conditioned Inspection\n\nUse this procedure only when... For ordinary put, clean, or transfer tasks... ## Procedure ... ## Constraints ... ## General Non-Desklamp Retrieval, Cleaning, and Placement ... 1. Identify and search... Do not immediately revisit... 2. Manipulate only the exact requested target category. Do not pick up... 3. Acquire... 4. Go directly..." Yes! So S1_R03's parent = current parent = S1_R02's candidate. And S1_R03's diff added temperature guidance + rewrote search/near-miss items.
+
+Hmm wait, S1_R03/diff:
+```
+-Use this procedure only when the task explicitly requires inspecting... For ordinary put, clean, or transfer tasks... follow the general retrieval, cleaning, and placement procedure below instead.
++Use this procedure only when ... For ordinary put, clean, cool, heat, or transfer tasks... follow the general retrieval, cleaning, temperature-transformation, and placement procedure below instead.
+...
+-## General Non-Desklamp Retrieval, Cleaning, and Placement
++## General Non-Desklamp Retrieval, Cleaning, Temperature Transformation, and Placement
+...
+-1. Identify and search ... Do not immediately revisit...
++1. Identify and search ... Use the current and recent observations to avoid immediate cycling... If the obvious cabinets or fridge have not yielded the target, inspect uninspected drawers, shelves, the diningtable...
+-2. Manipulate only the exact requested target category. Do not pick up, clean, or place a substitute... (soapbottle/dishsponge)
++2. Manipulate only the exact requested target category. A similar category is not a substitute: a pot is not a pan, and a cup is not a mug...
+...
++4. For tasks requiring a temperature change...
++5. After any required cleaning or temperature action succeeds...
+```
+
+So the S1_R03 diff is a DIFFERENT edit than the current diff. The current diff is different (it adds "Admissible Actions" and rewrites items 1 and 2 with different text about open surfaces and cycling).
+
+Hmm. So actually the current parent (in the top-level `parent` field) is the same as S1_R03/diff's parent?? Let me compare carefully.
+
+Current `parent`:
+- "1. Identify and search for the exact requested target. If it is not visible, search systematically: open any closed cabinet, drawer, or fridge immediately upon reaching it and inspect its contents before leaving. Do not immediately revisit an already-open receptacle that visibly lacks the target; choose a different uninspected candidate location instead. Do not repeatedly check inventory while carrying nothing. Continue until the exact target is found or all plausible candidate receptacles have been inspected once."
+- "2. Manipulate only the exact requested target category. Do not pick up, clean, or place a substitute object when the exact target is absent; for example, do not transfer a soapbottle when the task requests a dishsponge. If the exact target has not yet been found, continue the systematic search rather than completing the transfer with a non-target object."
+- "3. Acquire the exact target..."
+- "4. Go directly to the requested destination..."
+
+Yes — this exactly matches S1_R02/diff's result (the candidate), which is also S1_R03/diff's parent. 
+
+Hmm interesting. So the current parent is the S1_R02 version. But wait, the current parent also has the desklamp section with "Use this procedure only when the task explicitly requires..." — which was added in S1_R02. Yes.
+
+So the current round's parent = S1_R02 candidate. But historical memory M6, M7, M8, M9 are based on S1_R03 and S1_R04 which had temperature and multi-instance additions. The current parent does NOT have those. Hmm, that's a divergence. So the current round forked off from the S1_R02 version and applied a different edit (admissible actions + search rewrite + no-substitute strengthening).
+
+Hmm, wait. Actually, maybe the memory view is showing a different branch. Let me re-examine: the current round is applying a diff to the "parent" that is the S1_R02 candidate. And the memory entries M1, M2, M3 correspond to S1_R01, S1_R02. M6, M7, M8, M9 correspond to S1_R03, S1_R04. Hmm, but those are on a different branch (with temperature). The current edit is on the branch that didn't get temperature.
+
+Actually wait — maybe I'm misreading. Let me recheck the current parent once more. It says "For ordinary put, clean, or transfer tasks where no desklamp is required, use this procedure instead." And item 3 "If the task requires the object to be clean...". Yes, no temperature. And the task list includes "cool some apple and put it in microwave" and "put a clean soapbar...". So it's a mixed batch.
+
+OK. So the current round: parent = S1_R02 candidate version, diff adds u3 (Admissible Actions) and rewrites u1/u2.
+
+Hmm, but that's odd given that M6/M7/M8/M9 reference S1_R03/S1_R04 which are temperature edits on this same lineage... Actually no. Let me reconsider: The S1_R03/diff's parent is the same text as the current parent. So S1_R03's parent = S1_R02's candidate. And S1_R03's candidate = S1_R02 candidate + temp edits. Then S1_R04's parent = S1_R03's candidate (with temp). S1_R04 added temp-conditioned placement item #5 and multi-instance item #6.
+
+So the lineage is: R01 → R02 → R03 → R04. And the current round's parent is R02's candidate. So this current round is a DIFFERENT branch (R02 → current). Hmm, or the current round is a fresh evaluation of a new edit against the R02 version.
+
+Hmm, actually maybe the "current" round is really the S1_R03 alternative? No, the diff is clearly different.
+
+Hmm OK. Actually, it doesn't matter hugely. What matters: I now have new evidence from the current 10 pairs about the effects of u1 (no-substitute strengthening), u2 (search rewrite), u3 (admissible actions). Let me carefully identify what the current pairs show about each of these, and reconcile with memory.
+
+Let me now do detailed step comparisons.
+
+**u3 (Admissible Actions) evidence:**
+
+The clause: "Before committing to a navigation or manipulation command, verify that the command is present in the current admissible action list; if it is not, do not issue it." And "When a desired navigation destination is absent but a direct action on that receptacle is listed, use the direct action if appropriate."
+
+Instances of inadmissible actions in current runs:
+- P8:12 action "" → not admissible.
+- P8:15 action "go to cabinet 1" → not admissible ("Nothing happens").
+- Q8:39 action "go to cabinet 3" → not admissible ("Nothing happens").
+- P9:2 action garbled → not admissible.
+- P7: various "go to drawer X" that were in admissible list. Let me check P7's invalid ones. Scan P7 feedback: all true. Q7: all true.
+
+Hmm, so P8 had 2 invalid actions, Q8 had 1. P9 had 1 invalid (garbled/malformed). Q9 had 0.
+
+So the Candidate (with u3) had fewer invalid actions in Q8 vs P8, and Q9 vs P9. But these are confounded. Also in some other runs, are there invalid actions? Let me scan Q7: all action_in_admissible_commands true except... Q7: none false. Let me check individual: The trace shows all true. Hmm, but P7:1 "go to drawer 1" admissible; P7:2 "open drawer 1"; ok.
+
+Actually wait, let me look at the detailed steps for P7. Hmm, no false flags.
+
+So the notable: P8 (parent) issued 2 no-ops/inadmissible; Q8 issued 1. P9 (parent) issued 1 malformed (a generation anomaly). Hmm.
+
+Actually, we should be careful: this is about whether the candidate avoids issuing commands absent from the admissible list. The Q8 step 39 "go to cabinet 3" was inadmissible → the guidance did not prevent it. So there is one counterexample.
+
+Now, what about the "desired navigation destination absent but direct action available" clause? Look for cases where a "go to X" was listed as an option vs a direct "take/move" available. Hmm, hard to detect. But note: in P5/Q5, the parent went "go to drawer 1, open drawer 1" while the candidate went "go to desk 1" then "go to drawer 1, open drawer 1". Hmm, that doesn't fit.
+
+Let's look at whether the candidate replaced a "go to" with a direct action. E.g., Q9: at step 1 (countertop 1), menu C57 includes "take soapbar 1 from countertop 1", "take candle 2", "take soapbottle 1", "take spraybottle 1", "take toiletpaper 1". Wait, C57 is the menu after arriving at countertop 1. Q9:2 took soapbar 1 directly. Fine.
+
+Hmm. Actually where would "desired navigation destination absent but direct action available" come up? Possibly not in these runs.
+
+Let me count invalid actions more carefully by scanning every step's "action_in_admissible_commands".
+
+P1: all true. Q1: all true.
+P2: all true. Q2: all true.
+P3: true. Q3: true.
+P4: true. Q4: true.
+P5: true. Q5: true.
+P6: true. Q6: true.
+P7: all true (50). Q7: all true (50).
+P8: step 12 false (empty), step 15 false ("go to cabinet 1"). Others true. Q8: step 39 false ("go to cabinet 3"). Others true.
+P9: step 2 false (garbled). Others true. Q9: all true.
+P10: all true. Q10: all true.
+
+So total invalid: Parent 3 (P8 ×2, P9 ×1); Candidate 1 (Q8 ×1).
+
+Hmm, 3 vs 1. Marginal. Can't make a strong claim. But we can note: the candidate still issued one inadmissible navigation (Q8:39 "go to cabinet 3"), so the guidance is not reliably followed; the parent issued inadmissible actions in two of the two step-limit soapbar tasks. Hmm, weak.
+
+Hmm, is there a more direct test? Perhaps the clause helps avoid e.g. "go to drawer 2" when drawer 2 isn't listed. Hmm.
+
+Actually, let me look at P7:1 "go to drawer 1". The menu C27 — does it include "go to drawer 1"? C27 includes "go to drawer 1","go to drawer 2",... "go to drawer 7". Yes.
+
+Hmm. OK.
+
+Actually hold on — maybe I should reconsider: maybe u3 is really relevant to some cases where Q avoided an invalid action that P issued. The clearest is P8 vs Q8 and P9 vs Q9. Let me look at P8's step 12-16 in detail:
+
+P8:11 go to cabinet 1 → arrives, cabinet 1 open, nothing.
+P8:12 action "" → "Nothing happens", inadmissible.
+P8:13 go to cabinet 2 → arrives.
+P8:14 go to cabinet 3 → arrives.
+P8:15 go to cabinet 1 → "Nothing happens", inadmissible! (Why? Because cabinet 1 was already... hmm, actually the observation at P8:15 before is "You arrive at cabinet 3. The cabinet 3 is open. In it, you see nothing." and action "go to cabinet 1" → "Nothing happens". So "go to cabinet 1" was not in the admissible list at that moment — maybe because cabinet 1 is not reachable... but earlier it was. Odd. Maybe a menu quirk.)
+P8:16 examine cabinet 1 → "The cabinet 1 is open. In it, you see nothing."
+
+Q8:38 go to cabinet 1, Q8:39 go to cabinet 3 → "Nothing happens" inadmissible, Q8:40 examine cabinet 3.
+
+So both had similar issues.
+
+Now Q9:1 go to countertop 1, Q9:2 take soapbar 1 (valid). P9:1 go to countertop 1, P9:2 garbled invalid, P9:3 inventory, P9:4 take soapbar 1. The Parent's invalid at step 2 was a malformed generation (the model output got garbled, "tags.\n\nstep-by-step:..."). This is a generation artifact, not the actor "issuing a command absent from the admissible list". Hmm. But the fallback recorded it as inadmissible.
+
+Actually, the fact that the parent's action string contains "take soapbar 1 from countertop 1" embedded in the garbled text means it tried to take the soapbar but the formatting broke. So it isn't a case of issuing a non-admissible command per se, it's a formatting failure. So the u3 clause isn't really about that.
+
+Hmm, so I should be careful about attributing Q9's efficiency to u3.
+
+What about the second part of u3: "When a desired navigation destination is absent but a direct action on that receptacle is listed, use the direct action if appropriate." Consider Q10 vs P10. Hmm.
+
+Actually, let me think about Q2:1 "go to desk 1". In P2's initial menu C5, is "go to desk 1" listed? C5: ["go to bed 1","go to bed 2","go to desk 1","go to drawer 1",...]. Yes. And P2:1 chose "go to bed 1". So both had desk 1 available.
+
+Hmm.
+
+**u2 (search rewrite) evidence:**
+
+Current item 1 adds: "include visible open surfaces such as tables, countertops, shelves, and sidetables rather than only closed drawers or cabinets"; "do not re-enter a location just left or repeat a short cycle among the same few locations"; "After checking receptacles of one type, move to a still-unexamined receptacle, preferring a type you have not yet tried".
+
+Compare P10/Q10: Parent cycled fridge↔countertop 1↔countertop 2 and cabinet 1, eventually found apple on diningtable at step 8 (16 steps to take). Candidate went countertop 1 → countertop 2 → diningtable, took apple at step 6, and finished in 11. The Candidate "preferring a type you have not yet tried" (diningtable) aligns. So one positive case.
+
+Compare P7/Q7: both cycled. Q7 searched more: Q7 went to countertop 1, countertop 2 early (open surfaces), plus drawers. Both failed. So the anti-cycling was not enough.
+
+P8/Q8: both cycled among cabinets. Q8 also visited countertop 1, sinkbasin 1, sinkbasin 2, bathtubbasin 1 (open surfaces). Both failed. So no rescue.
+
+P5/Q5: Candidate added "go to desk 1" first — consistent with "include visible open surfaces such as tables". Added 1 step.
+
+P2/Q2: Candidate added "go to desk 1" first — similar. Added 1 step. Hmm, actually Q2 is a desklamp task.
+
+Hmm — actually the extra "go to desk 1" in Q2 and Q5 might be the actor checking an open surface. Both succeeded with 1 extra step.
+
+P3/Q3 and P4/Q4 unchanged.
+
+**u1 (no-substitute strengthening) evidence:**
+
+Current item 2 adds: "When the task requests an exact object and that exact noun phrase has not been observed, do not acquire, clean, cool, heat, or place a different but related object as a substitute... If a container holds only a non-matching object, leave it without manipulating that object and continue searching for the exact target."
+
+Where could this apply in current runs? P7/Q7: "clean some butterknife and put it in drawer" — butterknife never found. Both took knife 1 (a near-miss: knife vs butterknife) and cleaned/moved it. So both violated. Hmm, both. So no differentiation. Actually wait — in Q7, did the candidate take knife 1? Q7:9 take knife 1, Q7:10 move knife 1 to drawer 1, Q7:13 take knife 1, Q7:17 clean knife 1, Q7:19 move knife 1 to drawer 1. Yes. So both manipulated the knife substitute.
+
+Hmm, but wait — "knife" vs "butterknife": In ALFRED, knife and butterknife are different categories, so knife is a near-miss. Both used it. So the no-substitute rule was not followed by either.
+
+P8/Q8: soapbar absent; both refrained from manipulating soapbottle/spraybottle. Actually P8 at step 5-6 saw cabinet 2 with soapbottle 2; didn't take it. Q8 similarly. So both refrained. Hmm — but actually neither manipulated a substitute, so it's consistent with the rule but also the parent already refrained, so no differentiation.
+
+Hmm, so u1: no clear differentiating evidence in the current pairs? Let me double check P8: did P8 ever pick anything? P8 trace: all "go to", "open", "examine", "inventory"... no take/move. Right. And Q8 likewise. So both refrained.
+
+And P7/Q7 both took knife. So u1 didn't prevent substitute manipulation in Q7 (knife for butterknife).
+
+Hmm wait, but maybe item 2's "do not acquire, clean, cool, heat, or place a different but related object" — but the candidate Q7 did acquire/clean/place knife. So u1 not followed in Q7. That's a meaningful observation: the strengthened no-substitute clause did not prevent near-miss manipulation in the clean-butterknife task.
+
+Hmm, but this contradicts the historical M8 claim that "the Candidate follows the no-substitute rule". Hmm, M8 was about temperature tasks (S1_R03/S1_R04). Different.
+
+Actually, careful: In Q7, the task "clean some butterknife and put it in drawer" — the Actor may have believed knife 1 IS the butterknife? The observation says "a knife 1, and a spatula 1". Hmm, knife vs butterknife. The actor's reasoning isn't fully shown. Hmm. But it's an action on a non-exact object.
+
+Hmm, actually wait. Let me reconsider: is "knife" a near-miss of "butterknife"? In ALFRED, "knife" and "butterknife" are distinct object types. The skill explicitly says "a pot is not a pan, and a cup is not a mug" in the S1_R03 version, and in the current version "do not transfer a soapbottle when the task requests a dishsponge". So yes, knife vs butterknife is a substitute scenario.
+
+So: both Parent and Candidate manipulated knife as a substitute for butterknife, and both still failed. So the strengthened no-substitute clause did not change behavior in that paired task.
+
+Hmm, so where did u1 have any effect? Maybe in P9/Q9 (soapbar task)? No, soapbar found.
+
+Hmm. So u1 has essentially no positive demonstration in the current pairs. Interesting.
+
+Hmm wait — maybe I should reconsider whether there's a case where the candidate refrained and the parent substituted. Let's look at P5/Q5 or P3/Q3... no.
+
+What about P1/Q1, P2/Q2 — desklamp tasks, no substitute issue.
+
+Hmm. What about the P7/Q7: Parent took knife at P7:8. Candidate took knife at Q7:9. Both. Hmm.
+
+Let me also double check P6/Q6: butterknife found; both identical.
+
+Hmm OK. So the current pairs give:
+- u1 (strengthened no-substitute): no clear behavioral difference; in the one paired task where a near-miss (knife vs butterknife) was available (val:0007), both the Parent and the Candidate manipulated the near-miss and both failed at step limit. So the strengthening did not demonstrably reduce near-miss manipulation in that instance.
+- u2 (search rewrite incl. open surfaces + anti-cycling): mixed. Candidate showed extra open-surface checks in two simple tasks (P5/Q5, P2/Q2) adding 1 step each but still succeeding; in the cool-apple task val:0010 the Candidate explored open surfaces (countertop 2, diningtable) and found the apple in 11 steps vs Parent 14, succeeding. But in the two step-limit tasks (val:0007, val:0008) both Parent and Candidate still cycled and hit 50 steps; the Candidate's extra open-surface visits (countertops, sinkbasins, bathtubbasin) did not break the loop.
+- u3 (admissible actions): the Candidate still issued at least one inadmissible navigation (Q8:39 "go to cabinet 3"), and the Parent issued inadmissible/empty actions in val:0008 (steps 12, 15) and a malformed action in val:0009 step 2. So it's weak evidence; the clause did not fully prevent invalid actions. But candidate had fewer (1 vs 3) across the batch. Hmm.
+
+Hmm, this is thin. Let me look for more.
+
+Actually, let me reconsider P9/Q9 more carefully — the u3 clause "When a desired navigation destination is absent but a direct action on that receptacle is listed, use the direct action if appropriate." Hmm. Actually maybe this clause relates to ALFRED mechanics: sometimes you can't "go to X" but can directly act. Not obviously used.
+
+Let me now think about what coherent Memory entries to produce.
+
+Given the instruction: "Use current verified Parent/Candidate executions as primary new evidence and historical sources to assess prior understandings."
+
+The three edits (u3 new section, u2 rewrite of search, u1 strengthening of no-substitute) define comparison subjects.
+
+Now, the memory entries:
+- M1: desklamp guidance (S1_R01) — about the original desklamp procedure. Current pairs include desklamp tasks (val:0001, val:0002) where both succeed. M1 is still broadly supported. But the current round's diff didn't change the desklamp section. So maybe M1 needs no revision, or we could add that desklamp capability preserved. Hmm — "Leave unrelated entries untouched."
+
+Actually, the current pairs do include desklamp tasks; the current edit did not modify the desklamp section. The desklamp capability was preserved (both val:0001/val:0002 succeeded). Is that new evidence for M1? It's consistent. But M1's claims are about S1_R01. Hmm. Could add a note. But the instruction says don't revise only for style/duplicates. Hmm. However, "Do not decide Candidate acceptance, edit the Skill, or prescribe the next update." We could add a knowledge item about preservation. Hmm, is that warranted? The current edit didn't touch that section but the candidate still performed the desklamp tasks successfully (2 pairs). That's a preservation observation for the same theme (desklamp procedure). I think we could integrate: "the desklamp section was unchanged in this round and the two paired desklamp tasks still succeeded (val:0001 4v4, val:0002 6v5)". Hmm, but that might be more relevant to a general "preserved capability" entry. Hmm.
+
+Actually, let's think about which MemoryEntries to revise. The strongest new evidence is about the general non-desklamp procedure's search behavior, no-substitute, and admissible actions.
+
+M3 (S1_R02): this is the entry about the general non-desklamp procedure and the scope-narrowing. The current parent = S1_R02's candidate, and the current diff further modifies that same general procedure. So M3 is the most relevant existing entry for the theme of "general non-desklamp procedure behavior." Hmm, but M3's claims are about the S1_R02 edit specifically. The current edit changes item 1 and 2 of that procedure. So M3's theme (search breadth + no-substitute guidance in non-desklamp tasks) is directly continued. I think we should revise M3, integrating the new evidence about the rewritten clauses, while preserving the historical S1_R02 findings.
+
+M6 (S1_R03): about the anti-cycling/step-budget language. The current diff again adds anti-cycling language ("do not re-enter a location just left or repeat a short cycle"). So M6's theme is also directly continued. We should revise M6 to integrate the current evidence.
+
+M8: about the exact-category no-substitute rule in temperature tasks. The current diff strengthens the no-substitute rule (adding "do not acquire, clean, cool, heat, or place a different but related object"). Hmm, M8 is about temperature tasks (S1_R03/S1_R04). The current no-substitute strengthening is in the general item 2. Hmm. Should we revise M8? M8's theme: no-substitute rule conditional usefulness. The current evidence (val:0007 knife-vs-butterknife) is relevant: both manipulated near-miss. Hmm, but that's a clean task, not temperature. M8 is specifically about temperature-conditioned no-substitute. Hmm.
+
+M7: temperature guidance — not touched by current edit (current parent has no temperature item). The current batch includes a cool task (val:0010) where Candidate succeeded 11 vs Parent 14. Hmm — but the current parent has no temperature guidance either! So the temperature behavior difference is not attributable to the current edit. Interesting: Q10 "cool apple 1 with fridge 1" while holding apple, and Parent P10 also did "cool apple 1 with fridge 1" while holding (P10:11 cool apple 1 with fridge 1 — yes, the parent also did it correctly). So both used the direct cool action. The difference was search efficiency (14 vs 11). So M7's theme isn't directly about this round. Hmm, but the current evidence shows that even without the temperature item (since current parent lacks it), the cool action was performed correctly while holding by both. Hmm, that's a data point but the current parent doesn't have temperature guidance, so we can't say the edit caused it.
+
+Hmm, actually wait: this is confusing. The current parent DOES NOT include temperature guidance, yet M7 claims that edits added temperature guidance. So the current round is on a branch without temperature guidance. If we revise M7, we'd need current evidence about temperature guidance, which we don't have. So leave M7 untouched.
+
+M9: multi-instance — not touched by current edit. Leave untouched? The current batch has no multi-instance tasks (val:0001-0010 are: bowl/pillow desklamp, mug×2, pencil, butterknife×2, soapbar×2, apple). No "two X". So no new evidence. Leave M9 untouched.
+
+M2: about preserving non-desklamp search/acquisition/placement. The current evidence: val:0003, 0004 unchanged identical; others preserved success. Hmm. M2's theme: the desklamp-specific addition didn't degrade non-desklamp tasks. Current edit didn't change the desklamp section... hmm, M2 is about S1_R01's clause. Hmm.
+
+M1: desklamp procedure.
+
+Hmm. Let me decide which entries to revise. The instruction says each entry must contain a coherent edit-response theme, and we can revise multiple entries if coherent.
+
+Given the current diff touches: (a) new Admissible Actions section, (b) rewrite of non-desklamp search item, (c) rewrite/strengthen non-desklamp no-substitute item.
+
+I think the natural output is:
+1. A new entry (or revision of M3/M6) covering the current search-rewrite (u2) and no-substitute strengthening (u1) — with the observed mixed response.
+2. A new entry or revision covering the Admissible Actions section (u3).
+
+Hmm, but M6 is specifically about anti-cycling/step-budget language (from S1_R03). The current item 1 rewrite includes anti-cycling too. So M6's theme continues. And M3's theme (search breadth + no-substitute, S1_R02) also continues.
+
+Hmm, this is tricky: should I revise M3 and M6, or create a new entry?
+
+The guidance: "When revising an entry, account for its material understandings... Preserve still-supported historical successes, failures, unchanged behavior... Do not blend distinct historical edits or tasks because their objects or wording resemble each other."
+
+M3 and M6 are distinct historical edits (S1_R02 and S1_R03) with distinct themes. The current edit is a third edit. Hmm.
+
+Option: Create a NEW MemoryEntry for the current edit (S1_R05), covering u1/u2/u3 responses, while revising M3/M6/M8 to add cross-references? No — entries must be self-contained; we shouldn't cross-link.
+
+Hmm. Actually, I think the cleanest: The current edit is a continuation of the "general non-desklamp procedure" theme that M3 addresses, and the "anti-cycling" theme that M6 addresses. But M3 and M6 are about different historical edits. The new edit's changes overlap both themes.
+
+Hmm. Let me reconsider. The rules say a MemoryEntry maintains one coherent edit-response theme, and `revises` replaces whole MemoryEntries. I can revise multiple entries only when their theme is coherent and differences survive.
+
+I think I'll do:
+- Revise M3 to integrate the current evidence about the rewritten search item and the strengthened no-substitute item (since M3 is the foundational entry about the general non-desklamp procedure's search + no-substitute guidance). Actually M3 already covers "search breadth + exact-target/no-substitute" combined. Yes, M3's singular knowledge item explicitly says the two clauses act together.
+- Revise M6 to integrate current evidence about anti-cycling (its theme), since the current item 1 rewrite also contains anti-cycling/step-budget language and the current pairs (val:0007, val:0008) show continued cycling failures.
+
+Hmm, but is M6's theme "coherent" with the current edit? M6 is about the S1_R03 edit's anti-cycling language. The current edit adds similar anti-cycling language. Hmm, they're different edits but the same behavioral subject. Revision is appropriate to keep the theme updated.
+
+Hmm, but maybe it's cleaner to leave M6 as-is (it's about a specific historical edit and its specific wording/response) and create a new entry for the current round. But then we'd have overlapping themes...
+
+Actually, the instruction: "Decide whether the theme warrants a new entry, revision of existing entries, or no update. Leave unrelated entries untouched." And "Do not split mechanically by task."
+
+I think the most defensible: revise M3 (the entry about the S1_R02 general procedure) to add the current evidence on the rewritten item 1 & 2 — because the current edit directly modifies the procedure M3 introduced — and create a new entry for the new "Admissible Actions" section (u3), which is a genuinely new subject not covered by any existing entry.
+
+And revise M6? M6's theme (anti-cycling) overlaps with the current item-1 rewrite. Hmm. But M6 is explicitly about the S1_R03 diff. If I revise M6 to also include the current edit's anti-cycling, I'd be blending two distinct edits... The instruction says don't blend distinct historical edits because their wording resembles each other. Hmm, but it also says integrate genuinely equivalent observations.
+
+Hmm. Let me think about what's most useful. The current edit's item-1 rewrite is essentially a re-attempt at the same anti-cycling/search-breadth problem that S1_R02 and S1_R03 targeted. So the "theme" is: does adding anti-cycling / search-breadth language to the general procedure reduce recycling and step-limit failures? That's a coherent theme spanning multiple edits. M3 and M6 both touch it. Hmm.
+
+Given the constraint that each active ID may be revised by at most one entry, and I shouldn't create revision chains... I could put M3 and M6 into one entry (revises: ["M3","M6"]) if their theme is coherent. But they have distinct historical sources and distinct sub-themes (M3 also includes scope-narrowing and the dishsponge rescue; M6 includes the countertop-3 miss and the cool-plate near-miss). Hmm, "Multiple entries may be revised together only when their theme is coherent and important differences survive." I think M3 and M6 are coherent (both about the general non-desklamp search procedure's evaluation) but combining would be a big merge. Risky.
+
+Alternatively: create a new entry for the current edit's u1+u2 (search rewrite and no-substitute strengthening), and revise M6 only if... hmm.
+
+Hmm, let me step back and think about what the "correct" behavior is likely intended. This is a synthetic evaluation. The current diff is a new edit; the expected answer probably: revise the entries that the new evidence bears on, produce updated knowledge arrays.
+
+Given the new evidence touches: (1) the general non-desklamp procedure search (M3, M6), (2) the no-substitute rule (M3, M8), (3) new admissible actions (no existing entry).
+
+I think a reasonable output:
+- Entry A: revises M3, integrating new evidence about the rewritten search item and strengthened no-substitute item, preserving historical S1_R02 findings.
+- Entry B: revises M6, integrating new evidence about anti-cycling from the current search rewrite, preserving S1_R03 findings.
+- Entry C: revises M8? Hmm, M8 is about temperature no-substitute. The current edit adds no-substitute language in the general procedure. The current evidence (val:0007 knife) shows the candidate still manipulated a near-miss. Hmm, M8's historical evidence is about heat/cool tasks. The current evidence is a clean task. Combining would blend distinct edits. Hmm. Maybe leave M8.
+  Actually, M8's claim: "the rule prevents ineffective near-miss manipulation when exact targets are absent, but its task-level value depends on the exact target actually existing." Current evidence: val:0007 (knife for butterknife) shows the Candidate DID manipulate the near-miss → so the strengthened rule did not prevent near-miss manipulation in a clean task. This actually challenges M8's general "Candidate follows the no-substitute rule" claim's scope. Hmm. But M8 is specific to temperature tasks. Val:0007 is a clean task. So it's a different condition. Hmm. I think the "no-substitute" theme is coherent across; the current edit explicitly strengthens the no-substitute principle. I could revise M8 to become a broader "exact-category no-substitute rule" entry covering both the temperature-context evidence (S1_R03/R04) and the current clean-context evidence (val:0007), noting the rule is not universally followed.
+
+Hmm. But then M3 also covers no-substitute... Overlap.
+
+Hmm. Let me re-read M3's knowledge text: it's a big one covering the S1_R02 diff and 10 paired tasks. It includes: scope narrowing never triggered; appended guidance (open closed containers, avoid revisits, avoid inventory, exact-target no substitute, clean only when required, direct destination); Parent 6/10 vs Candidate 7/10; dishsponge rescue case; earlier opening of closed containers; identical simple tasks; both fail when target absent; the anti-revisit clause not reliably followed.
+
+M6's knowledge: about the S1_R03 diff's rewritten search step (avoid immediate cycling, do not re-examine already-open empty receptacle, don't check inventory while carrying nothing, prefer uninspected drawers/shelves/diningtable). Mixed response; positive cool-bread case; negative identical-room case; cool-plate near-miss; both shuttling; net 6 vs 7.
+
+So M3 and M6 are already quite overlapping in theme (both about search efficiency/anti-cycling in general non-desklamp tasks) but they're different edits (S1_R02, S1_R03) and the instruction to keep separate because "Do not blend distinct historical edits or tasks because their objects or wording resemble each other."
+
+OK here's my plan. I'll produce:
+
+**Entry 1 — revises M3.** Theme: the general non-desklamp retrieval/cleaning/placement procedure (introduced S1_R02, and further rewritten in the current edit). Knowledge items:
+ - Historical S1_R02 findings preserved (scope narrowing never triggered; appended guidance effects; dishsponge rescue; Parent 6/10 vs Candidate 7/10; both fail when target absent; anti-revisit not reliably followed).
+ - New: the current edit rewrote item 1 (added "include visible open surfaces" and "do not re-enter a location just left or repeat a short cycle") and strengthened item 2 (added explicit no-substitute and "leave non-matching objects untouched"), plus added a new Admissible Actions section. Hmm, but the Admissible Actions is separate theme...
+
+Hmm, this is getting complicated. Let me simplify and be decisive.
+
+Actually, re-reading the prompt: "A MemoryEntry maintains one coherent edit-response theme." and "When revising an entry, account for its material understandings... Preserve still-supported historical successes, failures, unchanged behavior, capability comparisons, and attribution boundaries with the historical Evidence they need."
+
+I'll go with 3 entries:
+
+1. revises M3 — the general non-desklamp procedure theme (search breadth + exact-target/no-substitute). Integrate new evidence from current pairs about the re-written item 1 and strengthened item 2: 
+   - Preserve historical S1_R02 findings (unchanged simple tasks, dishsponge rescue, step-limit failures when target absent, scope narrowing untriggered).
+   - New: in current val:0005 and val:0002, the Candidate inserted an initial visit to an open surface (desk 1) before the container search, succeeding but adding one step each (6 vs 5), consistent with the new "include visible open surfaces" instruction but with a step cost.
+   - New: val:0010 cool-apple: Candidate explored countertop 2 and diningtable (open surfaces) and found the apple, finishing in 11 vs Parent 14; consistent with preferring uninspected surface types.
+   - New: val:0007 and val:0008 both still hit step limit with cycling (candidate still re-entered cabinets/drawers) → anti-cycling not reliable; and val:0007 both manipulated knife (near-miss for butterknife) → strengthened no-substitute not followed.
+   
+   Hmm, that's a lot. Maybe split into multiple knowledge items within the entry.
+
+2. revises M6 — anti-cycling / step-budget language theme. Hmm, but that overlaps heavily with what I put in entry 1. Hmm.
+
+Hmm. I worry about duplication. Let me reconsider: maybe I should put the current evidence into a NEW entry for the current edit, and not revise M3/M6 at all (leave them as historical records of their own edits). But the instructions emphasize using current evidence to revise prior understandings... and "Leave unrelated entries untouched." M3/M6 are related though.
+
+Hmm. Let me re-read: "Use the current responses to determine new support and limits, then consider the relevant old Knowledge and its actual historical sources. Decide whether the theme warrants a new entry, revision of existing entries, or no update."
+
+So for each relevant theme, decide. The current edit's changes are to the general non-desklamp procedure's search and no-substitute rules — same theme as M3. And anti-cycling — same theme as M6. So revise both, integrating.
+
+But then, both entries would contain the current val:0007/val:0008 cycling evidence... which the instruction warns against duplicating? Not exactly. Hmm.
+
+Alternative cleaner approach: Since the current edit modifies item 1 (search) and item 2 (no-substitute) of the SAME procedure that M3 introduced, and adds a new Admissible Actions section, I'll:
+- Revise M3 to be the entry for "general non-desklamp procedure: search breadth, open surfaces, anti-cycling, and exact-target/no-substitute", integrating current evidence AND preserving the S1_R02 historical findings. Hmm, but then M6 (also anti-cycling) stays as a separate historical entry... and both would cover anti-cycling but for different edits.
+- Revise M6 to add the current anti-cycling evidence? Hmm.
+
+Hmm, honestly the M3/M6 overlap already exists in the historical memory (both discuss cycling failures). They're separate because they're separate edits. So it's fine to keep them separate, each updated with the current evidence relevant to its sub-theme.
+
+Hmm, but I could also keep M3 and M6 untouched and make the new entry. Let me decide based on usefulness and the instruction "Do not split mechanically by task... Favor a concise transferable understanding."
+
+Decision: I'll revise M3 (because the current edit directly rewrites the procedure M3 introduced — same theme) and revise M6 (because the current edit again adds anti-cycling/step-budget language — same theme). Hmm, but that duplicates.
+
+Hmm, hmm. Let me reconsider once more. Actually — maybe the cleanest is:
+
+- One entry revising M3 and M6 together (they form a coherent theme: the general non-desklamp search procedure across successive edits and its persistent cycling/step-limit failures), with knowledge items preserving both historical findings AND adding current evidence. The instruction allows "Multiple entries may be revised together only when their theme is coherent and important differences survive." M3 and M6 both concern the same procedure's search clause and its failure to break cycling; differences: M3 includes scope-narrowing and no-substitute/dishsponge; M6 includes the specific cool-bread success and cool-plate near-miss. Those differences would need to survive.
+
+Hmm, that's a big merge, and risks "blending distinct historical edits."
+
+OK let me just go with separate entries:
+
+Entry 1: revises M3. Keep M3's historical content but add the current edit's evidence about item-1 rewrite (open surfaces) and item-2 strengthening (no-substitute), and about the current batch. Actually — M3's theme is broad ("the appended general procedure and its effects"). The current edit refines the same procedure. So integrating is natural.
+
+Entry 2: revises M6. Keep M6's historical content (anti-cycling rewrite in S1_R03) and add current evidence about the new anti-cycling wording.
+
+Entry 3: new entry for the Admissible Actions section (u3), which is a genuinely new subject.
+
+Entry 4: revises M8? The no-substitute rule general strengthening. Hmm, M8 is temperature-context. The current edit's no-substitute language is general. Hmm. I could revise M8 to broaden it to "exact-category no-substitute" across contexts, adding the current evidence. But then M3/Entry1 also covers no-substitute... 
+
+Hmm, hmm. Let me reconsider whether to keep no-substitute evidence in Entry 1 or in M8.
+
+Actually, M3's knowledge already bundles search + no-substitute ("the two clauses act together and cannot be isolated"). M8 is about the no-substitute rule specifically (temperature context). The current edit strengthens no-substitute in item 2 (general). The best current evidence for no-substitute behavior is val:0007 (knife vs butterknife, clean task) and val:0008 (soapbar absent, neither substituted). Hmm.
+
+I think I'll place the no-substitute current evidence into the entry that revises M8, broadening M8 to cover the general exact-category no-substitute principle across contexts (temperature and cleaning), preserving historical findings. And keep Entry 1 (M3) focused on search behavior. Hmm, but M3 historically also bundled no-substitute... I'd keep M3's historical statement but not extend it.
+
+Ugh, this is getting complicated. Let me just be pragmatic and write good, well-evidenced entries.
+
+Final plan:
+
+**Entry A: revises ["M3"]** — theme: the general non-desklamp procedure (search + exact-target) as introduced in S1_R02 and rewritten in the current edit.
+Knowledge:
+ A1. Historical S1_R02 comparison preserved (scope-narrowing untriggered; Parent 6/10 vs Candidate 7/10; dishsponge rescue; identical simple tasks; both step-limit when target absent; anti-revisit clause unreliable). — I need to preserve this but maybe condense. Actually the rules say preserve still-supported comparisons with their historical evidence. So I should keep the M3 knowledge text largely intact, maybe refine.
+ 
+ Hmm, but I must produce "the complete final Knowledge array." So I can restructure.
+
+Hmm. Let me think about how much I can restructure. The instruction says "revises replaces whole MemoryEntries" and I should produce the final array, preserving supported historical comparisons. So I can rewrite M3's text into 2-3 knowledge items.
+
+Let me draft:
+
+A1 (historical, S1_R02): The S1_R02 edit appended a general non-desklamp procedure (open closed containers on reaching and inspect before leaving; don't immediately revisit an already-open empty receptacle; don't check inventory while carrying nothing; manipulate only the exact requested category, no substitute; clean only when required; go directly to the destination, opening it if closed) and narrowed the desklamp procedure to explicitly-desklamp tasks, on 10 paired ordinary put/clean/transfer tasks without a desklamp. The scope-narrowing clause never triggered (no desklamp present). Parent succeeded 6/10, Candidate 7/10. Clearest contrast: clean-dishsponge-to-shelf — Parent cycled among sinkbasin/cart/shelf without ever inspecting the bathtubbasin and eventually moved a soapbottle (substitute) to shelf 1, failing at the step limit; Candidate explored additional receptacles, found the exact dishsponge at the bathtubbasin, cleaned it at the sinkbasin, and placed it on shelf 1 for a success. This supports that added search breadth plus exact-target/no-substitute guidance can rescue a task where the Parent substituted the wrong object, though the clauses act together. In simple tasks (clean apple/lettuce/plate, put-only tasks) Candidate and Parent behavior was step-for-step identical, so the direct-completion and clean-only-if-required clauses did not degrade those cases. When the requested object was absent from every inspected receptacle, both reached the step limit and the Candidate still shuttled among already-inspected receptacles, so the anti-revisit clause was not reliably followed. Limitations: one stochastic trial per task.
+
+A2 (new, current edit u2 search rewrite): The current edit rewrote the search step to add "include visible open surfaces such as tables, countertops, shelves, and sidetables rather than only closed drawers or cabinets" and "do not re-enter a location just left or repeat a short cycle among the same few locations... prefer a still-unexamined type." In current val:0005 (put pencil on desk) and val:0002 (examine pillow), the Candidate first visited an open surface (desk 1) before the container/target search and still succeeded but used one step more than the Parent (6 vs 5). In val:0010 (cool apple into microwave) the Candidate searched open surfaces (countertop 2, then diningtable) and found the apple, finishing in 11 steps vs the Parent's 14. So the open-surface preference was followed in these tasks with success, but it can add a step in simple tasks where the target is elsewhere.
+
+A3 (new, current edit u2 failure): In current val:0007 (clean butterknife into drawer) and val:0008 (clean soapbar into cabinet), where the exact target was never found, both Parent and Candidate still cycled among the same containers and hit the 50-step limit; the Candidate's extra open-surface visits (countertops, sinkbasin, bathtubbasin in val:0008; countertops in val:0007) did not break the loop. So the rewritten anti-cycling/step-budget language did not reliably prevent cycling and step-limit failures when the exact target was absent. Net current batch: Parent 8/10 successes, Candidate 8/10; Candidate fewer steps in val:0009 (6 vs 8) and val:0010 (11 vs 14), more in val:0002 and val:0005 (6 vs 5).
+
+Hmm wait, but the "cycle" evidence for val:0007/0008 — the historical M6 also has similar. Fine.
+
+Hmm, A2/A3 are about the current edit's search rewrite — that's the same theme as M6 (anti-cycling). Hmm. Ugh.
+
+OK you know what, let me restructure: put the search-rewrite (u2) evidence in the entry revising M6 (since M6 is precisely the anti-cycling/step-budget theme), and put the exact-target/no-substitute (u1) strengthening in the entry revising M8 (no-substitute theme). And put the Admissible Actions (u3) in a new entry. And leave M3 alone? Hmm, but M3 is the S1_R02 general-procedure entry and the current edit modifies that procedure's items 1 and 2 — arguably its theme is the general procedure as a whole.
+
+Hmm, but honestly, M3 already covers item-1 (search) and item-2 (no-substitute) themes. The current edit's changes are refinements of those items.
+
+Ugh. Let me just make a decision and go. Given the risk of over-engineering, I'll produce:
+
+- Entry 1: revises M3 (general non-desklamp procedure: search breadth + exact-target no-substitute). Include: preserved S1_R02 findings + new current evidence on item-1 rewrite (open surfaces / anti-cycling) and item-2 strengthening (no-substitute, knife-vs-butterknife both manipulated; val:0008 both refrained).
+- Entry 2: revises M6 (anti-cycling/step-budget language). Hmm... 
+- Entry 3: new entry for Admissible Actions.
+
+Hmm, but Entry 1 and Entry 2 would overlap on anti-cycling.
+
+Alternative: 
+- Entry 1: revises M3 AND M6? No...
+
+Hmm, let me reconsider: maybe I should NOT revise M6, and instead treat the current edit as a new theme (the current round's diff), creating a new entry, while leaving M3, M6, M8 as historical records of their own edits. The instructions do say "Leave unrelated entries untouched; do not revise only for style or add a duplicate case summary." M3 and M6 are about *their* edits; a new entry about the current edit isn't a duplicate because it's a different intervention with different wording.
+
+But the instruction also says "Use the current responses to determine new support and limits, then consider the relevant old Knowledge and its actual historical sources." and "reconcile." Hmm.
+
+I think a balanced approach: create ONE new entry for the current edit (covering u1, u2, u3 responses, with separate knowledge items), AND revise M8 (the no-substitute theme) since the current edit explicitly strengthens the no-substitute rule and the current evidence bears on whether the candidate follows it (val:0007 shows it doesn't always). Hmm, but M8 is temperature-specific...
+
+Hmm, hmm. Let me look again at M8's text: "The actual diffs in this sequence tightened the exact-category rule by making explicit that a similar category is not a substitute... Earlier evidence came from tasks where the exact target was absent: cool-a-pan (Parent took pot; Candidate didn't)... heat-a-mug... The current edit adds the same no-substitute principle specifically inside the temperature-conditioned placement guidance... In the current hot-mug task the exact mug was absent, the Parent took cup 2 and heated it, both hit the step limit; the Candidate left the visible cup untouched... The evidence supports only conditional usefulness."
+
+So M8 is about the no-substitute rule in absent-target scenarios. The current edit strengthens the general no-substitute rule. The current evidence: val:0007 (butterknife task) — near-miss knife available; BOTH took and cleaned the knife → candidate did NOT follow no-substitute. val:0008 (soapbar) — near-misses (soapbottle, spraybottle) available but category differs more; both refrained. Hmm. So current evidence partially challenges M8's "Candidate follows the no-substitute rule" — but in a cleaning task context, not temperature.
+
+I think it IS coherent to revise M8 into "exact-category no-substitute rule: conditional usefulness and limits across temperature and cleaning contexts," adding the val:0007 observation that the strengthened rule did not prevent near-miss manipulation when the near-miss (knife) closely resembles the target (butterknife). That's a useful limit.
+
+OK, final decision — 3 entries:
+
+**Entry 1: revises ["M3"]** — general non-desklamp procedure theme (search breadth + open surfaces + anti-cycling + exact-target), preserving S1_R02 findings and adding current evidence about the rewritten item 1.
+
+**Entry 2: revises ["M8"]** — exact-category no-substitute theme, preserving S1_R03/R04 temperature findings and adding current evidence (val:0007, val:0008) about the strengthened general no-substitute rule.
+
+**Entry 3: revises []** (new) — the new Admissible Actions section: verify command in admissible list; use direct action when destination absent.
+
+Hmm, but should Entry 1 rather be a merge of M3 and M6? Let me reconsider: M6 is specifically about the S1_R03 search-step rewrite (anti-cycling/step-budget). The current edit's item-1 rewrite is very similar in content. If I revise M3 but not M6, then M6's still-supported findings remain but M6's theme (anti-cycling) isn't updated with current evidence. Is that a problem? The instruction: "Leave unrelated entries untouched." M6 is related but not the same as M3. Hmm.
+
+Maybe I should revise M6 instead of M3 for the search/anti-cycling evidence, and leave M3 (since the current edit's item 2 no-substitute goes to M8, and item 1 search goes to M6). But M3 is about the general procedure introduced in S1_R02, and the current edit modifies exactly that procedure's items 1 & 2. Hmm.
+
+Argh. OK, let me think about which historical entry's theme best matches each current change:
+
+- Current change u2 (rewrite item 1: open surfaces + anti-cycling + prefer uninspected type): This is closest to M6 ("rewrote the search step to add: use current and recent observations to avoid immediate cycling; do not re-examine an already-open empty receptacle...") AND M3 ("open any closed cabinet... do not immediately revisit an already-open receptacle... search breadth"). Both. Hmm.
+
+- Current change u1 (strengthen item 2: no-substitute incl. acquire/clean/cool/heat/place): closest to M8 (no-substitute rule) and M3 (item 2 originally).
+
+- Current change u3 (new Admissible Actions): no existing entry.
+
+Given the overlap, maybe the best is:
+- Entry 1: revises ["M3","M6"] jointly — "general non-desklamp search procedure across edits: search breadth, open-surface inclusion, anti-cycling, and step-limit failures." Preserve both historical sets of findings + current. Hmm, big.
+
+Hmm, the instruction says "Multiple entries may be revised together only when their theme is coherent and important differences survive." M3 and M6's theme: the general non-desklamp search clause and its effectiveness. I'd say they're coherent (same procedure, same failure mode). Important differences to survive: M3's dishsponge rescue and scope-narrowing; M6's cool-bread success and cool-plate near-miss; different room contexts. Hmm, OK, it's doable but produces a large entry.
+
+Hmm. Let me weigh: The risk of merging is blending distinct edits; the risk of not merging is duplicating current evidence across two entries and leaving one theme stale.
+
+I'll go with NOT merging. I'll revise M3 (the foundational general-procedure entry) to be the home for the current edit's item-1 search rewrite evidence (since item 1 belongs to the procedure M3 introduced), and leave M6 untouched (it's a distinct historical edit's record; its anti-cycling findings remain valid and are not contradicted — actually the current evidence reinforces them... hmm).
+
+Hmm, "reconcile that learning with historical Memory." If M6's claim is that the anti-cycling language "was not reliably followed, and cycling and step-limit failures persisted," and the current evidence also shows cycling persisted, then M6 is still supported and doesn't need revision. OK! That's a defensible reason to leave M6 untouched: its understanding is unchanged/supported and the current evidence doesn't alter its scope. Good.
+
+Similarly, M1 (desklamp) untouched: current desklamp section unchanged; both desklamp pairs succeeded → preserved, no revision needed. Hmm, but should I add? The current edit didn't change that section, so no new edit-response understanding about it. Leave untouched.
+
+M2 (preserving non-desklamp search/acquisition/placement from the S1_R01 addition) — current evidence: non-desklamp tasks preserved. Hmm, M2 is about the S1_R01 clause "Keep the successful search... used in non-desklamp transfer tasks." Current evidence: val:0003, 0004 identical; others mostly preserved. Hmm, could add. But it's about a different edit's clause. I'll leave M2 untouched... Hmm, or maybe not. Actually M2 is about "the new desklamp-oriented skill also included a clause to preserve successful search/acquisition/placement from non-desklamp tasks" — with 5 paired non-desklamp tasks. The current batch includes many non-desklamp tasks. But the clause isn't changed by the current edit. Leave untouched.
+
+M7 (temperature) untouched — current parent lacks temperature guidance; the current edit doesn't add it. Current val:0010 is a cool task where both applied cool-with-fridge while holding. Hmm, but that's not attributable to the current edit, and the current parent had no temperature guidance, so both "behaved well" without it — hmm, that's interesting but not about a change. Leave untouched.
+
+M9 (multi-instance) untouched — no multi-instance tasks. 
+
+M1 untouched, M2 untouched, M6 untouched, M7 untouched, M9 untouched.
+
+Revised: M3, M8. New: Admissible Actions entry.
+
+Hmm, wait: is M8 really appropriate? M8's evidence is S1_R03/S1_R04 temperature no-substitute. The current edit's no-substitute strengthening is in the general procedure. The current evidence val:0007 (both manipulated knife) and val:0008 (both refrained). Hmm. M8's core: "the rule prevents ineffective near-miss manipulation when exact targets are absent, but its task-level value depends on the exact target actually existing." Adding the val:0007 finding that the strengthened rule did not prevent near-miss manipulation (knife for butterknife) in a clean task would refine M8: the no-substitute rule's adherence is not universal — sometimes the actor manipulates a near-miss. Hmm, that's a genuinely new limit for the no-substitute theme. OK.
+
+But hmm — careful: is "knife" really a non-target substitute for "butterknife"? In ALFRED, yes distinct. But the current parent's item 2 example is "do not transfer a soapbottle when the task requests a dishsponge" — a compound-noun difference. And S1_R03 added "a pot is not a pan, and a cup is not a mug." So "knife vs butterknife" is analogous. And the current diff's item 2 says "do not acquire, clean, cool, heat, or place a different but related object." So yes.
+
+But also careful: in val:0007, was there actually a butterknife anywhere? The task "clean some butterknife and put it in drawer." In P7/Q7, the candidate/Parent explored drawers 1-7, countertops 1-2, and saw knife, spatula, spoon, pen, dishsponge, egg, houseplant, soapbottle, tomato, bread, lettuce, mug, peppershaker, plate, pot, sink... no butterknife observed. So the exact target was absent in the observed record. Both used knife. OK.
+
+Hmm, one more: is it possible the ALFRED "knife" is actually the training target? No, task says butterknife.
+
+Alright. Also, I should verify the "unchanged" behavior claims for the current batch: P3/Q3 and P4/Q4 identical (both 4 steps). P1/Q1 identical (4 steps). P6/Q6 identical (8 steps). Good.
+
+Now, let me also carefully handle the Admissible Actions entry (u3). Evidence:
+- P8 (Parent) issued an empty action at step 12 and an inadmissible "go to cabinet 1" at step 15 (both action_in_admissible_commands:false, "Nothing happens").
+- Q8 (Candidate, with the new section) issued an inadmissible "go to cabinet 3" at step 39.
+- P9 (Parent) issued a malformed action at step 2 (the recorded action string begins "tags.\n\nstep-by-step:..." — action_in_admissible_commands:false), then an inventory check at step 3, then took the soapbar at step 4; the Candidate took the soapbar at step 2.
+So: the new section did not eliminate inadmissible commands (Q8:39), but the candidate produced fewer across the batch (1 vs 3). Hmm, and P9's was a formatting failure. Weak.
+
+Also the second sub-clause (use direct action when destination absent): I don't find clear evidence. Let me search for hints: any run where a "go to" was missing but a direct action taken? In Q2:1, the candidate went to desk 1 — hmm. In Q5:1 candidate went to desk 1. Hmm.
+
+Hmm, actually — think about val:0005 "put some pencil on desk": Parent went straight to drawer 1 (the drawer containing the pencil), opened, took, went to desk 1, moved. Candidate went to desk 1 first, then drawer 1... So the candidate added a step. This is more consistent with item-1 "include visible open surfaces such as tables, countertops, shelves, and sidetables rather than only closed drawers" — desk is an open surface. So Q5's extra step is attributable to u2 (search rewrite), not u3.
+
+Similarly Q2's extra step (go to desk 1 first) — desk is an open surface; consistent with u2.
+
+OK so u3's evidence is just the invalid-action counts. Let me present that carefully: "Across the 10 current pairs the Candidate issued one inadmissible navigation (Q8:39 'go to cabinet 3' → 'Nothing happens') while the no-skill Parent issued two inadmissible/empty actions in the same task (P8:12 empty action, P8:15 'go to cabinet 1', both 'Nothing happens') and one malformed action in val:0009 (P9:2). The section therefore did not fully prevent issuing commands absent from the admissible list, though fewer occurred; no clear instance of replacing an absent navigation destination with an available direct action was observed."
+
+Hmm, also note P8:12's action was "" (empty content → fallback). Actually the empty action → invalid_output_policy falls back to "look"? But recorded as "". Hmm, the feedback says action_in_admissible_commands:false and observation "Nothing happens". So the empty action wasn't executed as look. OK.
+
+Now, also I realize: I should double-check whether the candidate's inadmissible "go to cabinet 3" (Q8:39) is a meaningful violation of "verify the command is present in the current admissible action list". Q8:38 before-state: "You arrive at cabinet 1. The cabinet 1 is open. In it, you see nothing." commands_ref C53. Is "go to cabinet 3" in C53? Let me check menu C53: ["close cabinet 1","close cabinet 3","examine cabinet 1","examine cabinet 3","go to bathtubbasin 1","go to cabinet 2","go to cabinet 4","go to countertop 1",...]. Hmm, C53 — let me find it. C53 = {"close cabinet 1","close cabinet 3","examine cabinet 1","examine cabinet 3","go to bathtubbasin 1","go to cabinet 2","go to cabinet 4","go to countertop 1","go to garbagecan 1","go to handtowelholder 1","go to handtowelholder 2","go to shelf 1","go to sinkbasin 1","go to sinkbasin 2","go to toilet 1","go to toiletpaperhanger 1","go to towelholder 1","go to towelholder 2","inventory","look"}. Yes! "go to cabinet 3" is NOT in C53. So the candidate issued a command absent from the admissible list → a clean violation of the new clause. 
+
+And P8:15: before-state at P8:15 is "You arrive at cabinet 3. The cabinet 3 is open. In it, you see nothing." commands_ref C53 — and the action "go to cabinet 1" is not in C53 (C53 has go to cabinet 2, cabinet 4, but not cabinet 1). Right, so P8:15 violated. And P8:12: before "You arrive at cabinet 1. The cabinet 1 is open. In it, you see nothing." commands_ref C53 → empty action.
+
+Hmm interesting, so both P8:15 and Q8:39 violated the same clause in the same situation. So the candidate did not reliably follow it.
+
+OK. Also, note the second bullet "When a desired navigation destination is absent but a direct action on that receptacle is listed, use the direct action if appropriate". C53 includes "examine cabinet 3" and "close cabinet 3" — direct actions on cabinet 3. The candidate wanted to go to cabinet 3 but "go to cabinet 3" was absent; it issued it anyway → not following the "use the direct action" guidance. Actually, hmm, "examine cabinet 1" is available (Q8:16 examine cabinet 1 in P8). Hmm.
+
+Actually wait — for P8:15 before-state "You arrive at cabinet 3..." the menu C53 includes "examine cabinet 1" and "close cabinet 1" etc. And "examine cabinet 3"? C53 includes "examine cabinet 3". Hmm, so a direct action on cabinet 3 was available ("examine cabinet 3"), but the actor wanted to return to cabinet 1, whose "go to" was absent but "examine cabinet 1"/"close cabinet 1" were available. P8:16 then did "examine cabinet 1". Hmm.
+
+So the u3 clause's second bullet's scenario did occur (desired destination cabinet 1 absent from list; direct actions on cabinet 1 available) but the actor first issued the absent "go to cabinet 1" and only then examined. So the guidance was not followed.
+
+Hmm, this is decent evidence: the clause was not followed in a clear instance.
+
+OK, now let me also double-check: did the candidate's Q8:39 violation happen under the same conditions? Q8:38 before "You arrive at cabinet 1..." C53; action "go to cabinet 3" (absent). Then Q8:40 examine cabinet 3. So similarly, the actor wanted cabinet 3, "go to cabinet 3" absent, issued anyway, then examined. Both Parent and Candidate violated.
+
+Good. Now I have solid evidence for the u3 entry: the clause was violated by the candidate in at least one clear instance; also the parent violated it more (in the pre-edit skill). So the clause did not reliably prevent issuing absent commands.
+
+Hmm, but wait — is P8 vs Q8 a fair comparison? P8 is the pre-edit parent (no Admissible Actions section). So we compare: Parent violated 2-3 times; Candidate violated 1 time. Hmm.
+
+Now, is there any case where the candidate "used the direct action"? Hmm. Let's look at Q7: after moving knife 1 to drawer 1, etc. Hmm. Q7:15 "go to countertop 1" then Q7:16 "go to sinkbasin 1". Hmm.
+
+Hmm, in Q7 menu C74 (countertop 1) includes "move knife 1 to countertop 1","slice egg 1 with knife 1","slice tomato 1 with knife 1". Hmm, not relevant.
+
+I'll present: no clear observed instance of the second bullet being exercised successfully; the only observed instance of its triggering condition (Q8:39/P8:15) ended with the actor issuing the absent navigation anyway.
+
+Now, let me also reconsider the "no-substitute" current evidence more carefully, to make sure I'm not overstating.
+
+val:0007 "clean some butterknife and put it in drawer":
+- P7: at step 8 took knife 1 from drawer 1 (P7:8), moved it to drawer 1 (P7:9) [odd], then took it again (P7:10), cleaned at sinkbasin (P7:12), moved to drawer 1 (P7:14). So the Parent manipulated knife 1 (a near-miss for butterknife).
+- Q7: took knife 1 (Q7:9), moved to drawer 1 (Q7:10), took again (Q7:13), cleaned (Q7:17), moved to drawer 1 (Q7:19). Also manipulated knife 1.
+
+Both used the near-miss. So the strengthened no-substitute rule (item 2) did not prevent the Candidate from manipulating the knife.
+
+Hmm — however, one caveat: it's possible "knife" is treated by the actor as satisfying "butterknife" loosely, or the actor reasoned the knife is the target. Regardless, the observation stands: the candidate acquired/cleaned/placed a knife when the task requested a butterknife.
+
+val:0008 "put a clean soapbar in cabinet": neither took soapbottle/spraybottle. So both refrained. Consistent with the rule but the parent already refrained (pre-edit), so no added demonstration.
+
+Hmm, OK. Also, note: in val:0008, both failed to find soapbar. Hmm.
+
+Alright. Now let me think about whether to also include the "preserved capability" observation: the current batch has desklamp tasks val:0001/val:0002, both succeeded; the current edit did not touch the desklamp section. Hmm — could be a knowledge item in... which entry? It's a "no change to desklamp guidance; capability preserved" which relates to M1's theme. Hmm. The instruction says include evidence that challenges a prospective conclusion; "preserved capabilities" is listed as a kind of comparison. Should I revise M1 to note preservation in the current round? M1's theme is the desklamp procedure. The current round's edit didn't change it, so there's no new edit-response claim... but there is a preservation claim: the new edits (u1-u3) didn't degrade the desklamp tasks. Hmm, that could be a knowledge item in the entry for the Admissible Actions? No.
+
+Hmm, maybe simpler: include a preservation item in Entry 1 (M3 revision) about the current batch overall: "the current edit did not degrade the desklamp pairs (val:0001 4v4, val:0002 6v5) or the simple put tasks (val:0003, val:0004 identical; val:0006 identical)." Hmm. Actually that's a batch-level overview which could fit as a knowledge item about capability preservation. Hmm, but "Do not reproduce an exhaustive case list."
+
+Let me structure Entry 1 (M3 revision) knowledge items:
+1. Historical S1_R02 comparison (preserve).
+2. Current: item-1 search rewrite (open surfaces) — followed in val:0002/val:0005 (extra step) and val:0010 (efficient open-surface search, success 11 vs 14); simple put tasks val:0003/val:0004/val:0006 remained identical.
+3. Current: val:0007/val:0008 both still cycling/step-limit; anti-cycling not reliable.
+
+And Entry 2 (M8 revision) knowledge items:
+1. Historical no-substitute findings (S1_R03/R04 temperature).
+2. Current: strengthened general no-substitute; val:0007 both manipulated knife near-miss → not followed; val:0008 both refrained (consistent, but no differentiation from pre-edit parent).
+3. Limits: no exact-target success in val:0007/val:0008; the rule's benefit remains conditional.
+
+Hmm, but item 3 overlaps. Let me condense M8 revision to 2 items.
+
+And Entry 3 (new, u3 Admissible Actions):
+1. The new section's first bullet: verify command in admissible list. Evidence: candidate still issued one absent command (Q8:39), parent issued 2-3 absent/empty/malformed (P8:12, P8:15, P9:2); so not reliably followed.
+2. The second bullet (use direct action when destination absent): the triggering condition occurred (P8:15, Q8:39 attempts to navigate to a cabinet whose "go to" was absent while "examine/close" on that receptacle were listed) but the actor issued the absent navigation anyway; no observed case of the direct-action substitution succeeding.
+
+Hmm, these two could be one item. But they're distinct claims (avoid absent commands; substitute direct action). Let me keep two.
+
+Now, evidence references. I must use exact references: e.g., "diff", "P1:1", "Q10:11", and historical "S1_R02/diff", "S1_R02/Q1:1", etc.
+
+Note: for the CURRENT pairs, the step IDs are like "P8:12", "Q8:39" (no source prefix, since they're current). The prompt's example syntax includes "P1:8", "Q1:10". So current references are "P8:12" etc.
+
+For historical: "S1_R02/diff", "S1_R02/P1:1", etc.
+
+Now, the entry-level union of evidence must include at least one Diff source and one execution source. For entry 1 (revises M3): diff (current) + P/Q steps + S1_R02/diff + S1_R02 steps. Good.
+
+Let me now assemble the exact evidence for each item.
+
+**Entry 1 (revises M3):**
+
+Item 1 (historical S1_R02):
+Text: summarize M3's findings. Evidence: ["S1_R02/diff","S1_R02/P4:1","S1_R02/P4:50","S1_R02/Q4:18","S1_R02/Q4:19","S1_R02/Q4:20","S1_R02/Q4:22","S1_R02/Q4:24","S1_R02/P1:4","S1_R02/Q1:1","S1_R02/Q1:2","S1_R02/P5:37","S1_R02/P5:42","S1_R02/Q5:19","S1_R02/Q5:22","S1_R02/Q5:24","S1_R02/P7:9","S1_R02/P8:50","S1_R02/Q8:50"].
+Hmm, I should keep references that support the claims: dishsponge rescue (P4 step limit; Q4 success via bathtubbasin→sinkbasin→shelf); identical simple tasks (P3=Q3 steps 5-7? Actually P3:5-7 clean apple at sinkbasin, go to diningtable, move; Q3:5-7 same). Scope narrowing untriggered (no desklamp in initial observations — cite initial observations? Hmm, can cite the run initials? The evidence syntax examples are step IDs. Hmm. I could cite "S1_R02/P1:1" showing initial observation without desklamp... Actually the initial observation is in the run's `initial`, referenced maybe as part of the run. Hmm, the allowed refs: "such as `diff`, `P1:8`, `Q1:10`, `S1_R03/diff`, `S1_R03/P10:40`". So run-level refs like "S1_R02/P1" might be acceptable? The examples show step-level and diff. To be safe, I'll use step refs and diff refs. For scope-narrowing untriggered, cite the initial observations implicitly via a step's before-observation. E.g., S1_R02/Q1:1 before shows the scene list without a desklamp. Good.
+
+Hmm, this is getting long. Let me be pragmatic: cite a modest set of clearly-relevant references.
+
+Let me get precise references for the M3 historical claims:
+- Scope narrowing never triggered: desklamp absent from scenes. Cite S1_R02/Q1:1 (before observation lists room objects, no desklamp).
+- Parent 6/10 vs Candidate 7/10: this is a summary of the 10 pairs; cite the pair refs? In the historical memory.view, we have `memory.pairs` listing the 10 pairs for S1_R02. I can cite e.g. S1_R02/P4:50 (Parent dishsponge step limit) and S1_R02/Q4:50? Actually Q4 also hit step limit (the candidate). Wait — M3 says the Candidate succeeded in the dishsponge task. Hmm. Let me re-check: In S1_R02, P4/Q4 = "put a clean dishsponge in shelf". P4 step_limit; Q4 step_limit (both 50). Hmm! Then M3 said the Candidate succeeded in the dishsponge task?? That's the S1_R02 pairs? Let me recheck.
+
+Hmm, actually M3 says: "The clearest contrast is the paired clean-a-dishsponge-and-put-it-in-shelf task: the Parent cycled among the sinkbasin, cart, shelf 1 and shelf 2 without ever inspecting the bathtubbasin, eventually picked up a soapbottle (a non-target substitute) and moved it to shelf 1 without completing the task (step limit); the Candidate explored additional receptacles, found the exact dishsponge at the bathtubbasin, took it, cleaned it at the sinkbasin, and placed it on shelf 1 for a success."
+
+Hmm, but in the supplied S1_R02 evidence, the dishsponge task is P4/Q4 ("put a clean dishsponge in shelf") which is a step_limit for BOTH. The dishsponge-clean-put-in-shelf is P5/Q5 ("clean some dishsponge and put it in shelf"): P5 step_limit, Q5 success (24 steps). Yes! Q5:19-24: goes to bathtubbasin, takes dishsponge 3, cleans at sinkbasin, moves to shelf 1. And P5:37 took soapbottle 2 from cart 1, moved to shelf 1... P5 step limit. So M3's "clearest contrast" refers to P5/Q5, and M3's evidence cites S1_R02/P5:37, P5:42, P5:50, Q5:19, Q5:20, Q5:22, Q5:24. Yes, M3's evidence list includes those. Good.
+
+And M3's claim "the Parent skill succeeded on 6 of 10 and Candidate 7" — fine.
+
+OK. For historical item, I'll reuse M3's evidence refs (a subset).
+
+Item 2 (current open-surface search):
+Evidence: ["diff","P5:1","Q5:1","Q5:2","Q2:1","Q2:2","P10:8","Q10:5","Q10:6","P3:1","Q3:1","P4:1","Q4:1","P6:1","Q6:1"].
+Hmm, let me verify: P5:1 "go to drawer 1"; Q5:1 "go to desk 1"; Q5:2 "go to drawer 1". Yes. Q2:1 "go to desk 1"; P2:1 "go to bed 1". Yes. P10:8 "go to diningtable 1" (P10:8 is go to diningtable after countertop 2? Let me check: P10 steps: 1 go to fridge, 2 open fridge, 3 go to countertop 1, 4 go to cabinet 1, 5 go to countertop 2, 6 go to fridge 1, 7 go to countertop 1, 8 go to diningtable 1, 9 take apple 1...). Q10:5 go to diningtable 1, Q10:6 take apple 1. So P10 took apple at step 9, Q10 at step 6. Hmm, both reached diningtable. The difference is P10 did extra cycles (steps 3-7) before reaching diningtable. Let me cite P10:4 (go to cabinet 1), P10:6 (go to fridge 1), P10:7 (go to countertop 1), Q10:3 (countertop 1), Q10:4 (countertop 2), Q10:5 (diningtable 1), Q10:6 (take apple 1), P10:11 (cool apple 1 with fridge 1), Q10:8 (cool apple 1 with fridge 1), P10:14 (move apple to microwave, 14 steps), Q10:11.
+
+Wait, let me double check Q10 step numbers: Q10:1 go to fridge 1, Q10:2 open fridge 1, Q10:3 go to countertop 1, Q10:4 go to countertop 2, Q10:5 go to diningtable 1, Q10:6 take apple 1, Q10:7 go to fridge 1, Q10:8 cool apple 1 with fridge 1, Q10:9 go to microwave 1, Q10:10 open microwave 1, Q10:11 move apple 1 to microwave 1. Yes, 11 steps. P10: 1 go to fridge, 2 open fridge, 3 go to countertop 1, 4 go to cabinet 1, 5 go to countertop 2, 6 go to fridge 1, 7 go to countertop 1, 8 go to diningtable, 9 take apple, 10 go to fridge, 11 cool, 12 go to microwave, 13 open microwave, 14 move. 14 steps. Good.
+
+Item 3 (current cycling persisted):
+Evidence: ["diff","P7:50","Q7:50","P8:50","Q8:50","Q8:14","Q8:23","Q8:33","Q8:47","P8:19","P8:27","P8:35"].
+Hmm, let me pick meaningful refs: Q8:23-33 show the cabinet2→cabinet3→cabinet4→cabinet1 cycle repeating; P8:19-31 similar. And Q7:50/P7:50 step-limit terminations.
+
+Actually, let me include refs showing the candidate's cycling: Q8:29 "go to cabinet 4", Q8:30 "go to cabinet 1", Q8:31 "go to cabinet 2". And Q8:47 "go to cabinet 4". And P8:41 "go to cabinet 1" ... Let me include a few.
+
+Hmm, also the candidate's extra open-surface visits in val:0008: Q8:1 countertop 1, Q8:2 sinkbasin 1, Q8:3 bathtubbasin 1. And val:0007: Q7:1 countertop 1, Q7:2 countertop 2. Include those.
+
+Let me also double check "both still cycled": yes.
+
+**Entry 2 (revises M8):**
+
+Item 1 (historical): The no-substitute rule tightened across S1_R03/S1_R04; earlier evidence from absent-target tasks: cool-a-pan (P5 took pot 1 and cooled/moved it; Q5 saw pot 1 repeatedly without taking/moving; both step-limit); heat-a-mug (P10 took cup 1 and moved it; Q10 saw cup 1 and did not manipulate; both step-limit). And val (S1_R04) hot-mug task: P1 took cup 2 and heated it; Q1 left the cup untouched; both step-limit. Conditional usefulness: prevents ineffective near-miss manipulation but doesn't create success.
+Evidence: ["S1_R03/diff","S1_R03/P5:31","S1_R03/P5:33","S1_R03/P5:35","S1_R03/Q5:8","S1_R03/Q5:19","S1_R03/P10:40","S1_R03/P10:41","S1_R03/Q10:36","S1_R03/Q10:37","S1_R04/diff","S1_R04/P1:28","S1_R04/P1:31","S1_R04/Q1:17","S1_R04/Q1:50"].
+
+Item 2 (current): The current edit strengthens item 2: "When the task requests an exact object and that exact noun phrase has not been observed, do not acquire, clean, cool, heat, or place a different but related object as a substitute... If a container holds only a non-matching object, leave it without manipulating that object." In the current clean-butterknife task (val:0007), the exact butterknife was not among the observed receptacles, yet the Candidate took knife 1 (a near-miss), moved it to drawer 1, took it again, cleaned it at the sinkbasin, and moved it to drawer 1 — the same substitute manipulation the Parent performed — and both hit the 50-step limit. In the clean-soapbar task (val:0008) neither Parent nor Candidate took the available soapbottle/spraybottle, but the Parent (pre-edit) also refrained, so no differential. So the strengthened rule did not prevent near-miss manipulation when the near-miss shared a noun stem with the target, and it did not produce a success in either absent-target task.
+Evidence: ["diff","P7:8","Q7:9","Q7:13","Q7:17","Q7:19","P7:50","Q7:50","P8:50","Q8:50","P8:19","Q8:13"].
+
+Hmm — for val:0008, do I have evidence neither took a substitute? P8 trace has no take/move actions; Q8 trace has no take/move. Hmm, citing absence is hard. I could cite P8:34 or Q8:19 (basin visits) or the step-limit terminations. Hmm. Maybe cite P8:50, Q8:50 (both step limit) and note no take/move appears in either trace. Hmm, "Absence of a violation does not establish that guidance was inapplicable" — right. I'd better phrase carefully: "both traces contain no take/move command."
+
+Hmm, actually, for a claim about "neither manipulated a substitute," I should cite the full trace... I can cite the run refs? Let me instead just rely on val:0007 for the substitute finding and mention val:0008's step-limit only lightly. Hmm. Actually I'll include val:0008 as: both failed to find the soapbar and hit the step limit (P8:50, Q8:50), and no take/move action appears in either trace—so the rule's effect on substitutes cannot be distinguished there because the pre-edit Parent also refrained. That's careful.
+
+Hmm, "no take/move action appears in either trace" — is that supported? P8 steps: 1-50 all go to/open/examine/inventory. Yes. Q8: all go to/open/examine. Yes. OK.
+
+**Entry 3 (new, revises []):**
+
+Item 1: The diff added an "Admissible Actions" section instructing to verify a command is in the current admissible list before issuing it. Observed: the Candidate still issued one command absent from the admissible list — Q8:39 "go to cabinet 3" (before-state menu C53 lacks it) returned "Nothing happens" with action_in_admissible_commands:false. The pre-edit Parent issued inadmissible commands in the same task (P8:12 empty action; P8:15 "go to cabinet 1" absent from C53) as well as a malformed action in val:0009 (P9:2). So the clause did not reliably prevent absent commands; it may have reduced their frequency (1 vs 3 across the batch), but the case is single-instance.
+Evidence: ["diff","P8:12","P8:15","Q8:39","P9:2"].
+
+Hmm, also need "C53" reference? The command_sets are referenced as "C53"? The current `command_sets` uses C1..C77. The prompt says "Use only exact existing references such as `diff`, `P1:8`..." Hmm, command_sets refs — the initial/before states have "commands_ref":"C53". So referencing "C53" might be acceptable as a command list reference. But the examples don't show command refs. Hmm. I think citing step IDs whose before-state carries commands_ref is safer. But to justify "absent from the admissible list," I might cite the menu ref. Hmm. I'll cite the step and describe. Actually maybe I can cite "C53" — it's an exact existing reference in command_pool. The syntax examples say "These are syntax examples, not current evidence." It lists diff, P1:8, Q1:10, S1_R03/diff, S1_R03/P10:40. I think command refs are OK too since they're defined references. Hmm, but to be safe I'll include step refs that carry the menu (e.g., Q8:39's before state has commands_ref C53). I'll mention C53 in text but maybe not as evidence. Hmm, but then the evidence wouldn't verify the "absent" claim... The instruction says evidence should support the claim. I'll include "C53" as a reference. Hmm. Risk. Let me include both step refs and the menu ref — I think menu refs are acceptable ("Every non-null commands_ref ... is a DIRECT global key into memory.command_pool"). Actually those are in memory.command_pool, and here `command_sets` is the current equivalent. Hmm, the prompt says "Use only exact existing references such as `diff`, `P1:8`, `Q1:10`, `S1_R03/diff`, or `S1_R03/P10:40`." It doesn't include command refs. To be safe, I'll avoid citing command refs and instead rely on the step's feedback "action_in_admissible_commands:false" which directly supports "not admissible." That's cleaner! The feedback field explicitly states action_in_admissible_commands false. 
+
+So: Q8:39 feedback action_in_admissible_commands:false and observation "Nothing happens" → supports "issued a command not in the admissible list." Similarly P8:12, P8:15 (false), P9:2 (false). 
+
+Item 2: The second bullet — when a desired navigation destination is absent but a direct action on that receptacle is listed, use the direct action. The observed instance: at P8:15/Q8:39 the actor's desired destination (cabinet 1 / cabinet 3) had no "go to" in the current admissible list but direct actions on it were listed (e.g., examine/close), yet the actor issued the absent navigation and only afterwards used a direct/examination action. No observed case of the candidate substituting a direct action. Hmm, do I have evidence that "direct actions on it were listed"? The menu C53 lists "examine cabinet 3" and "close cabinet 3" for cabinet 3; for cabinet 1: "examine cabinet 1","close cabinet 1". Hmm, I need the menu. The before-state of P8:15 has commands_ref C53. The before-state of Q8:39 also C53. Hmm. Without citing the menu, I can't fully support "direct actions were listed." Hmm. Maybe I'll phrase item 2 more cautiously: "the trigger condition for the second bullet appeared (the actor's desired navigation to a cabinet was rejected as inadmissible while the reception/observation remained possible via direct actions), but no observed execution shows the candidate replacing the absent navigation with an available direct action; in Q8:39 the candidate instead issued the absent navigation and then examined the receptacle." Hmm, still needs the menu.
+
+Alternatively, I could fold both bullets into one item about the clause not reliably preventing absent commands, and mention the second bullet as unobserved/no-clear-instance. That's safer. Let me do that: one item for the Admissible Actions section, or two items where the second is about the untriggered/uncertain part.
+
+Hmm, I'll do:
+Item 1: first bullet effect (not reliably followed; candidate still issued absent command; parent's pre-edit behavior).
+Item 2: second bullet (direct-action substitution) — the scenario occurred at Q8:39 but the actor issued the absent navigation and then examined; no instance of substituting a direct action observed, so its benefit is unevaluated. Evidence: same refs. Hmm, needs support for "direct action available." I'll cite C53. Hmm.
+
+Hmm, I'll include "C53" as evidence. Actually, you know, the command_sets keys are "C1".."C77" and they ARE supplied in the input as `command_sets`. So they are exact existing references. I think it's fine to cite "C53". Hmm, but the prompt's evidence syntax examples... Let me just include it; the risk is low, and it genuinely supports the claim. Hmm, actually the risk is that the validator rejects unknown ref formats. Hmm.
+
+Let me reconsider. The main prompt says: "Use only exact existing references such as `diff`, `P1:8`, `Q1:10`, `S1_R03/diff`, or `S1_R03/P10:40`. These are syntax examples, not current evidence." And the evidence-view section says: "Every non-null `commands_ref` in an initial, before or after state is a DIRECT global key into `memory.command_pool`. Resolve it once there." So commands_ref keys are legitimate references. In the current input, that's `command_sets` with keys C1..C77. I'll cite "C53". Hmm, but "memory.command_pool" is the historical one with keys like "menu_1". The current `command_sets` uses "C1" style. Both are "direct global keys." OK, I'll cite C53 for the current.
+
+Hmm, but actually — is C53 the right menu for Q8:39's before-state? Q8:39 before observation "You arrive at cabinet 1. The cabinet 1 is open. In it, you see nothing." commands_ref "C53". Yes. And C53 = {close cabinet 1, close cabinet 3, examine cabinet 1, examine cabinet 3, go to bathtubbasin 1, go to cabinet 2, go to cabinet 4, go to countertop 1, ...}. So "go to cabinet 3" absent; "examine cabinet 3" present. Good.
+
+For P8:15 before: "You arrive at cabinet 3. The cabinet 3 is open. In it, you see nothing." commands_ref C53 → "go to cabinet 1" absent; "examine cabinet 1"/"close cabinet 1" present. Good.
+
+OK I'll include C53.
+
+Hmm, wait, let me double check P8:15's before commands_ref. P8 step 15: before {observation "You arrive at cabinet 3. The cabinet 3 is open. In it, you see nothing.", commands_ref "C53"}, action "go to cabinet 1". Yes.
+
+And P8:12 before: "You arrive at cabinet 1. The cabinet 1 is open. In it, you see nothing.", commands_ref "C53", action "". Yes.
+
+Good.
+
+Now — hmm, one more consideration: should the Admissible Actions entry be "new" (revises: []) or revise an existing entry? No existing entry covers admissible-action checking. So new. Good.
+
+Now, let me reconsider: should I also revise M1 or M2 to record the preserved desklamp/non-desklamp capabilities under the current edit? The instruction says preserve capability comparisons. Hmm. The current batch's preservation observations: desklamp pairs both success (val:0001 identical 4 steps; val:0002 6 vs 5). Simple put tasks identical. Hmm. I could add a knowledge item to Entry 3 (or Entry 1) about overall batch outcomes and preservation. Hmm. But it doesn't fit Entry 3's theme (admissible actions). It could fit Entry 1 (general procedure) as "no regressions in the preserved tasks."
+
+Hmm, actually the overall pair overview (Parent 8/10, Candidate 8/10, same tasks) is a batch-level fact. The instructions say a task's success or step difference is "an observation to explain, not itself an edit-response understanding." And "Do not decide Candidate acceptance." So I should use outcomes to support/limit claims, not as standalone knowledge. OK, so I'll embed outcome stats into the relevant items rather than a standalone item.
+
+Hmm, but "A task's success or step difference is an observation to explain, not itself an edit-response understanding." So I should tie them to specific edits/conditions. Fine.
+
+Now let me reconsider entry 1's item about "identical simple tasks" — I should mention the current val:0003/val:0004/val:0006 remained step-identical, supporting that the item-1 and item-2 changes did not degrade simple put/clean tasks. That's a preservation claim tied to the current edit. Good, include in item 2 or a separate item.
+
+Let me structure Entry 1 with 3 items:
+(1) Historical S1_R02 findings.
+(2) Current item-1 rewrite: open-surface inclusion — followed with benefit in val:0010 and with a +1 step in val:0002/val:0005; simple put/clean tasks unchanged (val:0003, val:0004, val:0006 identical).
+(3) Current item-1 anti-cycling in absent-target tasks: val:0007/val:0008 both step-limit with continued cycling.
+
+Hmm, items 2 and 3 both about item-1 rewrite. OK, they're distinct conditions (target found vs absent).
+
+Hmm, is it OK that Entry 1's item 3 duplicates Entry 2's item 2's context? Entry 2 is about no-substitute. Slight overlap but different focus. Acceptable.
+
+Hmm, wait. Actually, let me reconsider whether including the val:0007/0008 cycling in Entry 1 is duplicative with M6's existing content (which I'm leaving untouched). M6 says already "cycling and step-limit failures persisted" for the S1_R03 edit. Adding current evidence to M3 about the same failure mode for the current edit is fine — different edit.
+
+Hmm, but then M6 remains as an entry whose understanding ("the anti-cycling language was not reliably followed") is mirrored in M3's new item. That's a bit redundant but they're different edits. OK.
+
+Hmm, alternatively I could revise M6 instead of adding item 3 to M3. Hmm. Ugh. Let me just include it in M3's entry since M3's entry is the general-procedure home. Fine.
+
+Hmm, actually, wait. Let me reconsider the risk: The grader might expect revisions to specific entries. Without knowing, I'll aim for a defensible, well-evidenced output.
+
+Let me reconsider: maybe it's cleaner and more aligned to treat the current diff as continuing M3's and M6's and M8's themes and revise all three? Plus new entry for u3. That's 4 entries. Hmm. I worry about duplicating evidence across M3 and M6 entries.
+
+Let me reconsider M6 once more: M6's theme = "the search step was rewritten to add anti-cycling/step-budget priority." The current diff AGAIN rewrites the search step to add anti-cycling ("do not re-enter a location just left or repeat a short cycle among the same few locations"). So in a lineage sense, the current item-1 is the successor of M6's version. But the current parent doesn't contain M6's text (it contains the S1_R02 text). So it's a re-derivation. Hmm.
+
+I think revising M6 to incorporate the current anti-cycling evidence is defensible and avoids putting anti-cycling evidence in two places. Then Entry 1 (M3) covers item 2's no-substitute? No, that's Entry 2 (M8)... ugh.
+
+OK let me settle definitively:
+
+- Entry A revises M3: theme = the general non-desklamp procedure's search clause (item 1) across the S1_R02 introduction and the current rewrite. Knowledge: (a) historical S1_R02; (b) current open-surface + anti-cycling evidence (both positive and negative).
+- Entry B revises M8: theme = exact-category no-substitute rule. Knowledge: (a) historical temperature-context findings; (b) current strengthening evidence.
+- Entry C revises M6: theme = anti-cycling/step-budget language. Hmm no — that's now in Entry A.
+
+Argh, conflict. If Entry A covers the current anti-cycling, then M6's theme is "covered" but M6 remains a separate entry with only historical content. That's fine actually — M6 remains a valid historical entry; I just don't revise it. The current evidence about anti-cycling under the current edit goes into Entry A because the current item-1 rewrite is part of the procedure M3 introduced?
+
+Hmm, but M6 also is about item 1 of the same procedure (rewritten in S1_R03). So the current rewrite is more directly a continuation of M6's rewrite than M3's original. Hmm.
+
+You know what — since the current edit touches the same search clause that both M3 and M6 discuss, and the two historical entries are about different edit instances of that clause, I'll revise BOTH M3 and M6, splitting the current evidence by sub-theme:
+- M3 (revise): search breadth / open-surface inclusion theme — new evidence: candidate visited open surfaces (desk 1 in val:0002/val:0005; countertop 2 & diningtable in val:0010). Plus preserve S1_R02.
+- M6 (revise): anti-cycling/step-budget theme — new evidence: val:0007/val:0008 both still cycled and hit step limit; the candidate's extra open-surface visits didn't break loops. Plus preserve S1_R03.
+
+Hmm, that's clean! M3 = "search breadth / open surfaces"; M6 = "anti-cycling / step-limit". OK, that works and avoids duplication. But M3's item 2 (no-substitute) — the current no-substitute strengthening goes to Entry B (M8). But M3's historical text bundles no-substitute... I'll keep M3's historical text mentioning the bundled clauses but not extend it. Hmm, or I could put current no-substitute in M3 and leave M8. Hmm.
+
+Decision: 
+- Entry A revises M3: search breadth/open surfaces (incl. preserved S1_R02 findings including the bundled no-substitute rescue, since it's part of M3's historical content).
+- Entry B revises M6: anti-cycling/step-limit.
+- Entry C revises M8: no-substitute.
+- Entry D new: admissible actions.
+
+4 entries. Hmm, that's a lot but each is coherent.
+
+Hmm, but Entry A's historical content and Entry C's historical content both discuss no-substitute (M3's dishsponge rescue involves no-substitute). Fine, they're different edits.
+
+Hmm, but is it wise to revise 4 entries? The prompt says "Multiple entries may be revised together only when their theme is coherent and important differences survive." Each revision is a separate entry with one revises ID (except maybe). Actually each entry has its own `revises` array. Entry A revises ["M3"], Entry B revises ["M6"], Entry C revises ["M8"], Entry D revises [].
+
+Hmm, OK. But wait, am I overdoing it? Let me sanity check each revision is justified by new evidence:
+
+- M3 (S1_R02 general procedure): new evidence about item-1 rewrite (open surfaces). Justified. ✓ (The current edit literally modifies item 1 of the procedure M3 introduced.)
+- M6 (S1_R03 anti-cycling): new evidence about continued cycling. Hmm, the current edit adds anti-cycling language; new evidence shows it didn't reliably work. M6's existing claim already says that for S1_R03. Adding the current instance refines/extends. Justified-ish. ✓
+- M8 (no-substitute): new evidence val:0007 that the strengthened rule wasn't followed. Justified. ✓
+- New entry for admissible actions: definitely. ✓
+
+Hmm, M8's historical evidence is about temperature tasks, and the current evidence is a clean task. Is revising M8 to include a clean-task observation "blending distinct edits"? The no-substitute rule theme is coherent; the contexts differ (temperature vs cleaning) which I'd preserve as conditions. I think OK.
+
+Hmm, alternatively put the current no-substitute evidence into M3's entry (since the current item 2 is part of the general procedure from M3) and leave M8 untouched. That might be cleaner: M8 stays as the temperature-specific record; M3's entry becomes the "general non-desklamp procedure: search + no-substitute" entry covering both S1_R02 and the current edit.
+
+Hmm! That's actually quite clean: M3 = general non-desklamp procedure (items 1 & 2). The current edit modifies items 1 & 2. So M3's entry absorbs the current evidence on both. Then M6 = anti-cycling (also part of item 1, but a distinct sub-theme from S1_R03)... hmm, still overlapping with M3's item-1.
+
+Ugh. OK. Final: I'll do 3 entries:
+- Entry A revises M3: general non-desklamp procedure (search breadth/open surfaces + exact-target no-substitute), preserving S1_R02 findings and integrating current item-1 and item-2 evidence.
+- Entry B revises M6: anti-cycling/step-budget language — hmm, or skip.
+
+Hmm. Let me just decide: skip M6 revision (its claim remains supported; the current edit's anti-cycling is a new instance of the same failure — I'll fold it into Entry A's search item since it's about the current item-1 rewrite). Actually no — folding anti-cycling into Entry A while M6 exists untouched creates the same content in two entries. But M6's content is about S1_R03; Entry A's is about the current edit. Both are "the anti-cycling language didn't reliably work" — that's a recurring theme, not duplicate evidence. Hmm.
+
+OK you know what, I'll go with 4 entries but keep them tight:
+1. M3 revision — general non-desklamp search/open-surface breadth.
+2. M6 revision — anti-cycling/step-budget.
+3. M8 revision — exact-category no-substitute.
+4. New — admissible actions.
+
+Hmm, wait. But this spreads the current batch's evidence thin. Let me reconsider whether M6 and M3 revisions can be merged into one (revises ["M3","M6"])... The instruction permits it if coherent with differences surviving. Merging M3+M6: the surviving differences: M3's scope-narrowing and dishsponge rescue; M6's cool-bread success and cool-plate near-miss. I could produce one entry with 4-5 knowledge items. Hmm, but "do not blend distinct historical edits" — M3 and M6 are distinct edits (S1_R02 vs S1_R03). The instruction explicitly warns against blending because wording resembles. So keep separate.
+
+Alright, going with 4 entries. Hmm, actually, hmm — 4 entries with overlapping subject matter might look like I'm padding. Let me reconsider reducing to 3 by merging the no-substitute into M3's entry and leaving M8 untouched.
+
+Hmm. Which is more likely correct? The current diff's item 2 rewrite is a strengthening of the general no-substitute rule. M3's knowledge already covers the general no-substitute rule (S1_R02: "Manipulate only the exact requested target category... do not transfer a soapbottle when the task requests a dishsponge"). So the current item-2 strengthening is a continuation of M3's item 2. Meanwhile M8 is specifically about the temperature-context no-substitute examples (pot/pan, cup/mug). Hmm, but M8 also says "The actual diffs in this sequence tightened the exact-category rule by making explicit that a similar category is not a substitute..." So M8 covers the no-substitute tightening across edits.
+
+Hmm. The current diff's no-substitute strengthening adds "do not acquire, clean, cool, heat, or place a different but related object" — note "cool/heat" — which links to the temperature theme (M8). And "If a container holds only a non-matching object, leave it without manipulating that object" — search behavior (M3).
+
+I'll put the current no-substitute evidence in M8's revision (Entry C), because M8 is the entry dedicated to the exact-category no-substitute rule's conditional usefulness, and the current strengthening is about exactly that. And in M3's revision, I'll keep the historical no-substitute mention within its historical item but focus the new items on search breadth.
+
+Hmm, but M3's historical item bundles search + no-substitute inseparably ("the two clauses act together and cannot be isolated"). Fine — keep it historical.
+
+OK. Let me also double-check: does Entry A (M3 revision) need a diff source? Yes: "diff" (current) and S1_R02/diff. ✓. Entry B (M6): "diff" + S1_R03/diff. ✓. Entry C (M8): "diff" + S1_R03/diff + S1_R04/diff. ✓. Entry D: "diff". ✓.
+
+Now let me write the texts.
+
+---
+
+**Entry A (revises M3):**
+
+Knowledge item A1 (historical S1_R02):
+"The S1_R02 edit appended a general non-desklamp procedure to the desklamp-only skill (open any closed cabinet/drawer/fridge on reaching it and inspect before leaving; do not immediately revisit an already-open receptacle that visibly lacks the target; do not check inventory while carrying nothing; manipulate only the exact requested category rather than a substitute; clean only if requested; then go directly to the destination, opening it if closed) and narrowed the desklamp procedure to explicitly-desklamp tasks. In 10 paired ordinary put/clean/transfer tasks whose scenes contained no desklamp, the scope-narrowing clause never triggered. The Parent succeeded on 6/10 and the Candidate on 7/10. Clearest contrast: in 'clean some dishsponge and put it in shelf', the Parent cycled between the sinkbasin, cart, shelf 1 and shelf 2 without ever inspecting the bathtubbasin, eventually picked up soapbottle 2 (a non-target substitute) and moved it to shelf 1, and hit the step limit, while the Candidate explored further, found dishsponge 3 at the bathtubbasin, cleaned it at the sinkbasin, and placed it on shelf 1 for a success. In simple tasks with the target immediately available (clean apple into diningtable, clean lettuce into fridge, clean plate into fridge) Parent and Candidate were step-for-step identical, so the added clauses did not degrade those cases. Where the exact target was absent from every inspected receptacle, both still cycled and hit the step limit."
+Evidence: ["S1_R02/diff","S1_R02/P5:37","S1_R02/P5:42","S1_R02/P5:50","S1_R02/Q5:19","S1_R02/Q5:20","S1_R02/Q5:22","S1_R02/Q5:24","S1_R02/P3:5","S1_R02/Q3:5","S1_R02/P9:5","S1_R02/Q9:5","S1_R02/P10:5","S1_R02/Q10:5","S1_R02/Q1:1","S1_R02/P4:50","S1_R02/Q4:50","S1_R02/P8:50","S1_R02/Q8:50"].
+Hmm, that's a lot. Let me trim to essential: diff, P5:37, P5:42, P5:50, Q5:19, Q5:20, Q5:22, Q5:24, Q1:1 (no desklamp scene), P4:50, Q4:50, P8:50, Q8:50, P3:5, Q3:5.
+
+Hmm, "clean apple into diningtable" is P3/Q3 in S1_R02: P3:5 clean apple 2 with sinkbasin 1; Q3:5 same. Yes. And "clean lettuce into fridge" P9/Q9: P9:5 go to fridge, P9:6 open, P9:7 move; Q9:5 clean lettuce 4, Q9:6 go to fridge, Q9:7 move. Hmm, not identical. Hmm, M3 said "clean apple into diningtable, clean lettuce into fridge, clean plate into fridge" were step-for-step identical. Let me check P9 vs Q9 in S1_R02: P9 = clean lettuce in fridge: go to countertop 1, take lettuce 1, go to sinkbasin 1, clean lettuce 1, go to fridge 1, open fridge 1, move lettuce 1 (7 steps). Q9: go to fridge 1, open fridge 1, take lettuce 4, go to sinkbasin 1, clean lettuce 4, go to fridge 1, move lettuce 4 (7 steps). Same length, different order. Hmm, M3 said "step-for-step identical" — hmm, not exactly for lettuce. Let me recheck M3's claim: "In simple tasks where the target was immediately reachable and cleaning was required (clean apple into diningtable, clean lettuce into fridge, clean plate into fridge), Candidate and Parent behavior was step-for-step identical (acquire, clean at sinkbasin, open the closed destination, place)". For P3/Q3 (clean apple): P3:1 go to fridge 1, P3:2 open fridge 1, P3:3 take apple 2, P3:4 go to sinkbasin 1, P3:5 clean, P3:6 go to diningtable, P3:7 move. Q3: identical. Yes identical for apple. For lettuce P9/Q9 — not identical (order differs). Hmm, M3 might have overstated. Anyway I'll phrase carefully: "clean apple into diningtable (S1_R02/P3/Q3) were step-for-step identical". And "clean plate into fridge" P10/Q10: P10: go to countertop 1, take plate 1, go to sinkbasin, clean, go to fridge, open, move (7). Q10: same 7 steps identical. Yes identical.
+
+OK so I'll say: clean-apple-into-diningtable (P3/Q3) and clean-plate-into-fridge (P10/Q10) were step-for-step identical. Good, accurate.
+
+Hmm, but this is historical; I'm reproducing M3's claim. To be safe I'll narrow to the cases I verified.
+
+Knowledge item A2 (current item-1 rewrite, open surfaces):
+"The current edit rewrote the search step to add 'include visible open surfaces such as tables, countertops, shelves, and sidetables rather than only closed drawers or cabinets' and to prefer an unexamined receptacle type. In the current pairs the Candidate visited an open surface before the container holding the target: in val:0005 (put some pencil on desk) it went to desk 1 first and still succeeded but in 6 steps vs the Parent's 5, and in val:0002 (examine the pillow with the desklamp) it went to desk 1 before bed 2 and finished in 6 steps vs the Parent's 5. In val:0010 (cool some apple and put it in microwave) the Candidate searched countertop 1, countertop 2 and the diningtable, took the apple there (Q10:6) and placed it after cooling in 11 steps, whereas the Parent additionally visited cabinet 1 and re-visited the fridge and countertop 1 and finished in 14. Simple put/clean tasks with the target at the first or second receptacle were unchanged (val:0003, val:0004 and val:0006 were step-identical). So open-surface preference was followed with a benefit in one multi-receptacle search and with a one-step cost in two tasks whose target was elsewhere, and it did not degrade the simple cases."
+Evidence: ["diff","P2:1","Q2:1","Q2:2","P5:1","Q5:1","Q5:2","P10:4","P10:6","P10:7","Q10:3","Q10:5","Q10:6","Q10:11","P3:1","Q3:1","P4:1","Q4:1","P6:1","Q6:1"].
+
+Hmm, "val:0003 (put some mug on sidetable)" P3/Q3 and "val:0004 (put a mug in sidetable)" P4/Q4: both 4 steps identical (both go to diningtable 1, take mug 1, go to sidetable 1, move). And "val:0006 (put a clean butterknife in drawer)": both 8 steps identical. Yes. Cite P3:1/Q3:1, P4:1/Q4:1, P6:1/Q6:1.
+
+Hmm, note the task ids: val:0001..val:0010. I should use them for identity. Let me map:
+- val:0001 = examine the bowl with the desklamp (P1/Q1)
+- val:0002 = examine the pillow with the desklamp (P2/Q2)
+- val:0003 = put some mug on sidetable (P3/Q3)
+- val:0004 = put a mug in sidetable (P4/Q4)
+- val:0005 = put some pencil on desk (P5/Q5)
+- val:0006 = put a clean butterknife in drawer (P6/Q6)
+- val:0007 = clean some butterknife and put it in drawer (P7/Q7)
+- val:0008 = put a clean soapbar in cabinet (P8/Q8)
+- val:0009 = put a clean soapbar in toilet (P9/Q9)
+- val:0010 = cool some apple and put it in microwave (P10/Q10)
+
+Good.
+
+**Entry B (revises M6):**
+
+Knowledge item B1 (historical S1_R03):
+"The S1_R03 edit rewrote the search step to add: use current and recent observations to avoid immediate cycling; do not re-examine an already-open empty receptacle or check inventory while carrying nothing; and, if the obvious cabinets/fridge have not yielded the target or the step count is already high, prefer uninspected drawers, shelves, the diningtable or other listed receptacles over returning to known-empty locations. Response was mixed: in one cool-a-bread instance the Parent cycled among fridge, cabinets and countertops and hit the step limit without finding bread while the Candidate expanded to the diningtable, took the bread there, cooled it at the fridge and placed it on countertop 1, succeeding; in a same-task pair with identical room and contents the Parent took the bread from countertop 3 while the Candidate repeatedly visited countertop 2, never went to countertop 3, and hit the step limit; in the cool-a-plate pair the Candidate repeatedly chose an unavailable move to cabinet 3 (falling back to a no-op) and re-examined that already-empty location several times, reaching the plate in cabinet 9 only at step 49 and exhausting the budget one step later, while the Parent completed the same task at step 38 after finding the plate in cabinet 9. Net task-level results across those ten pairs were slightly lower for the Candidate (6 vs 7, within stochastic variation); the anti-cycling/step-budget language was not reliably followed."
+Evidence: ["S1_R03/diff","S1_R03/P2:15","S1_R03/P2:16","S1_R03/P2:20","S1_R03/Q2:25","S1_R03/Q2:30","S1_R03/Q2:50","S1_R03/Q4:12","S1_R03/Q4:13","S1_R03/Q4:17","S1_R03/P6:32","S1_R03/P6:33","S1_R03/P6:38","S1_R03/Q6:4","S1_R03/Q6:10","S1_R03/Q6:48","S1_R03/Q6:49","S1_R03/Q6:50"].
+
+Hmm, I need to be careful with the S1_R03 references for the cool-bread case. M6 cited: S1_R03/P2:15,16,18,20 (Parent), Q2:25,30,50 (Candidate); S1_R03/P4:50, Q4:12,13,15,17 (cool-bread identical-room pair — wait M6 said "in a same-task pair with an identical room and identical container contents, the Parent explored countertop 3 and took the bread there, while the Candidate repeatedly visited countertop 2 ... hit the step limit"). In S1_R03, P4/Q4 = "put a cool bread in countertop" — P4 step_limit, Q4 success (17 steps). Hmm, M6 said the Candidate hit the step limit in the "same-task pair with identical room and contents". Hmm, which pair is that? Actually M6's evidence for that case: S1_R03/P6:32,33,36,38 and Q6:4,10,15,48,49,50 — that's the cool-a-plate pair (P6/Q6). Hmm, let me re-read M6:
+
+"Positive case: in one cool-a-bread instance the Parent cycled among the fridge, cabinets and countertops and hit the step limit without finding bread, whereas the Candidate expanded to the diningtable (reached during search), took a bread there, cooled it at the fridge, and placed it on countertop 1, succeeding." → That's S1_R03 P4 (step limit) vs Q4 (success). Evidence cited: P4:50, Q4:12,13,15,17. ✓ (Q4 took bread 1 from diningtable 1 at Q4:13.)
+
+"Negative case: in a same-task pair with an identical room and identical container contents, the Parent explored countertop 3 and took the bread there, while the Candidate repeatedly visited countertop 2 but never went to countertop 3, cycled among cabinets, shelves and the fridge instead, and hit the step limit." → That's S1_R03 P2 (success, 20 steps, took bread 1 from countertop 3 at P2:16) vs Q2 (step limit). Evidence: P2:15,16,18,20; Q2:25,30,50. ✓
+
+Then "In the cool-a-plate pair the Candidate repeatedly chose an unavailable move to cabinet 3 (falling back to a no-op) and then examined that already-empty location several times, reached the plate in cabinet 9 only at step 49, and exhausted the budget one step later while the Parent completed the same task at step 38 after finding the plate in cabinet 9." → S1_R03 P6/Q6. Evidence: P6:32,33,36,38; Q6:4,10,15,48,49,50. ✓
+
+OK. So B1 references those.
+
+Knowledge item B2 (current anti-cycling):
+"The current edit again rewrote the search step, adding 'do not re-enter a location just left or repeat a short cycle among the same few locations' and 'after checking receptacles of one type, move to a still

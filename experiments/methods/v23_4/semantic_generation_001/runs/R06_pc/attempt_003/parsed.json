@@ -1,0 +1,65 @@
+{
+  "adjustments": [
+    {
+      "target": "u1",
+      "focus": [
+        "S"
+      ],
+      "change": "Replace the un-implementable 'treat each inspected receptacle as consumed' and 'unvisited' bookkeeping with a local, observation-based progress cue: use the current numbered go-to menu plus the last action/observation, advance to the next higher-numbered instance within a family (for example cabinet 1 then cabinet 2 then cabinet 3), switch to a different uninspected family or surface when one yields nothing, do not step back to a lower-numbered instance or immediately return to the receptacle just left while searching for the first instance, and keep cheap open-surface checks early. Preserve the forward-only single-pass sweep, single opening of closed containers, and step-budget bound.",
+      "reason": "In `P3:1`, `P3:6`, `P3:10`, `P3:20`, `P3:22`, and `P3:50` the search cycles among fridge 1, countertop 1, countertop 2, cabinet 1, cabinet 2, and drawer 1 and ends at `P3:outcome` step_limit without finding the apple. By contrast `P1:34` finds the plate on countertop 2 and `P2:8` finds the tomato on countertop 2, both open surfaces reached late or after detours. `M10` and `M6` show that family-sweep and anti-cycling wording was followed only intermittently and that a remembered visited set is unavailable; the two-step history in `P3:1` and `P3:2` supports a numbered-menu cue instead of global bookkeeping. Surface-first and ascending-number order are unverified heuristics motivated by `G1`, `P1:34`, and `P2:8`, not established requirements.",
+      "to": {
+        "patch": "--- a/SKILL.md\n+++ b/SKILL.md\n@@ -1 +1 @@\n-Search rule for tasks whose exact target is not initially visible: run a single forward sweep that does not oscillate. Treat each inspected receptacle as consumed; the next move should go to a different receptacle, ideally one not just inspected. Use the numbered receptacle names as a local progress cue: after checking an instance of a family, prefer the next higher-numbered unvisited instance or a wholly uninspected family or surface instead of jumping back to an earlier location. Open each closed container once and read its contents; if it is empty, continue forward to a new receptacle rather than cycling back through earlier ones. Include cheap surface checks (countertops, desks, beds, tables, shelves) early in the sweep. Continue until the exact requested category is found or all plausible receptacles have been inspected once, keeping within the step budget.\n+Search refinement for tasks whose exact target is not initially visible, used with the existing single-pass family sweep: use the current numbered go-to list plus your last action and observation as the progress cue instead of a remembered visited set. After checking an instance of a family, advance to the next higher-numbered instance of that family (for example cabinet 1, then cabinet 2, then cabinet 3); if the family is not yielding the target, move to a different uninspected family or surface rather than cycling back. While still searching for the first instance, do not step back to a lower-numbered instance of the same family or immediately return to the receptacle you just left. Check cheap open surfaces (countertops, diningtables, desks, beds, tables, shelves) early, since an open surface is a likely target location. Open each closed container once; if it is empty, continue forward to a new receptacle. Continue until the exact requested category is found or all plausible receptacles have been inspected once, keeping within the step budget.\n"
+      }
+    },
+    {
+      "target": "u2",
+      "focus": [
+        "D",
+        "S"
+      ],
+      "change": "Change the default from opening the conditioning appliance to acting on the held target as soon as the explicit cool-X-with-fridge or heat-X-with-microwave command appears in the admissible list; open or insert only if that action is unavailable, perform exactly one conditioning action with no repeated close/open toggling, examining, or remove/reinsert cycles, then go to the requested destination and place. Preserve the same-appliance-as-destination case.",
+      "reason": "In `P4:4` the Actor is at the closed microwave while holding tomato 2 and the admissible menu already includes the heat action, yet it inserts the tomato at `P4:6`, toggles the door at `P4:7` and `P4:9`-`P4:14`, and only heats at `P4:20`. `P5:3`-`P5:15` repeats the same insertion and door-toggling pattern before heating. `M7` supports performing the explicit temperature action immediately while holding and without first inserting, citing step savings in `S1_R04/Q3:5` and `S1_R04/Q4:5`, where the action was applied at a closed microwave. The Original's 'open it if closed' clause is the mismatch with this evidence; the replacement keeps the exact-target and single-conditioning safeguards from `G2`.",
+      "to": {
+        "patch": "--- a/SKILL.md\n+++ b/SKILL.md\n@@ -1 +1 @@\n-Conditioning rule for tasks that require the exact target to be cooled or heated: after acquiring the target, go to the required appliance (fridge for cool, microwave for heat) and open it if closed. Perform the cool/heat action directly on the held target while at the open appliance; holding the target is sufficient in the observed environment. If the conditioning action is not offered for the held target, place the target inside once and perform the action, but never replace conditioning with repeated close/open or remove/reinsert cycles. Perform one conditioning action, then carry the target to the requested destination (opening it if closed) and place it there. If the conditioning appliance is also the destination, condition the target and then place it there.\n+Conditioning rule for tasks that require the exact target to be cooled or heated: after acquiring the target, go to the required appliance (fridge for cool, microwave for heat). If the explicit cool-X-with-fridge or heat-X-with-microwave action is already among the admissible commands, perform it immediately while holding the target, without opening the appliance just to condition and without inserting the target. Open the appliance only when the conditioning action is not otherwise available; if it is still not offered for the held target after opening, place the target inside once and perform the action. Perform exactly one conditioning action, and never replace conditioning with repeated close/open toggling, examining the appliance, or remove/reinsert cycles. Then carry the target to the requested destination (opening it if closed) and place it there. If the conditioning appliance is also the destination, condition the target and then place it there.\n"
+      }
+    },
+    {
+      "target": "u3",
+      "focus": [],
+      "change": "KEEP",
+      "reason": "The current multi-instance runs complete the requested count exactly: `P6:18` and `P6:22` take book 1 and book 2, with `P6:20` and `P6:24` placing both in the desk; `P7:5` and `P7:10` place two creditcards in the safe. `M9` similarly found exact-count delivery preserved and return-to-source used when another exact instance was visible, with no substitution and no regression where the count was achievable. The current evidence in `G3` shows no adverse behavior isolated to this rule, and the u1 search refinement is explicitly scoped to the first-instance search so it does not block a deliberate known-source return.",
+      "to": null
+    }
+  ],
+  "checks": [
+    {
+      "id": "c1",
+      "update_ids": [
+        "u1"
+      ],
+      "question": "After the update, does an initially hidden-target search advance through numbered receptacles and uninspected surfaces or families without immediately returning to the just-left receptacle, and find the exact target within the step budget? Counterexample: cycling among the same small set of already-inspected receptacles or hitting the step limit with surfaces or families uninspected."
+    },
+    {
+      "id": "c2",
+      "update_ids": [
+        "u2"
+      ],
+      "question": "After acquiring the target for a cool or heat task, does the run perform the single conditioning action on the held target immediately when the explicit cool/heat command is available, avoid open/close toggling and insert/remove cycles, and then go to the destination?"
+    },
+    {
+      "id": "c3",
+      "update_ids": [
+        "u3"
+      ],
+      "question": "For two-instance tasks, does the run deliver both exact instances sequentially without substituting a different category or stopping after one, and does it return to a known source or resume the sweep for the second instance?"
+    },
+    {
+      "id": "c4",
+      "update_ids": [
+        "u1",
+        "u3"
+      ],
+      "question": "Does the first-instance search refinement leave multi-instance delivery free to return to a known source that showed a second exact instance, rather than treating that return as forbidden oscillation?"
+    }
+  ]
+}

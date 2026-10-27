@@ -39,6 +39,8 @@ Do not duplicate guidance already adequately provided by the Parent Skill or the
 
 The resulting Skill must preserve the intended strategies, triggering conditions, scope, strength, dependencies, exceptions, and preservation boundaries of all effective Updates.
 
+A rule's scope depends on both its wording and its placement within the Skill, including section headings and nesting. Preserve each Effective Update's intended scope by choosing an appropriate location or making minimal structural adjustments when necessary.
+
 Use clear, concise English suitable for the Actor's actual capabilities and execution protocol.
 
 Do not include execution IDs, evidence references, evaluation results, or explanations of the editing process in the Skill.

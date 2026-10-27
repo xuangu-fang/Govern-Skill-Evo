@@ -1,0 +1,96 @@
+{
+  "replay": {
+    "entries": [
+      {
+        "revises": [],
+        "knowledge": "The current diff added a new Admissible Actions section instructing the Actor to verify that a navigation or manipulation command is present in the current admissible action list before issuing it, and, when a desired navigation destination is absent but a direct receptacle action is listed, to use that direct action or another admissible action that advances the task. This was examined across the 10 current pairs. Most Candidate actions were admissible, and the simple paired tasks still succeeded. However, during the clean-soapbar-in-cabinet search, the Candidate still issued 'go to cabinet 3' at a point where that command was absent from the current admissible list; the environment returned 'Nothing happens' with action_in_admissible_commands=false (Q8:39), after which the Candidate continued cycling and hit the step limit (Q8:50). The Parent in the same task also produced invalid actions, including an empty action and an unavailable go-to-cabinet command, so this does not show that the added rule caused fewer invalid actions overall. The evidence supports only weak/conditional adherence: the verification instruction was usually obeyed, but it did not prevent an invalid command under search frustration, and no current paired case isolates the intended direct-action fallback or shows a clear navigation improvement.",
+        "evidence": [
+          "diff",
+          "P8:12",
+          "P8:15",
+          "Q8:39",
+          "Q8:50"
+        ]
+      },
+      {
+        "revises": [
+          "M6"
+        ],
+        "knowledge": "The search step has been edited repeatedly. The current diff retains earlier anti-cycling/step-budget language but adds search-specific elements: include visible open surfaces such as tables, countertops, shelves, and sidetables rather than only closed containers; when an opened receptacle visibly lacks the target, choose a different uninspected candidate from the current admissible list and do not re-enter a location just left or repeat a short cycle; and after checking one receptacle type, prefer a still-unexamined type before rechecking. Earlier evidence for the anti-cycling/step-budget version was mixed: in one cool-a-bread instance the Parent cycled among the fridge, cabinets, and countertops and hit the step limit while the Candidate expanded to the diningtable, found bread, cooled it at the fridge, and placed it successfully; but in another same-task pair the Parent went to countertop 3 and took bread while the Candidate never reached countertop 3, cycled among cabinets, shelves, and the fridge, and hit the step limit. In a cool-a-plate pair the Candidate repeatedly chose an unavailable move to cabinet 3 (falling back to a no-op), examined that already-empty location, reached the plate in cabinet 9 only at step 49, and exhausted the budget one step later. In the current pairs the same pattern recurs. Positive: in the cool-apple-to-microwave pair, the Parent detoured through cabinet 1 and revisited the fridge/countertop before reaching the diningtable; the Candidate moved fridge -> countertop 1 -> countertop 2 -> diningtable, took the apple there, cooled it while holding at the fridge, and placed it in the microwave in 11 steps versus 14 for the Parent; both succeeded. Negative: in the clean-butterknife-and-put-in-drawer pair and the clean-soapbar-in-cabinet pair both executions hit the step limit; the Candidate still cycled among already-open empty drawers/cabinets (and in the soapbar pair also repeatedly visited cabinets 1-4 and sinkbasins) instead of breaking the cycle with an uninspected location, and the Candidate also issued an unavailable 'go to cabinet 3' during the soapbar search. In the remaining current pairs the new search wording did not change success: both Parent and Candidate succeeded on the desklamp, mug, pencil, clean-butterknife, soapbar-to-toilet, and cool-apple tasks and both failed the butterknife-to-drawer and soapbar-to-cabinet tasks (8/10 successes each). The open-surface clause is supported by the diningtable finds, but the anti-cycling and no-re-enter clauses were not reliably followed when the exact target was absent. Added open-surface exploration can add steps in easy tasks (for example, the Candidate took an extra desk detour in a desklamp task and in a pencil task) without preventing success. Overall the evidence supports a conditional benefit for searching open surfaces when the target is present there, but not reliable prevention of cycling/step-limit failures when the target is absent; task-level outcomes are unchanged in these 10 pairs and stochastic variation remains possible.",
+        "evidence": [
+          "S1_R03/diff",
+          "S1_R03/P2:15",
+          "S1_R03/P2:16",
+          "S1_R03/Q2:25",
+          "S1_R03/Q2:30",
+          "S1_R03/Q2:50",
+          "S1_R03/P4:50",
+          "S1_R03/Q4:12",
+          "S1_R03/Q4:13",
+          "S1_R03/Q4:15",
+          "S1_R03/Q4:17",
+          "S1_R03/P6:32",
+          "S1_R03/P6:33",
+          "S1_R03/P6:36",
+          "S1_R03/P6:38",
+          "S1_R03/Q6:4",
+          "S1_R03/Q6:10",
+          "S1_R03/Q6:15",
+          "S1_R03/Q6:48",
+          "S1_R03/Q6:49",
+          "S1_R03/Q6:50",
+          "diff",
+          "P10:8",
+          "P10:9",
+          "P10:11",
+          "P10:14",
+          "Q10:5",
+          "Q10:6",
+          "Q10:8",
+          "Q10:11",
+          "P7:50",
+          "Q7:50",
+          "P8:50",
+          "Q8:39",
+          "Q8:50"
+        ]
+      },
+      {
+        "revises": [
+          "M8"
+        ],
+        "knowledge": "The exact-target/no-substitute guidance has been tightened again. The current diff makes step 2 explicit: when the task's exact noun phrase has not been observed, do not acquire, clean, cool, heat, or place a different but related object; if a container holds only a non-matching object, leave it; conditioning or placing a non-target is not progress; only the exact requested object satisfies the goal. Earlier evidence came from cool-a-pan and heat-a-mug tasks: with the exact pan or mug absent, the Parent took and cooled/moved a pot or took and heated a cup, while the Candidate saw the near-miss and did not manipulate it; both pairs still hit the step limit. Later, in a hot-mug task the Parent took and heated a cup while the Candidate left the visible cup untouched and continued searching; both still hit the step limit. Current evidence is mixed. In the clean-soapbar-in-cabinet task the exact soapbar was absent (cabinets contained soapbottle, spraybottle, candle, etc.); the Candidate left those non-matching objects unmanipulated and continued searching, but still hit the step limit. In the clean-butterknife-and-put-in-drawer task the exact 'butterknife' was also absent; however, the Candidate still took knife 1 from drawer 1, cleaned it with the sinkbasin, and moved it back to drawer 1 (and the Parent did the same), so the explicit near-miss prohibition was not followed in this case, and both hit the step limit. When the exact target was present (clean soapbar-to-toilet, cool apple-to-microwave), the Candidate acquired and used the exact object and succeeded. Thus the rule is conditionally useful for avoiding wasted near-miss manipulation when the Actor follows it, but adherence is inconsistent—a related 'knife' was still acquired, cleaned, and placed for a 'butterknife' request—and neither abstention nor substitution produced success when the exact target was absent. The evidence does not establish that this clause improves success by itself or that all related categories will trigger abstention.",
+        "evidence": [
+          "S1_R03/diff",
+          "S1_R03/P5:31",
+          "S1_R03/P5:35",
+          "S1_R03/Q5:8",
+          "S1_R03/Q5:19",
+          "S1_R03/P10:40",
+          "S1_R03/P10:41",
+          "S1_R03/Q10:36",
+          "S1_R03/Q10:37",
+          "S1_R04/diff",
+          "S1_R04/P1:28",
+          "S1_R04/P1:31",
+          "S1_R04/Q1:17",
+          "S1_R04/Q1:50",
+          "diff",
+          "Q7:4",
+          "Q7:9",
+          "Q7:17",
+          "Q7:19",
+          "P7:8",
+          "P7:12",
+          "P7:14",
+          "P7:50",
+          "Q8:7",
+          "Q8:50",
+          "Q10:6",
+          "Q10:8",
+          "Q10:11"
+        ]
+      }
+    ]
+  }
+}

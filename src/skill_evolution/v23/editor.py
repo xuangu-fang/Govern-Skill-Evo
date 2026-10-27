@@ -15,6 +15,7 @@ from .facts import require, text
 from .grouping import call_configuration, live_generator
 from .preconditioner import compile_effective_plan, load_preconditioner, preconditioner_input
 from .prompts import render_prompt
+from .memory import LEGACY_CONTRACT
 
 
 PROMPT_PATH = Path(__file__).with_name("editor_prompt.md")
@@ -91,10 +92,11 @@ def actual_diff(parent, candidate):
     return "".join(line if line.endswith("\n") else line + "\n" + NO_NEWLINE + "\n" for line in chunks)
 
 
-def editor_input(saved):
+def editor_input(saved, *, memory_contract=LEGACY_CONTRACT):
     require(saved["preconditioner"]["decision"] == "ready" and saved["effective_plan"] is not None,
             "Editor requires a ready, non-null Effective Plan")
-    require(compile_effective_plan(saved["preconditioner"], preconditioner_input(saved)) == saved["effective_plan"],
+    require(compile_effective_plan(saved["preconditioner"], preconditioner_input(saved, memory_contract=memory_contract),
+                                   memory_contract=memory_contract) == saved["effective_plan"],
             "Effective Plan differs from compiled Preconditioner output")
     parent = saved["facts"]["parent"]
     require(parent is None or isinstance(parent, str), "Invalid Parent")
@@ -102,9 +104,9 @@ def editor_input(saved):
     return deepcopy({"parent": parent, "plan": saved["effective_plan"]})
 
 
-def messages_for(saved):
+def messages_for(saved, *, memory_contract=LEGACY_CONTRACT):
     return [{"role": "system", "content": render_prompt(PROMPT_PATH.read_text(encoding="utf-8"), saved["background"])},
-            {"role": "user", "content": json.dumps(editor_input(saved), ensure_ascii=False, separators=(",", ":"))}]
+            {"role": "user", "content": json.dumps(editor_input(saved, memory_contract=memory_contract), ensure_ascii=False, separators=(",", ":"))}]
 
 
 def validate_editor(result, parent):
@@ -132,17 +134,18 @@ def _write_text(path, value):
     temporary.replace(path)
 
 
-def load_editor(directory, *, expected_preconditioner=None, expected_call_config=...):
+def load_editor(directory, *, expected_preconditioner=None, expected_call_config=..., memory_contract=LEGACY_CONTRACT):
     directory = Path(directory)
     read = lambda name: json.loads((directory / name).read_text(encoding="utf-8"))
     saved = read("upstream.json")
     if expected_preconditioner is not None:
         require(saved == expected_preconditioner, "Editor input differs from Preconditioner handoff")
-    payload, messages = editor_input(saved), messages_for(saved)
+    payload, messages = editor_input(saved, memory_contract=memory_contract), messages_for(saved, memory_contract=memory_contract)
     require(read("input.json") == payload and read("background.json") == saved["background"], "Saved input/background differs")
     require(read("messages.json") == messages and _read_text(directory / "prompt.md") == messages[0]["content"],
             "Saved Editor prompt/input differs")
     meta = read("run.json")
+    require(meta.get("memory_contract", LEGACY_CONTRACT) == memory_contract, "Editor Memory contract differs")
     require(meta["round_id"] == saved["round_id"] and meta["status"] == "valid", "Invalid saved run")
     if expected_call_config is not ...:
         require(meta["call_config"] == expected_call_config, "Saved Editor call configuration differs")

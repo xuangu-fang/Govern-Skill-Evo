@@ -1,0 +1,208 @@
+{
+  "kind": "synthetic_not_actor_evidence",
+  "payload": {
+    "parent": "Preserve task completion and necessary recovery.\n",
+    "plan": {
+      "goal": "Improve task progress while preserving necessary capabilities.",
+      "updates": [
+        {
+          "id": "u1",
+          "text": "Avoid repeating a failed action only while its prerequisite is unchanged and there is no new feedback; allow retry after visible repair.\n",
+          "basis": [
+            "G1",
+            "P1:1",
+            "P2:1"
+          ]
+        }
+      ],
+      "checks": [
+        {
+          "id": "c1",
+          "update_ids": [
+            "u1"
+          ],
+          "question": "Does task progress improve while necessary capabilities remain available?"
+        }
+      ]
+    },
+    "command_sets": {},
+    "runs": [
+      {
+        "ref": "P1",
+        "task": "Synthetic offline decision fixture.",
+        "initial": {
+          "observation": "The earlier failed opening had a locked latch; it is now visibly unlocked.",
+          "commands_ref": null
+        },
+        "steps": [
+          {
+            "step": "P1:1",
+            "before": {
+              "observation": "The earlier failed opening had a locked latch; it is now visibly unlocked.",
+              "commands_ref": null
+            },
+            "action": "open",
+            "after": {
+              "observation": "Opened successfully.",
+              "commands_ref": null
+            },
+            "feedback": {
+              "done": true,
+              "won": true
+            }
+          }
+        ],
+        "outcome": {
+          "status": "success",
+          "success": true,
+          "end_reason": "success"
+        }
+      },
+      {
+        "ref": "P2",
+        "task": "Synthetic offline decision fixture.",
+        "initial": {
+          "observation": "The earlier failed opening had a locked latch; it is now visibly unlocked.",
+          "commands_ref": null
+        },
+        "steps": [
+          {
+            "step": "P2:1",
+            "before": {
+              "observation": "The earlier failed opening had a locked latch; it is now visibly unlocked.",
+              "commands_ref": null
+            },
+            "action": "wait",
+            "after": {
+              "observation": "Still unlocked; task unfinished.",
+              "commands_ref": null
+            },
+            "feedback": {
+              "done": false,
+              "won": false
+            }
+          }
+        ],
+        "outcome": {
+          "status": "step_limit",
+          "success": false,
+          "end_reason": "step_limit"
+        }
+      }
+    ],
+    "grouping": {
+      "groups": [
+        {
+          "group_id": "G1",
+          "members": [
+            "P1",
+            "P2"
+          ],
+          "decision_problem": "Keep addresses the counterexample",
+          "shared_basis": "P1:1 and P2:1 expose relevant choices.",
+          "important_differences": [
+            "Compare the recorded prerequisites and outcomes."
+          ]
+        }
+      ]
+    },
+    "memory": {
+      "entries": [
+        {
+          "id": "M1",
+          "knowledge": "A permanent retry prohibition accompanied waiting despite a visibly repaired prerequisite, whereas the earlier repair-conditioned guidance was followed by successful opening. This observation concerns a broader restriction than an unchanged-prerequisite condition.",
+          "evidence": [
+            "H_A5/diff",
+            "H_A5/P1:1",
+            "H_A5/Q1:1"
+          ]
+        }
+      ],
+      "sources": {
+        "H_A5/diff": {
+          "parent": "Retry after repairing the prerequisite.\n",
+          "diff": "--- a/SKILL.md\n+++ b/SKILL.md\n@@ -1 +1 @@\n-Retry after repairing the prerequisite.\n+Never retry after any failure.\n",
+          "execution_context": {
+            "synthetic": true,
+            "visible_information": "recorded state"
+          }
+        },
+        "H_A5/P1": {
+          "run": {
+            "ref": "P1",
+            "task": "Synthetic offline decision fixture.",
+            "initial": {
+              "observation": "The earlier failed opening had a locked latch; it is now visibly unlocked.",
+              "commands_ref": null
+            },
+            "steps": [
+              {
+                "step": "P1:1",
+                "before": {
+                  "observation": "The earlier failed opening had a locked latch; it is now visibly unlocked.",
+                  "commands_ref": null
+                },
+                "action": "open",
+                "after": {
+                  "observation": "Opened successfully.",
+                  "commands_ref": null
+                },
+                "feedback": {
+                  "done": true,
+                  "won": true
+                }
+              }
+            ],
+            "outcome": {
+              "status": "success",
+              "success": true,
+              "end_reason": "success"
+            }
+          },
+          "command_sets": {}
+        },
+        "H_A5/Q1": {
+          "run": {
+            "ref": "Q1",
+            "task": "Synthetic offline decision fixture.",
+            "initial": {
+              "observation": "The earlier failed opening had a locked latch; it is now visibly unlocked.",
+              "commands_ref": null
+            },
+            "steps": [
+              {
+                "step": "Q1:1",
+                "before": {
+                  "observation": "The earlier failed opening had a locked latch; it is now visibly unlocked.",
+                  "commands_ref": null
+                },
+                "action": "wait",
+                "after": {
+                  "observation": "Still unlocked; task unfinished.",
+                  "commands_ref": null
+                },
+                "feedback": {
+                  "done": false,
+                  "won": false
+                }
+              }
+            ],
+            "outcome": {
+              "status": "step_limit",
+              "success": false,
+              "end_reason": "step_limit"
+            }
+          },
+          "command_sets": {}
+        }
+      }
+    }
+  },
+  "background": {
+    "system_prompt": "You are an expert agent operating in the ALFRED Embodied Environment.",
+    "initial_template": "\nYou are an expert agent operating in the ALFRED Embodied Environment.\nYour current observation is: {current_observation}\nYour admissible actions of the current situation are: [{admissible_actions}].\n\nNow it's your turn to take an action.\nYou should first reason step-by-step about the current situation. This reasoning process MUST be enclosed within <think> </think> tags.\nOnce you've finished your reasoning, you should choose an admissible action for current step and present it within <action> </action> tags.\n",
+    "history_template": "\nYou are an expert agent operating in the ALFRED Embodied Environment. Your task is to: {task_description}\nPrior to this step, you have already taken {step_count} step(s). Below are the most recent {history_length} observations and the corresponding actions you took: {action_history}\nYou are now at step {current_step} and your current observation is: {current_observation}\nYour admissible actions of the current situation are: [{admissible_actions}].\n\nNow it's your turn to take an action.\nYou should first reason step-by-step about the current situation. This reasoning process MUST be enclosed within <think> </think> tags.\nOnce you've finished your reasoning, you should choose an admissible action for current step and present it within <action> </action> tags.\n",
+    "max_steps": 50
+  },
+  "source": "tests/skill_evolution/v23_4/offline_cases.py"
+}

@@ -13,16 +13,16 @@ from .diagnosis import diagnosis_input, fields, links, load_diagnosis, validate_
 from .facts import require, text
 from .grouping import call_configuration, live_generator, load_grouping, references
 from .prompts import render_prompt
-from .memory import empty_memory, validate_memory
+from .memory import empty_memory, validate_memory, LEGACY_CONTRACT
 
 
 PROMPT_PATH = Path(__file__).with_name("preconditioner_prompt.md")
 
 
-def preconditioner_input(saved, *, memory=None):
+def preconditioner_input(saved, *, memory=None, memory_contract=LEGACY_CONTRACT):
     """Select whole referenced executions without expanding Group membership."""
     memory = deepcopy(saved.get("memory", empty_memory()) if memory is None else memory)
-    validate_memory(memory)
+    validate_memory(memory, memory_contract=memory_contract)
     facts = diagnosis_input(saved)
     validate_diagnosis(saved["diagnosis"], facts)
     require(saved["diagnosis"]["decision"] == "revise", "Preconditioner requires a revise Diagnosis")
@@ -48,13 +48,13 @@ def messages_for(saved):
             {"role": "user", "content": json.dumps(preconditioner_input(saved), ensure_ascii=False, separators=(",", ":"))}]
 
 
-def compile_effective_plan(result, payload):
+def compile_effective_plan(result, payload, *, memory_contract=LEGACY_CONTRACT):
     """Validate simultaneous adjustments and compile; semantic stops return None."""
     fields(payload, ("parent", "plan", "command_sets", "runs", "grouping", "memory"), "Input")
     # [] is accepted only for validating frozen no-history results; new requests
     # are assembled with the formal object by preconditioner_input().
-    memory = empty_memory() if payload["memory"] == [] else payload["memory"]
-    history_refs = validate_memory(memory)
+    memory = empty_memory() if memory_contract == LEGACY_CONTRACT and payload["memory"] == [] else payload["memory"]
+    history_refs = validate_memory(memory, memory_contract=memory_contract)
     original = payload["plan"]
     validate_diagnosis({"decision": "revise", "reason": "Original Plan", "plan": original}, payload)
     allowed = set(payload["command_sets"]) | {g["group_id"] for g in payload["grouping"]["groups"]}

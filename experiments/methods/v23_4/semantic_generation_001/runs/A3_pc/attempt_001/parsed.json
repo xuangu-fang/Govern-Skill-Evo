@@ -1,0 +1,25 @@
+{
+  "adjustments": [
+    {
+      "target": "u1",
+      "focus": [
+        "D",
+        "S"
+      ],
+      "change": "Replace the A-only wait instruction with: use source A when it is available; when A is unavailable and a visible alternative supplies the required information quality, use that alternative rather than waiting for A; wait for A only when no such alternative is available. Do not treat arbitrary alternatives as interchangeable.",
+      "reason": "In the current run `P1:1`, waiting while A was unavailable produced no progress and ended at the step limit (`P1`), whereas `P2:1` read visible B, obtained the exact required reading, and succeeded (`P2`). `M1` records that the historical conditional permission in `H_A3/diff` accompanied obtaining the required reading in `H_A3/Q1:1`, while the wait-only historical action at `H_A3/P1:1` did not. This supports changing direction away from unconditional waiting and narrowing permission to visible alternatives meeting the required information quality. The no-suitable-alternative wait fallback retains the original recovery behavior only in that narrower case.",
+      "to": {
+        "patch": "--- a/SKILL.md\n+++ b/SKILL.md\n@@ -1 +1 @@\n-Use source A only; wait when A is unavailable.\n+Use source A when it is available. If A is unavailable and a visible alternative supplies the required information quality, use that alternative rather than waiting for A; if no such alternative is available, wait for A.\n"
+      }
+    }
+  ],
+  "checks": [
+    {
+      "id": "c1",
+      "update_ids": [
+        "u1"
+      ],
+      "question": "Does the agent make progress by using a visible alternative when source A is unavailable and that alternative meets the required information quality, while retaining source A when available and waiting only when no suitable alternative exists?"
+    }
+  ]
+}

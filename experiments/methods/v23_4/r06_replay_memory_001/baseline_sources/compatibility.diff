@@ -1,0 +1,26 @@
+--- before/src/skill_evolution/v23/facts.py
++++ after/src/skill_evolution/v23/facts.py
+@@ -121,7 +121,10 @@
+                 require(index == len(steps) and status not in COMPLETE, "Incomplete action in complete execution")
+                 source["pending_step"] = {"step": event_ref, "phase": phase}
+                 break
+-            action = text(event["action"], "executed action")
++            # The Actor can execute an empty parsed command; preserve its failure
++            # and consumed step rather than rejecting or rewriting the evidence.
++            action = event["action"]
++            require(isinstance(action, str), "Invalid executed action")
+             after_observation = text(event["observation"], "post-action observation")
+             require(type(event.get("done")) is bool and type(event.get("won")) is bool,
+                     "Executed event lacks terminal feedback")
+--- before/src/skill_evolution/v23/memory.py
++++ after/src/skill_evolution/v23/memory.py
+@@ -40,7 +40,8 @@
+     for i, step in enumerate(run['steps'], 1):
+         fields(step, ('step', 'before', 'action', 'after', 'feedback'), 'Step')
+         require(step['step'] == f"{run['ref']}:{i}" and step['before'] == previous, 'Broken execution continuity')
+-        text(step['action'], 'action')
++        # Empty commands are valid recorded evidence of an invalid Actor action.
++        require(isinstance(step['action'], str), 'Invalid action')
+         if i < len(run['steps']):
+             require(not step['feedback'].get('done') and not step['feedback'].get('won'), 'Step follows terminal state')
+         require(isinstance(step['feedback'], dict), 'Invalid feedback')

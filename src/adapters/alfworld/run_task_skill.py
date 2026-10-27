@@ -151,7 +151,7 @@ def installed_versions():
     return result
 
 
-def main(argv=None):
+def main(argv=None, *, chat_fn=chat, output_budget_policy=None, implementation_extension=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", default="deepseek-v4-flash")
     parser.add_argument("--split", choices=["train", "val", "test"], default="train")
@@ -203,6 +203,12 @@ def main(argv=None):
                          model=args.model, max_steps=args.max_steps, gamefile=gamefile,
                          manifest_path=manifest_path, versions=versions,
                          backend_id=digest(endpoint.encode("utf-8")))
+    if output_budget_policy is not None:
+        from .skill_runtime import context_fingerprint, execution_fingerprint
+        record['output_budget_policy'] = output_budget_policy
+        record['implementation']['files'].update(implementation_extension or {})
+        record['context_fingerprint'] = context_fingerprint(record)
+        record['execution_fingerprint'] = execution_fingerprint(record)
     run_dir = args.output_root / record["run_id"]
     run_dir.mkdir(parents=True, exist_ok=False)
     output = run_dir / "trajectory.json"
@@ -221,7 +227,7 @@ def main(argv=None):
                 session.trust_env = False
             recording_session = RecordingSession(session, record, output,
                                                  archive_responses=args.archive_responses)
-            run_episode(env, lambda messages: chat(recording_session, endpoint, key, args.model, messages,
+            run_episode(env, lambda messages: chat_fn(recording_session, endpoint, key, args.model, messages,
                 max_attempts=args.request_attempts, strict_response=args.strict_response),
                         record, output)
     except (Exception, KeyboardInterrupt) as exc:

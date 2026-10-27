@@ -1,0 +1,721 @@
+ take soapbar 1..." — the model dumped reasoning into action field. That's a generation artifact. Not really the admissible clause.
+
+Now the search refinement (u2) and no-substitute (u1).
+
+Let's look at tasks where search behavior could be compared. The most relevant are the failing tasks P7/Q7 and P8/Q8 where targets (butterknife, soapbar) were absent/not found, and where cycling occurred.
+
+P7/Q7 (clean some butterknife, put in drawer): Both fail step_limit. Both cycled. The search refinement says "if an opened receptacle visibly lacks the target, leave it; do not re-enter a location just left; after checking one type move to a still-unexamined type; include open surfaces." Did Candidate follow? Q7 explored countertop 1, countertop 2 (open surfaces) early (steps 1,2), then drawers. Actually Q7 went countertop 1, countertop 2, drawer 1, open drawer 2, countertop 1, drawer 1... then took knife 1, moved. It did NOT find butterknife. It did explore some open surfaces. But it still cycled among drawers 1,2,3,4,5,6,7, cabinets terribly in the second half (steps 25-50 shuttling among drawer 1,2,3,4,5 and countertop 1,2). So anti-cycling was not effectively followed. And it manipulated knife 1 (a near-miss / exact category? The task requests butterknife; knife is a different object; the candidate picked up knife 1, moved it, cleaned it, moved it again). That's a near-miss manipulation! The no-substitute clause says "do not acquire, clean, cool, heat, or place a different but related object as a substitute; for example, do not transfer a soapbottle when the task requests a dishsponge." Here butterknife vs knife: the Candidate (and Parent) took knife 1, cleaned it, moved it to drawer. That is manipulating a non-target (knife, not butterknife) as if progress. So the Candidate violated the no-substitute clause? Actually the task is "clean some butterknife and put it in drawer." Candidate took a knife (not butterknife), cleaned it, moved it. That is treating a related object as a substitute. This is a violation of u1. Both P7 and Q7 did this. So the no-substitute clause was violated in Q7.
+
+Wait, but is "knife" a substitute for "butterknife"? Butterknife is a distinct category (like a spreader). Knife is a different object. The clause explicitly says no substitute, related object. So yes, Q7 violated it by picking up and cleaning knife 1.
+
+Hmm, but actually let me re-check. In Q7, step 9 "take knife 1 from drawer 1" — wait Q7:9 is "take knife 1 from drawer 1"? Let me check Q7 steps: Q7:8 go to drawer 1, Q7:9 take knife 1 from drawer 1. Then move knife, clean knife... Yes. So Candidate took knife (not butterknife), cleaned it, moved it. Violation of u1. Both failed anyway.
+
+So the no-substitute clause was not followed in Q7 when the exact target (butterknife) was absent but a related knife was present. Interesting—this is a counterexample to the claim that the Candidate follows no-substitute.
+
+But in other tasks the Candidate did follow no-substitute. Let me check P8/Q8 (clean soapbar). Did the Candidate manipulate a soapbottle or spraybottle? Q8 saw soapbottle 2, spraybottle 2 in cabinet 2 (Q8:7 "open cabinet 2... In it, you see a candle 2, a soapbottle 2, and a spraybottle 2"). Did Q8 take them? Looking at Q8 trace: no take actions at all! Q8 never took anything. It only navigated and examined. So Q8 followed the no-substitute clause (did not take soapbottle/spraybottle). Parent P8 also did NOT take the soapbottle/spraybottle. Both just navigated. So no-substitute in Q8: followed (neither took substitute), but didn't produce success because exact soapbar absent. Actually wait P8 also didn't take a substitute. So both equally.
+
+Hmm, but we have another important case. Let me examine the search refinement in more detail with P10/Q10 (cool apple into microwave). Here the target apple was found on diningtable. Q10 found it faster (11 steps vs 14). Q10 went fridge→countertop 1→countertop 2→diningtable→take→fridge→cool→microwave→open→move. P10 went fridge→countertop1→cabinet1→countertop2→fridge→countertop1→diningtable→take→fridge→cool→microwave→open→move. So P10 did extra detours (cabinet 1, re-visiting fridge/countertop). Q10's more direct search (skipping cabinet 1, and going countertop2 then diningtable) is consistent with u2's "include open surfaces such as diningtable" and anti-cycling. But it's a single instance and stochastic; can't strongly attribute. Actually Q10 still visited fridge 1 twice? Let me check: Q10:1 go to fridge, 2 open fridge, 3 countertop 1, 4 countertop 2, 5 diningtable, 6 take apple, 7 fridge, 8 cool, 9 microwave, 10 open, 11 move. So it visited fridge initially (step1-2) then again step 7. But that's needed for cooling. Fine.
+
+Actually wait, the "cool apple" task requires finding apple then cooling at fridge then moving to microwave. The Candidate in Q10 found apple and cooled. The Parent P10 also found apple and cooled but with more search. Both success.
+
+Now, P9/Q9 again: "put a clean soapbar in toilet." The target soapbar was on countertop 1. Q9 went directly: countertop 1, take soapbar, sinkbasin, clean, toilet, move (6 steps). P9 went countertop 1, then malformed action (step2), inventory (step3), take soapbar (step4), sinkbasin (5), clean (6), toilet (7), move (8). So P9's extra steps were a malformed action and an inventory check. The Candidate avoided both. This is somewhat consistent with "do not repeatedly check inventory while carrying nothing" (u2) — the Parent did inventory while empty, the Candidate didn't. But the malformed action is a glitch. So Q9's improvement (2 fewer steps) is partly due to avoiding inventory check (consistent with u2) and partly due to avoiding a generation glitch. Not a strong attribution.
+
+Now, P2/Q2 and P5/Q5 — Candidate added an extra initial "go to desk 1" (P2) or "go to desk 1" (P5). Interesting: In Q2, the Candidate first went to desk 1 (where the desklamp is), then bed 1, bed 2, took pillow, went to desk, used desklamp. The Parent P2 went bed 1, bed 2, took pillow, desk, use desklamp. So Candidate took an extra step visiting the desk first. This is not obviously related to the edit; it's stochastic exploration. In Q5, the Candidate went to desk 1 first (the destination), then drawer 1, open, take pencil, desk, move. Parent P5 went drawer 1 directly. So Candidate visited the destination first, adding a step. Neither is clearly related to the edit. Possibly the "include visible open surfaces" made it check the desk (an open surface) first? Maybe. But it added a step. Not a strong claim.
+
+Now let's think about the overall assessment. The current edit was examined on 10 paired tasks:
+- 2 desklamp tasks (P1/Q1, P2/Q2): both success. P1 identical. P2 Candidate +1 step.
+- 6 non-desklamp ordinary tasks? Let me categorize:
+  - P3/Q3 (put mug on sidetable): put, both success identical.
+  - P4/Q4 (put mug in sidetable): put, both success identical.
+  - P5/Q5 (put pencil on desk): put, both success, Candidate +1 step.
+  - P6/Q6 (put clean butterknife in drawer): clean+put, both success identical.
+  - P7/Q7 (clean butterknife in drawer): both fail step_limit.
+  - P8/Q8 (clean soapbar in cabinet): both fail step_limit.
+  - P9/Q9 (clean soapbar in toilet): both success, Candidate -2 steps.
+  - P10/Q10 (cool apple in microwave): both success, Candidate -3 steps.
+
+So outcomes: 8 successes both? Wait P7 P8 fail both. So 8 successes both, 2 fail both. Actually let me recount pairs: 10 pairs. P1,Q1 success; P2,Q2 success; P3,Q3 success; P4,Q4 success; P5,Q5 success; P6,Q6 success; P7,Q7 fail; P8,Q8 fail; P9,Q9 success; P10,Q10 success. So 8 successes both, 2 failures both. No task-level difference between Parent and Candidate in success/failure. All differences are in step counts.
+
+So the current edit produced no task-level improvement or regression — identical success/failure across all 10 pairs. Step count differences: Candidate fewer steps in P9/Q9 (-2) and P10/Q10 (-3); Candidate more steps in P2/Q2 (+1) and P5/Q5 (+1); identical in the rest (P1,P3,P4,P6,P7,P8). Net slightly favorable but within variation.
+
+Now, does the current edit relate to prior memory? Let me review the active MemoryEntries M1, M2, M3, M6, M7, M8, M9.
+
+M1: about desklamp-conditioned procedure (first edit). Still relevant. M1 claims Candidate succeeded on all five paired desklamp tasks, Parent failed one. That's historical, from S1_R01. Current evidence (new pairs) has desklamp tasks P1/Q1 and P2/Q2 both success. M1 is generally supported; not contradicted.
+
+M2: preservation of non-desklamp behavior from S1_R01. Historical. Still fine.
+
+M3: appended general non-desklamp procedure (S1_R02), 10 paired ordinary tasks, no desklamp. Describes search breadth + no-substitute rescuing dishsponge task; anti-cycling not reliably followed; both failed in absent-target tasks. This is historical S1_R02. Fine.
+
+M6: rewritten search step (S1_R03) anti-cycling/step-budget priority, mixed. Historical S1_R03. Fine.
+
+M7: temperature-transformation guidance (S1_R03, S1_R04). Historical. Fine.
+
+M8: exact-category rule tightening (S1_R03, S1_R04). Historical. Fine.
+
+M9: multi-instance find-and-place (S1_R04). Historical. Fine.
+
+Now the current edit is a NEW edit on top of the parent that already contains M3/M6-style search text plus shared clauses. The current edit adds the "Admissible Actions" section and refines u2 (open surfaces, anti-cycling) and u1 (no-substitute). This is a new theme not fully represented. Actually M6 covered anti-cycling, and M3 covered search breadth + no-substitute, and M8 covered no-substitute in temperature. But the NEW "Admissible Actions" clause (u3) is entirely new—none of the memory entries cover it. So we should create a new MemoryEntry for the admissible-actions clause and the refined search/no-substitute behavior in the current edit, and possibly revise M6/M3/M8 to add current evidence. But the instructions say revise existing entries when new evidence refines them, or create a new entry for a new theme.
+
+The most defensible approach: Create a new MemoryEntry documenting the current edit's actual changes (admissible actions clause + search refinement + no-substitute refinement) and observed behavior on the 10 current pairs, with careful conditional conclusions. Since the current edit is a joint intervention (multiple clauses), attribute cautiously.
+
+Should I revise any existing entries? The current edit's u2/u1 overlap with M6, M3, M8 themes. But those entries describe specific historical edits (S1_R03, S1_R02, etc.). The current edit is a distinct edit with distinct diff. Adding current evidence to them might be informative, but they're about different historical edits. The Replay instructions: "A revision is a replacement of the entire MemoryEntry... revises names the active Memory IDs replaced." I could revise M6 to add current evidence about anti-cycling (it's the most closely related to u2). But M6's core claims are about the S1_R03 edit. Current u2 is essentially a re-addition of similar anti-cycling language plus open surfaces. Hmm.
+
+Actually, let me reconsider. The current parent already has the M3/M6 search language. The current diff refines step 1 to be more specific about open surfaces and anti-cycling and adds the admissible actions clause. So the current edit's search/no-substitute changes are deltas on top of prior. The behavior on the current 10 pairs is the primary new evidence.
+
+I think the cleanest is to create one new MemoryEntry that captures the current joint edit's observed edit–behavior response, with several Knowledge items:
+1. Admissible-actions clause: Candidate issued no inadmissible commands in 9/10 tasks but violated once (Q8:39); Parent had inadmissible actions in P8/P9 (but those are generation glitches). Actually need to be careful: the clause is new in Candidate, so the relevant observation is whether the Candidate adhered. It mostly did, except Q8:39. Note the clause did not prevent cycling failures. This is a distinct theme.
+2. Search refinement (open surfaces + anti-cycling + no repeat inventory): Candidate improved efficiency in some tasks (P9/Q9 skipping inventory; P10/Q10 more direct search) but still cycled and hit step limit in P7/Q7 and P8/Q8; did not reliably avoid revisiting empty cabinets. Conditional/limited.
+3. No-substitute refinement: Candidate left non-target objects unmanipulated in some cases (Q8 didn't take soapbottle/spraybottle) but in Q7 took a knife (related non-target) and cleaned/moved it, so the no-substitute rule was violated when a related "knife" (vs butterknife) was present. This is a counterexample—important.
+
+Actually, wait. Let me re-examine Q7's knife manipulation. Is knife really a substitute for butterknife? The clause explicitly says "a pot is not a pan, and a cup is not a mug." Hmm, that's from M8/S1_R03 diff, but the current diff says "do not acquire, clean, cool, heat, or place a different but related object as a substitute." So knife vs butterknife—both are cutlery, related. Yes, a violation. Both P7 and Q7 did it though. Actually the current diff u1 says "When the task requests an exact object and that exact noun phrase has not been observed, do not acquire... a different but related object." So the Candidate clean-a-butterknife task took a knife. This is a clear violation and worth recording as a counterexample. Both Parent and Candidate did it, so it's not distinguishing, but it shows the clause wasn't followed.
+
+Hmm, actually, is this maybe that "knife" is what the environment considers? No, ALFRED has separate butterknife and knife objects. The P7/Q7 run's task "clean some butterknife" — the drawers had knife, spatula, spoon, etc. Never butterknife. So taking knife is a substitute. Violation.
+
+Now, is there evidence the Candidate followed no-substitute in P7/Q7 vs Parent? Both took knife. So no difference. In Q8 (soapbar absent, soapbottle present), neither took soapbottle. So the clause had effect in Q8 (Candidate abstained) but not in Q7 (took knife).
+
+Actually wait, in Q8, did the Parent take soapbottle? P8:6 opened cabinet 2 with soapbottle 2, spraybottle 2; P8 didn't take them either. So both abstained. So no differential.
+
+Let me also check P6/Q6 (put a clean butterknife in drawer): this succeeded because butterknife 1 was actually on countertop 2. Both took butterknife 1 (exact), cleaned, moved. Good—both exact target. And this is a case where the exact target existed and was found. Good.
+
+Now let me also verify whether "open surfaces" refinement changed behavior. In P5/Q5, Candidate visited desk first. Desk is a destination open surface. In P10/Q10, Candidate visited diningtable (open surface) and found apple, skipping cabinet 1. This is consistent with the open-surface inclusion. But P10's Parent also found apple on diningtable (P10:8). So both found it; timing differs. Not strong.
+
+OK here's my assessment of what Knowledge to write.
+
+Let me think about the strongest, most defensible findings:
+
+Finding A (admissible actions clause): The current edit added a clause instructing the Actor to verify commands are in the admissible list. Across the 10 Candidate runs, every action was admissible except one (Q8:39 "go to cabinet 3" in a cycling soapbar task returned "Nothing happens", action_in_admissible_commands=false). So the Candidate largely (9/10 tasks, 1 violation) avoided inadmissible commands. But note the Parent runs in the same tasks also had inadmissible actions in P8 (empty action step 12, "go to cabinet 1" step 15) and P9 step 2 (malformed). The clause did not prevent the step-limit cycling failures, and one Candidate violation shows it's not fully adhered to. Attribution limited.
+
+Actually, careful: The Parent's inadmissible actions in P8/P9 are in the Parent run, not Candidate. Since the clause is only in the Candidate skill, we can't say the clause "reduced" inadmissible commands unless we have comparable tasks. We do: P8/Q8 same task, P9/Q9 same task. In P8, Parent had 2 inadmissible, Candidate had 1 inadmissible. In P9, Parent had 1 (malformed), Candidate 0. So the Candidate had fewer inadmissible actions in these paired tasks. But these are also generation artifacts; the difference is small. And Q8 still had one. So: consistent with the clause having a modest effect, but not fully reliable.
+
+Hmm, but I must be careful: is P8:12 (empty action) an "inadmissible command"? It's an empty/malformed action, not a command. And P9:2 is malformed reasoning dumped as action. These are generation failures, not navigation commands absent from the list. So strictly, the clause "verify the command is present in admissible list" applies to legit commands. P8:15 "go to cabinet 1" false is a real inadmissible navigation command. Q8:39 "go to cabinet 3" false is a real inadmissible navigation command. So Parent P8 committed 1 real inadmissible navigation; Candidate Q8 committed 1 real inadmissible navigation. So actually no clear reduction in real inadmissible navigations. The empty/malformed ones are separate.
+
+So the admissible-actions clause's observable effect is weak/unclear: Candidate still committed an inadmissible navigation in Q8 when cycling, and the malformed/empty actions in Parent are generation artifacts unrelated to the clause. I should be careful not to overstate.
+
+Actually, let me reconsider what "inadmissible command" means. The `action_in_admissible_commands` field is false when the executed action wasn't among the admissible commands. For malformed/empty, it's false. For "go to cabinet 1" false at P8:15, likely because cabinet 1 was already at/open and not in the list. For Q8:39 "go to cabinet 3" false, likely because it was just left / not in list. Both are the same failure mode: attempting to navigate to a location not currently available (probably because it's the same location or state).
+
+So the clause aims to prevent exactly this. Both Parent and Candidate did it once each in the soapbar-in-cabinet task. So no evidence of improvement on that metric. And in no task did the Candidate clearly benefit from the "use direct action when destination absent" half—there's no clear instance where a desired navigation destination was absent and a direct action was used. Actually, hmm. Let me think: In P1/Q1, when at desk with bowl, the admissible list C3 had "move bowl 1 to desk 1" and go to dresser etc. The Actor took the bowl and went to dresser — normal. No case of "navigation destination absent, use direct action."
+
+Actually, the "direct action on receptacle" scenario might be like "examine desk 1" when "go to desk 1" isn't listed (because already at desk). In Q6? No.
+
+Given the evidence, I think the admissible-actions clause finding is: mostly followed but one clear violation; no clear task-level benefit; did not prevent cycling. I'll state it carefully.
+
+Finding B (search refinement): Candidate sometimes explored more efficiently/directly (P10/Q10 fewer steps, P9/Q9 avoided empty inventory) but in the absent-target tasks (P7/Q7 butterknife, P8/Q8 soapbar) it still cycled among already-inspected receptacles and hit step limit, sometimes re-checking just-left locations (Q8:39 attempted go to cabinet 3 after leaving it). So anti-cycling not reliably followed; open-surface inclusion may have contributed to efficiency in some successes. Conditional.
+
+Finding C (no-substitute refinement): Candidate abstained from taking non-target objects in some absent-target cases (Q8 never took soapbottle/spraybottle while searching for soapbar), consistent with the rule; but in Q7 (butterknife absent, knife present) the Candidate took, cleaned, and moved a knife—a related non-target—violating the no-substitute principle, and still failed. Parent did the same in P7. So the rule has limited reliability and did not by itself prevent substitution or failure.
+
+Now, should these be separate Knowledge items within one MemoryEntry, or separate MemoryEntries? They are all part of the same joint edit (current diff). One MemoryEntry with 3 Knowledge items seems coherent: "current joint edit: admissible-actions + search refinement + no-substitute refinement." Actually the theme is "current edit's actual guidance changes and observed response." That's coherent. But the instructions say a MemoryEntry represents one coherent theme. The three clauses are related: they all concern search/manipulation discipline in non-desklamp tasks. I'll make one entry with multiple knowledge items.
+
+But wait—should I also revise existing entries? The current edit's u2 and u1 are refinements of themes in M3/M6/M8. However, those memory entries are tied to specific historical edits and sources. The current evidence could refine M6's "anti-cycling not reliably followed" claim by adding a new instance where it still wasn't followed (P7/Q7, P8/Q8) and where open-surface inclusion helped (P10/Q10). But M6 is specifically about the S1_R03 edit. Adding current evidence to M6 would conflate different edits. The Replay guidance: "Multiple active MemoryEntries may be revised together only when the shared theme is coherent and their important distinctions survive." and "Do not merge different historical edits or executions merely because tasks, objects, or wording look similar."
+
+I think the safest and most compliant output: create a NEW MemoryEntry (revises: []) for the current edit, since it introduces a genuinely new clause (admissible actions) and new behavior data, and does not require replacing existing historical entries. This preserves M1, M2, M3, M6, M7, M8, M9 intact.
+
+But the instruction also says revise existing memory when new evidence refines a supported claim. Do we have a strong reason to revise? The current edit is a new edit on a skill that already contains the M3/M6/M8 language. The new evidence is about behavior on 10 tasks under the new (slightly different) skill. It doesn't directly contradict prior claims about prior edits. So I'll leave the historical entries and add a new one.
+
+Hmm, but let me reconsider whether there's a case for revising M8 (no-substitute) with the Q7 knife counterexample. M8's core claim: "The actual diffs... tightened the exact-category rule... Earlier evidence... in cool-pan task Parent took pot and cooled; Candidate saw pot without taking... In current hot-mug task Candidate left visible cup untouched... The evidence supports only conditional usefulness: the rule prevents ineffective near-miss manipulation when exact targets are absent, but its task-level value depends on exact target existing..." That's about prior edits. The current Q7 knife substitution shows the rule is NOT always followed (Candidate took knife). This is a new counterexample. But M8 is about a different edit (S1_R03/S1_R04). The current edit re-includes the no-substitute language. Adding the Q7 counterexample would extend M8's claim. However, M8's claim is already well-conditioned ("conditional usefulness... when exact targets are absent"). The Q7 example is a case where the exact target (butterknife) is absent and Candidate DID manipulate a near-miss (knife)—this directly contradicts the positive part of M8's claim if applied to the current edit. But M8 is scoped to the prior edits/tasks. Hmm.
+
+I think it's cleaner to keep the current-edit counterexample in the new entry. But I must ensure the new entry's claims are internally consistent and properly scoped. I'll make the no-substitute knowledge item explicitly note that in the current edit's butterknife task the Candidate violated the rule by taking/cleaning/moving a knife.
+
+Let me now also double check: did the Candidate truly not take soapbottle in Q8? Yes, no take actions in Q8. Did Parent take in P8? No take actions in P8 either. Both abstained. But P8 had a malformed "take soapbar" attempt? No, P8 had empty action at step 12 and "go to cabinet 1" false at 15. Actually the Parent P8 for val:0008 (clean soapbar in cabinet) — let me check the P8 run in current. The current P8 is val:0008 "put a clean soapbar in cabinet." Steps: go cabinet 1, open, countertop 1, sinkbasin 1, cabinet 2, open, cabinet 1, open cabinet 3, cabinet 4, open cabinet 4, cabinet 1, "" (empty, false), cabinet 2, cabinet 3, cabinet 1 (false), examine cabinet 1, cabinet 2, cabinet 3, cabinet 4, cabinet 1, ... etc. Yes P8 never took soapbottle. Good.
+
+Now, is there a "Parent success / Candidate failure" asymmetry? No. Both fail the two hard tasks; both succeed the rest. So no regression. But the pairs show Candidate sometimes more steps (P2, P5) — minor.
+
+Let me also verify the "inventory while carrying nothing" behavior. The diff u2 says "Do not repeatedly check inventory while carrying nothing." Did Candidate check inventory? Let me scan Candidate runs for "inventory" actions:
+- Q1-Q6: no inventory.
+- Q7: no inventory? Let me check Q7: I don't see "inventory" in Q7 steps. Actually Q7 has no inventory action. Wait Q7:23 is "inventory"? No, that's the current Q7... Let me check. Hmm, the current Q7 is the val:0007 run from the top. Let me scan: Q7 steps 1-50. I don't see "inventory". Actually I see Q7:23 "inventory"? Let me re-read Q7 from current runs... The current Q7 trace (val:0007): 1 countertop1, 2 countertop2, 3 drawer1, 4 drawer2, 5 drawer3, 6 open drawer3?... wait no. Let me carefully re-read.
+
+Hmm, I need to be careful: the current runs are the top-level `runs` array, and the historical runs are in `memory.sources`. The current Q7 is the second run in the top-level (paired with P7). Let me re-read current Q7 from the top-level runs.
+
+Actually the top-level runs list:
+P1, Q1, P2, Q2, P3, Q3, P4, Q4, P5, Q5, P6, Q6, P7, Q7, P8, Q8, P9, Q9, P10, Q10.
+
+Current Q7 (val:0007) trace from top-level:
+Q7:1 countertop 1, Q7:2 countertop 2, Q7:3 drawer 1, Q7:4 drawer 2, Q7:5 countertop 1, Q7:6 drawer 1, Q7:7 take knife 1 from drawer 1, Q7:8 move knife 1 to drawer 1, Q7:9 go to drawer 2, Q7:10 go to drawer 1, Q7:11 take knife 1 from drawer 1, Q7:12 go to sinkbasin 1, Q7:13 go to countertop 1, Q7:14 go to sinkbasin 1, Q7:15 clean knife 1 with sinkbasin 1, Q7:16 go to drawer 1, Q7:17 move knife 1 to drawer 1, Q7:18 close drawer 1, Q7:19 go to sinkbasin 1, Q7:20 go to drawer 1, Q7:21 inventory, Q7:22 open drawer 1, Q7:23 go to drawer 2, Q7:24 go to drawer 3, Q7:25 open drawer 3, Q7:26 go to drawer 4, Q7:27 open drawer 4, Q7:28 go to drawer 1, Q7:29 countertop 1, Q7:30 countertop 2, Q7:31 drawer 2, Q7:32 drawer 1, Q7:33 drawer 3, Q7:34 drawer 4, Q7:35 drawer 5, Q7:36 open drawer 5, Q7:37 drawer 6, Q7:38 open drawer 6, Q7:39 drawer 7, Q7:40 open drawer 7, Q7:41 countertop 1, Q7:42 countertop 2, Q7:43 drawer 1, Q7:44 drawer 2, Q7:45 drawer 3, Q7:46 drawer 4, Q7:47 drawer 5, Q7:48 countertop 1, Q7:49 countertop 2, Q7:50 drawer 1.
+
+Wait, I'm confusing with the historical S1_R02/P7 maybe. Let me just check the top-level Q7. Actually the provided top-level `runs` for Q7 (val:0007). Let me read from the prompt's `runs` array... This is very long. Let me extract the current Q7.
+
+From the `runs` in the user message (current), Q7 steps:
+- Q7:1 go to countertop 1
+- Q7:2 go to countertop 2
+- Q7:3 go to drawer 1
+- Q7:4 open drawer 1
+- Q7:5 go to drawer 2
+- Q7:6 open drawer 2
+- Q7:7 go to countertop 1
+- Q7:8 go to drawer 1
+- Q7:9 take knife 1 from drawer 1
+- Q7:10 move knife 1 to drawer 1
+- Q7:11 go to drawer 2
+- Q7:12 go to drawer 1
+- Q7:13 take knife 1 from drawer 1
+- Q7:14 go to sinkbasin 1
+- Q7:15 go to countertop 1
+- Q7:16 go to sinkbasin 1
+- Q7:17 clean knife 1 with sinkbasin 1
+- Q7:18 go to drawer 1
+- Q7:19 move knife 1 to drawer 1
+- Q7:20 close drawer 1
+- Q7:21 go to sinkbasin 1
+- Q7:22 go to drawer 1
+- Q7:23 inventory
+- Q7:24 open drawer 1
+- Q7:25 go to drawer 2
+- Q7:26 go to drawer 3
+- Q7:27 open drawer 3
+- Q7:28 go to drawer 4
+- Q7:29 open drawer 4
+- Q7:30 go to drawer 1
+- Q7:31 go to countertop 1
+- Q7:32 go to countertop 2
+- Q7:33 go to drawer 2
+- Q7:34 go to drawer 1
+- Q7:35 go to drawer 3
+- Q7:36 go to drawer 4
+- Q7:37 go to drawer 5
+- Q7:38 open drawer 5
+- Q7:39 go to drawer 6
+- Q7:40 open drawer 6
+- Q7:41 go to drawer 7
+- Q7:42 open drawer 7
+- Q7:43 go to countertop 1
+- Q7:44 go to countertop 2
+- Q7:45 go to drawer 1
+- Q7:46 go to drawer 2
+- Q7:47 go to drawer 3
+- Q7:48 go to drawer 4
+- Q7:49 go to drawer 5
+- Q7:50 go to countertop 1
+
+Wait, this is actually the *historical* S1_R02 Q7? No. Hmm. Actually I realize the top-level `runs` I'm reading might be mixing. Let me re-anchor: The top-level `runs` array in the user message contains P1...Q10 with detailed steps. The Q7 there is val:0007. Let me carefully read the actual content for Q7 in the top-level runs.
+
+Actually, I realize the prompt content is huge and I've been reading carefully. Let me re-read the top-level Q7 as given. The Q7 run in the top-level `runs`:
+
+Starting: "ref":"Q7","task":"clean some butterknife and put it in drawer." ...
+Steps:
+Q7:1 go to countertop 1
+Q7:2 go to countertop 2
+Q7:3 go to drawer 1
+Q7:4 open drawer 1
+Q7:5 go to drawer 2
+Q7:6 open drawer 2
+Q7:7 go to countertop 1
+Q7:8 go to drawer 1
+Q7:9 take knife 1 from drawer 1
+Q7:10 move knife 1 to drawer 1
+Q7:11 go to drawer 2
+Q7:12 go to drawer 1
+Q7:13 take knife 1 from drawer 1
+Q7:14 go to sinkbasin 1
+Q7:15 go to countertop 1
+Q7:16 go to sinkbasin 1
+Q7:17 clean knife 1 with sinkbasin 1
+Q7:18 go to drawer 1
+Q7:19 move knife 1 to drawer 1
+Q7:20 close drawer 1
+Q7:21 go to sinkbasin 1
+Q7:22 go to drawer 1
+Q7:23 inventory
+Q7:24 open drawer 1
+Q7:25 go to drawer 2
+Q7:26 go to drawer 3
+Q7:27 open drawer 3
+Q7:28 go to drawer 4
+Q7:29 open drawer 4
+Q7:30 go to drawer 1
+Q7:31 go to countertop 1
+Q7:32 go to countertop 2
+Q7:33 go to drawer 2
+Q7:34 go to drawer 1
+Q7:35 go to drawer 3
+Q7:36 go to drawer 4
+Q7:37 go to drawer 5
+Q7:38 open drawer 5
+Q7:39 go to drawer 6
+Q7:40 open drawer 6
+Q7:41 go to drawer 7
+Q7:42 open drawer 7
+Q7:43 go to countertop 1
+Q7:44 go to countertop 2
+Q7:45 go to drawer 1
+Q7:46 go to drawer 2
+Q7:47 go to drawer 3
+Q7:48 go to drawer 4
+Q7:49 go to drawer 5
+Q7:50 go to countertop 1
+
+Hmm, this matches the historical S1_R02/Q7? No, S1_R02/Q7 was clean knife. Actually the historical S1_R02/Q7 (clean some knife) went drawer1, open, drawer2, open, countertop1, take knife1, sinkbasin, clean, drawer1, move. That's different (10 steps, success). So the top-level Q7 here is a different, failing run.
+
+OK regardless, the key facts: Q7 (val:0007) took/cleaned/moved knife 1 (a non-target) and still failed. It also did inventory at step 23 while not carrying anything (after moving knife to drawer, inventory shows empty). This violates "Do not repeatedly check inventory while carrying nothing" (once, not "repeatedly"). And it took a non-target knife. And cycled.
+
+Now P7 (val:0007 parent) — let me read. P7 steps from top-level: P7:1 countertop 1? Actually let me read: P7:1 go to countertop 1? No. From the top-level runs P7:
+P7:1 go to drawer 1, P7:2 open drawer 1, P7:3 go to countertop 1, P7:4 go to countertop 2, P7:5 go to drawer 2, P7:6 go to drawer 1, P7:7 go to drawer 3, P7:8 take? Hmm.
+
+Actually let me just read the top-level P7 (val:0007). From the prompt:
+
+P7:
+- P7:1 go to drawer 1
+- P7:2 open drawer 1
+- P7:3 go to drawer 2
+- P7:4 open drawer 2
+- P7:5 go to drawer 3
+- P7:6 open drawer 3
+- P7:7 go to drawer 1
+- P7:8 take knife 1 from drawer 1
+- P7:9 move knife 1 to drawer 1
+- P7:10 take knife 1 from drawer 1
+- P7:11 go to sinkbasin 1
+- P7:12 clean knife 1 with sinkbasin 1
+- P7:13 go to drawer 1
+- P7:14 move knife 1 to drawer 1
+- P7:15 close drawer 1
+- P7:16 open drawer 1
+- P7:17 take knife 1 from drawer 1
+- P7:18 go to sinkbasin 1
+- P7:19 clean knife 1 with sinkbasin 1
+- P7:20 go to drawer 1
+- P7:21 move knife 1 to drawer 1
+- P7:22 close drawer 1
+- P7:23 look
+- P7:24 go to countertop 1
+- P7:25 go to countertop 2
+- P7:26 go to drawer 2
+- P7:27 go to drawer 1
+- P7:28 open drawer 1
+- P7:29 go to drawer 3
+- P7:30 go to countertop 1
+- P7:31 go to drawer 2
+- P7:32 go to drawer 1
+- P7:33 go to drawer 3
+- P7:34 go to drawer 4
+- P7:35 open drawer 4
+- P7:36 go to drawer 5
+- P7:37 open drawer 5
+- P7:38 go to drawer 6
+- P7:39 open drawer 6
+- P7:40 go to drawer 1
+- P7:41 go to drawer 2
+- P7:42 go to drawer 3
+- P7:43 go to drawer 4
+- P7:44 go to drawer 5
+- P7:45 go to drawer 6
+- P7:46 go to drawer 7
+- P7:47 open drawer 7
+- P7:48 go to drawer 1
+- P7:49 go to drawer 2
+- P7:50 go to drawer 3
+
+Yes, P7 also took/cleaned/moved knife 1 repeatedly. Both P7 and Q7 substituted knife for butterknife. Both failed. So no-substitute violated in both.
+
+Great, so the no-substitute counterexample (Q7 took knife) is real, and the Parent did too. So the rule didn't change this behavior.
+
+Now, the "clean some butterknife" task: both failed because the butterknife was absent from all reachable locations (or not found). Actually, was butterknife ever present? In P7/Q7, the drawers contained knife, spatula, spoon, pen, etc. It seems no butterknife existed (the exact target absent). So the correct behavior would be to abstain from knife and keep searching; both instead substituted. So the no-substitute rule failed to prevent substitution in this task.
+
+But wait—there's P6/Q6 (put a clean butterknife in drawer) which SUCCEEDED because butterknife 1 was on countertop 2. So in that instance the exact target existed and was found. Good. That's the contrast: when exact target exists, task succeeds with exact target; when absent (P7/Q7), both substitute knife and fail.
+
+Now let me think about the "Admissible Actions" clause more concretely with a real fix case. The clause second bullet: "When a desired navigation destination is absent but a direct action on that receptacle is listed, use the direct action if appropriate." Is there any Q instance demonstrating this? Consider a case where the Actor wants to interact with a receptacle it's already at; "go to X" absent but "examine X" or "take Y from X" present. For example, when at a location and the admissible list contains "examine" but not "go to". The Actor might use it. Hard to pinpoint. In Q1 at desk, C2 includes "examine desk 1" and "take bowl 1 from desk 1" but NOT "go to desk 1" (since already there). The Actor took bowl (a manipulation) rather than re-navigating. That's the direct action used appropriately. Good—but that's also what Parent did. So no differential.
+
+I'll keep the admissible-actions claim modest: mostly followed, one violation, not tested extensively because desired-navigation-absent scenario rarely arose; no clear task-level effect.
+
+Now let me also consider the step-count asymmetries as evidence. The current pairs show Candidate +1 step in the two desklamp tasks P2/Q2 and P5/Q5 due to an extra initial visit to the destination (desk / bed?), and -2 in P9/Q9 (avoided inventory/malformed) and -3 in P10/Q10 (more direct search). These are within stochastic variation and not strong. I should mention the net-neutral task-level outcome (8 successes both, 2 step-limit both; no paired success/failure flip).
+
+Wait, are there exactly 10 pairs? Yes 10 pairs. 8 success both, 2 fail both. Confirmed.
+
+Now let me decide the structure. I'll create ONE new MemoryEntry (revises: []) with maybe 4 Knowledge items:
+
+1. **Joint edit overview / task-level**: The current diff added an Admissible Actions section (verify command in admissible list; use direct action if destination absent) and refined the non-desklamp step 1 (include open surfaces like tables/countertops/shelves/sidetables; avoid immediate re-entry and short cycling; prefer unexamined receptacle types; no repeated empty-handed inventory) and step 2 (exact noun phrase; leave non-matching containers; don't condition/place near-miss objects). Across 10 paired tasks, task-level success was identical (8 success both, 2 step-limit both) with no paired success→failure flip; step counts were lower for Candidate in two tasks (-2 P9/Q9, -3 P10/Q10) and higher in two (+1 P2/Q2, +1 P5/Q5), identical in the rest. Because all clauses changed together and each task ran once, the differences cannot be attributed to a single clause and are within plausible variation — the main supported claim is that the joint edit preserved task success and did not introduce regressions. Evidence: diff, and pair references.
+
+Hmm, but a Knowledge item must be a single coherent conditional understanding. The overview is more of a summary. Maybe better to have focused items.
+
+Let me structure as:
+
+Item 1 (admissible actions clause behavior): Candidate actions were admissible in 9 of 10 current tasks; the one violation was Q8:39 "go to cabinet 3" (feedback action_in_admissible_commands=false, "Nothing happens") during the soapbar-in-cabinet cycling. In the same tasks the Parent also produced inadmissible actions (P8 empty action and "go to cabinet 1" false; P9 malformed action), but these are partly generation artifacts; the clause's observable effect is limited and it did not prevent the cycling failure. Also no clear instance where a desired navigation destination was absent and a direct action was chosen—so the second half is largely untested.
+
+Item 2 (search refinement on open surfaces / anti-cycling): In the absent-target tasks the Candidate still cycled: P7/Q7 (butterknife) and P8/Q8 (soapbar) both hit step limit with the Candidate repeatedly revisiting already-open/known-empty drawers/cabinets (e.g., Q8 attempts to go to cabinet 3 after leaving it, Q7 shuttles drawers 1-7 and countertops repeatedly), so the anti-cycling/open-surface refinement did not break the cycling failure mode. Where the target existed, the Candidate sometimes searched more directly (P10/Q10 found the apple via countertop2→diningtable in 11 steps vs Parent 14), and in P9/Q9 avoided an empty-handed inventory check, consistent with the refinement, but these are single instances.
+
+Actually, P10/Q10: the Parent also reached diningtable. The Candidate skipped cabinet 1 detour. Hmm, modest.
+
+Item 3 (no-substitute refinement): The no-substitute refinement is not reliably followed when a related non-target is present. In Q7 (clean some butterknife...), the exact butterknife was absent but a knife was present; the Candidate took knife 1, cleaned it at the sinkbasin, and moved it to the drawer (steps Q7:9, Q7:13, Q7:15, Q7:17-19), i.e., manipulated a related non-target as if it were progress, and still hit the step limit. The Parent did the same in P7. Conversely, in Q8 (clean soapbar...) the Candidate left the visible soapbottle/spraybottle unmanipulated while searching for the absent soapbar—consistent with the rule—but still failed. So the rule prevented substitution in one absent-target task but not another, and did not convert either failure into success.
+
+Item 4 (preserved behaviors / no regression): Maybe combine with item 1's overall. Actually I can have an item that captures "no regressions": Across tasks where the exact target was found and clean/place was straightforward, Parent and Candidate behavior was step-for-step identical (P1/Q1 bowl+desklamp, P3/Q3 mug on sidetable, P4/Q4 mug in sidetable, P6/Q6 clean butterknife in drawer), showing the added clauses did not degrade exact-target retrieval, cleaning, or placement. Wait, P2/Q2 and P5/Q5 differed by +1. But the "identical" ones: P1, P3, P4, P6 all identical. Good. And P9/Q9, P10/Q10 both success with Candidate fewer steps. So preserved capabilities.
+
+Let me make item 4: "When the exact target was found and no search/substitution ambiguity arose, Candidate and Parent were step-for-step identical (P1/Q1, P3/Q3, P4/Q4, P6/Q6) and both succeeded, so the added clauses did not degrade acquisition/cleaning/placement. Where step counts differed (Candidate +1 in P2/Q2 and P5/Q5 due to an extra initial visit to the desk/destination; Candidate -2 in P9/Q9 by skipping an empty inventory check and a malformed attempt; Candidate -3 in P10/Q10 via a more direct route), both sides still succeeded, so these are efficiency differences within plausible variation, not success effects."
+
+That's a good preservation/no-regression item.
+
+Now, evidence references. I need to cite diff and specific step IDs. All current refs are `diff`, `P1:1`, `Q1:1`, etc. The current `diff` is the top-level diff (no prefix). For current pairs, references are `P7:9`, `Q7:9`, etc.
+
+Let me collect precise citations:
+- P1: all identical. Use P1:1..P1:4 and Q1:1..Q1:4. Maybe cite P1:3 and Q1:3 (go to dresser) and P1:4/Q1:4 (use desklamp). Actually the identical claim for P1: cite P1:1, P1:4, Q1:1, Q1:4.
+- P3: P3:3 (go to sidetable), P3:4 (move), Q3:3, Q3:4.
+- P4: P4:3, P4:4, Q4:3, Q4:4.
+- P6: P6:4 (go to sinkbasin), P6:5 (clean), P6:7 (open drawer), P6:8 (move), Q6:4, Q6:5, Q6:7, Q6:8. Actually simpler: P6:1..P6:8 and Q6:1..Q6:8 are identical. Cite P6:4, P6:8, Q6:4, Q6:8.
+- P2/Q2 step difference: P2 has 5 steps, Q2 has 6 with Q2:1 = go to desk 1 (extra). Cite P2:1 (go to bed 1), Q2:1 (go to desk 1), P2:5 (use desklamp), Q2:6 (use desklamp).
+- P5/Q5: P5:1 go to drawer 1; Q5:1 go to desk 1 (extra); P5:5 move; Q5:6 move. Cite P5:1, Q5:1, P5:5, Q5:6.
+- P9/Q9: P9:2 malformed (action_in_admissible false), P9:3 inventory; Q9:1 go to countertop 1, Q9:2 take soapbar, Q9:6 move. P9:1 countertop 1, P9:4 take, P9:8 move. Cite P9:2, P9:3, Q9:2, Q9:6.
+- P10/Q10: P10:4 cabinet 1 detour; Q10:4 countertop 2; P10:8 diningtable, P10:9 take, P10:14 move; Q10:5 diningtable, Q10:6 take, Q10:11 move. Cite P10:4, Q10:4, P10:9, Q10:6, P10:14, Q10:11.
+- P7/Q7 no-substitute violation: Q7:9 take knife 1 from drawer 1, Q7:13 take knife 1, Q7:15 clean? Actually clean is Q7:17 (clean knife 1 with sinkbasin 1), Q7:19 move knife 1 to drawer 1. Let me use Q7:9, Q7:17, Q7:19. Parent P7:8 take knife, P7:12 clean, P7:14 move. Cite P7:8, P7:12, P7:14, Q7:9, Q7:17, Q7:19.
+- Q7 cycling / step limit: Q7:45-50 shuttling drawers/countertop; Q7:50 go to countertop 1; Q7 outcome step_limit. Cite Q7:45, Q7:50 maybe plus Q7:29-30? Better cite Q7:34, Q7:44, Q7:50.
+- Q8 no-substitute abstention: Q8:7 open cabinet 2 shows soapbottle 2/spraybottle 2; no take. Cite Q8:7 and maybe Q8:13 (revisit cabinet 2). Cite Q8:7, Q8:13, Q8:22. Also Q8 fail step_limit.
+- Q8:39 inadmissible action: Q8:39 "go to cabinet 3" false. Cite Q8:39, Q8:40.
+- P8 inadmissible: P8:12 ("" empty, false), P8:15 ("go to cabinet 1" false). Cite P8:12, P8:15.
+- P9 malformed: P9:2 false. Cite.
+- Q8 cycling: Q8 revisits cabinet 1,2,3,4 repeatedly; Q8:7, Q8:13, Q8:20, Q8:22, Q8:30, Q8:34. Cite Q8:13, Q8:22, Q8:34.
+- Q1/Q1 admissible and direct action: cite Q1:2 take bowl from desk (direct manipulation while go-to desk absent). Well, C2 includes take bowl and examine desk, not go to desk. So Q1:2 demonstrates direct action. But P1:2 also same. I can cite Q1:1, Q1:2 for "direct manipulation used when at receptacle."
+
+Hmm, item 1's second half (direct action when destination absent) is weakly evidenced. Maybe I should mention it minimally or not at all, to avoid unsupported claim. I'll state that the "use direct action when desired navigation destination is absent" sub-clause was not clearly exercised in a way distinguishable from the Parent, so its effect is unobserved. That's honest.
+
+Let me reconsider: The instructions want each Knowledge to be true within its scope and not overbroad. I'll write carefully.
+
+Now, is one MemoryEntry with 4 items too much? The guidance says don't mechanically create one Knowledge per task/sentence. But these are distinct conditional understandings. 4 items for a joint edit covering 3 clauses plus preservation seems reasonable. Maybe I can combine admissible-actions and no-substitute? No, they're different subjects. I'll keep 4.
+
+Actually, maybe I can merge item 1 (admissible actions) and mention it within a broader "joint edit" item. But the admissible-actions clause is a genuinely new subject worth its own item. I'll keep separate.
+
+Let me reconsider whether to revise any existing entry. The prior entries M3, M6, M8 all describe search/no-substitute behavior for prior edits. The current edit re-uses and refines that language. Could I, instead of a new entry, revise M6 or M8? But M6 is specifically the S1_R03 edit's search step; M8 is the exact-category rule from S1_R03/S1_R04. The current edit is a new diff (top-level). Merging would conflate edits (prohibited unless coherent and distinctions survive). The admissible-actions clause isn't in any prior entry. So a new entry is justified. I'll leave prior entries untouched.
+
+Wait, but the instruction: "Before writing each replacement, review... An old single long Knowledge item may contain several distinct observations..." Only applies if revising. Since I'm not revising, fine.
+
+However, I should double-check: is there any prior claim that the current evidence directly contradicts, requiring correction? For instance, M8 says "the rule prevents ineffective near-miss manipulation when exact targets are absent" — but current Q7 shows the Candidate DID manipulate a near-miss (knife) when butterknife absent. Does that contradict M8? M8's claim is scoped to "Earlier evidence" from cool-pan and hot-mug tasks (S1_R03/S1_R04). It says "The evidence supports only conditional usefulness." It doesn't claim universality. So Q7 is a new counterexample to the general idea but M8 already limits scope. Not a direct contradiction of M8's stated historical observations. I could note it in the new entry. I think it's acceptable to leave M8 as is, since it's historically accurate about those tasks. But the principle "the rule prevents near-miss manipulation when exact targets are absent" could be overbroad if read globally. Since it's a separate entry about prior tasks, and my new entry documents the counterexample, the combined memory is reconciled. Actually, the guidance says "Where a counterexample limits a claim, reflect the limitation in that claim's conditions or wording." Since I'm not revising M8, I should make sure M8's claim isn't overbroad globally. M8 says "in a cool-a-pan task... in a heat-a-mug task... the Candidate follows the no-substitute rule and avoids heating a near-miss object." That's accurate for those tasks. It says "The evidence supports only conditional usefulness... these observations do not show that it improves success by itself." So it's already conditional. Good.
+
+But to be safe and to follow "reconcile related positive, negative, unchanged, and untriggered observations," maybe I should revise M8 to incorporate the Q7 counterexample? That would require outputting the entire reconciled knowledge array for M8, including its historical comparisons. That's more work but might be more correct. Hmm.
+
+Let me weigh. The current Q7 counterexample is directly about the no-substitute rule, which is M8's theme. M8 currently states the rule "prevents ineffective near-miss manipulation when exact targets are absent" based on prior tasks. The new Q7 shows a case where it did NOT prevent near-miss manipulation. If I leave M8 unchanged, someone reading M8 might overgeneralize. The Replay guidance strongly encourages revising when a counterexample limits a claim. So arguably I should revise M8 to add the current counterexample and note the rule's unreliability. But M8 is scoped to "The actual diffs in this sequence... Earlier evidence came from tasks where the exact target was absent: in a cool-a-pan task... in a heat-a-mug task... The current edit adds the same no-substitute principle specifically inside the temperature-conditioned placement guidance..." Wait, M8 already mentions "The current edit" for S1_R04. And its scope is temperature-conditioned tasks. The current top-level edit's no-substitute is for general non-desklamp tasks (including butterknife, not temperature). So M8's theme is the exact-category rule in temperature contexts. The current Q7 is a general clean task, not temperature. So it's a related but distinct context. Revising M8 to include a general (non-temperature) counterexample might broaden its scope beyond its stated conditions. Better to keep the new general counterexample in a new entry, and not distort M8's temperature scope.
+
+Hmm, but the exact-category rule is the same rule. Ugh. I think the cleanest, defensible output is a new entry that documents the current edit comprehensively, including the Q7 counterexample. I'll leave historical entries intact because the current edit is a genuinely new intervention with a new clause (admissible actions). This is defensible under "New understanding: create an entry with revises: [] when the evidence supports a useful new theme not adequately represented in active Memory." The admissible-actions clause is not represented anywhere; the combined current-edit behavior on the 10 new pairs is new.
+
+Actually, let me reconsider once more. The task says "Revise existing Memory without losing supported history." and "For each relevant theme, choose whether to create a new entry, revise existing entries, or leave them unchanged. A response may contain both new and revised entries." I'll go with one new entry (revises: []). That satisfies the contract.
+
+But hold on — is there a risk that not revising M8 leaves an overbroad claim that the new evidence contradicts? The main prompt says "Each Knowledge must be true within its own stated scope. Another Knowledge may document a counterexample, but its existence does not repair an overbroad positive statement elsewhere." If M8's statement is overbroad, I must fix it. Let me re-read M8's text carefully:
+
+"The actual diffs in this sequence tightened the exact-category rule by making explicit that a similar category is not a substitute, that near-miss objects must not be picked up, cleaned, cooled, heated, or placed for the requested target, and that search should continue across uninspected receptacles. ... In the current hot-mug task the exact mug was absent, the Parent took cup 2 ... and both ... hit the step limit; the Candidate left the visible cup untouched and continued searching with an empty inventory. This extends the earlier observation to hot-mug placement tasks: when the requested category is absent, the Candidate follows the no-substitute rule and avoids heating a near-miss object, whereas the Parent does not, but the abstention still does not create success because the exact target is not reachable or not located within the budget. The evidence supports only conditional usefulness: the rule prevents ineffective near-miss manipulation when exact targets are absent, but its task-level value depends on the exact target actually existing in an inspectable location; these observations do not show that it improves success by itself..."
+
+The sentence "when the requested category is absent, the Candidate follows the no-substitute rule and avoids heating a near-miss object" is scoped to "hot-mug placement tasks" / "hot-mug task." So it's not overbroad globally; it's about that task. The general phrasing "the rule prevents ineffective near-miss manipulation when exact targets are absent" is a bit general but immediately conditioned by the task-level value caveat. I think it's acceptable and not falsified by Q7 (different task, general clean-butterknife). So I don't need to revise M8.
+
+OK, I'll proceed with one new entry.
+
+Actually, let me reconsider whether to include a revision of M6 given the current anti-cycling evidence. M6's claim: "the anti-cycling/step-budget-priority language was not reliably followed, cycling and step-limit failures persisted." The current evidence (Q7, Q8) further supports this. But M6 is about S1_R03. I'll keep it and reference in the new entry. Fine.
+
+Let me now also double check the exact step details for the claims to make sure citations are accurate.
+
+**Admissible actions / Q8:39**:
+Q8:38 "go to cabinet 1" → arrives cabinet 1 (open, nothing).
+Q8:39 "go to cabinet 3" → "Nothing happens." action_in_admissible_commands:false. Yes.
+Q8:40 "examine cabinet 3" → "The cabinet 3 is open. In it, you see nothing." (recovering). So Q8:39 is the violation.
+P8:12 action "" → "Nothing happens", false.
+P8:15 "go to cabinet 1" → "Nothing happens", false.
+P9:2 action (malformed thinking text) → "Nothing happens", false.
+Good.
+
+**Q7 no-substitute**:
+Q7:9 "take knife 1 from drawer 1" → "You pick up the knife 1 from the drawer 1." 
+Q7:13 "take knife 1 from drawer 1" (again after moving).
+Q7:17 "clean knife 1 with sinkbasin 1" → "You clean the knife 1..."
+Q7:19 "move knife 1 to drawer 1" → "You move the knife 1 to the drawer 1."
+So Candidate took, cleaned, moved knife (non-target). 
+P7:8 "take knife 1", P7:12 "clean knife 1", P7:14 "move knife 1". Yes.
+And neither found butterknife; both step_limit.
+
+Wait, but is "knife" a different object than "butterknife"? In ALFRED, "ButterKnife" and "Knife" are distinct. The task "clean some butterknife" — taking "knife 1" is indeed a different object. So substitution. Good.
+
+Actually hold on, I need to check: could "knife 1" in the observation be the butterknife? The observation says "a knife 1, and a spatula 1." It says "knife 1", not "butterknife 1". So yes, it's a plain knife. The Candidate treated it as the target. Violation.
+
+**Q8 no-substitute abstention**:
+Q8:7 "open cabinet 2" → "In it, you see a candle 2, a soapbottle 2, and a spraybottle 2." No take. Q8 later revisits cabinet 2 at Q8:13, Q8:22, Q8:26, Q8:31, Q8:38, Q8:45; never takes soapbottle/spraybottle. Good. So consistent with no-substitute. But both P8 and Q8 abstained (P8:6 open cabinet 2 → soapbottle 2 etc.; no take). So no differential, but consistent.
+
+Actually wait, P8:13 "take"? No. P8 has no take. Good.
+
+**Q8 cycling**: Q8 goes cabinet 1,2,3,4, sinkbasin, countertop repeatedly. Q8:13 cabinet 2, Q8:22 countertop1, Q8:26 cabinet2, Q8:31 cabinet2, Q8:38 cabinet1, Q8:45 cabinet2, etc. Yes cycling among same receptacles. Step limit.
+
+**Q7 cycling**: Q7:34 drawer 1? Let me re-verify Q7 after step 30. Actually I listed Q7:33 drawer 3, 34 drawer 4? Hmm my earlier reading might be off. Let me not over-cite specific cycling steps; cite Q7:50 "go to countertop 1" and Q7:45/48 area. But I need accurate citations. Let me re-extract current Q7 precisely from the prompt. The current Q7 is given in the top-level `runs`. Let me read it exactly.
+
+From the user message, the top-level Q7 run (task "clean some butterknife and put it in drawer."):
+Steps listed:
+1 go to countertop 1
+2 go to countertop 2
+3 go to drawer 1
+4 open drawer 1
+5 go to drawer 2
+6 open drawer 2
+7 go to countertop 1
+8 go to drawer 1
+9 take knife 1 from drawer 1
+10 move knife 1 to drawer 1
+11 go to drawer 2
+12 go to drawer 1
+13 take knife 1 from drawer 1
+14 go to sinkbasin 1
+15 go to countertop 1
+16 go to sinkbasin 1
+17 clean knife 1 with sinkbasin 1
+18 go to drawer 1
+19 move knife 1 to drawer 1
+20 close drawer 1
+21 go to sinkbasin 1
+22 go to drawer 1
+23 inventory
+24 open drawer 1
+25 go to drawer 2
+26 go to drawer 3
+27 open drawer 3
+28 go to drawer 4
+29 open drawer 4
+30 go to drawer 1
+31 go to countertop 1
+32 go to countertop 2
+33 go to drawer 2
+34 go to drawer 1
+35 go to drawer 3
+36 go to drawer 4
+37 go to drawer 5
+38 open drawer 5
+39 go to drawer 6
+40 open drawer 6
+41 go to drawer 7
+42 open drawer 7
+43 go to countertop 1
+44 go to countertop 2
+45 go to drawer 1
+46 go to drawer 2
+47 go to drawer 3
+48 go to drawer 4
+49 go to drawer 5
+50 go to countertop 1
+
+Yes. So after step 31, it shuttles drawer1, countertop1, countertop2, drawers 2,3,4,5,6,7, countertop1, then drawer1..5, countertop1. Massive cycling. Cite Q7:45, Q7:50, and Q7:23 (inventory while empty: "You are not carrying anything."). Actually Q7:23 inventory shows "You are not carrying anything." Yes. Wait, at Q7:22 they moved knife to drawer 1 (Q7:19) then closed, so inventory at 23 is empty. So an empty-handed inventory check at Q7:23. That's a violation of "do not repeatedly check inventory while carrying nothing" (one check). Cite Q7:23.
+
+**P9/Q9**:
+P9:1 go to countertop 1 → sees candle2, soapbar1, spraybottle1, toiletpaper1.
+P9:2 malformed action → Nothing happens (false).
+P9:3 inventory → "You are not carrying anything."
+P9:4 take soapbar 1.
+P9:5 sinkbasin.
+P9:6 clean.
+P9:7 toilet.
+P9:8 move. Success 8 steps.
+Q9:1 countertop 1.
+Q9:2 take soapbar 1.
+Q9:3 sinkbasin.
+Q9:4 clean.
+Q9:5 toilet.
+Q9:6 move. Success 6 steps.
+So Q9 avoided the malformed attempt and the empty inventory. Good. The malformed action is a generation artifact; the empty inventory is relevant to u2.
+
+**P10/Q10**:
+P10:1 fridge, 2 open, 3 countertop1, 4 cabinet1, 5 countertop2, 6 fridge, 7 countertop1, 8 diningtable, 9 take apple, 10 fridge, 11 cool, 12 microwave, 13 open, 14 move. 14 steps.
+Q10:1 fridge, 2 open, 3 countertop1, 4 countertop2, 5 diningtable, 6 take apple, 7 fridge, 8 cool, 9 microwave, 10 open, 11 move. 11 steps.
+Q10 skipped cabinet1 (P10:4) and an extra fridge/countertop revisit (P10:6-7). Direct route. Cite P10:4, Q10:4, P10:9, Q10:6.
+
+**P1/Q1 identical**: P1:1 go to desk, P1:2 take bowl, P1:3 go to dresser, P1:4 use desklamp. Q1 same. Cite P1:2, P1:4, Q1:2, Q1:4.
+
+**P3/Q3 identical**: P3:1 diningtable, P3:2 take mug, P3:3 sidetable, P3:4 move. Q3 same. Cite P3:2, P3:4, Q3:2, Q3:4.
+
+**P4/Q4 identical**: same. Cite P4:2, P4:4, Q4:2, Q4:4.
+
+**P6/Q6 identical**: P6:1 countertop1, 2 countertop2, 3 take butterknife, 4 sinkbasin, 5 clean, 6 drawer, 7 open, 8 move. Q6 same. Cite P6:3, P6:5, P6:8, Q6:3, Q6:5, Q6:8.
+
+**P2/Q2 step diff**: P2:5 total; Q2:6. Q2:1 go to desk 1 (extra). P2:1 go to bed 1. Cite P2:1, Q2:1, P2:5, Q2:6.
+
+**P5/Q5 step diff**: P5:5; Q5:6. Q5:1 go to desk 1 (extra). P5:1 go to drawer 1. Cite P5:1, Q5:1, P5:5, Q5:6.
+
+Now write the knowledge items.
+
+Let me draft:
+
+**Item 1 (joint edit, admissible actions behavior):**
+Text: "The current diff added an explicit Admissible Actions section instructing the Actor to verify a navigation/manipulation command is in the current admissible list before issuing it, and to substitute a listed direct action on a receptacle when a desired navigation destination is absent. Across the ten current Candidate runs this was largely but not perfectly followed: every executed action was admissible except Q8:39, a 'go to cabinet 3' issued while cycling in the absent-soapbar task, which returned 'Nothing happens' with action_in_admissible_commands=false. The clause did not prevent the step-limit cycling failure, and its second half (using a direct action when a navigation destination is absent) was not clearly exercised in a way distinguishable from the Parent; the Parent runs in the same paired tasks also contained inadmissible actions (P8:12 empty action and P8:15 'go to cabinet 1'; P9:2 malformed action), some of which are generation artifacts rather than navigation-list violations. The evidence therefore supports only that the Candidate mostly issued admissible commands, with at least one clear violation, and not a demonstrated task-level benefit."
+Evidence: diff, Q8:39, Q8:40, P8:12, P8:15, P9:2.
+
+Hmm, P8:12 and P9:2 are generation artifacts. Should I cite them to support "the Parent also had inadmissible actions"? Yes, they support that. But I should be careful not to conflate. It's fine, I note they're partly artifacts.
+
+Actually, is it appropriate to compare Parent (no clause) having inadmissible actions vs Candidate (with clause)? The point is the clause didn't eliminate inadmissible actions in Candidate. I cite Q8:39 primarily. The Parent references are supporting context that inadmissible actions occur and aren't purely a clause issue. I'll keep them but phrase carefully.
+
+**Item 2 (search refinement / anti-cycling):**
+Text: "The current diff rewrote the non-desklamp search step to include visible open surfaces (tables, countertops, shelves, sidetables) in addition to closed containers, to warn against re-entering a location just left or short-cycling among the same few locations, and to prefer an unexamined receptacle type before re-checking a known-empty one. In the two current tasks whose exact target was absent (clean-some-butterknife and clean-soapbar-in-cabinet), the Candidate still cycled among already-inspected drawers/cabinets and hit the 50-step limit (Q7 shuttled drawers 1-7 and countertops 1-2 repeatedly and ended at step 50 on countertop 1; Q8 revisited cabinet 2 and the same cabinets/sinkbasins repeatedly), so the anti-cycling portion was not reliably followed and did not break the cycling failure mode. Where the target existed, the Candidate sometimes searched more directly—in the cool-apple task it reached the diningtable via countertop 1→countertop 2→diningtable and finished in 11 steps versus the Parent's 14 (which had an extra cabinet-1 and fridge/countertop detour)—and in the clean-soapbar-in-toilet task it skipped the Parent's empty-handed inventory check, consistent with the refinement; these single-instance efficiency gains cannot be separated from stochastic variation."
+Evidence: diff, Q7:45, Q7:50, Q8:13, Q8:22, Q8:34, P10:4, Q10:4, P10:9, Q10:6, P9:3, Q9:2.
+
+Hmm, Q9:2 is take, not the inventory skip. The skip: P9:3 inventory vs Q9 has no inventory. To support "Candidate skipped the Parent's empty-handed inventory check," cite P9:3 (inventory, empty). And Q9's direct take at Q9:2. Better: cite P9:2, P9:3, Q9:2. Actually P9:2 is malformed. The empty inventory is P9:3. Cite P9:3 and Q9:2. Good.
+
+But wait, does Q9 skip inventory? Q9 has no inventory action; it goes countertop1, take soapbar. Yes. So cite P9:3 and Q9:2.
+
+For Q8 revisits: Q8:13 (countertop 1), Q8:22 (cabinet 2), Q8:34 (cabinet 1). Actually Q8:13 is "go to cabinet 2" (arrives cabinet 2 open). Let me re-check Q8:13: Yes "go to cabinet 2" from Q8:12 cabinet 1. So cabinet 2 revisit. Q8:22 "go to cabinet 2" again? Q8:21 countertop 1, Q8:22 cabinet 2. Yes. Q8:34 cabinet 1. Good.
+
+For Q7 cycling: Q7:45 "go to drawer 1", Q7:50 "go to countertop 1". Cite Q7:45, Q7:50, and maybe Q7:37 (drawer 5). I'll cite Q7:45, Q7:50.
+
+**Item 3 (no-substitute refinement with counterexample):**
+Text: "The current diff also tightened the exact-target rule to forbid acquiring, cleaning, cooling, heating, or placing a different but related object when the exact requested noun phrase has not been observed, to leave a container that holds only a non-matching object without manipulating it, and not to treat conditioning or placement of a non-target as progress. In the current clean-some-butterknife task the exact butterknife was absent but a plain knife was present; the Candidate took knife 1, cleaned it at the sinkbasin, and moved it to the drawer (Q7:9, Q7:17, Q7:19), i.e., it manipulated a related non-target as substitute and still hit the 50-step limit—a clear counterexample to reliable no-substitute adherence (the Parent did the same at P7:8, P7:12, P7:14). Conversely, in the clean-soapbar-in-cabinet task the Candidate opened cabinet 2, saw soapbottle 2 and spraybottle 2, and left them unmanipulated while continuing to search the absent soapbar (Q8:7 and later revisits), consistent with the rule, but both sides still hit the step limit. Thus the no-substitute refinement can suppress near-miss manipulation in some absent-target tasks but is not reliably followed when a closely related object is available, and it did not by itself convert an absent-target failure into success."
+Evidence: diff, Q7:9, Q7:17, Q7:19, P7:8, P7:12, P7:14, Q8:7, Q8:13, Q8:50.
+
+Wait Q8 outcome step_limit; cite Q8:50 or the outcome. I can cite Q8:50 (last step). And Q7:50. Let me include Q7:50 and Q8:50.
+
+Actually the outcome status is at run level; citing the last step plus run. I'll cite Q7:50 and Q8:50 as terminal steps, and rely on outcome.
+
+**Item 4 (preserved capabilities / no regression & step differences):**
+Text: "Where the exact target was present and the clean/place path unambiguous, the current edit's added clauses did not degrade behavior: the bowl-with-desklamp, mug-on-sidetable (both val:0003 and val:0004), and clean-butterknife-in-drawer tasks were step-for-step identical between Parent and Candidate and all succeeded (P1/Q1, P3/Q3, P4/Q4, P6/Q6). The remaining step-count differences were within plausible variation and did not flip task success: the Candidate was one step slower in two tasks by making an extra initial visit to the destination (Q2:1 go to desk 1 before retrieving the pillow; Q5:1 go to desk 1 before going to drawer 1), and faster in the cool-apple task (11 vs 14) and the clean-soapbar-in-toilet task (6 vs 8, partly by avoiding a malformed action and an empty inventory check). Across all ten pairs success was identical (eight successes each, the same two step-limit failures), so the current joint edit preserved task-level performance and produced no observed regression, but the per-clause contributions and the small step differences cannot be isolated from one trial per task."
+Evidence: diff, P1:2, P1:4, Q1:2, Q1:4, P3:2, P3:4, Q3:2, Q3:4, P4:2, P4:4, Q4:2, Q4:4, P6:3, P6:8, Q6:3, Q6:8, P2:1, Q2:1, P2:5, Q2:6, P5:1, Q5:1, P5:5, Q5:6, P10:9, P10:14, Q10:6, Q10:11, P9:2, P9:3, Q9:2, Q9:6.
+
+That's a lot of evidence but fine (distinct). Actually the union across the entry must include diff and at least one execution source — yes.
+
+Hmm, item 4 is large; maybe split? It's coherent as "preservation/no regression + step differences." I'll keep.
+
+Now, do I need to worry about the two tasks with step differences being "within plausible variation"? The prompt wants me to preserve material action-count differences when they affect interpretation. I do mention them.
+
+Let me reconsider: Is item 4's claim "step-for-step identical" for P1/Q1 accurate? Yes, both 4 steps identical. P3/P4/P6 identical. Good.
+
+One more: P6/Q6 is "put a clean butterknife in drawer" — exact target present (butterknife 1 on countertop 2), both took exact, cleaned, moved. Identical. Good, and it contrasts with P7/Q7 where absent → substitution. Nice.
+
+Now, should I also mention that in P6/Q6 both used the exact butterknife, which shows the no-substitute rule didn't harm exact-target cases? That's in item 4 (preserved). Fine.
+
+Now, entry union evidence includes `diff` (item1) and execution refs. Good.
+
+Let me make sure all cited refs are valid. Current refs are of form `P#:step` / `Q#:step` (no historical prefix). The prompt says use exact existing references such as `P1:8`, `Q1:10`, etc. Yes. And `diff` for the current diff. Good.
+
+Double-check step numbers:
+- Q8:39, Q8:40 exist. Q8:39 action go to cabinet 3; Q8:40 examine cabinet 3. Yes.
+- P8:12, P8:15 exist. Yes.
+- P9:2, P9:3 exist. Yes.
+- Q7:9, Q7:17, Q7:19, Q7:50 exist. Q7:17 clean knife; yes. Q7:19 move knife; yes. Q7:50 go to countertop 1; yes.
+- P7:8, P7:12, P7:14 exist. Yes.
+- Q8:7, Q8:13, Q8:50 exist. Q8:7 open cabinet 2; yes. Q8:13 go to cabinet 2; yes. Q8:50 go to countertop 1; yes.
+- Q7:45, Q7:50 exist. Q7:45 go to drawer 1; yes.
+- P10:4, Q10:4, P10:9, Q10:6 exist. P10:4 go to cabinet 1; yes. Q10:4 go to countertop 2; yes. P10:9 take apple; yes. Q10:6 take apple; yes.
+- P9:3 exists (inventory). Q9:2 exists (take soapbar). Q9:6 exists (move). P9:2 exists (malformed).
+- P1:2, P1:4, Q1:2, Q1:4 exist.
+- P3:2, P3:4, Q3:2, Q3:4 exist.
+- P4:2, P4:4, Q4:2, Q4:4 exist.
+- P6:3, P6:8, Q6:3, Q6:8 exist.
+- P2:1, Q2:1, P2:5, Q2:6 exist.
+- P5:1, Q5:1, P5:5, Q5:6 exist.
+- P10:14, Q10:11 exist.
+
+Good.
+
+Now, one concern: In item 1, I claim "every executed action was admissible except Q8:39". But I should verify across all Q runs there's no other false. Let me scan Q1-Q10 for action_in_admissible_commands false:
+- Q1: all true.
+- Q2: all true.
+- Q3: true.
+- Q4: true.
+- Q5: true.
+- Q6: true.
+- Q7: all true? Let me verify Q7:23 inventory true (yes). Q7:4 open drawer 1 — action_in_admissible true. Q7:50 true. I believe all true. Wait, Q7:3 "go to drawer 1" — is it admissible? feedback true. Q7:4 "open drawer 1" true. Q7:9 take knife true. Q7:20 close drawer 1 true. Q7:24 open drawer 1 true. Hmm, but is there any false? Let me check Q7:5 "go to drawer 2" true. Q7:7 "go to countertop 1" true. I don't see false. OK.
+- Q8: Q8:39 false. Others true? Q8:9 open cabinet 3 true. Q8:25 go to cabinet 1 true. Q8:41 sinkbasin true. Q8:49 sinkbasin 2 true. Yes only 39.
+- Q9: all true.
+- Q10: all true.
+
+So "every executed action was admissible except Q8:39" is accurate for the Candidate. Good.
+
+But wait—I should double check Q1:2 "take bowl 1 from desk 1" is admissible (C3 includes take bowl). Yes true.
+
+Now Parent false actions: P8:12 (empty, false), P8:15 (go to cabinet 1, false), P9:2 (malformed, false). Also P7? Let me check P7 false. P7:3 "go to drawer 2"? Wait P7:3 is "go to drawer 2" — but earlier I listed P7:3 go to drawer 2. Actually let me re-check P7 steps for false. P7:4 open drawer 2 true. Hmm. P7 has "go to drawer 2" at step 3? The P7 I listed: P7:1 drawer1, P7:2 open drawer1, P7:3 drawer2, P7:4 open drawer2... Wait that doesn't match. Let me not cite P7 false. I'll only cite P8:12, P8:15, P9:2 as Parent inadmissible. Are there other Parent false? Possibly P6 or others. Let me not claim exhaustively; I say "the Parent runs in the same paired tasks also contained inadmissible actions (P8:12..., P8:15..., P9:2...)". That's accurate—these are the paired tasks P8/P9. Good. I won't claim all.
+
+Actually, P9:2 malformed action - is that an "inadmissible action"? The feedback says action_in_admissible_commands:false. Yes. But it's a generation artifact (thinking text in action field). I'll note that.
+
+Also, should I mention P9:2 in item 1 when discussing admissible clause? It shows the clause didn't prevent a malformed/empty action in the Parent (but Parent has no clause). Hmm, the Parent doesn't have the clause, so it's not a test of the clause. The Candidate Q9 had no such action. So actually the Candidate's clause may have coincided with avoiding the malformed action. But that's stochastic. I'll frame: "the Parent (without the clause) produced inadmissible actions in P8 and P9, while the Candidate produced one (Q8:39)." This suggests the clause might reduce but doesn't eliminate. Fine.
+
+Wait, but does the Candidate skill's clause actually get "tested" on the Parent? No. The comparison is: Candidate under new skill vs Parent under old skill. Both are separate executions. So stating "Parent also contained inadmissible actions" is descriptive of the paired comparison, showing the new skill didn't clearly eliminate them. It's okay.
+
+Now let me reconsider whether item 1's conclusion is too negative/uncertain. It's honest. The instruction says "Do not become so conservative that well-supported conditional findings disappear." The well-supported finding: Candidate mostly issued admissible commands (9/10 tasks clean), one violation in the cycling soapbar task. That's a concrete finding. Good.
+
+Let me also double check Q8:39 context: Q8:38 "go to cabinet 1" (true), Q8:39 "go to cabinet 3" false. Why would go to cabinet 3 be inadmissible? Possibly because "go to cabinet 3" wasn't in the current menu (maybe because it was already visited/open and the menu only lists certain). Anyway, the action was invalid. Good.
+
+Now, is there a concern that the current pairs include desklamp tasks (P1/P2), so the desklamp procedure part of the skill is also exercised. P1/Q1 identical success; P2/Q2 both success (Q +1 due to extra desk visit). So the desklamp procedure still works. I could mention in item 4 that desklamp tasks still succeeded under both. Item 4 mentions P1/Q1; P2/Q2 is in the step-diff part. Good.
+
+Now let me finalize the JSON. One entry, revises [], 4 knowledge items.
+
+Let me refine wording to be concise but self-contained, and ensure each text stands alone.
+
+Actually, maybe reduce to 3 items by merging item 4 into item 2? Item 2 is about search; item 4 is about preserved capabilities across all tasks. They're distinct. Keep 4.
+
+Let me also ensure I don't include entry-level evidence. Each knowledge has text and evidence only.
+
+Let me write final JSON.
+
+One more check: the union of evidence across the entry includes `diff` (item1, item2, item3, item4) and execution sources. Good.
+
+Let me also double check I'm not using any historical refs (S1_...) — I'm using only current refs and `diff`. That's fine; for a new entry based on current evidence, no historical needed. But the instructions say "Retained historical comparisons require their context-qualified historical references" — I'm not retaining historical comparisons in this new entry, so fine. I focus on current evidence. Good.
+
+Actually, wait: Should the new entry also reference historical memory to show it's a new theme and not contradicting? Not required. The entry is about current edit. Fine.
+
+Let me reconsider item 2's claim "in the cool-apple task it reached the diningtable via countertop 1→countertop 2→diningtable and finished in 11 steps versus the Parent's 14." Let me verify Q10:3 countertop1, Q10:4 countertop2, Q10:5 diningtable. Yes. P10:3 countertop1, P10:4 cabinet1, P10:5 countertop2, P10:6 fridge, P10:7 countertop1, P10:8 diningtable. So Parent had extra cabinet1 and fridge/countertop revisits. Q10 11 steps, P10 14 steps. Correct.
+
+Also item 2 says "in the clean-soapbar-in-toilet task it skipped the Parent's empty-handed inventory check." P9:3 inventory (empty), Q9 no inventory. Correct.
+
+Now finalize.
+
+Let me be careful about the phrase "clean-some-butterknife" — the tasks are "clean some butterknife and put it in drawer." I'll refer to it as the clean-butterknife-to-drawer task.
+
+Also note P7/Q7 the Parent and Candidate both took knife 1. I'll phrase: "the Candidate took knife 1 ... and the Parent did the same." Good.
+
+Let me write it.
+
+Actually, one more consideration: item 3 says "the exact butterknife was absent but a plain knife was present." Is it certain the butterknife was absent? The run never found a butterknife; but absence from inspected locations isn't proof of global absence. However, within the reachable/inspected set it was not found, and a knife was present. I should phrase as "no butterknife was found in the inspected receptacles while a plain knife was." That's accurate. Good—avoid claiming global absence.
+
+Similarly item 3 says "clean-soapbar-in-cabinet task... saw soapbottle 2 and spraybottle 2, and left them unmanipulated while continuing to search the absent soapbar." The soapbar wasn't found; say "while the exact soapbar was not found." Good.
+
+Let me adjust wording to avoid "absent" as global. Use "not found in inspected receptacles."
+
+Now, item 2 says "whose exact target was absent" — better "whose exact target was not found during the run."
+
+OK writing final.
+
+Let me also make sure the JSON is valid with no trailing commas.
+
+Let me construct the final text for each item carefully.
+
+Item 1 text:
+"The current diff added an Admissible Actions section instructing the Actor, before a navigation or manipulation command, to verify that command is in the current admissible list, and to use a listed direct action on a receptacle when a desired navigation destination is absent. Across the ten current Candidate runs this was largely but imperfectly followed: every executed Candidate action carried action_in_admissible_commands=true except Q8:39, a 'go to cabinet 3' issued during the cycling soapbar-in-cabinet search, which returned 'Nothing happens' with the flag false (Q8:40 examines the same cabinet). The clause did not prevent the step-limit cycling failure, and the 'use a direct action when the navigation destination is absent' half was not clearly exercised in a way distinguishable from the Parent. In the same paired tasks the Parent (which lacks the clause) also produced inadmissible actions—P8:12 (empty action) and P8:15 ('go to cabinet 1') in the soapbar-in-cabinet task and P9:2 (a malformed action) in the soapbar-in-toilet task—but those are largely generation artifacts, so the observed support is limited to 'the Candidate usually issued admissible commands, with at least one clear violation,' not a demonstrated task-level benefit."
+
+Evidence: ["diff","Q8:39","Q8:40","P8:12","P8:15","P9:2"]
+
+Item 2 text:
+"The current diff rewrote the non-desklamp search step to include visible open surfaces (tables, countertops, shelves, sidetables) as well as closed containers, to avoid re-entering a location just left or short-cycling among the same few locations, and to prefer an unexamined receptacle type before re-checking a known-empty one. In the two current tasks where the exact target was not found (clean-butterknife-to-drawer and clean-soapbar-in-cabinet), the Candidate still cycled among already-inspected receptacles and hit the 50-step limit: Q7 shuttled drawers 1-7 and countertops 1-2 repeatedly and ended on countertop 1 at step 50, and Q8 repeatedly revisited the same cabinets and sinkbasins while attempting an occasional already-left location. So the anti-cycling portion was not reliably followed and did not break the cycling failure mode. Where the target was found, the Candidate sometimes searched more directly—in the cool-apple task it went countertop 1 to countertop 2 to diningtable and finished in 11 steps versus the Parent's 14 (which took an extra cabinet-1 and fridge/countertop detour)—and in the clean-soapbar-in-toilet task it did not perform the Parent's empty-handed inventory check, consistent with the refinement; these are single-instance efficiency gains that cannot be separated from stochastic variation."
+Evidence: ["diff","Q7:45","Q7:50","Q8:13","Q8:22","Q8:34","P10:4","Q10:4","P10:9","Q10:6","P9:3","Q9:2"]
+
+Hmm, Q8:34 is "go to cabinet 1"; yes. Q8:22 "go to cabinet 2". Q8:13 "go to cabinet 2". Good.
+
+Item 3 text:
+"The current diff tightened the exact-target rule: when the exact requested noun phrase has not been observed, do not acquire, clean, cool, heat, or place a different but related object; leave a container holding only a non-matching object without manipulating it; and do not treat conditioning or placement of a non-target as progress. In the current clean-butterknife-to-drawer task no butterknife was found in the inspected receptacles while a plain knife was present, and the Candidate took knife 1, cleaned it at the sinkbasin, and moved it to the drawer (Q7:9, Q7:17, Q7:19), i.e., it manipulated a related non-target as a substitute and still hit the 50-step limit; the Parent did the same (P7:8, P7:12, P7:14). Conversely, in the clean-soapbar-in-cabinet task the Candidate opened cabinet 2, saw soapbottle 2 and spraybottle 2, left them unmanipulated, and kept searching for the soapbar that was not found (Q8:7 and later revisits), consistent with the rule, though both sides still hit the step limit. Thus the no-substitute tightening can suppress near-miss manipulation in some not-found-target tasks but is not reliably followed when a closely related object is available, and it did not by itself turn an unreachable-target failure into success."
+Evidence: ["diff","Q7:9","Q7:17","Q7:19","P7:8","P7:12","P7:14","Q8:7","Q8:13","Q8:50"]
+
+Item 4 text:
+"Where the exact target was present and the path unambiguous, the current joint edit did not degrade behavior: the bowl-with-desklamp, mug-on-sidetable (both val:0003 and val:0004), and clean-butterknife-in-drawer tasks were step-for-step identical between Parent and Candidate and all succeeded (P1/Q1, P3/Q3, P4/Q4, P6/Q6), with both sides using the exact butterknife in the clean-butterknife case. The remaining step-count differences were within plausible variation and did not flip success: the Candidate was one step slower in two tasks because it made an extra initial visit to the destination (Q2:1 'go to desk 1' before retrieving the pillow; Q5:1 'go to desk 1' before going to drawer 1), and faster in the cool-apple task (11 vs 14) and the clean-soapbar-in-toilet task (6 vs 8, partly by skipping a malformed action and an empty inventory check). Across all ten pairs success was identical (eight successes each and the same two step-limit failures), so the current joint edit preserved task-level performance with no observed regression, though per-clause attribution and the small step differences cannot be isolated with one trial per task."
+Evidence: ["diff","P1:2","P1:4","Q1:2","Q1:4","P3:2","P3:4","Q3:2","Q3:4","P4:2","P4:4","Q4:2","Q4:4","P6:3","P6:8","Q6:3","Q6:8","P2:1","Q2:1","P2:5","Q2:6","P5:1","Q5:1","P5:5","Q5:6","P10:9","P10:14","Q10:6","Q10:11","P9:2","P9:3","Q9:2","Q9:6"]
+
+Wait, "mug-on-sidetable (both val:0003 and val:0004)" — P3/Q3 is "put some mug on sidetable" (val:0003), P4/Q4 is "put a mug in sidetable" (val:0004). Both identical. Good.
+
+Also P6/Q6 is "put a clean butterknife in drawer" (val:0006). Good.
+
+Now, item 4 says "both sides using the exact butterknife in the clean-butterknife case" — P6:3 take butterknife 1, Q6:3 take butterknife 1. Yes exact. Good.
+
+The claim "the current joint edit did not degrade behavior" for the identical tasks—supported. Good.
+
+Now, should I be worried that item 4 says "eight successes each" — yes 8 success both. Correct.
+
+Also note "same two step-limit failures" — P7/Q7 and P8/Q8. Correct.
+
+One more: In item 2 I wrote "attempting an occasional already-left location" — that's Q8:39, which I also cite in item 1. Fine, but item 2 doesn't cite Q8:39. I cite Q8:13,22,34. The "already-left location" is Q8:39, not cited in item 2. To be accurate, I should either cite Q8:39 in item 2 or remove the clause. I'll remove "attempting an occasional already-left location" or cite Q8:39. But citing Q8:39 in item 2 for cycling is fine. However, item 2 evidence already has Q8:34. Let me simplify: "Q8 repeatedly revisited the same cabinets (e.g., cabinet 2 at Q8:13 and Q8:22, cabinet 1 at Q8:34) and sinkbasins." Remove the already-left clause. That avoids needing Q8:39. Let me revise item 2 text accordingly:
+
+"Q8 repeatedly revisited the same cabinets and sinkbasins (e.g., cabinet 2 at Q8:13 and Q8:22, cabinet 1 at Q8:34)."
+
+Good.
+
+Now, is Q8:13 "go to cabinet 2"? Let me double check Q8:13: from Q8 trace, Q8:12 go to cabinet 1, Q8:13 go to cabinet 2. Yes. Q8:22 go to cabinet 2. Q8:34 go to cabinet 1. Good.
+
+Now finalize.
+
+Also, I realize item 2 says "hit the 50-step limit" for both Q7 and Q8. Correct.
+
+Let me double check Q7 "ended on countertop 1 at step 50" — Q7:50 go to countertop 1. Yes.
+
+Now, are there any other Candidate runs with false admissible? I'll trust my scan.
+
+Let me also reconsider item 1's claim "every executed Candidate action carried action_in_admissible_commands=true except Q8:39." Is it possible some Q run had a false I missed? Let me scan Q5: all true. Q6: all true. Q10: all true. Q2: Q2:1 go to desk 1 true. Yes. I'm fairly confident.
+
+Actually, wait: Q6:7 "open drawer 1" — true? Q6:7 "open drawer 1" feedback true. Q6:8 move true. Yes.
+
+And Q1:4 "use desklamp 1" true (reward 1.0 done). Yes.
+
+OK.
+
+Now, the output must be exactly one JSON object with top-level "entries". Let me produce it.
+
+Let me ensure no markdown fences. Just JSON.
+
+I'll now produce the final answer.{"entries":[{"revises":[],"knowledge":[{"text":"The current diff added an Admissible Actions section instructing the Actor, before issuing a navigation or manipulation command, to verify that command is in the current admissible list, and to use a listed direct action on a receptacle when a desired navigation destination is absent. Across the ten current Candidate runs this was largely but imperfectly followed: every executed Candidate action carried action_in_admissible_commands=true except Q8:39, a 'go to cabinet 3' issued during the cycling soapbar-in-cabinet search, which returned 'Nothing happens' with the flag false (Q8:40 then examines that same cabinet). The clause did not prevent the step-limit cycling failure, and the 'use a direct action when the navigation destination is absent' half was not clearly exercised in a way distinguishable from the Parent. In the same paired tasks the Parent skill, which lacks the clause, also produced inadmissible actions—P8:12 (empty action) and P8:15 ('go to cabinet 1') in the soapbar-in-cabinet task and P9:2 (a malformed action) in the soapbar-in-toilet task—but these are largely generation artifacts, so the observed support is limited to 'the Candidate usually issued admissible commands, with at least one clear violation,' not a demonstrated task-level benefit.","evidence":["diff","Q8:39","Q8:40","P8:12","P8:15","P9:2"]},{"text":"The current diff rewrote the non-desklamp search step to include visible open surfaces (tables, countertops, shelves, sidetables) as well as closed containers, to avoid re-entering a location just left or short-cycling among the same few locations, and to prefer an unexamined receptacle type before re-checking a known-empty one. In the two current tasks where the exact target was not found (clean-butterknife-to-drawer and clean-soapbar-in-cabinet), the Candidate still cycled among already-inspected receptacles and hit the 50-step limit: Q7 shuttled drawers 1-7 and countertops 1-2 repeatedly and ended on countertop 1 at step 50, and Q8 repeatedly revisited the same cabinets and sinkbasins (e.g., cabinet 2 at Q8:13 and Q8:22, cabinet 1 at Q8:34). So the anti-cycling portion was not reliably followed and did not break the cycling failure mode. Where the target was found, the Candidate sometimes searched more directly—in the cool-apple task it went countertop 1 to countertop 2 to diningtable and finished in 11 steps versus the Parent's 14 (which took an extra cabinet-1 and fridge/countertop detour)—and in the clean-soapbar-in-toilet task it did not perform the Parent's empty-handed inventory check, consistent with the refinement; these are single-instance efficiency gains that cannot be separated from stochastic variation.","evidence":["diff","Q7:45","Q7:50","Q8:13","Q8:22","Q8:34","P10:4","Q10:4","P10:9","Q10:6","P9:3","Q9:2"]},{"text":"The current diff tightened the exact-target rule: when the exact requested noun phrase has not been observed, do not acquire, clean, cool, heat, or place a different but related object; leave a container holding only a non-matching object without manipulating it; and do not treat conditioning or placement of a non-target as progress. In the current clean-butterknife-to-drawer task no butterknife was found in the inspected receptacles while a plain knife was present, and the Candidate took knife 1, cleaned it at the sinkbasin, and moved it to the drawer (Q7:9, Q7:17, Q7:19), i.e., it manipulated a related non-target as a substitute and still hit the 50-step limit; the Parent did the same (P7:8, P7:12, P7:14). Conversely, in the clean-soapbar-in-cabinet task the Candidate opened cabinet 2, saw soapbottle 2 and spraybottle 2, left them unmanipulated, and kept searching for the soapbar that was not found (Q8:7 and later revisits), consistent with the rule, though both sides still hit the step limit. Thus the no-substitute tightening can suppress near-miss manipulation in some not-found-target tasks but is not reliably followed when a closely related object is available, and it did not by itself turn an unreachable-target failure into success.","evidence":["diff","Q7:9","Q7:17","Q7:19","P7:8","P7:12","P7:14","Q8:7","Q8:13","Q8:50"]},{"text":"Where the exact target was present and the path unambiguous, the current joint edit did not degrade behavior: the bowl-with-desklamp, mug-on-sidetable (both val:0003 and val:0004), and clean-butterknife-in-drawer tasks were step-for-step identical between Parent and Candidate and all succeeded (P1/Q1, P3/Q3, P4/Q4, P6/Q6), with both sides using the exact butterknife in the clean-butterknife case. The remaining step-count differences were within plausible variation and did not flip success: the Candidate was one step slower in two tasks because it made an extra initial visit to the destination (Q2:1 'go to desk 1' before retrieving the pillow; Q5:1 'go to desk 1' before going to drawer 1), and faster in the cool-apple task (11 vs 14) and the clean-soapbar-in-toilet task (6 vs 8, partly by skipping a malformed action and an empty inventory check). Across all ten pairs success was identical (eight successes each and the same two step-limit failures), so the current joint edit preserved task-level performance with no observed regression, though per-clause attribution and the small step differences cannot be isolated with one trial per task.","evidence":["diff","P1:2","P1:4","Q1:2","Q1:4","P3:2","P3:4","Q3:2","Q3:4","P4:2","P4:4","Q4:2","Q4:4","P6:3","P6:8","Q6:3","Q6:8","P2:1","Q2:1","P2:5","Q2:6","P5:1","Q5:1","P5:5","Q5:6","P10:9","P10:14","Q10:6","Q10:11","P9:2","P9:3","Q9:2","Q9:6"]}]}]}

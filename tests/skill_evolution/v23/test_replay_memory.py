@@ -243,13 +243,26 @@ def test_nonempty_memory_preconditioner_handoff(case, tmp_path):
     with pytest.raises(ValueError): pc.compile_effective_plan(value, p)
 
 
-def test_frozen_real_readonly_interfaces():
+def test_frozen_preconditioner_handoff_to_current_editor(tmp_path):
     paths = [Path('artifacts/methods/v23/v23_preconditioner_001/live'),
              Path('artifacts/methods/v23/v23_editor_recovery_001/live')]
     before = {str(p):p.read_bytes() for d in paths for p in d.rglob('*') if p.is_file()}
     saved = pc.load_preconditioner(paths[0])
-    ed = editor.load_editor(paths[1])
+    # Reuse only the historical response as an offline fixture. A fresh archive
+    # must use today's Prompt; this does not re-evaluate the response's semantics.
+    response = json.loads((paths[1] / 'editor.json').read_text())
+    calls = []
+    def generate(messages, directory):
+        calls.append(messages)
+        assert messages == editor.messages_for(saved)
+        return answer(response)
+    out = tmp_path / 'current_editor'
+    ed = editor.run_editor(paths[0], out, generate=generate)
     assert ed['candidate_text'].count('\n') == 23 and ed['effective_plan'] == saved['effective_plan']
+    assert (out / 'prompt.md').read_text() == editor.messages_for(saved)[0]['content']
+    assert editor.load_editor(out, expected_preconditioner=saved) == ed
+    assert editor.run_editor(paths[0], out, generate=generate) == ed
+    assert len(calls) == 1
     assert before == {str(p):p.read_bytes() for d in paths for p in d.rglob('*') if p.is_file()}
 
 

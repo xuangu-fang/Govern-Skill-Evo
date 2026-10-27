@@ -9,7 +9,7 @@ from src.skill_evolution.v22.diagnosis_editor import parse_json_response
 from .editor import load_editor, apply_patch
 from .facts import build_facts, parent_text, require, text
 from .diagnosis import fields, links
-from .memory import empty_memory, validate_memory, validate_entries, validate_run
+from .memory import empty_memory, validate_memory, validate_entries, validate_run, LEGACY_CONTRACT
 from .prompts import render_prompt
 
 PROMPT_PATH = Path(__file__).with_name('replay_prompt.md')
@@ -41,6 +41,13 @@ def build_replay(editor_directory, parent_records, candidate_records, *, memory=
     the full batch; an unverified pair raises rather than silently dropping it.
     """
     saved = load_editor(editor_directory)
+    return build_replay_from_editor(saved, editor_directory, parent_records, candidate_records,
+                                    memory=memory, implementation_review=implementation_review)
+
+
+def build_replay_from_editor(saved, editor_directory, parent_records, candidate_records, *,
+                             memory=None, implementation_review=None, memory_contract=LEGACY_CONTRACT):
+    """Shared pairing/fact assembly after the caller's versioned Editor loader."""
     require(saved['editor_status'] == 'candidate', 'Replay requires a real Candidate')
     require(apply_patch(saved['facts']['parent'], saved['actual_diff']) == saved['candidate_text'],
             'Actual diff does not reproduce Candidate')
@@ -102,7 +109,7 @@ def build_replay(editor_directory, parent_records, candidate_records, *, memory=
                         'checks': deepcopy(plan['checks'])},
                'command_sets': menus, 'runs': runs, 'pairs': pairs,
                'memory': deepcopy(empty_memory() if memory is None else memory)}
-    validate_payload(payload)
+    validate_payload(payload, memory_contract=memory_contract)
     return {'payload': payload, 'background': p['background'], 'pair_audit': audits,
             'editor_directory': str(Path(editor_directory).resolve()), 'candidate': saved['candidate_text'],
             'execution_context': {'background': p['background'], 'actor_model': parent_records[0]['model'],
@@ -110,7 +117,7 @@ def build_replay(editor_directory, parent_records, candidate_records, *, memory=
                 'backend_id': parent_records[0]['backend_id']}}
 
 
-def validate_payload(payload):
+def validate_payload(payload, *, memory_contract=LEGACY_CONTRACT):
     fields(payload, ('parent', 'diff', 'plan', 'command_sets', 'runs', 'pairs', 'memory'), 'Replay input')
     require(payload['parent'] is None or isinstance(payload['parent'], str), 'Invalid Parent')
     apply_patch(payload['parent'], payload['diff'])
@@ -145,7 +152,7 @@ def validate_payload(payload):
                 isinstance(pair['candidate'], str) and pair['candidate'].startswith('Q'), 'Invalid pair roles')
         paired.extend(pair.values())
     require(len(paired) == len(set(paired)) and set(paired) == set(ids), 'Pairs must cover runs once')
-    validate_memory(payload['memory'])
+    validate_memory(payload['memory'], memory_contract=memory_contract)
     return payload
 
 

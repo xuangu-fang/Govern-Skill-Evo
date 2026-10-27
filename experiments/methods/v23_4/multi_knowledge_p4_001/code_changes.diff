@@ -1,0 +1,127 @@
+--- pre-P4/src/skill_evolution/v23_4/replay.py
++++ P4/src/skill_evolution/v23_4/replay.py
+@@ -8,7 +8,7 @@
+ from src.skill_evolution.v23 import replay as original
+ from src.skill_evolution.v23.facts import require
+ from src.skill_evolution.v23.memory import validate_entries, LEGACY_CONTRACT, MULTI_KNOWLEDGE_CONTRACT
+-from src.skill_evolution.v23.prompts import render_prompt
++from src.skill_evolution.v23.prompts import render_prompt, execution_context
+ from src.skill_evolution.v23_3.memory_view import FORMAT_PATH as MEMORY_FORMAT_PATH, MULTI_FORMAT_PATH
+ from .editor import load_editor
+ from .replay_view import (FORMAT as INPUT_VIEW, LEGACY as LEGACY_INPUT_VIEW,
+@@ -20,11 +20,23 @@
+ MULTI_PROMPT_VERSION = "v23_4_replay_multi_knowledge_contract_v1"
+ MULTI_PROMPT_PATH = Path(__file__).with_name("replay_multi_knowledge_contract_prompt.md")
+ MULTI_VIEW_PATH = Path(__file__).with_name("replay_multi_knowledge_view_prompt.md")
++LEARNING_PROMPT_VERSION = "v23_4_replay_multi_knowledge_v1"
++LEARNING_PROMPT_PATH = Path(__file__).with_name("replay_multi_knowledge_learning_prompt_v1.md")
+ 
+ 
+-def _prompt(memory_contract):
++def _prompt(memory_contract, prompt_version=None):
+     require(memory_contract in (LEGACY_CONTRACT, MULTI_KNOWLEDGE_CONTRACT), "Unsupported Memory contract")
+-    return (PROMPT_VERSION, PROMPT_PATH) if memory_contract == LEGACY_CONTRACT else (MULTI_PROMPT_VERSION, MULTI_PROMPT_PATH)
++    if prompt_version is None:
++        prompt_version = PROMPT_VERSION if memory_contract == LEGACY_CONTRACT else MULTI_PROMPT_VERSION
++    registry = {
++        PROMPT_VERSION: (LEGACY_CONTRACT, PROMPT_PATH),
++        MULTI_PROMPT_VERSION: (MULTI_KNOWLEDGE_CONTRACT, MULTI_PROMPT_PATH),
++        LEARNING_PROMPT_VERSION: (MULTI_KNOWLEDGE_CONTRACT, LEARNING_PROMPT_PATH),
++    }
++    require(isinstance(prompt_version, str) and prompt_version in registry, 'Unsupported Replay prompt version')
++    contract, path = registry[prompt_version]
++    require(contract == memory_contract, 'Replay prompt/Memory contract mismatch')
++    return prompt_version, path
+ 
+ 
+ def build_replay(editor_directory, parent_records, candidate_records, *, memory=None, implementation_review=None,
+@@ -56,11 +68,18 @@
+     return bundle
+ 
+ 
+-def messages_for(bundle, *, input_view=INPUT_VIEW, history_sources=None, memory_contract=LEGACY_CONTRACT):
++def messages_for(bundle, *, input_view=INPUT_VIEW, history_sources=None, memory_contract=LEGACY_CONTRACT,
++                 prompt_version=None):
+     original.validate_payload(bundle['payload'], memory_contract=memory_contract)
+     require(input_view in (INPUT_VIEW, LEGACY_INPUT_VIEW), 'Unsupported Replay input view')
+-    _, path = _prompt(memory_contract)
+-    system = render_prompt(path.read_text(), bundle['background'])
++    version, path = _prompt(memory_contract, prompt_version)
++    if version == LEARNING_PROMPT_VERSION:
++        require(input_view == INPUT_VIEW, 'Learning Prompt requires the paired Replay input view')
++        template = path.read_text()
++        require('{{' not in template and '}}' not in template, 'Learning Prompt must not embed context placeholders')
++        system = template.rstrip() + '\n\n' + execution_context(bundle['background'])
++    else:
++        system = render_prompt(path.read_text(), bundle['background'])
+     if input_view == INPUT_VIEW:
+         payload = model_input(bundle, history_sources=history_sources, memory_contract=memory_contract)
+         view_path = VIEW_FORMAT_PATH if memory_contract == LEGACY_CONTRACT else MULTI_VIEW_PATH
+@@ -75,13 +94,16 @@
+ 
+ 
+ def load_replay(directory, *, expected_bundle=None, expected_call_config=...,
+-                expected_input_view=..., expected_history_sources=..., expected_memory_contract=...):
++                expected_input_view=..., expected_history_sources=..., expected_memory_contract=...,
++                expected_prompt_version=...):
+     directory = Path(directory)
+     read = lambda name: json.loads((directory/name).read_text())
+     meta = read('run.json')
+     memory_contract = meta.get('memory_contract', LEGACY_CONTRACT)
+-    version, _ = _prompt(memory_contract)
+-    require(meta.get('prompt_version') == version, 'Unsupported Replay prompt version')
++    require(isinstance(meta.get('prompt_version'), str), 'Missing Replay prompt version')
++    version, _ = _prompt(memory_contract, meta['prompt_version'])
++    if expected_prompt_version is not ...:
++        require(version == expected_prompt_version, 'Replay prompt version differs')
+     if expected_memory_contract is not ...:
+         require(memory_contract == expected_memory_contract, 'Replay Memory contract differs')
+     bundle = validate_bundle(read('input.json'), memory_contract=memory_contract)
+@@ -93,7 +115,8 @@
+     sources = read('history_pair_sources.json') if 'input_view' in meta else {}
+     if expected_history_sources is not ...:
+         require(sources == expected_history_sources, 'Historical pairing provenance differs')
+-    messages = messages_for(bundle, input_view=input_view, history_sources=sources, memory_contract=memory_contract)
++    messages = messages_for(bundle, input_view=input_view, history_sources=sources,
++                            memory_contract=memory_contract, prompt_version=version)
+     if 'input_view' in meta:
+         require(read('model_input.json') == json.loads(messages[1]['content']), 'Replay model view differs')
+     require(read('messages.json') == messages and (directory/'prompt.md').read_text() == messages[0]['content'],
+@@ -110,10 +133,12 @@
+ 
+ 
+ def run_replay(bundle, directory, *, generate, call_config=None, max_input_chars=400000,
+-               input_view=INPUT_VIEW, history_sources=None, memory_contract=LEGACY_CONTRACT):
++               input_view=INPUT_VIEW, history_sources=None, memory_contract=LEGACY_CONTRACT, prompt_version=None):
+     validate_bundle(bundle, memory_contract=memory_contract)
+     sources = {} if history_sources is None else history_sources
+-    messages = messages_for(bundle, input_view=input_view, history_sources=sources, memory_contract=memory_contract)
++    version, _ = _prompt(memory_contract, prompt_version)
++    messages = messages_for(bundle, input_view=input_view, history_sources=sources,
++                            memory_contract=memory_contract, prompt_version=version)
+     config = getattr(generate, 'call_config', None)
+     require(call_config is None or config is None or call_config == config, 'Generator configuration differs')
+     config = call_config if call_config is not None else config
+@@ -121,14 +146,14 @@
+     if directory.exists():
+         return load_replay(directory, expected_bundle=bundle, expected_call_config=config,
+                            expected_input_view=input_view, expected_history_sources=sources,
+-                       expected_memory_contract=memory_contract)
++                           expected_memory_contract=memory_contract, expected_prompt_version=version)
+     directory.mkdir(parents=True, exist_ok=False)
+     write_record(directory/'input.json', bundle)
+     write_record(directory/'history_pair_sources.json', sources)
+     write_record(directory/'model_input.json', json.loads(messages[1]['content']))
+     write_record(directory/'messages.json', messages)
+     (directory/'prompt.md').write_text(messages[0]['content'])
+-    meta = {'prompt_version': _prompt(memory_contract)[0], 'input_view': input_view,
++    meta = {'prompt_version': version, 'input_view': input_view,
+             'started_at': datetime.now(timezone.utc).isoformat(), 'call_config': config,
+             'input_chars': len(json.dumps(messages, ensure_ascii=False)), 'max_input_chars': max_input_chars,
+             'status': 'requesting'}
+@@ -157,4 +182,4 @@
+         write_record(directory/'run.json', meta)
+     return load_replay(directory, expected_bundle=bundle, expected_call_config=config,
+                        expected_input_view=input_view, expected_history_sources=sources,
+-                       expected_memory_contract=memory_contract)
++                       expected_memory_contract=memory_contract, expected_prompt_version=version)

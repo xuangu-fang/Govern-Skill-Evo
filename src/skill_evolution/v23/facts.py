@@ -121,7 +121,10 @@ def build_facts(records):
                 require(index == len(steps) and status not in COMPLETE, "Incomplete action in complete execution")
                 source["pending_step"] = {"step": event_ref, "phase": phase}
                 break
-            action = text(event["action"], "executed action")
+            # The Actor can execute an empty parsed command; preserve its failure
+            # and consumed step rather than rejecting or rewriting the evidence.
+            action = event["action"]
+            require(isinstance(action, str), "Invalid executed action")
             after_observation = text(event["observation"], "post-action observation")
             require(type(event.get("done")) is bool and type(event.get("won")) is bool,
                     "Executed event lacks terminal feedback")

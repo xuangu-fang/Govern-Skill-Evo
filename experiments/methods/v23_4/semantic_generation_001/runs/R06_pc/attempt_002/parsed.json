@@ -1,0 +1,56 @@
+{
+  "adjustments": [
+    {
+      "target": "u1",
+      "focus": [
+        "S"
+      ],
+      "change": "Retain the non-oscillating forward sweep, the open-each-container-once rule, the early cheap-surface checks, and the step-budget bound, but express the progress cue in terms of observable, local information — the current observation, the admissible go-to commands, and the numbered receptacle names — instead of a remembered visited/consumed set, and explicitly avoid returning to the receptacle just left or standing on.",
+      "reason": "`P3` never acquires its exact apple and ends at `P3:outcome` step_limit, cycling among fridge 1, countertop 1, countertop 2, cabinet 1, cabinet 2 and drawer 1 (`P3:1`, `P3:22`) instead of reaching uninspected receptacles, the concrete oscillation problem in `G1`; `P1:34` and `P2:8` show the exact target sat on countertop 2 yet was reached only after many cabinets (P1 at step 34). `M10` found the existing single-pass family sweep produced rescue successes but still did not reliably prevent cycling, and `M6` found earlier anti-cycling wording was often not followed. The Goal's requirement to cue progress from the current observation, admissible commands and numbered names — rather than a remembered visited set that the two-step history cannot support — is therefore the needed scope change; the direction (forward sweep, early surfaces) and the step-budget bound are preserved.",
+      "to": {
+        "patch": "--- a/SKILL.md\n+++ b/SKILL.md\n@@ -1 +1 @@\n-Search rule for tasks whose exact target is not initially visible: run a single forward sweep that does not oscillate. Treat each inspected receptacle as consumed; the next move should go to a different receptacle, ideally one not just inspected. Use the numbered receptacle names as a local progress cue: after checking an instance of a family, prefer the next higher-numbered unvisited instance or a wholly uninspected family or surface instead of jumping back to an earlier location. Open each closed container once and read its contents; if it is empty, continue forward to a new receptacle rather than cycling back through earlier ones. Include cheap surface checks (countertops, desks, beds, tables, shelves) early in the sweep. Continue until the exact requested category is found or all plausible receptacles have been inspected once, keeping within the step budget.\n\\ No newline at end of file\n+Search rule for tasks whose exact target is not initially visible: run a single forward sweep that does not oscillate. Do not rely on a remembered list of visited receptacles; judge progress from the current observation, the admissible go-to commands, and the numbered receptacle names. Do not move back to the receptacle you are standing on or the one you left on the previous step; after checking an instance of a family, prefer a higher-numbered instance of that family than the one just checked, or a wholly different family, or an uninspected surface, instead of jumping back to an earlier location. Open each closed container once and read its contents; if it is empty, continue forward to a new receptacle rather than cycling back through earlier ones. Include cheap surface checks (countertops, desks, beds, tables, shelves) early in the sweep. Continue until the exact requested category is found or all plausible receptacles have been inspected once, keeping within the step budget.\n\\ No newline at end of file\n"
+      }
+    },
+    {
+      "target": "u2",
+      "focus": [
+        "S"
+      ],
+      "change": "Require performing the cool/heat action on the held target as soon as it is admissible, even while the appliance is closed, without opening or inserting the target first; open the appliance only when the action is not otherwise offered, keep the single-insert fallback for when the action requires the object inside, and retain the one-conditioning-action, no close/open or remove/reinsert, and condition-then-place-then-destination boundaries.",
+      "reason": "`P4:5` and `P5:3` show the heat action was already admissible while the tomato was held with the microwave closed, yet `P4` and `P5` inserted the tomato and ran close/open cycles (`P4:7`-`P4:14`, `P5:6`-`P5:13`) before heating at `P4:20`/`P5:15`; `P1:36` likewise shows cool admissible while the fridge was closed, though it was opened first, and `P1:38`/`P2:11` confirm the action works on the held target. `M7` had already concluded the appliance should be opened only when needed. I therefore make the held-target action the immediate trigger and bound opening/inserting to when the action is not otherwise offered, keeping the single-action, no-cycle and condition-then-place boundaries from `G2`.",
+      "to": {
+        "patch": "--- a/SKILL.md\n+++ b/SKILL.md\n@@ -1 +1 @@\n-Conditioning rule for tasks that require the exact target to be cooled or heated: after acquiring the target, go to the required appliance (fridge for cool, microwave for heat) and open it if closed. Perform the cool/heat action directly on the held target while at the open appliance; holding the target is sufficient in the observed environment. If the conditioning action is not offered for the held target, place the target inside once and perform the action, but never replace conditioning with repeated close/open or remove/reinsert cycles. Perform one conditioning action, then carry the target to the requested destination (opening it if closed) and place it there. If the conditioning appliance is also the destination, condition the target and then place it there.\n\\ No newline at end of file\n+Conditioning rule for tasks that require the exact target to be cooled or heated: after acquiring the target, go to the required appliance (fridge for cool, microwave for heat). If the cool/heat action is already admissible on the held target, perform it immediately, even while the appliance is closed, without opening it or inserting the target first; holding the target is sufficient in the observed environment. Open the appliance only if the action is not otherwise offered, then perform the cooling or heating on the held target; if the action still requires the object inside, put the target in once and perform the action. Never replace conditioning with repeated close/open or remove/reinsert cycles. Perform one conditioning action, then carry the target to the requested destination (opening it if closed) and place it there. If the conditioning appliance is also the destination, condition the target and then place it there.\n\\ No newline at end of file\n"
+      }
+    },
+    {
+      "target": "u3",
+      "focus": [],
+      "change": "KEEP",
+      "reason": "`P6:18`, `P6:24` and `P7:5`, `P7:10` show both exact instances delivered sequentially from the same source that still held another instance, and `M9` observed the multi-instance procedure preserving exact-count placement without substitution, so the requirement is supported and already matches successful behavior in `G3`. The adverse `M9` step-limit cases (two keychain, two cd) came from a second exact instance being absent or unlocated, not from this rule, so they do not justify narrowing it. Keeping it also coordinates with the parent desklamp constraint by excluding ordinary multi-instance put tasks from its one-co-located-target rule.",
+      "to": null
+    }
+  ],
+  "checks": [
+    {
+      "id": "c1",
+      "update_ids": [
+        "u1"
+      ],
+      "question": "After the update, do non-desklamp searches for a not-initially-visible exact target advance to new receptacles with forward progress — using the current observation, admissible go-to commands and numbered names rather than a remembered list — instead of oscillating among the same few, and is the exact target acquired within the step budget? Counterexample: a run that revisits a small set or hits the step limit with the target still uninspected."
+    },
+    {
+      "id": "c2",
+      "update_ids": [
+        "u2"
+      ],
+      "question": "After acquiring the target for a cool/heat task, does the run perform one conditioning action on the held target as soon as it is admissible, without unnecessary appliance opening or inserting and without close/open or remove/reinsert cycles, then go to the destination?"
+    },
+    {
+      "id": "c3",
+      "update_ids": [
+        "u3"
+      ],
+      "question": "For two-instance tasks, does the run deliver both exact instances without substituting a different category or stopping after one?"
+    }
+  ]
+}

@@ -1,0 +1,339 @@
+{
+  "reviewed_at": "2026-10-21T15:45:10.724265+00:00",
+  "scope": "Read-only local semantic review; no model or Actor call; extracted facts are not new executions.",
+  "original_goal": "Improve non-desklamp execution so that (1) search for an initially hidden exact target advances through new receptacles rather than oscillating, and stays within the 50-step budget; (2) tasks requiring cooling or heating perform one conditioning action on the exact held target at the open appliance without close/open or remove/reinsert cycles, then proceed to the destination; and (3) successful exact-category multi-instance delivery is preserved. Respect the Actor's limited two-step history by making rules depend on the current observation, admissible commands, and numbered receptacle names rather than a global visited set. Preserve the existing exact-category matching, general acquisition/placement, and desklamp-scoped rules.",
+  "original_u2": {
+    "id": "u2",
+    "text": "Conditioning rule for tasks that require the exact target to be cooled or heated: after acquiring the target, go to the required appliance (fridge for cool, microwave for heat) and open it if closed. Perform the cool/heat action directly on the held target while at the open appliance; holding the target is sufficient in the observed environment. If the conditioning action is not offered for the held target, place the target inside once and perform the action, but never replace conditioning with repeated close/open or remove/reinsert cycles. Perform one conditioning action, then carry the target to the requested destination (opening it if closed) and place it there. If the conditioning appliance is also the destination, condition the target and then place it there.",
+    "basis": [
+      "G2",
+      "P4:7",
+      "P4:20",
+      "P5:6",
+      "P5:15",
+      "P1:38",
+      "P2:11"
+    ]
+  },
+  "adjustment_u2": {
+    "target": "u2",
+    "focus": [
+      "D",
+      "S",
+      "C"
+    ],
+    "change": "Replace the automatic open/insert sequence with a current-command check: perform the explicit cool/heat action immediately while holding the exact target when it is already listed, even at a closed appliance; otherwise open once and perform it while holding before considering a single insertion fallback; keep the one-action/no-close-open/no-repeated-reinsert boundary and the destination follow-through.",
+    "reason": "In `P4:7` through `P4:14`, and in `P5:6` through `P5:13`, the Parent repeatedly closes and opens the microwave after inserting the tomato, and only later removes and heats it at `P4:20` and `P5:15`; this is the exact manipulation pattern the Update should prevent. Historical `M7` supports that prior temperature guidance reduced such manipulation once the target was located, with `S1_R04/Q4:5` and `S1_R04/Q3:5` heating while holding at a closed microwave. Current `P4:5` and `P5:4` show the explicit heat command can be available while holding at the opened appliance, so the revision checks current admissible commands first, adds a narrowly scoped fallback, and preserves the observed requirement to proceed directly to the destination after one conditioning action. The need for the insertion fallback is not established by the supplied examples.",
+    "to": {
+      "patch": "--- a/SKILL.md\n+++ b/SKILL.md\n@@ -1 +1 @@\n-Conditioning rule for tasks that require the exact target to be cooled or heated: after acquiring the target, go to the required appliance (fridge for cool, microwave for heat) and open it if closed. Perform the cool/heat action directly on the held target while at the open appliance; holding the target is sufficient in the observed environment. If the conditioning action is not offered for the held target, place the target inside once and perform the action, but never replace conditioning with repeated close/open or remove/reinsert cycles. Perform one conditioning action, then carry the target to the requested destination (opening it if closed) and place it there. If the conditioning appliance is also the destination, condition the target and then place it there.\n\\ No newline at end of file\n+Conditioning rule for tasks that require the exact target to be cooled or heated: after acquiring the exact target, go to the required appliance (fridge for cool, microwave for heat). Check the current admissible commands first: if the explicit cool-X-with-fridge or heat-X-with-microwave action is listed while you hold the exact target, perform it immediately, even if the appliance is closed, without inserting the target. If it is not listed, open the appliance once and check again; if it is listed while you hold the target at the open appliance, perform it now without placing the target inside. Only if the action is still not listed while holding at the open appliance, place the target inside once and then take it back once and perform the action while holding; never replace the conditioning action with closing and reopening the appliance or with repeated remove/reinsert cycles. Perform exactly one conditioning action, then carry the target to the requested destination (opening it if closed) and place it there. If the conditioning appliance is also the destination, condition the target and then place it there.\n\\ No newline at end of file\n"
+    }
+  },
+  "effective_u2": {
+    "id": "u2",
+    "text": "Conditioning rule for tasks that require the exact target to be cooled or heated: after acquiring the exact target, go to the required appliance (fridge for cool, microwave for heat). Check the current admissible commands first: if the explicit cool-X-with-fridge or heat-X-with-microwave action is listed while you hold the exact target, perform it immediately, even if the appliance is closed, without inserting the target. If it is not listed, open the appliance once and check again; if it is listed while you hold the target at the open appliance, perform it now without placing the target inside. Only if the action is still not listed while holding at the open appliance, place the target inside once and then take it back once and perform the action while holding; never replace the conditioning action with closing and reopening the appliance or with repeated remove/reinsert cycles. Perform exactly one conditioning action, then carry the target to the requested destination (opening it if closed) and place it there. If the conditioning appliance is also the destination, condition the target and then place it there.",
+    "basis": [
+      "G2",
+      "P4:7",
+      "P4:20",
+      "P5:6",
+      "P5:15",
+      "P1:38",
+      "P2:11"
+    ]
+  },
+  "original_c2": {
+    "id": "c2",
+    "update_ids": [
+      "u2"
+    ],
+    "question": "After acquiring the target for a cool/heat task, does the run perform one conditioning action on the held target at the open appliance without close/open or remove/reinsert cycles, then go to the destination?"
+  },
+  "replacement_c2": {
+    "id": "c2",
+    "update_ids": [
+      "u2"
+    ],
+    "question": "After acquiring the exact target for a cool/heat task, does the run perform one explicit conditioning action while holding that target at the open appliance, doing it immediately when listed, without close/open or remove/reinsert cycles, and then go to the requested destination? Counterexample: repeated insertion, door toggling, or removal before the temperature action."
+  },
+  "current_steps": [
+    {
+      "task": "heat some tomato and put it in fridge.",
+      "step": "P4:5",
+      "before": {
+        "observation": "You arrive at microwave 1. The microwave 1 is closed.",
+        "commands_ref": "C50"
+      },
+      "action": "open microwave 1",
+      "after": {
+        "observation": "You open the microwave 1. The microwave 1 is open. In it, you see nothing.",
+        "commands_ref": "C51"
+      },
+      "feedback": {
+        "reward": 0.0,
+        "done": false,
+        "won": false,
+        "action_in_admissible_commands": true,
+        "fallback": null
+      },
+      "conditioning_commands_before": [
+        "heat tomato 2 with microwave 1"
+      ]
+    },
+    {
+      "task": "heat some tomato and put it in fridge.",
+      "step": "P4:6",
+      "before": {
+        "observation": "You open the microwave 1. The microwave 1 is open. In it, you see nothing.",
+        "commands_ref": "C51"
+      },
+      "action": "move tomato 2 to microwave 1",
+      "after": {
+        "observation": "You move the tomato 2 to the microwave 1.",
+        "commands_ref": "C52"
+      },
+      "feedback": {
+        "reward": 0.0,
+        "done": false,
+        "won": false,
+        "action_in_admissible_commands": true,
+        "fallback": null
+      },
+      "conditioning_commands_before": [
+        "heat tomato 2 with microwave 1"
+      ]
+    },
+    {
+      "task": "heat some tomato and put it in fridge.",
+      "step": "P4:7",
+      "before": {
+        "observation": "You move the tomato 2 to the microwave 1.",
+        "commands_ref": "C52"
+      },
+      "action": "close microwave 1",
+      "after": {
+        "observation": "You close the microwave 1.",
+        "commands_ref": "C53"
+      },
+      "feedback": {
+        "reward": 0.0,
+        "done": false,
+        "won": false,
+        "action_in_admissible_commands": true,
+        "fallback": null
+      },
+      "conditioning_commands_before": []
+    },
+    {
+      "task": "heat some tomato and put it in fridge.",
+      "step": "P4:19",
+      "before": {
+        "observation": "You open the microwave 1. The microwave 1 is open. In it, you see a tomato 2.",
+        "commands_ref": "C52"
+      },
+      "action": "take tomato 2 from microwave 1",
+      "after": {
+        "observation": "You pick up the tomato 2 from the microwave 1.",
+        "commands_ref": "C51"
+      },
+      "feedback": {
+        "reward": 0.0,
+        "done": false,
+        "won": false,
+        "action_in_admissible_commands": true,
+        "fallback": null
+      },
+      "conditioning_commands_before": []
+    },
+    {
+      "task": "heat some tomato and put it in fridge.",
+      "step": "P4:20",
+      "before": {
+        "observation": "You pick up the tomato 2 from the microwave 1.",
+        "commands_ref": "C51"
+      },
+      "action": "heat tomato 2 with microwave 1",
+      "after": {
+        "observation": "You heat the tomato 2 using the microwave 1.",
+        "commands_ref": "C51"
+      },
+      "feedback": {
+        "reward": 0.0,
+        "done": false,
+        "won": false,
+        "action_in_admissible_commands": true,
+        "fallback": null
+      },
+      "conditioning_commands_before": [
+        "heat tomato 2 with microwave 1"
+      ]
+    },
+    {
+      "task": "heat some tomato and put it in fridge.",
+      "step": "P5:4",
+      "before": {
+        "observation": "You arrive at microwave 1. The microwave 1 is closed.",
+        "commands_ref": "C57"
+      },
+      "action": "open microwave 1",
+      "after": {
+        "observation": "You open the microwave 1. The microwave 1 is open. In it, you see a egg 1, and a potato 2.",
+        "commands_ref": "C58"
+      },
+      "feedback": {
+        "reward": 0.0,
+        "done": false,
+        "won": false,
+        "action_in_admissible_commands": true,
+        "fallback": null
+      },
+      "conditioning_commands_before": [
+        "heat tomato 2 with microwave 1"
+      ]
+    },
+    {
+      "task": "heat some tomato and put it in fridge.",
+      "step": "P5:5",
+      "before": {
+        "observation": "You open the microwave 1. The microwave 1 is open. In it, you see a egg 1, and a potato 2.",
+        "commands_ref": "C58"
+      },
+      "action": "move tomato 2 to microwave 1",
+      "after": {
+        "observation": "You move the tomato 2 to the microwave 1.",
+        "commands_ref": "C59"
+      },
+      "feedback": {
+        "reward": 0.0,
+        "done": false,
+        "won": false,
+        "action_in_admissible_commands": true,
+        "fallback": null
+      },
+      "conditioning_commands_before": [
+        "heat tomato 2 with microwave 1"
+      ]
+    },
+    {
+      "task": "heat some tomato and put it in fridge.",
+      "step": "P5:6",
+      "before": {
+        "observation": "You move the tomato 2 to the microwave 1.",
+        "commands_ref": "C59"
+      },
+      "action": "close microwave 1",
+      "after": {
+        "observation": "You close the microwave 1.",
+        "commands_ref": "C60"
+      },
+      "feedback": {
+        "reward": 0.0,
+        "done": false,
+        "won": false,
+        "action_in_admissible_commands": true,
+        "fallback": null
+      },
+      "conditioning_commands_before": []
+    },
+    {
+      "task": "heat some tomato and put it in fridge.",
+      "step": "P5:14",
+      "before": {
+        "observation": "You open the microwave 1. The microwave 1 is open. In it, you see a egg 1, a potato 2, and a tomato 2.",
+        "commands_ref": "C59"
+      },
+      "action": "take tomato 2 from microwave 1",
+      "after": {
+        "observation": "You pick up the tomato 2 from the microwave 1.",
+        "commands_ref": "C58"
+      },
+      "feedback": {
+        "reward": 0.0,
+        "done": false,
+        "won": false,
+        "action_in_admissible_commands": true,
+        "fallback": null
+      },
+      "conditioning_commands_before": []
+    },
+    {
+      "task": "heat some tomato and put it in fridge.",
+      "step": "P5:15",
+      "before": {
+        "observation": "You pick up the tomato 2 from the microwave 1.",
+        "commands_ref": "C58"
+      },
+      "action": "heat tomato 2 with microwave 1",
+      "after": {
+        "observation": "You heat the tomato 2 using the microwave 1.",
+        "commands_ref": "C58"
+      },
+      "feedback": {
+        "reward": 0.0,
+        "done": false,
+        "won": false,
+        "action_in_admissible_commands": true,
+        "fallback": null
+      },
+      "conditioning_commands_before": [
+        "heat tomato 2 with microwave 1"
+      ]
+    }
+  ],
+  "visible_history": [
+    {
+      "source": "S1_R04/Q3",
+      "task": "put a hot potato in fridge.",
+      "outcome": {
+        "status": "success",
+        "success": true,
+        "end_reason": "success"
+      },
+      "detail": {
+        "step": "S1_R04/Q3:5",
+        "before": {
+          "observation": "You arrive at microwave 1. The microwave 1 is closed.",
+          "commands_ref": "menu_93"
+        },
+        "action": "heat potato 3 with microwave 1",
+        "after": {
+          "observation": "You heat the potato 3 using the microwave 1.",
+          "commands_ref": "menu_93"
+        }
+      }
+    },
+    {
+      "source": "S1_R04/Q4",
+      "task": "heat some tomato and put it in countertop.",
+      "outcome": {
+        "status": "success",
+        "success": true,
+        "end_reason": "success"
+      },
+      "detail": {
+        "step": "S1_R04/Q4:5",
+        "before": {
+          "observation": "You arrive at microwave 1. The microwave 1 is closed.",
+          "commands_ref": "menu_101"
+        },
+        "action": "heat tomato 2 with microwave 1",
+        "after": {
+          "observation": "You heat the tomato 2 using the microwave 1.",
+          "commands_ref": "menu_101"
+        }
+      }
+    }
+  ],
+  "mechanical_lineage_checks": "passed",
+  "source_sha256": {
+    "experiments/methods/v23_4/semantic_generation_002/config/cases/R06.json": "90af068b0cf76804388a2ec5b0d41bc12f6514e3769d3aab04c47bcc66c621b4",
+    "experiments/methods/v23_4/semantic_generation_002/config/messages/R06.json": "3872cc9dce5ee0e0875e542737d86d3632b004d0aa06c9313875d60ef1114d24",
+    "experiments/methods/v23_4/semantic_generation_002/runs/R06_pc/attempt_001/parsed.json": "1d452ab72f208ca87a9ea114611dc4133d35ea361f1f16347c1aae231d43e282",
+    "experiments/methods/v23_4/semantic_generation_002/runs/R06_pc/attempt_001/result.json": "fdd34991ce7a6fc221a4384c21b2fc0760c8c0dda5c05e87c79ec018d3cdb6e2",
+    "experiments/methods/v23_4/semantic_generation_002/runs/R06_editor/material.json": "517fc5a697f4bc821bcdeed7b783a675e74b4666649329a667ce1c5f8fbfb869",
+    "experiments/methods/v23_4/semantic_generation_002/runs/R06_editor/attempt_001/candidate.md": "b89605ee5727f58cc0d2e69d34cd0bbf2769622109b1def24cc27d8b1f141307",
+    "experiments/methods/v23_4/semantic_generation_002/runs/R06_editor/attempt_001/actual.diff": "f6e732beff166191a00f762a1db655c0324f02c8eb8ef769dddba0f7e6a2628c",
+    "artifacts/methods/v23_2/v23_2_diagnosis_construction_001/R06/attempts/001/prompt.md": "945be9e73f356069de45d5aed7698a6ee7ea68454c9a397483b88d2f347a8245",
+    "src/skill_evolution/v23_4/diagnosis_prompt.md": "00f19d134af9e3ee5d417ba9072c7dc771002d46eba5a21c17d032229800355c",
+    "src/skill_evolution/v23_4/preconditioner_prompt.md": "04b951506f9a9e120d9d29dd73393775cb5ead00a3dcc2513cf8e86417634848"
+  }
+}

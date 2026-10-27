@@ -1,0 +1,62 @@
+{
+  "adjustments": [
+    {
+      "target": "u1",
+      "focus": [
+        "D",
+        "S",
+        "C"
+      ],
+      "change": "Keep the anti-oscillation direction but make the progress cue local and usable with only the current observation and the last two steps: after inspecting a receptacle, prefer a higher-numbered instance of the same family that you have not just inspected, or a family/surface not yet reached in this sweep, instead of returning to a lower-numbered or just-visited location; use the visible numbered names, not a global visited set. Keep the once-per-container opening, the early cheap-surface checks and the within-budget completion bound, and explicitly scope the 'consumed' cue to the search for the initially hidden first target so it does not forbid returning to a known source that visibly holds another exact instance.",
+      "reason": "The direction is supported at `G1`: `P3` keeps cycling among a small already-inspected set and ends at `P3:50` with `P3:outcome` step_limit and the target never inspected, while `P1`/`P2` succeed only after many revisits (`P1:9`, `P1:24`, `P1:34`). Historical `M6` and `M10` show restating a single-pass sweep (`S1_R05/diff`) did not reliably stop cycling (e.g. `S1_R03/Q2:50`), and the current Parent already contains that sweep, so the Original's 'unvisited'/'consumed' set phrasing and its duplication are the problem to fix. I reframe the cue as a local numbered-name decision and add coordination with `u3`'s return-to-source step; the unverified part is whether the numbered-name preference actually prevents cycling. Check `c1` is updated to test the local cue.",
+      "to": {
+        "patch": "--- a/SKILL.md\n+++ b/SKILL.md\n@@ -1 +1 @@\n-Search rule for tasks whose exact target is not initially visible: run a single forward sweep that does not oscillate. Treat each inspected receptacle as consumed; the next move should go to a different receptacle, ideally one not just inspected. Use the numbered receptacle names as a local progress cue: after checking an instance of a family, prefer the next higher-numbered unvisited instance or a wholly uninspected family or surface instead of jumping back to an earlier location. Open each closed container once and read its contents; if it is empty, continue forward to a new receptacle rather than cycling back through earlier ones. Include cheap surface checks (countertops, desks, beds, tables, shelves) early in the sweep. Continue until the exact requested category is found or all plausible receptacles have been inspected once, keeping within the step budget.\n+Search rule for tasks whose exact target is not initially visible: run a single outward sweep that does not oscillate. Treat the receptacle you have just inspected as consumed for this search: the next move should go to a different receptacle, preferably a higher-numbered instance of the same family that you have not just inspected, or a family or surface you have not yet reached in this sweep, instead of jumping back to a lower-numbered or just-visited location. Use the visible numbered receptacle names as this local progress cue; do not rely on a global visited set. Open each closed container once upon reaching it and read its contents; if it lacks the target, continue forward to a new receptacle rather than cycling back through earlier ones. Check easily reached surfaces (countertops, desks, beds, tables, shelves) early, before exhausting one closed-container family. Continue until the exact requested category is found or all plausible receptacles have been inspected once, keeping within the step budget. This consumed-receptacle rule governs only the search for the initially hidden first target; it does not forbid returning to a known source that visibly still holds another exact instance when the task requires several instances.\n"
+      }
+    },
+    {
+      "target": "u2",
+      "focus": [],
+      "change": "KEEP",
+      "reason": "The direction is exactly the observed failure: `G2` records repeated close/open and remove/reinsert cycles (`P4:7`-`P4:14`, `P5:6`-`P5:13`) that burn many of the 22 and 18 steps before success at `P4:22`/`P5:18`, so the ultimate success does not validate the cycling. The held-target conditioning the rule prescribes is directly observed to work (`P1:38`, `P2:11`, `P4:20`, `P5:15`), and `M7` records the same pattern (e.g. `S1_R04/Q3:5`). The current Parent has no temperature step, so this is a new proposal rather than a re-imposed rule that already failed; the fallback for an unavailable action and the no-cycle clause leave no adverse response to address.",
+      "to": null
+    },
+    {
+      "target": "u3",
+      "focus": [],
+      "change": "KEEP",
+      "reason": "Both current multi-instance runs already deliver the exact count sequentially by returning to the visible source for the second unit (`G3`, `P6:18`, `P6:24`, `P7:5`, `P7:10`), and `M9` records the same reachable-source behavior (e.g. `S1_R04/P8:8`, `S1_R04/P9:8`). The rule preserves that capability and its exclusion of the desklamp 'finish with one co-located target' constraint prevents that scoped rule from ending ordinary multi-instance tasks early, which is needed coordination rather than duplication; no adverse response is observed.",
+      "to": null
+    }
+  ],
+  "checks": [
+    {
+      "id": "c1",
+      "update_ids": [
+        "u1"
+      ],
+      "question": "After the update, do non-desklamp search runs move to higher-numbered or not-yet-reached receptacles and surfaces with forward progress instead of cycling among a small already-inspected set, and is the exact target acquired within the 50-step budget? Counterexample: a run that keeps re-checking the same few receptacles, or hits the step limit with the target still uninspected."
+    },
+    {
+      "id": "c2",
+      "update_ids": [
+        "u2"
+      ],
+      "question": "After acquiring the exact target for a cool/heat task, does the run perform one conditioning action on the held target at the required appliance without close/open or remove/reinsert cycles, then go to the destination and place it?"
+    },
+    {
+      "id": "c3",
+      "update_ids": [
+        "u3"
+      ],
+      "question": "For tasks requiring two instances, does the run deliver both exact instances without substituting a differently named near-match and without stopping after one?"
+    },
+    {
+      "id": "c4",
+      "update_ids": [
+        "u1",
+        "u3"
+      ],
+      "question": "Does the consumed-receptacle search cue still allow returning to a known source that visibly holds another exact instance when a task requires multiple instances, rather than blocking the second delivery?"
+    }
+  ]
+}

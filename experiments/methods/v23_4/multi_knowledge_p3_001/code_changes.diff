@@ -1,0 +1,1183 @@
+--- pre-P3/src/skill_evolution/v23/editor.py
++++ P3/src/skill_evolution/v23/editor.py
+@@ -15,6 +15,7 @@
+ from .grouping import call_configuration, live_generator
+ from .preconditioner import compile_effective_plan, load_preconditioner, preconditioner_input
+ from .prompts import render_prompt
++from .memory import LEGACY_CONTRACT
+ 
+ 
+ PROMPT_PATH = Path(__file__).with_name("editor_prompt.md")
+@@ -91,10 +92,11 @@
+     return "".join(line if line.endswith("\n") else line + "\n" + NO_NEWLINE + "\n" for line in chunks)
+ 
+ 
+-def editor_input(saved):
++def editor_input(saved, *, memory_contract=LEGACY_CONTRACT):
+     require(saved["preconditioner"]["decision"] == "ready" and saved["effective_plan"] is not None,
+             "Editor requires a ready, non-null Effective Plan")
+-    require(compile_effective_plan(saved["preconditioner"], preconditioner_input(saved)) == saved["effective_plan"],
++    require(compile_effective_plan(saved["preconditioner"], preconditioner_input(saved, memory_contract=memory_contract),
++                                   memory_contract=memory_contract) == saved["effective_plan"],
+             "Effective Plan differs from compiled Preconditioner output")
+     parent = saved["facts"]["parent"]
+     require(parent is None or isinstance(parent, str), "Invalid Parent")
+@@ -102,9 +104,9 @@
+     return deepcopy({"parent": parent, "plan": saved["effective_plan"]})
+ 
+ 
+-def messages_for(saved):
++def messages_for(saved, *, memory_contract=LEGACY_CONTRACT):
+     return [{"role": "system", "content": render_prompt(PROMPT_PATH.read_text(encoding="utf-8"), saved["background"])},
+-            {"role": "user", "content": json.dumps(editor_input(saved), ensure_ascii=False, separators=(",", ":"))}]
++            {"role": "user", "content": json.dumps(editor_input(saved, memory_contract=memory_contract), ensure_ascii=False, separators=(",", ":"))}]
+ 
+ 
+ def validate_editor(result, parent):
+@@ -132,17 +134,18 @@
+     temporary.replace(path)
+ 
+ 
+-def load_editor(directory, *, expected_preconditioner=None, expected_call_config=...):
++def load_editor(directory, *, expected_preconditioner=None, expected_call_config=..., memory_contract=LEGACY_CONTRACT):
+     directory = Path(directory)
+     read = lambda name: json.loads((directory / name).read_text(encoding="utf-8"))
+     saved = read("upstream.json")
+     if expected_preconditioner is not None:
+         require(saved == expected_preconditioner, "Editor input differs from Preconditioner handoff")
+-    payload, messages = editor_input(saved), messages_for(saved)
++    payload, messages = editor_input(saved, memory_contract=memory_contract), messages_for(saved, memory_contract=memory_contract)
+     require(read("input.json") == payload and read("background.json") == saved["background"], "Saved input/background differs")
+     require(read("messages.json") == messages and _read_text(directory / "prompt.md") == messages[0]["content"],
+             "Saved Editor prompt/input differs")
+     meta = read("run.json")
++    require(meta.get("memory_contract", LEGACY_CONTRACT) == memory_contract, "Editor Memory contract differs")
+     require(meta["round_id"] == saved["round_id"] and meta["status"] == "valid", "Invalid saved run")
+     if expected_call_config is not ...:
+         require(meta["call_config"] == expected_call_config, "Saved Editor call configuration differs")
+--- pre-P3/src/skill_evolution/v23/preconditioner.py
++++ P3/src/skill_evolution/v23/preconditioner.py
+@@ -13,16 +13,16 @@
+ from .facts import require, text
+ from .grouping import call_configuration, live_generator, load_grouping, references
+ from .prompts import render_prompt
+-from .memory import empty_memory, validate_memory
++from .memory import empty_memory, validate_memory, LEGACY_CONTRACT
+ 
+ 
+ PROMPT_PATH = Path(__file__).with_name("preconditioner_prompt.md")
+ 
+ 
+-def preconditioner_input(saved, *, memory=None):
++def preconditioner_input(saved, *, memory=None, memory_contract=LEGACY_CONTRACT):
+     """Select whole referenced executions without expanding Group membership."""
+     memory = deepcopy(saved.get("memory", empty_memory()) if memory is None else memory)
+-    validate_memory(memory)
++    validate_memory(memory, memory_contract=memory_contract)
+     facts = diagnosis_input(saved)
+     validate_diagnosis(saved["diagnosis"], facts)
+     require(saved["diagnosis"]["decision"] == "revise", "Preconditioner requires a revise Diagnosis")
+@@ -48,13 +48,13 @@
+             {"role": "user", "content": json.dumps(preconditioner_input(saved), ensure_ascii=False, separators=(",", ":"))}]
+ 
+ 
+-def compile_effective_plan(result, payload):
++def compile_effective_plan(result, payload, *, memory_contract=LEGACY_CONTRACT):
+     """Validate simultaneous adjustments and compile; semantic stops return None."""
+     fields(payload, ("parent", "plan", "command_sets", "runs", "grouping", "memory"), "Input")
+     # [] is accepted only for validating frozen no-history results; new requests
+     # are assembled with the formal object by preconditioner_input().
+-    memory = empty_memory() if payload["memory"] == [] else payload["memory"]
+-    history_refs = validate_memory(memory)
++    memory = empty_memory() if memory_contract == LEGACY_CONTRACT and payload["memory"] == [] else payload["memory"]
++    history_refs = validate_memory(memory, memory_contract=memory_contract)
+     original = payload["plan"]
+     validate_diagnosis({"decision": "revise", "reason": "Original Plan", "plan": original}, payload)
+     allowed = set(payload["command_sets"]) | {g["group_id"] for g in payload["grouping"]["groups"]}
+--- pre-P3/src/skill_evolution/v23/replay.py
++++ P3/src/skill_evolution/v23/replay.py
+@@ -46,7 +46,7 @@
+ 
+ 
+ def build_replay_from_editor(saved, editor_directory, parent_records, candidate_records, *,
+-                             memory=None, implementation_review=None):
++                             memory=None, implementation_review=None, memory_contract=LEGACY_CONTRACT):
+     """Shared pairing/fact assembly after the caller's versioned Editor loader."""
+     require(saved['editor_status'] == 'candidate', 'Replay requires a real Candidate')
+     require(apply_patch(saved['facts']['parent'], saved['actual_diff']) == saved['candidate_text'],
+@@ -109,7 +109,7 @@
+                         'checks': deepcopy(plan['checks'])},
+                'command_sets': menus, 'runs': runs, 'pairs': pairs,
+                'memory': deepcopy(empty_memory() if memory is None else memory)}
+-    validate_payload(payload)
++    validate_payload(payload, memory_contract=memory_contract)
+     return {'payload': payload, 'background': p['background'], 'pair_audit': audits,
+             'editor_directory': str(Path(editor_directory).resolve()), 'candidate': saved['candidate_text'],
+             'execution_context': {'background': p['background'], 'actor_model': parent_records[0]['model'],
+--- pre-P3/src/skill_evolution/v23_3/memory_view.py
++++ P3/src/skill_evolution/v23_3/memory_view.py
+@@ -4,11 +4,12 @@
+ from pathlib import Path
+ 
+ from src.skill_evolution.v23.facts import require
+-from src.skill_evolution.v23.memory import validate_memory
++from src.skill_evolution.v23.memory import validate_memory, entry_evidence, LEGACY_CONTRACT, MULTI_KNOWLEDGE_CONTRACT
+ 
+ FORMAT = "memory_evidence_view_v3"
+ LEGACY = "entries_sources"
+ FORMAT_PATH = Path(__file__).with_name("memory_view_prompt.md")
++MULTI_FORMAT_PATH = Path(__file__).with_name("multi_knowledge_view_prompt.md")
+ 
+ 
+ def ranges(numbers):
+@@ -21,16 +22,16 @@
+     return result
+ 
+ 
+-def compact_memory(memory):
++def compact_memory(memory, *, memory_contract=LEGACY_CONTRACT):
+     """Fixed ±2 citation windows, exact menus, explicit states and qualified IDs.
+ 
+     Preserve all actions and feedback. Sources without numeric citations retain
+     all detailed steps. Outcome citations alone do not localize a state window.
+     """
+-    validate_memory(memory)
++    validate_memory(memory, memory_contract=memory_contract)
+     anchors = {}
+     for entry in memory["entries"]:
+-        for ref in entry["evidence"]:
++        for ref in entry_evidence(entry, memory_contract=memory_contract):
+             context, local = ref.rsplit("/", 1)
+             if local == "diff":
+                 continue
+@@ -93,20 +94,23 @@
+     return view
+ 
+ 
+-def project_payload(payload, memory_view=FORMAT):
++def project_payload(payload, memory_view=FORMAT, *, memory_contract=LEGACY_CONTRACT):
+     require(memory_view in (FORMAT, LEGACY), "Unsupported Memory view")
++    validate_memory(payload["memory"], memory_contract=memory_contract)
+     result = deepcopy(payload)
+     if memory_view == FORMAT:
+-        result["memory"] = compact_memory(payload["memory"])
++        result["memory"] = compact_memory(payload["memory"], memory_contract=memory_contract)
+     return result
+ 
+ 
+-def project_messages(messages, memory_view=FORMAT):
++def project_messages(messages, memory_view=FORMAT, *, memory_contract=LEGACY_CONTRACT):
+     """Also usable by the free-replacement A arm without changing its policy."""
+     require(memory_view in (FORMAT, LEGACY), "Unsupported Memory view")
+     result = deepcopy(messages)
++    payload = project_payload(json.loads(result[1]["content"]), memory_view, memory_contract=memory_contract)
+     if memory_view == FORMAT:
+-        payload = project_payload(json.loads(result[1]["content"]), memory_view)
+         result[1]["content"] = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+         result[0]["content"] += "\n\n" + FORMAT_PATH.read_text(encoding="utf-8")
++    if memory_contract == MULTI_KNOWLEDGE_CONTRACT:
++        result[0]["content"] += "\n\n" + MULTI_FORMAT_PATH.read_text(encoding="utf-8")
+     return result
+--- pre-P3/src/skill_evolution/v23_4/editor.py
++++ P3/src/skill_evolution/v23_4/editor.py
+@@ -14,6 +14,7 @@
+                                           actual_diff, _write_text)
+ from src.skill_evolution.v23.facts import require
+ from .preconditioner import load_preconditioner
++from src.skill_evolution.v23.memory import LEGACY_CONTRACT
+ 
+ 
+ def load_editor(directory, *, expected_preconditioner=None, expected_call_config=...):
+@@ -23,13 +24,15 @@
+     saved = load_preconditioner(meta["preconditioner_directory"])
+     if expected_preconditioner is not None:
+         require(saved == expected_preconditioner, "Editor upstream differs from current Preconditioner")
++    contract = json.loads((Path(meta["preconditioner_directory"]) / "run.json").read_text()).get("memory_contract", LEGACY_CONTRACT)
+     return original.load_editor(directory, expected_preconditioner=saved,
+-                                expected_call_config=expected_call_config)
++                                expected_call_config=expected_call_config, memory_contract=contract)
+ 
+ 
+ def run_editor(preconditioner_directory, directory, *, generate, max_input_chars=100000, call_config=None):
+     saved = load_preconditioner(preconditioner_directory)
+-    payload, messages = editor_input(saved), messages_for(saved)
++    contract = json.loads((Path(preconditioner_directory) / "run.json").read_text()).get("memory_contract", LEGACY_CONTRACT)
++    payload, messages = editor_input(saved, memory_contract=contract), messages_for(saved, memory_contract=contract)
+     size = len(json.dumps(messages, ensure_ascii=False))
+     require(size <= max_input_chars, "Editor input exceeds declared character budget")
+     generated_config = getattr(generate, "call_config", None)
+@@ -46,6 +49,8 @@
+     meta = {"round_id": saved["round_id"], "preconditioner_directory": str(Path(preconditioner_directory).resolve()),
+             "started_at": datetime.now(timezone.utc).isoformat(), "input_chars": size,
+             "max_input_chars": max_input_chars, "call_config": call_config, "status": "requesting"}
++    if contract != LEGACY_CONTRACT:
++        meta["memory_contract"] = contract
+     write_record(directory / "run.json", meta)
+     try:
+         response = generate(messages, directory)
+--- pre-P3/src/skill_evolution/v23_4/preconditioner.py
++++ P3/src/skill_evolution/v23_4/preconditioner.py
+@@ -11,7 +11,7 @@
+ from src.skill_evolution.v23.editor import _read_text, _write_text
+ from src.skill_evolution.v23.facts import require
+ from src.skill_evolution.v23.grouping import load_grouping
+-from src.skill_evolution.v23.memory import empty_memory
++from src.skill_evolution.v23.memory import empty_memory, LEGACY_CONTRACT, validate_memory
+ from src.skill_evolution.v23.preconditioner import preconditioner_input
+ from src.skill_evolution.v23.prompts import render_prompt
+ from .update_patch import CONTRACT_VERSION, normalize_update_patches
+@@ -20,14 +20,15 @@
+ PROMPT_PATH = Path(__file__).with_name("preconditioner_prompt.md")
+ 
+ 
+-def model_input(saved, *, memory_view=FORMAT):
+-    return project_payload(preconditioner_input(saved), memory_view)
++def model_input(saved, *, memory_view=FORMAT, memory_contract=LEGACY_CONTRACT):
++    payload = preconditioner_input(saved, memory_contract=memory_contract)
++    return project_payload(payload, memory_view, memory_contract=memory_contract)
+ 
+ 
+-def messages_for(saved, *, memory_view=FORMAT):
++def messages_for(saved, *, memory_view=FORMAT, memory_contract=LEGACY_CONTRACT):
+     messages = [{"role": "system", "content": render_prompt(PROMPT_PATH.read_text(encoding="utf-8"), saved["background"])},
+-                {"role": "user", "content": json.dumps(preconditioner_input(saved), ensure_ascii=False, separators=(",", ":"))}]
+-    return project_messages(messages, memory_view)
++                {"role": "user", "content": json.dumps(preconditioner_input(saved, memory_contract=memory_contract), ensure_ascii=False, separators=(",", ":"))}]
++    return project_messages(messages, memory_view, memory_contract=memory_contract)
+ 
+ 
+ def read_upstream(grouping_directory, diagnosis_directory, *, diagnosis_version="v23_4"):
+@@ -38,7 +39,7 @@
+ 
+ 
+ def load_preconditioner(directory, *, expected_diagnosis=None, expected_call_config=...,
+-                       expected_memory_view=..., expected_diagnosis_version=...):
++                       expected_memory_view=..., expected_diagnosis_version=..., expected_memory_contract=...):
+     """Reparse raw Patch output, reapply and compile; verify the upstream chain."""
+     directory = Path(directory)
+     read = lambda name: json.loads((directory / name).read_text(encoding="utf-8"))
+@@ -53,14 +54,17 @@
+     require(saved == {**upstream, "memory": meta["memory"]}, "Saved Diagnosis/Memory handoff differs")
+     if expected_diagnosis is not None:
+         require(saved == expected_diagnosis, "Preconditioner input differs from Diagnosis handoff")
+-    require(meta["memory_contract"] == "entries_sources", "Unsupported Memory contract")
++    memory_contract = meta.get("memory_contract", LEGACY_CONTRACT)
++    validate_memory(saved["memory"], memory_contract=memory_contract)
++    if expected_memory_contract is not ...:
++        require(memory_contract == expected_memory_contract, "Saved Memory contract differs")
+     require(meta["round_id"] == saved["round_id"] and meta["status"] == "valid", "Invalid saved run")
+     if expected_call_config is not ...:
+         require(meta["call_config"] == expected_call_config, "Saved Preconditioner call configuration differs")
+     memory_view = meta["memory_view"]
+     if expected_memory_view is not ...:
+         require(memory_view == expected_memory_view, "Saved Memory view differs")
+-    messages = messages_for(saved, memory_view=memory_view)
++    messages = messages_for(saved, memory_view=memory_view, memory_contract=memory_contract)
+     require(read("model_input.json") == json.loads(messages[1]["content"]),
+             "Saved model input differs from Memory projection")
+     require(read("messages.json") == messages, "Saved Preconditioner prompt/input differs")
+@@ -71,7 +75,9 @@
+     require(_read_text(directory / "raw_output.txt") == response["content"], "Raw output differs")
+     parsed = parse_json_response(response["content"])
+     require(read("parsed.json") == parsed, "Saved Patch result differs from original response")
+-    normalized, effective = normalize_update_patches(parsed, preconditioner_input(saved), memory_view=memory_view)
++    normalized, effective = normalize_update_patches(
++        parsed, preconditioner_input(saved, memory_contract=memory_contract),
++        memory_view=memory_view, memory_contract=memory_contract)
+     require(read("preconditioner.json") == normalized, "Saved Adjustment differs from Patch application")
+     require(read("effective_plan.json") == effective, "Saved Effective Plan differs from compilation")
+     return {**saved, "raw_preconditioner": parsed, "preconditioner": normalized, "effective_plan": effective}
+@@ -79,10 +85,10 @@
+ 
+ def run_preconditioner(grouping_directory, diagnosis_directory, directory, *, generate,
+                        max_input_chars=100000, call_config=None, memory=None, memory_view=FORMAT,
+-                       diagnosis_version="v23_4"):
++                       diagnosis_version="v23_4", memory_contract=LEGACY_CONTRACT):
+     saved = {**read_upstream(grouping_directory, diagnosis_directory, diagnosis_version=diagnosis_version),
+              "memory": deepcopy(empty_memory() if memory is None else memory)}
+-    messages = messages_for(saved, memory_view=memory_view)
++    messages = messages_for(saved, memory_view=memory_view, memory_contract=memory_contract)
+     size = len(json.dumps(messages, ensure_ascii=False))
+     require(size <= max_input_chars, "Preconditioner input exceeds the declared character budget")
+     generated_config = getattr(generate, "call_config", None)
+@@ -92,7 +98,8 @@
+     directory = Path(directory)
+     if directory.exists():
+         return load_preconditioner(directory, expected_diagnosis=saved, expected_call_config=call_config,
+-                                   expected_memory_view=memory_view, expected_diagnosis_version=diagnosis_version)
++                                   expected_memory_view=memory_view, expected_diagnosis_version=diagnosis_version,
++                               expected_memory_contract=memory_contract)
+     directory.mkdir(parents=True, exist_ok=False)
+     write_record(directory / "input.json", saved)
+     write_record(directory / "model_input.json", json.loads(messages[1]["content"]))
+@@ -100,7 +107,7 @@
+     (directory / "prompt.md").write_text(messages[0]["content"], encoding="utf-8")
+     meta = {"round_id": saved["round_id"], "grouping_directory": str(Path(grouping_directory).resolve()),
+             "diagnosis_directory": str(Path(diagnosis_directory).resolve()), "memory": saved["memory"],
+-            "memory_contract": "entries_sources", "contract_version": CONTRACT_VERSION,
++            "memory_contract": memory_contract, "contract_version": CONTRACT_VERSION,
+             "memory_view": memory_view, "diagnosis_version": diagnosis_version,
+             "started_at": datetime.now(timezone.utc).isoformat(), "input_chars": size,
+             "max_input_chars": max_input_chars, "call_config": call_config, "status": "requesting"}
+@@ -112,7 +119,9 @@
+         require(response.get("finish_reason") == "stop", "Model response did not finish normally")
+         parsed = parse_json_response(response["content"])
+         write_record(directory / "parsed.json", parsed)
+-        normalized, effective = normalize_update_patches(parsed, preconditioner_input(saved), memory_view=memory_view)
++        normalized, effective = normalize_update_patches(
++            parsed, preconditioner_input(saved, memory_contract=memory_contract),
++            memory_view=memory_view, memory_contract=memory_contract)
+         write_record(directory / "preconditioner.json", normalized)
+         write_record(directory / "effective_plan.json", effective)
+         write_record(directory / "validation.json", {"valid": True, "error": None})
+@@ -126,4 +135,5 @@
+         meta["finished_at"] = datetime.now(timezone.utc).isoformat()
+         write_record(directory / "run.json", meta)
+     return load_preconditioner(directory, expected_diagnosis=saved, expected_call_config=call_config,
+-                               expected_memory_view=memory_view, expected_diagnosis_version=diagnosis_version)
++                               expected_memory_view=memory_view, expected_diagnosis_version=diagnosis_version,
++                               expected_memory_contract=memory_contract)
+--- pre-P3/src/skill_evolution/v23_4/replay.py
++++ P3/src/skill_evolution/v23_4/replay.py
+@@ -7,26 +7,36 @@
+ from src.skill_evolution.v22.diagnosis_editor import parse_json_response
+ from src.skill_evolution.v23 import replay as original
+ from src.skill_evolution.v23.facts import require
+-from src.skill_evolution.v23.memory import validate_entries
++from src.skill_evolution.v23.memory import validate_entries, LEGACY_CONTRACT, MULTI_KNOWLEDGE_CONTRACT
+ from src.skill_evolution.v23.prompts import render_prompt
+-from src.skill_evolution.v23_3.memory_view import FORMAT_PATH as MEMORY_FORMAT_PATH
++from src.skill_evolution.v23_3.memory_view import FORMAT_PATH as MEMORY_FORMAT_PATH, MULTI_FORMAT_PATH
+ from .editor import load_editor
+ from .replay_view import (FORMAT as INPUT_VIEW, LEGACY as LEGACY_INPUT_VIEW,
+                           FORMAT_PATH as VIEW_FORMAT_PATH, model_input, history_pair_sources)
+ 
+ PROMPT_VERSION = "v23_4_replay_v1"
+ PROMPT_PATH = Path(__file__).with_name("replay_prompt.md")
++# P3 schema-only adapter; P4's learning prompt gets its own version.
++MULTI_PROMPT_VERSION = "v23_4_replay_multi_knowledge_contract_v1"
++MULTI_PROMPT_PATH = Path(__file__).with_name("replay_multi_knowledge_contract_prompt.md")
++MULTI_VIEW_PATH = Path(__file__).with_name("replay_multi_knowledge_view_prompt.md")
+ 
+ 
+-def build_replay(editor_directory, parent_records, candidate_records, *, memory=None, implementation_review=None):
++def _prompt(memory_contract):
++    require(memory_contract in (LEGACY_CONTRACT, MULTI_KNOWLEDGE_CONTRACT), "Unsupported Memory contract")
++    return (PROMPT_VERSION, PROMPT_PATH) if memory_contract == LEGACY_CONTRACT else (MULTI_PROMPT_VERSION, MULTI_PROMPT_PATH)
++
++
++def build_replay(editor_directory, parent_records, candidate_records, *, memory=None, implementation_review=None,
++                 memory_contract=LEGACY_CONTRACT):
+     return original.build_replay_from_editor(
+         load_editor(editor_directory), editor_directory, parent_records, candidate_records,
+-        memory=memory, implementation_review=implementation_review)
++        memory=memory, implementation_review=implementation_review, memory_contract=memory_contract)
+ 
+ 
+-def validate_bundle(bundle):
++def validate_bundle(bundle, *, memory_contract=LEGACY_CONTRACT):
+     """Recheck versioned lineage; behavioral truth still comes from supplied records."""
+-    original.validate_payload(bundle['payload'])
++    original.validate_payload(bundle['payload'], memory_contract=memory_contract)
+     saved = load_editor(bundle['editor_directory'])
+     payload = bundle['payload']
+     require(saved['editor_status'] == 'candidate', 'Replay requires a Candidate')
+@@ -46,73 +56,84 @@
+     return bundle
+ 
+ 
+-def messages_for(bundle, *, input_view=INPUT_VIEW, history_sources=None):
+-    original.validate_payload(bundle['payload'])
++def messages_for(bundle, *, input_view=INPUT_VIEW, history_sources=None, memory_contract=LEGACY_CONTRACT):
++    original.validate_payload(bundle['payload'], memory_contract=memory_contract)
+     require(input_view in (INPUT_VIEW, LEGACY_INPUT_VIEW), 'Unsupported Replay input view')
+-    system = render_prompt(PROMPT_PATH.read_text(), bundle['background'])
++    _, path = _prompt(memory_contract)
++    system = render_prompt(path.read_text(), bundle['background'])
+     if input_view == INPUT_VIEW:
+-        payload = model_input(bundle, history_sources=history_sources)
+-        system += '\n\n' + MEMORY_FORMAT_PATH.read_text() + '\n\n' + VIEW_FORMAT_PATH.read_text()
++        payload = model_input(bundle, history_sources=history_sources, memory_contract=memory_contract)
++        view_path = VIEW_FORMAT_PATH if memory_contract == LEGACY_CONTRACT else MULTI_VIEW_PATH
++        system += '\n\n' + MEMORY_FORMAT_PATH.read_text() + '\n\n' + view_path.read_text()
+     else:
+         require(not history_sources, 'Legacy Replay has no pairing provenance extension')
+         payload = bundle['payload']
++    if memory_contract == MULTI_KNOWLEDGE_CONTRACT:
++        system += '\n\n' + MULTI_FORMAT_PATH.read_text()
+     return [{'role': 'system', 'content': system},
+             {'role': 'user', 'content': json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}]
+ 
+ 
+ def load_replay(directory, *, expected_bundle=None, expected_call_config=...,
+-                expected_input_view=..., expected_history_sources=...):
++                expected_input_view=..., expected_history_sources=..., expected_memory_contract=...):
+     directory = Path(directory)
+     read = lambda name: json.loads((directory/name).read_text())
+-    bundle = validate_bundle(read('input.json'))
++    meta = read('run.json')
++    memory_contract = meta.get('memory_contract', LEGACY_CONTRACT)
++    version, _ = _prompt(memory_contract)
++    require(meta.get('prompt_version') == version, 'Unsupported Replay prompt version')
++    if expected_memory_contract is not ...:
++        require(memory_contract == expected_memory_contract, 'Replay Memory contract differs')
++    bundle = validate_bundle(read('input.json'), memory_contract=memory_contract)
+     if expected_bundle is not None:
+         require(bundle == expected_bundle, 'Replay input/source differs')
+-    meta = read('run.json')
+     input_view = meta.get('input_view', LEGACY_INPUT_VIEW)
+     if expected_input_view is not ...:
+         require(input_view == expected_input_view, 'Replay input view differs')
+     sources = read('history_pair_sources.json') if 'input_view' in meta else {}
+     if expected_history_sources is not ...:
+         require(sources == expected_history_sources, 'Historical pairing provenance differs')
+-    messages = messages_for(bundle, input_view=input_view, history_sources=sources)
++    messages = messages_for(bundle, input_view=input_view, history_sources=sources, memory_contract=memory_contract)
+     if 'input_view' in meta:
+         require(read('model_input.json') == json.loads(messages[1]['content']), 'Replay model view differs')
+     require(read('messages.json') == messages and (directory/'prompt.md').read_text() == messages[0]['content'],
+             'Replay prompt differs')
+-    require(meta.get('prompt_version') == PROMPT_VERSION, 'Unsupported Replay prompt version')
+     if expected_call_config is not ...:
+         require(meta['call_config'] == expected_call_config, 'Replay configuration differs')
+     require(meta['status'] == 'valid' and read('validation.json')['valid'] is True, 'Replay is not valid')
+     response = read('response.json')
+     require(response.get('finish_reason') == 'stop', 'Replay did not finish normally')
+     require((directory/'raw_output.txt').read_text() == response['content'], 'Replay raw output differs')
+-    result = validate_entries(parse_json_response(response['content']), bundle['payload'])
++    result = validate_entries(parse_json_response(response['content']), bundle['payload'], memory_contract=memory_contract)
+     require(result == read('parsed.json') == read('replay.json'), 'Replay result differs from response')
+     return {**bundle, 'replay': result}
+ 
+ 
+ def run_replay(bundle, directory, *, generate, call_config=None, max_input_chars=400000,
+-               input_view=INPUT_VIEW, history_sources=None):
+-    validate_bundle(bundle)
++               input_view=INPUT_VIEW, history_sources=None, memory_contract=LEGACY_CONTRACT):
++    validate_bundle(bundle, memory_contract=memory_contract)
+     sources = {} if history_sources is None else history_sources
+-    messages = messages_for(bundle, input_view=input_view, history_sources=sources)
++    messages = messages_for(bundle, input_view=input_view, history_sources=sources, memory_contract=memory_contract)
+     config = getattr(generate, 'call_config', None)
+     require(call_config is None or config is None or call_config == config, 'Generator configuration differs')
+     config = call_config if call_config is not None else config
+     directory = Path(directory)
+     if directory.exists():
+         return load_replay(directory, expected_bundle=bundle, expected_call_config=config,
+-                           expected_input_view=input_view, expected_history_sources=sources)
++                           expected_input_view=input_view, expected_history_sources=sources,
++                       expected_memory_contract=memory_contract)
+     directory.mkdir(parents=True, exist_ok=False)
+     write_record(directory/'input.json', bundle)
+     write_record(directory/'history_pair_sources.json', sources)
+     write_record(directory/'model_input.json', json.loads(messages[1]['content']))
+     write_record(directory/'messages.json', messages)
+     (directory/'prompt.md').write_text(messages[0]['content'])
+-    meta = {'prompt_version': PROMPT_VERSION, 'input_view': input_view,
++    meta = {'prompt_version': _prompt(memory_contract)[0], 'input_view': input_view,
+             'started_at': datetime.now(timezone.utc).isoformat(), 'call_config': config,
+             'input_chars': len(json.dumps(messages, ensure_ascii=False)), 'max_input_chars': max_input_chars,
+             'status': 'requesting'}
++    if memory_contract == MULTI_KNOWLEDGE_CONTRACT:
++        meta['memory_contract'] = memory_contract
+     write_record(directory/'run.json', meta)
+     try:
+         require(meta['input_chars'] <= max_input_chars, 'Replay input exceeds frozen budget')
+@@ -122,7 +143,7 @@
+         require(response.get('finish_reason') == 'stop', 'Model response did not finish normally')
+         parsed = parse_json_response(response['content'])
+         write_record(directory/'parsed.json', parsed)
+-        validate_entries(parsed, bundle['payload'])
++        validate_entries(parsed, bundle['payload'], memory_contract=memory_contract)
+         write_record(directory/'replay.json', parsed)
+         write_record(directory/'validation.json', {'valid': True, 'error': None})
+         meta['status'] = 'valid'
+@@ -135,4 +156,5 @@
+         meta['finished_at'] = datetime.now(timezone.utc).isoformat()
+         write_record(directory/'run.json', meta)
+     return load_replay(directory, expected_bundle=bundle, expected_call_config=config,
+-                       expected_input_view=input_view, expected_history_sources=sources)
++                       expected_input_view=input_view, expected_history_sources=sources,
++                       expected_memory_contract=memory_contract)
+--- pre-P3/src/skill_evolution/v23_4/replay_view.py
++++ P3/src/skill_evolution/v23_4/replay_view.py
+@@ -7,7 +7,7 @@
+ 
+ from src.skill_evolution.v23 import replay as original
+ from src.skill_evolution.v23.facts import require, text
+-from src.skill_evolution.v23.memory import load_memory, run_menus, validate_memory
++from src.skill_evolution.v23.memory import load_memory, run_menus, validate_memory, validate_entries, LEGACY_CONTRACT, MULTI_KNOWLEDGE_CONTRACT
+ from src.skill_evolution.v23_3.memory_view import compact_memory
+ 
+ FORMAT = 'v23_4_replay_pairs_memory_v3_v1'
+@@ -15,9 +15,9 @@
+ FORMAT_PATH = Path(__file__).with_name('replay_view_prompt.md')
+ 
+ 
+-def history_pair_sources(directory, memory):
++def history_pair_sources(directory, memory, *, memory_contract=LEGACY_CONTRACT):
+     """Capture immutable archive locations, after checking the requested snapshot."""
+-    require(load_memory(directory) == memory, 'Historical Memory snapshot differs')
++    require(load_memory(directory, memory_contract=memory_contract) == memory, 'Historical Memory snapshot differs')
+     result = {}
+     for context in sorted({key.rsplit('/', 1)[0] for key in memory['sources']}):
+         require(re.fullmatch(r'[A-Za-z0-9_-]+', context), 'Unsafe historical context')
+@@ -26,8 +26,8 @@
+     return result
+ 
+ 
+-def _historical_pairs(memory, sources):
+-    validate_memory(memory)
++def _historical_pairs(memory, sources, *, memory_contract=LEGACY_CONTRACT):
++    validate_memory(memory, memory_contract=memory_contract)
+     contexts = {key.rsplit('/', 1)[0] for key in memory['sources']}
+     require(isinstance(sources, dict) and set(sources) == contexts,
+             'Provide explicit pairing provenance for every historical context')
+@@ -46,7 +46,11 @@
+         archive = json.loads(raw)
+         require(archive['context_id'] == context, 'Historical archive context differs')
+         saved = archive['context']
+-        payload = original.validate_payload(saved['payload'])
++        version = archive.get('memory_contract', LEGACY_CONTRACT)
++        require(memory_contract == MULTI_KNOWLEDGE_CONTRACT or version == LEGACY_CONTRACT,
++                'Legacy pairing view cannot read multi-Knowledge commits')
++        payload = original.validate_payload(saved['payload'], memory_contract=version)
++        validate_entries(archive['result'], payload, memory_contract=version)
+         if 'pair_audit' in saved:
+             _current_pairs(saved)  # Preserve the archived task-identity checks when available.
+         edit = {'parent': payload['parent'], 'diff': payload['diff'],
+@@ -104,16 +108,17 @@
+     return results, ordered
+ 
+ 
+-def model_input(bundle, *, history_sources=None):
++def model_input(bundle, *, history_sources=None, memory_contract=LEGACY_CONTRACT):
+     """View construction also supports explicitly identified offline evaluation bundles.
+ 
+     Production callers validate Editor lineage separately before using this function.
+     No archive paths or hashes are sent to the model.
+     """
+-    payload = original.validate_payload(bundle['payload'])
++    payload = original.validate_payload(bundle['payload'], memory_contract=memory_contract)
+     pairs, runs = _current_pairs(bundle)
+     view = {key: deepcopy(payload[key]) for key in ('parent', 'diff', 'plan', 'command_sets')}
+-    view.update(pairs=pairs, runs=runs, memory=compact_memory(payload['memory']))
+-    historical, unpaired = _historical_pairs(payload['memory'], {} if history_sources is None else history_sources)
++    view.update(pairs=pairs, runs=runs, memory=compact_memory(payload['memory'], memory_contract=memory_contract))
++    historical, unpaired = _historical_pairs(payload['memory'], {} if history_sources is None else history_sources,
++                                           memory_contract=memory_contract)
+     view['memory'].update(pairs=historical, unpaired_runs=unpaired)
+     return view
+--- pre-P3/src/skill_evolution/v23_4/update_patch.py
++++ P3/src/skill_evolution/v23_4/update_patch.py
+@@ -10,7 +10,7 @@
+ from src.skill_evolution.v23.editor import apply_patch
+ from src.skill_evolution.v23.facts import require, text
+ from src.skill_evolution.v23.grouping import references
+-from src.skill_evolution.v23.memory import run_references, validate_memory
++from src.skill_evolution.v23.memory import run_references, validate_memory, LEGACY_CONTRACT
+ from src.skill_evolution.v23.preconditioner import compile_effective_plan
+ from src.skill_evolution.v23_3.memory_view import FORMAT, project_payload
+ 
+@@ -19,15 +19,15 @@
+ LOCAL_REF = re.compile(r"\b(?:[PQ]\d+(?::[A-Za-z0-9_]+)?|[CGM]\d+)\b")
+ 
+ 
+-def normalize_update_patches(result, payload, *, memory_view=FORMAT):
++def normalize_update_patches(result, payload, *, memory_view=FORMAT, memory_contract=LEGACY_CONTRACT):
+     """Return (internal legacy result, Effective Plan), without mutating inputs.
+ 
+     Raw Keep decisions remain in the caller's V23.4 output; only non-Keep
+     decisions become legacy adjustments. No partial Plan escapes on failure.
+     """
+     fields(payload, ("parent", "plan", "command_sets", "runs", "grouping", "memory"), "Input")
+-    validate_memory(payload["memory"])
+-    view = project_payload(payload, memory_view)
++    validate_memory(payload["memory"], memory_contract=memory_contract)
++    view = project_payload(payload, memory_view, memory_contract=memory_contract)
+     validate_diagnosis({"decision": "revise", "reason": "Original Plan", "plan": payload["plan"]}, payload)
+     originals = {u["id"]: u for u in payload["plan"]["updates"]}
+     fields(result, ("adjustments", "checks"), "V23.4 Preconditioner")
+@@ -122,5 +122,5 @@
+     legacy = {"decision": "ready" if survivors else "no_change",
+               "reason": "Deterministically compiled from validated V23.4 adjustments.",
+               "adjustments": normalized, "checks": checks}
+-    effective = compile_effective_plan(legacy, payload)
++    effective = compile_effective_plan(legacy, payload, memory_contract=memory_contract)
+     return legacy, effective
+--- /dev/null
++++ P3/src/skill_evolution/v23_3/multi_knowledge_view_prompt.md
+@@ -0,0 +1,12 @@
++## Multi-Knowledge Memory representation v1
++
++Each active Memory entry has `id` and a nonempty `knowledge` array. Each Knowledge
++has its own `text` and `evidence`; there is no entry-level evidence field and no
++Knowledge ID. Interpret each text with its own supporting evidence and conditions.
++Other Knowledge in the entry does not automatically support that text.
++
++Historical knowledge remains revisable interpretation. Sources are the recorded
++facts. When using the compact v3 view, references from all Knowledge jointly select
++its existing detail windows; this does not merge their claims or evidence bindings.
++Use Memory IDs and the original fact references, not invented Knowledge IDs.
++This representation does not change D/S/C decisions or the Preconditioner output.
+--- /dev/null
++++ P3/src/skill_evolution/v23_4/replay_multi_knowledge_contract_prompt.md
+@@ -0,0 +1,216 @@
++# Replay
++
++You are the Replay module for continual Skill evolution through diagnostic preconditioning.
++
++Your task is to learn and revise evidence-grounded understandings of how actual Skill edits relate to observed Actor behavior.
++
++Compare the actual Parent/Candidate executions, examine the changes truly made to the Skill, and use the evidence to propose new or revised MemoryEntries.
++
++These MemoryEntries will help future Preconditioner decisions determine which Skill updates may be useful, under what conditions, and with what possible side effects.
++
++Do not generate a separate analysis report. Your output is the proposed Memory update itself.
++
++{{execution_context}}
++
++## 1. Examine Actual Skill Edits and Paired Executions
++
++The input contains:
++
++- `parent`: the actual Parent Skill, or null if no Skill existed.
++- `diff`: the actual textual changes from Parent to Candidate.
++- `plan`: the Effective Plan, including the intended Goal, Updates, and Checks.
++- `command_sets`: the action choices actually visible to the Actor.
++- `runs`: complete Parent and Candidate execution facts.
++- `pairs`: explicitly verified Parent/Candidate execution relationships.
++- `memory`: currently active MemoryEntries and their supporting historical sources.
++
++Begin by understanding the actual Skill edit.
++
++Use the Parent and actual Diff to identify which guidance was added, changed, or removed.
++Describe the behavioral before/after difference, including changes to permissions,
++restrictions, scope or strength where relevant. "Improved the search strategy"
++is not enough to identify the intervention. A proposed Update absent from the
++actual Diff is not an implemented intervention.
++
++Do not assume that the intended Updates were faithfully implemented merely because they appear in the Plan.
++
++The Plan describes the intended behavioral changes. The actual Diff describes what was written into the Skill. The execution records describe what the Actor actually did.
++
++Keep these three sources of information distinct.
++
++Use `pairs` to identify corresponding executions. Never infer pairing from array order.
++
++Examine the actual observations, available actions, chosen actions, environment feedback, execution termination, and task results.
++
++Use the Actor's execution protocol to distinguish information available to the Actor at each decision point from information available only when examining the complete Replay record.
++
++Do not assume that the Actor had access to a global history, internal state, or environmental information absent from its actual execution context.
++
++## 2. Identify Conditional Edit–Behavior Responses
++
++Compare Parent and Candidate behavior in situations relevant to the actual Skill changes.
++
++Examine whether:
++
++- Intended behavioral changes actually occurred.
++- Previous problems persisted or became less frequent.
++- New regressions or unwanted behaviors appeared.
++- Previously valid behaviors were preserved.
++- Edited guidance was not followed.
++- The execution encountered conditions relevant to the edit.
++- Similar edits produced different responses under different observable conditions.
++
++Distinguish an unencountered trigger, guidance not followed despite an observed
++opportunity, and guidance followed without the intended improvement. These are
++different observations, not interchangeable evidence that a strategy is ineffective.
++If the opportunity or adherence cannot be established, preserve that uncertainty.
++Do not infer non-adherence from a final task failure alone.
++
++Identify the conditions under which each meaningful behavioral response occurred.
++
++Use actual observations, available actions, environmental feedback, and relevant action dependencies.
++
++A paired task does not imply that Parent and Candidate encountered identical intermediate states. Compare the actual decision opportunities rather than mechanically matching step numbers.
++
++Distinguish task-level results from local behavioral responses.
++
++Task success does not prove that every edit was useful. Task failure does not prove that every edit was harmful.
++
++A textual defect in the Candidate may help explain an observed behavior, but it is not itself proof that the Actor exhibited that behavior.
++
++When several Skill changes were applied together, describe their joint observed response unless the evidence supports a more specific conclusion.
++
++Do not assign independent effects to individual Updates without supporting evidence.
++
++Paired behavioral differences can support hypotheses about edit effects, but do not automatically establish causation. Preserve relevant uncertainty, including stochastic behavior, incomparable decision conditions, and unobserved effects.
++
++Technical interruptions are not ordinary task failures. Use only actual observed steps and outcomes, and preserve the limits imposed by incomplete executions.
++
++Do not invent actions, feedback, outcomes, or behavioral effects.
++
++## 3. Form and Revise MemoryEntries
++
++Read the currently active MemoryEntries and their available historical evidence.
++
++For each meaningful new observation, determine whether it establishes a new edit–behavior relationship or changes the understanding of an existing relationship.
++
++Create a new MemoryEntry when the relationship is distinct and not adequately represented by existing Memory.
++
++Revise an existing MemoryEntry when new evidence meaningfully extends, narrows, corrects, or contradicts substantially the same edit–behavior relationship.
++
++When multiple existing entries can be replaced by one coherent understanding without losing important distinctions, you may revise them together.
++
++For every revision, write the complete replacement Knowledge array, including all still-supported knowledge and its necessary historical evidence. The program does not copy omitted Knowledge from the old entry.
++
++Retain earlier observations and conditions that remain supported by their original evidence. Correct or remove interpretations no longer supported.
++
++Do not automatically discard previous positive observations after a new regression, or previous negative observations after a new improvement.
++
++Consider differences in actual edits, triggering conditions, scope, strength, and interactions between guidance changes.
++
++Do not mechanically append new limitations to old text. Reconcile old and new evidence into an accurate current understanding.
++
++Do not revise an existing entry merely to repeat its current knowledge.
++
++If the new evidence does not establish a meaningful new understanding or change an existing one, leave the relevant Memory unchanged.
++
++Returning an empty `entries` array is valid.
++
++All revisions refer to the active Memory snapshot supplied in the input. Do not create revision chains within a single response.
++
++## 4. Write Transferable Edit–Behavior Knowledge
++
++Each MemoryEntry groups a coherent actual edit–behavior relationship. Its knowledge array contains one or more self-contained, evidence-grounded understandings with their own conditions and evidence.
++
++Each Knowledge `text` should explain, as appropriate:
++
++- What Skill guidance was actually changed.
++- Under what observable conditions the response was examined.
++- How Parent and Candidate behaved.
++- What the comparison supports about possible edit effects.
++- What important limitations, counterexamples, or unknown conditions remain.
++
++Express these as a coherent understanding, not as separate structured fields.
++
++Focus on the relationship between Skill edits and behavior rather than summarizing individual tasks.
++
++Knowledge may describe improvements, regressions, unchanged behavior, failure to follow edited guidance, or differences between conditions.
++
++Where necessary, preserve interactions among multiple simultaneous edits rather than pretending to isolate their individual effects.
++
++Use precise, conditional language. Distinguish observed facts from interpretations about possible edit effects.
++
++Do not generalize beyond the conditions supported by the evidence.
++Keep useful improvements and preserved capabilities as concrete as regressions.
++When responses differ across conditions, explain that distinction instead of
++turning the Memory into an accumulating list of prohibitions. An observed benefit
++may inform wider permission in a future Update, but does not validate an untested
++replacement strategy or establish that all alternative conditions are equivalent.
++
++Write knowledge that may inform future Skill updates without relying on specific task instance numbers or transient execution IDs in the knowledge text.
++
++Memory records revisable understandings of edit effects. It is not a mandatory Skill instruction, a proposed next Update, or a decision about Candidate acceptance.
++
++Do not prescribe what the next Preconditioner must do.
++
++## 5. Evidence and Output Format
++
++Return exactly one JSON object containing one field:
++
++- `entries`: an array of proposed new or revised MemoryEntries.
++
++Each entry contains exactly two fields:
++
++- `revises`: an array of active Memory IDs to replace; use [] when creating a new entry.
++- `knowledge`: a nonempty array of objects, each containing exactly `text` (nonempty text) and `evidence` (nonempty array of valid references supporting that text).
++
++Across an entry, the evidence must include an actual edit and execution facts.
++Do not add entry-level evidence, Knowledge IDs or Knowledge-level operations.
++
++Only use Memory IDs actually present in the input's active Memory entries.
++
++Evidence must refer to actual edits and execution facts available in the input.
++Cite the steps that establish the important decision-time conditions and observed
++responses, including successful or adverse comparisons retained in the knowledge.
++A final outcome alone cannot establish a local trigger, adherence or an intervening
++obstacle. These references also select detailed historical evidence windows for
++future Preconditioner inputs; omit redundant citations, not the facts necessary to
++support a condition. Do not claim that a cited step alone proves a causal effect.
++
++For current executions, use the actual `diff` reference and valid Parent/Candidate step references such as `P1:8` and `Q1:10`.
++
++For historical evidence, use context-qualified references such as `R1/diff` and `R1/P1:8`, provided that the referenced facts are available in the historical sources.
++
++When revising historical knowledge, retain the actual historical edit and execution references required to support earlier observations that remain in the revised knowledge.
++
++Memory IDs are revision targets, not behavioral evidence.
++
++Plan Updates and Checks describe intentions and observation questions. They cannot substitute for actual edit or execution evidence.
++
++Do not cite nonexistent or unseen execution facts.
++
++Returning no proposed changes is valid:
++
++{
++  "entries": []
++}
++
++Otherwise, use this structure:
++
++{
++  "entries": [
++    {
++      "revises": [],
++      "knowledge": [{
++        "text": "A complete, conditional and evidence-grounded understanding of the actual Skill edit and observed Parent/Candidate behavior, including important limitations.",
++        "evidence": ["diff", "P1:8", "Q1:10"]
++      }]
++    }
++  ]
++}
++
++This is an illustrative structure, not evidence from the current experiment.
++
++Do not output summaries, findings, responses, checks, unresolved questions, Update mappings, scores, confidence values, separate limitation fields, new Memory IDs, or Archive operations.
++
++Return valid JSON only, without Markdown fences or additional commentary.
+--- /dev/null
++++ P3/src/skill_evolution/v23_4/replay_multi_knowledge_view_prompt.md
+@@ -0,0 +1,26 @@
++## Replay paired-input view v1
++
++Current `pairs` are verified task-level relationships. Each includes a task_id and
++parent_result/candidate_result with status, success and steps. Steps count executed
++actions, including invalid actions, not HTTP retries or unexecuted requests. An
++interruption can have success=null. These are whole-task facts, not effects attributed
++to an individual rule or phase.
++
++Current `runs` follow pair order: each Parent immediately precedes its Candidate.
++Their full initial states, steps, feedback and outcomes are unchanged. Timelines remain
++independent: equal step numbers do not identify equivalent states or opportunities.
++Use each side's actual conditions to compare behavior.
++
++Historical `memory.pairs` contains context-qualified Parent/Candidate relationships
++read from the original archives, only where both runs are present in this view.
++Each item has context, parent and candidate. It is a task-level index, not step
++alignment or behavioral evidence. `memory.unpaired_runs` lists supplied runs without
++a complete visible verified pair (including unavailable pairing provenance). Do not
++invent a counterpart or infer pairing from names, numbers or source order.
++
++Historical entries are revisable interpretations; sources are the recorded evidence.
++Use the unchanged Memory v3 evidence boundaries. A full action trace is not a full
++state trace. Do not convert failure to find a target into proof of its global absence,
++or combine events from different historical contexts. Preserve uncertainty where
++needed. Current actual edits and paired executions are the primary new evidence;
++historical Memory supports comparison and revision. The output contract is defined by the versioned main Prompt.
+--- /dev/null
++++ P3/tests/skill_evolution/v23_4/test_multi_knowledge_chain.py
+@@ -0,0 +1,310 @@
++"""P3 versioned dataflow and evidence conservation; injected responses only."""
++from copy import deepcopy
++import hashlib
++import json
++from pathlib import Path
++
++import pytest
++
++from src.skill_evolution.v23 import memory, preconditioner as compiler, editor as base_editor
++from src.skill_evolution.v23_3 import memory_view as view
++from src.skill_evolution.v23_4 import preconditioner as pc, replay, editor, diagnosis, update_patch
++from .test_diagnosis_replay import chain
++from .helpers import Fake, keep, revise, read, memory as synthetic_memory
++from .test_multi_knowledge_memory import knowledge, proposal, output
++from tests.skill_evolution.v23.test_replay_memory import records
++
++OLD = memory.LEGACY_CONTRACT
++NEW = memory.MULTI_KNOWLEDGE_CONTRACT
++
++
++def seed(root, bundle):
++    memory.commit_memory(root, context_id='R1', context=bundle, result={'entries': [{
++        'revises': [], 'knowledge': 'Synthetic earlier joint response; not a learned claim.',
++        'evidence': ['diff', 'P1:1', 'Q1:1']}]})
++    return memory.load_memory(root, memory_contract=NEW)
++
++
++@pytest.mark.parametrize('mode', [view.FORMAT, view.LEGACY])
++def test_entire_contract_chain_and_editor_handoff(chain, tmp_path, monkeypatch, mode):
++    gd, dd, _, ed, parents, candidates, original = chain
++    root = tmp_path / 'memory'
++    active = seed(root, original)
++    old_bytes = (root / 'archive/R1.json').read_bytes()
++    bundle = replay.build_replay(ed, parents, candidates, memory=active, memory_contract=NEW)
++    sources = replay.history_pair_sources(root, active, memory_contract=NEW)
++    result = output(proposal(
++        knowledge('Updated response under first conditions.', ['diff', 'P1:1', 'Q1:1']),
++        knowledge('Independent second conditions.', ['P2:2', 'Q2:2']),
++        deepcopy(active['entries'][0]['knowledge'][0]), revises=['M1']))
++    rd = tmp_path / 'replay'
++    generated = Fake(result)
++    saved = replay.run_replay(bundle, rd, generate=generated, memory_contract=NEW, history_sources=sources)
++    assert replay.load_replay(rd, expected_memory_contract=NEW) == saved
++    assert replay.run_replay(bundle, rd, generate=generated, memory_contract=NEW, history_sources=sources) == saved
++    assert generated.calls == 1
++    assert read(rd / 'run.json')['memory_contract'] == NEW
++    assert read(rd / 'run.json')['prompt_version'] == replay.MULTI_PROMPT_VERSION
++    assert read(rd / 'input.json') == bundle
++    assert read(rd / 'model_input.json')['memory']['entries'] == active['entries']
++    assert read(rd / 'input.json')['payload']['runs'] != read(rd / 'model_input.json')['runs']
++    assert set(read(rd / 'model_input.json')) == set(bundle['payload'])
++    assert not (root / 'archive/R2.json').exists()  # Replay never publishes Memory.
++    memory.commit_memory(root, context_id='R2', context=bundle, result=saved['replay'], memory_contract=NEW)
++    newer = memory.load_memory(root, memory_contract=NEW)
++    assert (root / 'archive/R1.json').read_bytes() == old_bytes
++    assert newer['entries'][0]['id'] == 'M2'
++    sources2 = replay.history_pair_sources(root, newer, memory_contract=NEW)
++    b2 = deepcopy(bundle); b2['payload']['memory'] = newer
++    projected = replay.model_input(b2, history_sources=sources2, memory_contract=NEW)
++    assert {p['context'] for p in projected['memory']['pairs']} == {'R1', 'R2'}
++    assert {'R2/P2', 'R2/Q2'} <= projected['memory']['sources'].keys()
++    pc_saved = {**diagnosis.load_diagnosis(dd), 'memory': newer}
++    payload = compiler.preconditioner_input(pc_saved, memory_contract=NEW)
++    raw = keep(payload)
++    replacement = 'Inspect relevant visible containers while preserving target identity.\n'
++    raw['adjustments'][0] = revise(payload, replacement=replacement)
++    raw['adjustments'][0]['reason'] = 'The conditions in `M2` and `R2/Q2:2` motivate this unverified change.'
++    # Guard the important internal boundary, including archive reconstruction.
++    actual_compile = update_patch.compile_effective_plan
++    contracts = []
++    def checked_compile(result, payload, *, memory_contract=OLD):
++        contracts.append(memory_contract)
++        assert memory_contract == NEW
++        return actual_compile(result, payload, memory_contract=memory_contract)
++    monkeypatch.setattr(update_patch, 'compile_effective_plan', checked_compile)
++    pd = tmp_path / 'next_pc'
++    pc_fake = Fake(raw)
++    effective = pc.run_preconditioner(gd, dd, pd, generate=pc_fake, memory=newer,
++                                      memory_contract=NEW, memory_view=mode)
++    assert contracts and all(c == NEW for c in contracts)
++    assert effective['effective_plan']['updates'][0]['text'] == replacement
++    assert read(pd / 'run.json')['memory_contract'] == NEW
++    assert pc.load_preconditioner(pd, expected_memory_contract=NEW) == effective
++    assert pc.model_input(effective, memory_contract=NEW, memory_view=mode) == read(pd / 'model_input.json')
++    assert pc.run_preconditioner(gd, dd, pd, generate=pc_fake, memory=newer,
++                                 memory_contract=NEW, memory_view=mode) == effective
++    assert pc_fake.calls == 1
++    assert 'memory_contract' not in effective['effective_plan'] and 'memory_contract' not in raw
++    new_ed = tmp_path / 'next_editor'
++    fake_ed = Fake({'patch': base_editor.actual_diff(None, 'Synthetic candidate.\n'), 'reason': 'Offline handoff.'})
++    edited = editor.run_editor(pd, new_ed, generate=fake_ed)
++    assert json.loads(fake_ed.messages[1]['content']) == {'parent': None, 'plan': effective['effective_plan']}
++    assert editor.load_editor(new_ed) == edited
++    next_bundle = replay.build_replay(new_ed, parents, records('Synthetic candidate.\n'),
++                                     memory=newer, memory_contract=NEW)
++    replay.validate_bundle(next_bundle, memory_contract=NEW)
++    assert next_bundle['payload']['diff'] == edited['actual_diff']
++    # Tampering the Preconditioner contract invalidates Editor's upstream reload.
++    meta = read(pd / 'run.json'); meta['memory_contract'] = OLD
++    (pd / 'run.json').write_text(json.dumps(meta))
++    with pytest.raises(ValueError): editor.load_editor(new_ed)
++
++
++def multi_fixture(payload):
++    full = memory.normalize_memory(synthetic_memory(payload), source_contract=OLD)
++    run = full['sources']['R1/P1']['run']
++    template = deepcopy(run['steps'][0]); previous = deepcopy(run['initial'])
++    steps = []
++    for n in range(1, 19):
++        step = deepcopy(template)
++        step.update(step=f'P1:{n}', before=deepcopy(previous), action=f'synthetic action {n}')
++        step['feedback'].update(done=n == 18, won=n == 18)
++        previous = step['after']
++        steps.append(step)
++    run['steps'] = steps
++    full['entries'][0]['knowledge'] = [knowledge('First condition.', ['R1/diff', 'R1/P1:1']),
++                                      knowledge('Second condition.', ['R1/P1:14'])]
++    return full
++
++
++def test_every_knowledge_contributes_windows_without_merging_claims(payload):
++    full = multi_fixture(payload); before = deepcopy(full)
++    projected = view.compact_memory(full, memory_contract=NEW)
++    source = projected['sources']['R1/P1']
++    assert source['windows'] == [{'start': 1, 'end': 3}, {'start': 12, 'end': 16}]
++    assert len(source['run']['trace']) == 18
++    assert source['run']['trace'] == [{'step': f"R1/{s['step']}", 'action': s['action'], 'feedback': s['feedback']}
++                                     for s in full['sources']['R1/P1']['run']['steps']]
++    assert projected['entries'] == full['entries'] and full == before
++    assert 'evidence' not in projected['entries'][0]
++    # Repeating a fact across Knowledge changes neither sources nor windows/menus.
++    full['entries'][0]['knowledge'].append(knowledge('Another interpretation.', ['R1/P1:14']))
++    again = view.compact_memory(full, memory_contract=NEW)
++    assert again['sources'] == projected['sources'] and again['command_pool'] == projected['command_pool']
++
++
++@pytest.mark.parametrize('mode', [view.FORMAT, view.LEGACY])
++@pytest.mark.parametrize('layer', ['input', 'projection', 'messages', 'adjustment', 'compiler'])
++def test_each_boundary_rejects_wrong_contract(upstream, payload, mode, layer):
++    full = multi_fixture(payload)
++    saved = {**upstream[2], 'memory': full}
++    new_payload = compiler.preconditioner_input(saved, memory_contract=NEW)
++    raw = keep(new_payload); raw['adjustments'][0] = revise(new_payload)
++    legacy_result, _ = update_patch.normalize_update_patches(raw, new_payload, memory_view=mode, memory_contract=NEW)
++    calls = {
++        'input': lambda: compiler.preconditioner_input(saved),
++        'projection': lambda: pc.model_input(saved, memory_view=mode),
++        'messages': lambda: pc.messages_for(saved, memory_view=mode),
++        'adjustment': lambda: update_patch.normalize_update_patches(raw, new_payload, memory_view=mode),
++        'compiler': lambda: compiler.compile_effective_plan(legacy_result, new_payload),
++    }
++    with pytest.raises(ValueError): calls[layer]()
++
++
++@pytest.mark.parametrize('stage', ['pc', 'replay'])
++@pytest.mark.parametrize('wrong', [OLD, 'unknown', None, 'missing'])
++def test_empty_memory_cannot_bypass_archive_contract(chain, tmp_path, stage, wrong):
++    gd, dd, _, _, _, _, bundle = chain
++    out = tmp_path / 'new_run'
++    if stage == 'pc':
++        fake = Fake(keep(compiler.preconditioner_input(diagnosis.load_diagnosis(dd))))
++        pc.run_preconditioner(gd, dd, out, generate=fake, memory_contract=NEW)
++        loader = pc.load_preconditioner
++        with pytest.raises(ValueError): pc.run_preconditioner(gd, dd, out, generate=fake)
++    else:
++        fake = Fake({'entries': []})
++        replay.run_replay(bundle, out, generate=fake, memory_contract=NEW)
++        loader = replay.load_replay
++        with pytest.raises(ValueError): replay.run_replay(bundle, out, generate=fake)
++    assert fake.calls == 1
++    with pytest.raises(ValueError): loader(out, expected_memory_contract=OLD)
++    meta = read(out / 'run.json')
++    if wrong == 'missing': del meta['memory_contract']
++    else: meta['memory_contract'] = wrong
++    (out / 'run.json').write_text(json.dumps(meta))
++    with pytest.raises(ValueError): loader(out)
++
++
++@pytest.mark.parametrize('mode', ['keep', 'withdraw', 'late_bad_patch', 'bad_reference'])
++def test_new_memory_adjustment_semantics_and_atomic_failure(upstream, payload, mode):
++    gd, dd, _, pd = upstream
++    full = multi_fixture(payload)
++    raw = keep(payload)
++    if mode == 'withdraw':
++        for item in raw['adjustments']:
++            item.update(focus=['C'], change='Withdraw this proposal.', to=[])
++        raw['checks'] = []
++    elif mode == 'late_bad_patch':
++        raw['adjustments'][0] = revise(payload)
++        raw['adjustments'][-1] = revise(payload, len(raw['adjustments']) - 1)
++        raw['adjustments'][-1]['to']['patch'] = 'broken'
++    elif mode == 'bad_reference':
++        raw['adjustments'][0]['reason'] = 'Unknown historical state in `R1/P1:999`.'
++    fake = Fake(raw)
++    if mode in ('late_bad_patch', 'bad_reference'):
++        with pytest.raises(ValueError): pc.run_preconditioner(gd, dd, pd, generate=fake, memory=full, memory_contract=NEW)
++        assert not (pd / 'effective_plan.json').exists()
++        assert read(pd / 'run.json')['status'] == 'invalid'
++    else:
++        result = pc.run_preconditioner(gd, dd, pd, generate=fake, memory=full, memory_contract=NEW)
++        assert result['effective_plan'] == (None if mode == 'withdraw' else result['diagnosis']['plan'])
++
++
++@pytest.mark.parametrize('input_view', [replay.INPUT_VIEW, replay.LEGACY_INPUT_VIEW])
++def test_new_replay_format_and_budget(chain, tmp_path, input_view):
++    bundle = chain[-1]
++    messages = replay.messages_for(bundle, memory_contract=NEW, input_view=input_view)
++    system = messages[0]['content']
++    assert 'Each entry contains exactly two fields:' in system
++    assert 'Each entry contains exactly three fields:' not in system
++    assert 'Multi-Knowledge Memory representation v1' in system
++    assert '{{execution_context}}' not in system
++    fake = Fake(output(proposal()))
++    saved = replay.run_replay(bundle, tmp_path / 'valid', generate=fake, memory_contract=NEW, input_view=input_view)
++    assert saved['replay']['entries'][0]['knowledge'][0]['evidence'] == ['diff', 'P1:1', 'Q1:2']
++    budget = Fake(output())
++    with pytest.raises(ValueError, match='budget'):
++        replay.run_replay(bundle, tmp_path / 'budget', generate=budget, memory_contract=NEW, input_view=input_view, max_input_chars=1)
++    assert budget.calls == 0
++
++
++@pytest.mark.parametrize('kind', ['legacy_output', 'bad_second_evidence', 'length', 'duplicate_key'])
++def test_replay_errors_do_not_publish_or_fall_back(chain, tmp_path, kind):
++    value = output(proposal())
++    if kind == 'legacy_output': value = {'entries': [{'revises': [], 'knowledge': 'Old shape.', 'evidence': ['diff', 'P1:1']}]}
++    if kind == 'bad_second_evidence': value['entries'][0]['knowledge'].append(knowledge(evidence=['P2:999']))
++    fake = Fake(value, finish='length' if kind == 'length' else 'stop',
++                content='{"entries":[],"entries":[]}' if kind == 'duplicate_key' else None)
++    out = tmp_path / 'invalid'
++    with pytest.raises(ValueError): replay.run_replay(chain[-1], out, generate=fake, memory_contract=NEW)
++    assert read(out / 'run.json')['status'] == 'invalid' and not (out / 'replay.json').exists()
++    with pytest.raises(ValueError): replay.run_replay(chain[-1], out, generate=fake, memory_contract=NEW)
++    assert fake.calls == 1
++
++
++@pytest.mark.parametrize('round_id', ['R04', 'R05'])
++def test_real_old_memory_has_identical_projection_and_pairs(round_id):
++    root = Path('artifacts/methods/v23/v23_alfworld_formal_001/S1/rounds') / round_id / 'memory'
++    old = memory.load_memory(root)
++    new = memory.load_memory(root, memory_contract=NEW)
++    a, b = view.compact_memory(old), view.compact_memory(new, memory_contract=NEW)
++    for key in ('format', 'policy', 'sources', 'command_pool'): assert a[key] == b[key]
++    assert b['entries'] == new['entries']
++    assert replay.history_pair_sources(root, old) == replay.history_pair_sources(root, new, memory_contract=NEW)
++
++
++@pytest.mark.parametrize('defect', ['unknown_version', 'wrong_shape_version', 'hash', 'task_identity'])
++def test_mixed_pair_sources_are_versioned_and_verified(chain, tmp_path, defect):
++    bundle = deepcopy(chain[-1]); root = tmp_path / 'memory'
++    bundle['payload']['memory'] = seed(root, bundle)
++    result = output(proposal(knowledge(evidence=['diff', 'P2:1', 'Q2:1']),
++                             deepcopy(bundle['payload']['memory']['entries'][0]['knowledge'][0]), revises=['M1']))
++    memory.commit_memory(root, context_id='R2', context=bundle, result=result, memory_contract=NEW)
++    full = memory.load_memory(root, memory_contract=NEW)
++    sources = replay.history_pair_sources(root, full, memory_contract=NEW)
++    bundle['payload']['memory'] = full
++    path = root / 'archive/R2.json'; archived = read(path)
++    if defect == 'hash': path.write_text(path.read_text() + ' ')
++    else:
++        if defect == 'unknown_version': archived['memory_contract'] = 'unknown'
++        elif defect == 'wrong_shape_version': archived['memory_contract'] = OLD
++        else: archived['context']['pair_audit'][1]['candidate']['task_id'] = 'different'
++        path.write_text(json.dumps(archived))
++        sources['R2']['sha256'] = hashlib.sha256(path.read_bytes()).hexdigest()
++    with pytest.raises(ValueError): replay.model_input(bundle, history_sources=sources, memory_contract=NEW)
++
++
++@pytest.mark.parametrize('case', ['R05', 'R06'])
++def test_frozen_real_inputs_change_only_entry_representation(case):
++    root = Path('experiments/methods/v23_4/replay_input_view_live_001/config') / case
++    bundle = read(root / 'replay_bundle.json')
++    before = deepcopy(bundle)
++    sources = read(root / 'history_pair_sources.json')
++    assert replay.messages_for(bundle, history_sources=sources) == read(root / 'messages.json')
++    old = replay.model_input(bundle, history_sources=sources)
++    assert old == read(root / 'model_input.json')
++    new_bundle = deepcopy(bundle)
++    new_bundle['payload']['memory'] = memory.normalize_memory(bundle['payload']['memory'], source_contract=OLD)
++    new = replay.model_input(new_bundle, history_sources=sources, memory_contract=NEW)
++    expected = deepcopy(old)
++    expected['memory']['entries'] = new_bundle['payload']['memory']['entries']
++    assert new == expected and bundle == before
++    assert new['runs'] == old['runs'] and new['pairs'] == old['pairs']
++
++
++@pytest.mark.parametrize('stage', ['pc', 'replay'])
++def test_unknown_contract_stops_before_generation_with_empty_memory(chain, tmp_path, stage):
++    gd, dd, _, _, _, _, bundle = chain
++    fake = Fake({'entries': []})
++    out = tmp_path / 'unknown'
++    with pytest.raises(ValueError, match='Unsupported Memory contract'):
++        if stage == 'pc': pc.run_preconditioner(gd, dd, out, generate=fake, memory_contract='unknown')
++        else: replay.run_replay(bundle, out, generate=fake, memory_contract='unknown')
++    assert fake.calls == 0 and not out.exists()
++
++
++@pytest.mark.parametrize('defect', ['missing', 'old'])
++def test_editor_archive_contract_checked_even_without_memory(chain, tmp_path, defect):
++    gd, dd = chain[:2]
++    pd, ed = tmp_path / 'new_pc', tmp_path / 'new_editor'
++    raw = keep(compiler.preconditioner_input(diagnosis.load_diagnosis(dd)))
++    pc.run_preconditioner(gd, dd, pd, generate=Fake(raw), memory_contract=NEW)
++    fake = Fake({'patch': base_editor.actual_diff(None, 'Synthetic candidate.\n'), 'reason': 'Offline fixture.'})
++    editor.run_editor(pd, ed, generate=fake)
++    meta = read(ed / 'run.json')
++    assert meta['memory_contract'] == NEW
++    if defect == 'missing': del meta['memory_contract']
++    else: meta['memory_contract'] = OLD
++    (ed / 'run.json').write_text(json.dumps(meta))
++    with pytest.raises(ValueError, match='Editor Memory contract differs'): editor.load_editor(ed)

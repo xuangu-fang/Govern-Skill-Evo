@@ -1,0 +1,61 @@
+{
+  "diagnosis": {
+    "decision": "revise",
+    "reason": "Across the batch, non-desklamp tasks dominate. P3 fails by looping among a small already-inspected set (fridge 1, countertop 1/2, cabinet 1/2, drawer 1) and never opens the many remaining containers before step_limit (P3:1-50, P3:outcome), whereas P1/P2 succeed by eventually reaching an uninspected surface (P1:34-35, P2:8-9). This shows the sweep rule needs a directly observable non-revisit trigger. In addition, the current Skill contains no guidance for heat/cool conditioning with an appliance; P4 and P5 both waste many steps toggling the microwave door and re-inserting/removing the tomato (P4:7-14, P5:6-13) before the heat action finally succeeds on the held target (P4:20, P5:15). The two-item tasks (P6, P7) succeed via clean sequential delivery and should be preserved rather than re-ruled.",
+    "plan": {
+      "goal": "Improve two behaviorally addressable gaps in the non-desklamp general procedure: (1) target search must expand to uninspected receptacles and stop looping on already-observed locations, and (2) heat/cool conditioning with an appliance must be performed directly on the held target without repeated door toggling. Preserve the successful exact-category acquisition and placement, the direct cooling behavior (P1:38, P2:11), and the sequential two-item delivery that won P6 and P7.",
+      "updates": [
+        {
+          "id": "u1",
+          "text": "- When a non-desklamp task requires an exact object that is not visible in the current observation, treat each individual closed container (cabinet, drawer, fridge, microwave, safe, etc.) and each open surface as a separate candidate, and open closed containers one after another rather than considering a receptacle family finished after one or two members.\n- After arriving at a receptacle that is already open and empty, or whose visible contents match a location already inspected, do not open, re-examine, or linger there; leave immediately for a receptacle that has not yet been inspected.\n- Expand the sweep to unopened containers and uninspected surfaces before returning to any earlier location; if the same small set of locations keeps reappearing in the recent observations without yielding the target, stop revisiting them and continue to new candidates while the step budget allows.\n- Do not repeatedly check inventory while carrying nothing.\n",
+          "basis": [
+            "G1",
+            "P3:1",
+            "P3:13",
+            "P3:34",
+            "P3:50",
+            "P3:outcome",
+            "P1:34",
+            "P1:35",
+            "P2:8",
+            "P2:9"
+          ]
+        },
+        {
+          "id": "u2",
+          "text": "- When the task requires heating or cooling an exact target with an appliance (microwave or fridge), bring the target and appliance together and then perform the conditioning action directly on the held target at the open appliance; a single heat/cool action is sufficient.\n- Do not impose extra close/open cycles on the appliance door, and do not repeatedly move the target into and out of the appliance between conditioning attempts.\n- Preserve the established direct-cooling behavior of performing the cool action on the held object at the open fridge without any door toggling.\n- Once the target is conditioned, carry it directly to the requested destination and complete the placement without detours.\n",
+          "basis": [
+            "G2",
+            "P4:7",
+            "P4:14",
+            "P4:19",
+            "P4:20",
+            "P4:22",
+            "P5:6",
+            "P5:13",
+            "P5:14",
+            "P5:15",
+            "P1:38",
+            "P2:11"
+          ]
+        }
+      ],
+      "checks": [
+        {
+          "id": "c1",
+          "update_ids": [
+            "u1"
+          ],
+          "question": "When the exact target is still not located, does the actor move on to unopened/uninspected receptacles and refrain from reopening or lingering at receptacles it has already observed as empty or unchanged, until all plausible candidates are covered or the target is found?"
+        },
+        {
+          "id": "c2",
+          "update_ids": [
+            "u2"
+          ],
+          "question": "When heating or cooling an exact target at the microwave or fridge, does the actor perform the conditioning action directly on the co-located/held target without repeated close/open door cycles or repeated inserting and removing of the target, and then proceed straight to the destination?"
+        }
+      ]
+    }
+  }
+}

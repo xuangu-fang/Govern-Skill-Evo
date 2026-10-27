@@ -1,0 +1,73 @@
+{
+  "readiness": "components_implemented_campaign_integration_incomplete",
+  "benchmark": "ALFWorld SkillOpt 39+18 optimization / 134 test",
+  "task_counts": {
+    "optimization": 57,
+    "test": 134
+  },
+  "gamefile_overlap": 0,
+  "local_gamefiles_present": 191,
+  "offline_tests": {
+    "passed": 977,
+    "failed": 1,
+    "errors": 9,
+    "command": "pytest -q -p no:cacheprovider tests/skill_evolution/v23_4 tests/skill_evolution/v23 tests/skill_evolution/v23_3",
+    "v23_4_collected_and_passed": 301
+  },
+  "historical_frozen_drift": [
+    "src/skill_evolution/v23/editor.py",
+    "src/skill_evolution/v23/editor_prompt.md",
+    "src/skill_evolution/v23/evolution.py",
+    "src/skill_evolution/v23/facts.py",
+    "src/skill_evolution/v23/grouping.py",
+    "src/skill_evolution/v23/memory.py",
+    "src/skill_evolution/v23/model_routing.py",
+    "src/skill_evolution/v23/preconditioner.py",
+    "src/skill_evolution/v23/replay.py"
+  ],
+  "production_changes": false,
+  "live_calls": 0,
+  "findings": [
+    {
+      "id": "campaign",
+      "evidence": "src/skill_evolution/v23/evolution.py:18",
+      "issue": "Only legacy v23 modules wired; no v23_4 campaign entry in current source."
+    },
+    {
+      "id": "contract",
+      "evidence": "src/skill_evolution/v23/evolution.py:416",
+      "issue": "Memory load, prepare, commit and publish use legacy defaults; P4 prompt and history_pair_sources not selected."
+    },
+    {
+      "id": "freeze",
+      "evidence": "src/skill_evolution/v23/evolution.py:42",
+      "issue": "Freeze covers v23 and actor; not v23_4/v23_3 dependencies."
+    },
+    {
+      "id": "retries",
+      "evidence": "src/skill_evolution/v23/evolution.py:72",
+      "issue": "Old campaign 3 total attempts differs from experiment first plus 3 restarts; length escalation not unified."
+    },
+    {
+      "id": "capacity",
+      "evidence": "src/skill_evolution/v23_4/preconditioner.py:86",
+      "issue": "Default PC 100000 chars / Replay 400000 chars below observed frozen inputs; campaign must freeze realistic per-stage capacities."
+    },
+    {
+      "id": "eval",
+      "evidence": "experiments/methods/v23/v23_alfworld_formal_001/evaluate.py:51",
+      "issue": "Existing evaluation bound to old campaign and source contract; new isolated evaluation config required."
+    },
+    {
+      "id": "semantics",
+      "evidence": "experiments/methods/v23_4/replay_v3_validation_001/REPORT.md",
+      "issue": "Natural continuous multiround v23_4 not verified; semantic reliability is research outcome, not reason to indefinitely tune Prompt."
+    }
+  ],
+  "runtime_dependencies": {
+    "alfworld": "0.4.2",
+    "textworld": "1.7.0",
+    "numpy": "1.26.4",
+    "requests": "2.32.5"
+  }
+}

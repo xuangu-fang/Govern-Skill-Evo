@@ -1,0 +1,30 @@
+{
+  "adjustments": [
+    {
+      "target": "u1",
+      "focus": [
+        "S"
+      ],
+      "change": "Rebalance the sweep to be breadth-first and usable under the Actor's limited two-step history instead of an assumed global visited record: base each next move on the current observation, the admissible go-to destinations, and the last two observations; once the family or surface being swept yields nothing, prefer an uninspected family or a cheap surface (checked early) over continuing within the already-swept family; keep the next-higher-numbered-instance idea only as a within-family tiebreaker. Preserve the single forward sweep, one-time opening of each closed container, no cycling, the 'found the exact category or all plausible receptacles inspected once' completion condition, and the 50-step budget.",
+      "reason": "The oscillation problem is real: within `G1`, `P3` keeps cycling among fridge 1, countertop 1-2, cabinet 1-2 and drawer 1 and ends at `P3:outcome` (step_limit) without reaching the diningtable where an apple could be, while `P1` reaches its plate only at `P1:34` on a surface after re-opening cabinets 1-9 of a single family, and `P2` reaches its tomato at `P2:8`. The Original's wording ('treat each inspected receptacle as consumed', 'unvisited') presumes a global visited record the two-step protocol cannot support, and it places within-family numbering on par with switching to uninspected families, which in `P1`/`P3` did not prevent family exhaustion or cycling. Prior single-pass family-sweep guidance was associated with occasional broader exploration but did not reliably stop cycling (`M10`, `M6`). This motivates making breadth-first the primary scope and grounding the rule in current observation plus recent history rather than an invented global set; the breadth-first priority and surface-early ordering are unverified choices, and one run per task limits confidence.",
+      "to": {
+        "patch": "--- a/SKILL.md\n+++ b/SKILL.md\n@@ -1 +1 @@\n-Search rule for tasks whose exact target is not initially visible: run a single forward sweep that does not oscillate. Treat each inspected receptacle as consumed; the next move should go to a different receptacle, ideally one not just inspected. Use the numbered receptacle names as a local progress cue: after checking an instance of a family, prefer the next higher-numbered unvisited instance or a wholly uninspected family or surface instead of jumping back to an earlier location. Open each closed container once and read its contents; if it is empty, continue forward to a new receptacle rather than cycling back through earlier ones. Include cheap surface checks (countertops, desks, beds, tables, shelves) early in the sweep. Continue until the exact requested category is found or all plausible receptacles have been inspected once, keeping within the step budget.\n+Search rule for tasks whose exact target is not initially visible: run a single forward sweep that does not oscillate. Base each next move only on the current observation, the admissible go-to destinations, and the most recent observations, not on a remembered global list of visited receptacles. In practice: (a) if the receptacle you are at, or one you just left, visibly lacks the exact target, do not return to it; (b) when the family or surface you are sweeping yields nothing, prefer a family or cheap surface you have not recently swept (countertops, desks, beds, tables, shelves should be checked early) over continuing within the family already swept, so the 50-step budget is not spent exhausting one family; (c) within a family, advance to a different instance, for example the next higher-numbered receptacle you can currently see, rather than repeating one. Open each closed container once and read its contents; if it is empty, continue forward to a new receptacle rather than cycling back through earlier ones. Continue until the exact requested category is found or all plausible receptacles have been inspected once, keeping within the step budget.\n"
+      }
+    },
+    {
+      "target": "u2",
+      "focus": [],
+      "change": "KEEP",
+      "reason": "The conditioning direction is supported by the current runs: the exact held target is cooled/heated in one action at the appliance in `P1:38` and `P2:11` (cool while holding) and in `P4:20` and `P5:15` (heat while holding), whereas the adverse behavior to suppress appears in `G2` at `P4:7` and `P5:6` as close/open and remove/reinsert cycles. The rule targets exactly those cycles and otherwise preserves acquisition of the exact target, a single conditioning action, the appliance-is-destination case, and direct placement, consistent with `M7`'s account of reduced appliance manipulation once the exact target is held. No clause needs a behavioral change.",
+      "to": null
+    },
+    {
+      "target": "u3",
+      "focus": [],
+      "change": "KEEP",
+      "reason": "Both quantity runs in `G3` succeeded with sequential exact-category delivery: `P6:18` and `P6:24` place two books and `P7:5` and `P7:10` place two creditcards, in each case returning to a source that visibly held another exact instance, with no substitution and no stop-after-one. This matches the rule and `M9`'s account of exact-count delivery, and no adverse response was observed, so the rule is preserved unchanged.",
+      "to": null
+    }
+  ],
+  "checks": null
+}
