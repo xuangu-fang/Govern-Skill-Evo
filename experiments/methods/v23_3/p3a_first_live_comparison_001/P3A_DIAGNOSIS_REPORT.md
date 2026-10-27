@@ -6,7 +6,7 @@ usage：prompt 65,593，completion 8,815，total 74,408；reasoning 7,951 已包
 
 ## 原始 Plan 与门控
 
-完整且未经人工重排的 [Diagnosis](runs/diagnosis/diagnosis.json)、[原始响应](runs/diagnosis/response.json)、[实际 HTTP 原文](runs/diagnosis/http/001/http_response.txt)、[请求](runs/diagnosis/http/001/request.json)均保存。以下只是索引，不代替实验输入。
+完整且未经人工重排的 [Diagnosis](runs/diagnosis/diagnosis.json)、[原始响应](runs/diagnosis/response.json)、[实际 HTTP 原文](../../../../artifacts/methods/v23_3/p3a_first_live_comparison_001/runs/diagnosis/http/001/http_response.txt)、[请求](../../../../artifacts/methods/v23_3/p3a_first_live_comparison_001/runs/diagnosis/http/001/request.json)均保存。以下只是索引，不代替实验输入。
 
 Goal：改善非灯具检索、处理、放置中的精确目标忠实性与搜索效率，同时保留已成功的灯具共处和精确目标完成行为。Goal 没有锁定类内穷尽、固定跨类顺序或特定开门实现，不构成本轮共同输入障碍。
 

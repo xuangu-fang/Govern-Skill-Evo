@@ -24,18 +24,20 @@ SOURCE = HERE.parent / 'memory_v3_integration_001'
 FORMAL = ROOT / 'artifacts/methods/v23/v23_alfworld_formal_001/S1/rounds/R05'
 PYTHON = '/Users/didi/miniforge3/envs/alfworld/bin/python'
 
+from experiments.methods.v23_3.archive_io import archive_glob, load_saved, resolve
+
 def read(p):
-    return json.loads(Path(p).read_text())
+    return json.loads(resolve(Path(p)).read_text())
 
 def save(p, value):
-    p = Path(p); p.parent.mkdir(parents=True, exist_ok=True)
-    write_record(p, value)
+    p = Path(p); resolve(p.parent).mkdir(parents=True, exist_ok=True)
+    write_record(resolve(p), value)
 
 def now():
     return datetime.now(timezone.utc).isoformat()
 
 def sha(p):
-    return digest(Path(p).read_bytes())
+    return digest(resolve(Path(p)).read_bytes())
 
 def credentials():
     values = {**dotenv_values(ROOT / '.env'), **os.environ}
@@ -50,7 +52,7 @@ def verify_freeze():
 def upstreams():
     saved = read(SOURCE / 'config/common_saved.json')
     a = load_a(SOURCE / 'runs/A', saved)
-    b = pc.load_preconditioner(SOURCE / 'runs/B')
+    b = load_saved(pc.load_preconditioner, SOURCE / 'runs/B')
     assert a['facts'] == b['facts'] and a['diagnosis'] == b['diagnosis']
     assert old_pc.preconditioner_input(a) == read(SOURCE / 'config/full_payload.json')
     assert b['effective_plan'] == read(SOURCE / 'config/model_input.json')['plan']
@@ -71,7 +73,7 @@ def prepare():
     save(HERE/'config.json',cfg)
     ups = upstreams()
     parent = ups['A']['facts']['parent']
-    (HERE/'parent.md').write_text(parent)
+    (resolve(HERE/'parent.md')).write_text(parent)
     for arm,saved in ups.items():
         save(HERE/f'inputs/{arm}_upstream.json',saved)
         save(HERE/f'inputs/{arm}_effective.json',saved['effective_plan'])
@@ -83,7 +85,7 @@ def prepare():
     tasks=[]
     for ref in ['P3','P6','P7','P10']:
         source=next(s for s in grouping['sources'] if s['ref']==ref)
-        paths=list((FORMAL/'parent_runs'/source['task_id'].replace(':','_')).rglob('trajectory.json'))
+        paths=list(archive_glob(FORMAL / 'parent_runs' / source['task_id'].replace(':', '_'), 'trajectory.json', recursive=True))
         path=next(p for p in paths if read(p)['run_id']==source['run_id'])
         record=read(path)
         assert record['skill']['text']==parent
@@ -121,13 +123,13 @@ def preflight():
     print('Four deterministic resets match historical initial states',flush=True)
 
 def freeze():
-    assert (HERE/'NEW_TRAIN_CASES.md').is_file() and (HERE/'preflight.json').is_file()
+    assert resolve(HERE / 'NEW_TRAIN_CASES.md').is_file() and resolve(HERE / 'preflight.json').is_file()
     files=[HERE/'run.py',HERE/'select_train.py',HERE/'PROTOCOL.md',HERE/'NEW_TRAIN_CASES.md',HERE/'new_train_cases.json',
            HERE/'config.json',HERE/'tasks.json',HERE/'preflight.json',HERE/'parent.md']
-    files+=list((HERE/'inputs').glob('*.json'))
-    files+=list((ROOT/'src/skill_evolution/v23').glob('*.py'))+list((ROOT/'src/skill_evolution/v23').glob('*.md'))
-    files+=list((ROOT/'src/skill_evolution/v23_3').glob('*.py'))+list((ROOT/'src/skill_evolution/v23_3').glob('*.md'))
-    files+=list((ROOT/'src/adapters/alfworld').glob('*.py'))
+    files+=list(archive_glob(HERE / 'inputs', '*.json'))
+    files+=list(archive_glob(ROOT / 'src/skill_evolution/v23', '*.py'))+list(archive_glob(ROOT / 'src/skill_evolution/v23', '*.md'))
+    files+=list(archive_glob(ROOT / 'src/skill_evolution/v23_3', '*.py'))+list(archive_glob(ROOT / 'src/skill_evolution/v23_3', '*.md'))
+    files+=list(archive_glob(ROOT / 'src/adapters/alfworld', '*.py'))
     files += [Path(t['gamefile']) for t in read(HERE/'tasks.json')]
     files += [Path(read(HERE/'tasks.json')[0]['manifest'])]
     # Absolute external game paths are legal keys; ROOT/path preserves them.
@@ -138,40 +140,40 @@ def editor_call(arm):
     cfg=verify_freeze();key,base=credentials();assert cfg['endpoint']==base+'/chat/completions'
     upstream=upstreams()[arm]
     assert upstream==read(HERE/f'inputs/{arm}_upstream.json')
-    out=HERE/'editors'/arm;out.mkdir(parents=True,exist_ok=False)
+    out=HERE/'editors'/arm;resolve(out).mkdir(parents=True,exist_ok=False)
     messages=editor.messages_for(upstream);assert messages==read(HERE/f'inputs/{arm}_messages.json')
     cc={'endpoint':cfg['endpoint'],'model':cfg['model'],'max_tokens':cfg['editor_max_tokens'],
         'timeout_seconds':300,'temperature':cfg['temperature'],'thinking':cfg['thinking'],
         'reasoning_effort':cfg['reasoning_effort'],'stream':False}
     for name,value in [('upstream',upstream),('input',editor.editor_input(upstream)),
                        ('background',upstream['background']),('messages',messages)]:save(out/f'{name}.json',value)
-    (out/'prompt.md').write_text(messages[0]['content'])
+    (resolve(out/'prompt.md')).write_text(messages[0]['content'])
     meta={'round_id':upstream['round_id'],'call_config':cc,'started_at':now(),'status':'requesting'}
     save(out/'run.json',meta)
     try:
         from experiments.methods.v23_3.p3a_transport_retry_001.run import send_once
         body={k:v for k,v in cc.items() if k not in ('endpoint','timeout_seconds')};body['messages']=messages
-        http=out/'http/001';http.mkdir(parents=True)
+        http=out/'http/001';resolve(http).mkdir(parents=True)
         response=send_once({'endpoint':cfg['endpoint'],'body':body},key,http,
                            {'connect_upload_timeout_seconds':60,'read_timeout_seconds':300})
-        save(out/'response.json',response);(out/'raw_output.txt').write_text(response.get('content') or '')
+        save(out/'response.json',response);(resolve(out/'raw_output.txt')).write_text(response.get('content') or '')
         assert response.get('finish_reason')=='stop'
         parsed=parse_json_response(response['content']);save(out/'parsed.json',parsed)
-        if isinstance(parsed,dict) and isinstance(parsed.get('patch'),str):(out/'patch.diff').write_text(parsed['patch'])
+        if isinstance(parsed,dict) and isinstance(parsed.get('patch'),str):(resolve(out/'patch.diff')).write_text(parsed['patch'])
         status,candidate=editor.validate_editor(parsed,upstream['facts']['parent'])
         save(out/'editor.json',parsed)
         if candidate is not None:
-            (out/'candidate.md').write_text(candidate)
-            (out/'actual.diff').write_text(editor.actual_diff(upstream['facts']['parent'],candidate))
+            (resolve(out/'candidate.md')).write_text(candidate)
+            (resolve(out/'actual.diff')).write_text(editor.actual_diff(upstream['facts']['parent'],candidate))
         save(out/'validation.json',{'valid':True,'error':None});meta.update(status='valid',outcome=status)
     except Exception as exc:
-        (out/'traceback.txt').write_text(traceback.format_exc())
+        (resolve(out/'traceback.txt')).write_text(traceback.format_exc())
         save(out/'validation.json',{'valid':False,'error_type':type(exc).__name__,'error':str(exc)})
         meta.update(status='invalid',error_type=type(exc).__name__)
     finally:
         meta['finished_at']=now();save(out/'run.json',meta)
     if meta['status']=='valid':
-        editor.load_editor(out,expected_preconditioner=upstream,expected_call_config=cc)
+        load_saved(editor.load_editor, out, expected_preconditioner=upstream, expected_call_config=cc)
     print(arm,meta['status'],meta.get('outcome'),flush=True)
 
 def episode(condition,ref):
@@ -179,13 +181,13 @@ def episode(condition,ref):
     from src.adapters.alfworld.run_task_upstream import chat
     from src.adapters.alfworld.verify_skill_run import verify_record
     cfg=verify_freeze();key,base=credentials();assert cfg['endpoint']==base+'/chat/completions'
-    for arm in ['A','B']:assert (HERE/f'editors/{arm}/run.json').is_file()
+    for arm in ['A','B']:assert resolve(HERE / f'editors/{arm}/run.json').is_file()
     skillfile=HERE/'parent.md' if condition=='Parent' else HERE/f'editors/{condition}/candidate.md'
     if condition!='Parent':
-        saved=editor.load_editor(HERE/'editors'/condition)
-        assert saved['editor_status']=='candidate' and skillfile.read_text()==saved['candidate_text']
+        saved=load_saved(editor.load_editor, HERE / 'editors' / condition)
+        assert saved['editor_status']=='candidate' and resolve(skillfile).read_text()==saved['candidate_text']
     task=next(t for t in read(HERE/'tasks.json') if t['ref']==ref)
-    out=HERE/'episodes'/condition/ref;out.mkdir(parents=True,exist_ok=False)
+    out=HERE/'episodes'/condition/ref;resolve(out).mkdir(parents=True,exist_ok=False)
     record=make_record(item=task['item'],split='val',purpose='optimization',skill=load_skill(skillfile),
         model=cfg['model'],max_steps=50,gamefile=Path(task['gamefile']),manifest_path=Path(task['manifest']),
         versions=installed_versions(),backend_id=digest(cfg['endpoint'].encode()))
@@ -212,18 +214,18 @@ def batch():
     # Explicit Editor-result audit gate; no requests before both arms reviewed.
     assert read(HERE/'editor_gate.json')['replay_allowed']
     jobs=[(c,t['ref']) for c in ['Parent','A','B'] for t in read(HERE/'tasks.json')
-          if c=='Parent' or (HERE/f'editors/{c}/candidate.md').is_file()]
+          if c=='Parent' or resolve(HERE / f'editors/{c}/candidate.md').is_file()]
     assert len(jobs)<=12
-    (HERE/'batch.claim').open('x').close()
+    (resolve(HERE/'batch.claim')).open('x').close()
     def one(job):
-        c,r=job;log=HERE/f'episodes/{c}_{r}.log';log.parent.mkdir(exist_ok=True)
-        with log.open('w') as output:
+        c,r=job;log=HERE/f'episodes/{c}_{r}.log';resolve(log.parent).mkdir(exist_ok=True)
+        with resolve(log).open('w') as output:
             result=subprocess.run([PYTHON,'-m','experiments.methods.v23_3.p3c1_r05_replay_001.run','episode',c,r],
                                    cwd=ROOT,stdout=output,stderr=subprocess.STDOUT)
         print(c,r,'exit',result.returncode,flush=True)
         trajectory=HERE/f'episodes/{c}/{r}/trajectory.json'
         return {'condition':c,'ref':r,'exit':result.returncode,
-                'status':read(trajectory)['status'] if trajectory.exists() else 'setup_error'}
+                'status':read(trajectory)['status'] if resolve(trajectory).exists() else 'setup_error'}
     results=[];index=0;stop=False
     with ThreadPoolExecutor(max_workers=4) as pool:
         pending=set()

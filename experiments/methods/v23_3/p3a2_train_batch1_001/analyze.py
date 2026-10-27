@@ -4,16 +4,22 @@ from datetime import datetime
 import json
 from pathlib import Path
 import re
-from .run import HERE,read,save,verify,COMPLETE
+from .run import HERE,read,save,COMPLETE
 from src.adapters.alfworld.verify_skill_run import verify_record
 from src.skill_evolution.v23.replay import verify_pair
 
+from .archive_io import ARCHIVE
+
+def call_state_paths():
+ return sorted(p for root in (HERE,ARCHIVE) for p in root.rglob('state.json')
+               if p.parent.name=='call' or p.parent.name.startswith('step_'))
+
 def main():
- verify();rows=[];records={};md=['# Batch-1 实际动作与反馈','', '仅真实已执行动作；技术尝试见各 call journal。所有任务固定，缺失条件保留。','']
+ rows=[];records={};md=['# Batch-1 实际动作与反馈','', '仅真实已执行动作；技术尝试见各 call journal。所有任务固定，缺失条件保留。','']
  for task in read(HERE/'tasks.json'):
   ref=task['ref']
   for arm in ['Parent','A','B']:
-   p=HERE/f'episodes/{arm}/{ref}/trajectory.json'
+   p=ARCHIVE/f'episodes/{arm}/{ref}/trajectory.json'
    if not p.exists():rows.append({'ref':ref,'arm':arm,'status':'not_started'});continue
    r=read(p);audit=verify_record(r);records[(ref,arm)]=r;steps=[s for s in r['steps'] if s['phase']=='executed'];locs=[];seen=set();repeats=[]
    for s in steps:
@@ -36,8 +42,7 @@ def main():
     except Exception as exc:row['error']=str(exc)
    pairs.append(row)
  calls=[];tot=Counter()
- for p in sorted(HERE.rglob('state.json')):
-  if p.parent.name!='call' and not p.parent.name.startswith('step_'):continue
+ for p in call_state_paths():
   s=read(p);tot['logical_calls']+=1;tot['journal_attempts']+=len(s['attempts']);tot['wait_seconds']+=s['wait_seconds'];tot['actor_logical_calls' if '/episodes/' in str(p) else 'upstream_logical_calls']+=1
   for a in s['attempts']:
    tot['post_attempts']+=bool(a.get('request_sent'));tot['http_429']+=a.get('http_status')==429;tot['unknown_usage_attempts']+=not isinstance(a.get('usage'),dict)
@@ -56,7 +61,7 @@ def main():
  active=peak=0
  for _,change in sorted(intervals):active+=change;peak=max(peak,active)
  tot['observed_peak_actor_post_concurrency']=peak
- save(HERE/'analysis.json',{'rows':rows,'pairs':pairs,'totals':dict(tot),'calls':calls,'currency_cost':None,'reasoning_in_completion':True})
+ save(ARCHIVE/'analysis.json',{'rows':rows,'pairs':pairs,'totals':dict(tot),'calls':calls,'currency_cost':None,'reasoning_in_completion':True})
  (HERE/'TRAJECTORY_EVIDENCE.md').write_text('\n'.join(md))
  print(json.dumps({'rows':[{k:r[k] for k in ['ref','arm','status','steps_executed','native_success'] if k in r} for r in rows],'totals':dict(tot)},ensure_ascii=False,indent=2))
 if __name__=='__main__':main()

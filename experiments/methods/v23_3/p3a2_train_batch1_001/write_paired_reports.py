@@ -1,17 +1,17 @@
 """Offline final accounting for the first-valid A2/B7 paired continuation."""
 from datetime import datetime
-from .run import HERE, read, save, now, verify, COMPLETE
+from .archive_io import ARCHIVE
+from .run import HERE, read, save, now, COMPLETE
 from . import analyze
 
 
 def main():
-    verify()
     for arm in ['Parent', 'A', 'B']:
         for task in read(HERE/'tasks.json'):
-            r=read(HERE/f"episodes/{arm}/{task['ref']}/trajectory.json")
+            r=read(ARCHIVE/f"episodes/{arm}/{task['ref']}/trajectory.json")
             assert r['status']!='running', (arm,task['ref'])
     analyze.main()
-    data=read(HERE/'analysis.json');tot=data['totals']
+    data=read(ARCHIVE/'analysis.json');tot=data['totals']
     rows={(r['ref'],r['arm']):r for r in data['rows']}
     agg={}
     for arm in ['Parent','A','B']:
@@ -38,7 +38,7 @@ def main():
          '每次失败响应、traceback 和解析结果保留。B3/B4/B6 的 Patch 可应用但完整编译失败；B5 在 Patch 应用阶段失败，不能混同。无真实 429 时，不宣称恢复逻辑获本轮限流验证；离线合成测试单列。Actor 格式/非法动作不因策略效果不佳追加生成。']
     (HERE/'RETRY_REPORT.md').write_text('\n'.join(md)+'\n')
     md=['# Batch-1 三方配对 Replay','',
-        f'固定六条任务，Parent/A 已完成结果直接复用，仅新增六条 B。有效三方配对 {triples}/6；Parent/A、Parent/B、A/B 配对分别为 {pair_counts}。初始状态、任务实例、模型参数、基础协议及实现文件由原 verifier 校验，详见 analysis.json。实际请求时点及 Parent 部分串行是比较限制。','',
+        f'固定六条任务，Parent/A 已完成结果直接复用，仅新增六条 B。有效三方配对 {triples}/6；Parent/A、Parent/B、A/B 配对分别为 {pair_counts}。初始状态、任务实例、模型参数、基础协议及实现文件由原 verifier 校验，详见 [analysis.json](../../../../artifacts/methods/v23_3/p3a2_train_batch1_001/analysis.json)。实际请求时点及 Parent 部分串行是比较限制。','',
         '**这是 A2/B7 首个有效方案的授权恢复后行为对照，不是等预算一次生成端到端比较。** A 两次、B 七次；初次输出均无合法 Effective，所有失败和成本纳入报告。', '',
         '| Task | Parent | V23 A2 | V23.3 B7 |','|---|---|---|---|']
     for i in range(1,7):
@@ -52,7 +52,7 @@ def main():
         for arm in ['Parent','A','B']:
             r=rows[(f'P{i}',arm)];actions='; '.join(f"{x['step']}: {x['action']}" for x in r['key_actions']) or '未发生'
             md.append(f"| P{i}/{arm} | {len(r['locations'])}/{len(r['classes'])} | {r['first_target_observed_feedback_step'] or '未观察到'} | {actions} |")
-    md+=['','原始逐步证据见 TRAJECTORY_EVIDENCE.md、episodes/ 各 trajectory.json；完整请求、反馈、动作前菜单、非法动作及传输记录都保留。Parent/A 旧分析和所有此前阶段报告有 amendment_B_generation7/ 等快照。','',
+    md+=['','原始逐步证据见 TRAJECTORY_EVIDENCE.md、[episodes/](../../../../artifacts/methods/v23_3/p3a2_train_batch1_001/episodes/) 中的 trajectory.json；完整请求、反馈、动作前菜单、非法动作及传输记录都保留。Parent/A 旧分析和所有此前阶段报告有 amendment_B_generation7/ 等快照。','',
          'A P1 第1步到 coffeetable、2 take、4 move；P2 在4 stoveburner 找到、7 clean、10 move。A P3 和 P6 仍 50 步失败、无目标获取或交付，重复代理各24/32；P6 增加 sidetable 3 导航仍未恢复成功。A P6 第13步动作混入解释文字，候选外且 Nothing happens，未重采样。P5 第4步带物回灯处属于必要回返。','',
          '研究者曾仅凭动作名把 P3 cabinet 7 误判为关闭；原反馈为 On the cabinet 7，已撤回并记录 researcher_fact_correction.json，不将其算作漏开容器。', '',
          'B 的逐例行为与归因另见下方最终人工核查。文本局部化、Patch 应用和较短轨迹都不自动证明 Memory 增量；无消融且每例每条件一次，不能将结果外推为稳定泛化优势。']

@@ -9,6 +9,7 @@ import traceback
 import requests
 from dotenv import dotenv_values
 from .transport import HERE,now,read,save,BoundedSession
+from .archive_io import ARCHIVE,load_saved
 from src.adapters.alfworld.skill_runtime import digest,load_skill,make_record,execution_protocol,implementation_metadata
 from src.adapters.alfworld.run_task_skill import environment_modules,installed_versions,run_episode,RecordingSession
 from src.adapters.alfworld.run_task_upstream import chat
@@ -38,7 +39,7 @@ def prepare():
     excluded={x['identity'] for x in read(OLD/'new_train_exclusions.json')};assert not excluded & {x['instance'] for x in items}
     save(HERE/'manifest.json',items)
     (HERE/'parent.md').write_bytes((OLD/'parent.md').read_bytes())
-    memory=read(MEM/'config/full_payload.json')['memory'];assert [e['id'] for e in memory['entries']]==['M1','M2','M3','M6','M7','M8','M9'];save(HERE/'memory.json',memory)
+    memory=read(MEM/'config/full_payload.json')['memory'];assert [e['id'] for e in memory['entries']]==['M1','M2','M3','M6','M7','M8','M9'];save(ARCHIVE/'memory.json',memory)
     assert (HERE/'parent.md').read_text()==read(MEM/'config/full_payload.json')['parent']
     tw,wrapper=environment_modules();tasks=[]
     for i,item in enumerate(items,1):
@@ -71,7 +72,7 @@ def generate(messages,stage,out):
     if not response.ok:raise RuntimeError(f'HTTP {response.status_code}')
     return grouping.response_value(response.json())
 def episode(condition,task):
-    verify();ref=task['ref'];out=HERE/'episodes'/condition/ref;output=out/'trajectory.json'
+    verify();ref=task['ref'];out=ARCHIVE/'episodes'/condition/ref;output=out/'trajectory.json'
     if output.exists():
         r=read(output);print('REUSE/STOP',condition,ref,r['status'],flush=True);return r
     out.mkdir(parents=True,exist_ok=True)
@@ -97,23 +98,23 @@ def parents():
     verify();results=[]
     for t in read(HERE/'tasks.json'):
         r=episode('Parent',t);results.append({'ref':t['ref'],'status':r['status'],'steps':len(r['steps'])});save(HERE/'parent_progress.json',results)
-    records=[read(HERE/f"episodes/Parent/{t['ref']}/trajectory.json") for t in read(HERE/'tasks.json')]
+    records=[read(ARCHIVE/f"episodes/Parent/{t['ref']}/trajectory.json") for t in read(HERE/'tasks.json')]
     complete=all(r['status'] in COMPLETE for r in records)
     save(HERE/'parent_gate.json',{'all_six_complete':complete,'downstream_allowed':complete,'criterion':'All six normal outcomes required; no deletion or replacement of incomplete tasks.'})
 def stage(name):
-    verify();assert read(HERE/'parent_gate.json')['downstream_allowed'];out=HERE/'runs'/name
-    if name=='grouping':
-        records=[read(HERE/f"episodes/Parent/P{i}/trajectory.json") for i in range(1,7)];bundle=build_facts(records);saved=bundle;messages=grouping.messages_for(bundle);kind='grouping';meta={'round_id':'P3A2_BATCH1'}
-    elif name=='diagnosis':
-        saved=grouping.load_grouping(HERE/'runs/grouping');messages=diagnosis.messages_for(saved);kind='diagnosis';meta={'grouping_round_id':saved['round_id'],'grouping_directory':str(HERE/'runs/grouping')}
-    else:
-        assert read(HERE/'diagnosis_gate.json')['comparable_multiline'];saved={**diagnosis.load_diagnosis(HERE/'runs/diagnosis'),'memory':read(HERE/'memory.json')}
-        a=project_messages(oldpc.messages_for(saved));b=pc.messages_for(saved);assert a[1]==b[1]
-        save(HERE/'common_preconditioner_input.json',{'full':oldpc.preconditioner_input(saved),'model':pc.model_input(saved),'same_user_content':True})
-        messages=a if name=='A' else b;kind='preconditioner';meta={'round_id':saved['round_id'],'grouping_directory':str(HERE/'runs/grouping'),'diagnosis_directory':str(HERE/'runs/diagnosis'),'memory':saved['memory'],'memory_contract':'entries_sources','memory_view':FORMAT}
-    out.mkdir(parents=True,exist_ok=True)
+    verify();assert read(HERE/'parent_gate.json')['downstream_allowed'];out=ARCHIVE/'runs'/name
     if (out/'run.json').exists() and read(out/'run.json')['status'] in {'valid','invalid'}:
         print('REUSE/STOP',name,read(out/'run.json')['status'],flush=True);return
+    if name=='grouping':
+        records=[read(ARCHIVE/f"episodes/Parent/P{i}/trajectory.json") for i in range(1,7)];bundle=build_facts(records);saved=bundle;messages=grouping.messages_for(bundle);kind='grouping';meta={'round_id':'P3A2_BATCH1'}
+    elif name=='diagnosis':
+        saved=load_saved('runs/grouping',grouping.load_grouping);messages=diagnosis.messages_for(saved);kind='diagnosis';meta={'grouping_round_id':saved['round_id'],'grouping_directory':str(ARCHIVE/'runs/grouping')}
+    else:
+        assert read(HERE/'diagnosis_gate.json')['comparable_multiline'];saved={**load_saved('runs/diagnosis',diagnosis.load_diagnosis),'memory':read(ARCHIVE/'memory.json')}
+        a=project_messages(oldpc.messages_for(saved));b=pc.messages_for(saved);assert a[1]==b[1]
+        save(ARCHIVE/'common_preconditioner_input.json',{'full':oldpc.preconditioner_input(saved),'model':pc.model_input(saved),'same_user_content':True})
+        messages=a if name=='A' else b;kind='preconditioner';meta={'round_id':saved['round_id'],'grouping_directory':str(ARCHIVE/'runs/grouping'),'diagnosis_directory':str(ARCHIVE/'runs/diagnosis'),'memory':saved['memory'],'memory_contract':'entries_sources','memory_view':FORMAT}
+    out.mkdir(parents=True,exist_ok=True)
     for file,value in [('input',saved),('messages',messages)]:save(out/f'{file}.json',value)
     if name in {'A','B'}:save(out/'model_input.json',pc.model_input(saved))
     (out/'prompt.md').write_text(messages[0]['content']);meta.update(status='requesting',started_at=now(),call_config=cc(kind));save(out/'run.json',meta)
@@ -131,19 +132,20 @@ def stage(name):
         (out/'traceback.txt').write_text(traceback.format_exc());meta.update(status='invalid',error_type=type(exc).__name__,error=str(exc));save(out/'validation.json',{'valid':False,'error_type':type(exc).__name__,'error':str(exc)})
     finally:meta['finished_at']=now();save(out/'run.json',meta)
     if meta['status']=='valid':
-        if name=='grouping':grouping.load_grouping(out)
-        elif name=='diagnosis':diagnosis.load_diagnosis(out)
-        elif name=='B':pc.load_preconditioner(out)
+        if name=='grouping':load_saved('runs/'+name,grouping.load_grouping)
+        elif name=='diagnosis':load_saved('runs/'+name,diagnosis.load_diagnosis)
+        elif name=='B':load_saved('runs/'+name,pc.load_preconditioner)
         else:load_pc('A')
     print('STAGE',name,meta['status'],flush=True)
 def load_pc(arm):
-    if arm=='B':return pc.load_preconditioner(HERE/'runs/B')
+    if arm=='B':return load_saved('runs/B',pc.load_preconditioner)
     from experiments.methods.v23_3.memory_v3_integration_001.run import load_a
-    saved={**diagnosis.load_diagnosis(HERE/'runs/diagnosis'),'memory':read(HERE/'memory.json')};return load_a(HERE/'runs/A',saved)
+    saved={**load_saved('runs/diagnosis',diagnosis.load_diagnosis),'memory':read(ARCHIVE/'memory.json')};return load_saved('runs/A',load_a,saved)
 def editor_call(arm):
-    verify();up=load_pc(arm);assert up['effective_plan'] is not None;out=HERE/'editors'/arm
+    verify();out=ARCHIVE/'editors'/arm
     if (out/'run.json').exists():
         print('REUSE/STOP editor',arm,read(out/'run.json')['status'],flush=True);return
+    up=load_pc(arm);assert up['effective_plan'] is not None
     out.mkdir(parents=True,exist_ok=True);messages=editor.messages_for(up)
     for name,value in [('upstream',up),('input',editor.editor_input(up)),('background',up['background']),('messages',messages)]:save(out/f'{name}.json',value)
     (out/'prompt.md').write_text(messages[0]['content']);meta={'round_id':up['round_id'],'call_config':cc('editor'),'started_at':now(),'status':'requesting'};save(out/'run.json',meta)
@@ -163,9 +165,9 @@ def candidates():
     verify();gate=read(HERE/'editor_gate.json')
     for t in read(HERE/'tasks.json'):
         for arm in ['A','B']:
-            if arm in gate['valid_candidates']:editor.load_editor(HERE/'editors'/arm);episode(arm,t)
+            if arm in gate['valid_candidates']:load_saved('editors/'+arm,editor.load_editor);episode(arm,t)
 if __name__=='__main__':
-    with (HERE/'process.lock').open('a') as lock:
+    with (ARCHIVE/'process.lock').open('a') as lock:
         fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
         cmd=sys.argv[1]
         if cmd=='stage':stage(sys.argv[2])

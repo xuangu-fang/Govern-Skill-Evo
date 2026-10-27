@@ -22,13 +22,15 @@ OLD = HERE.parent / "p3a_first_live_comparison_001"
 DD = OLD / "runs/diagnosis"
 
 
+from experiments.methods.v23_3.archive_io import archive_glob, load_saved, resolve
+
 def configuration():
     key, cfg = environment()
     return key, {**cfg, "max_tokens": 32768}
 
 
 def inputs():
-    saved = {**diagnosis.load_diagnosis(DD), "memory": read(OLD / "config/memory.json")}
+    saved = {**load_saved(diagnosis.load_diagnosis, DD), "memory": read(OLD / "config/memory.json")}
     assert saved == read(OLD / "config/common_saved.json")
     assert v23.preconditioner_input(saved) == read(OLD / "config/common_payload.json")
     return saved
@@ -48,7 +50,7 @@ def request(msgs, cfg):
 
 
 def digest(p):
-    return hashlib.sha256(p.read_bytes()).hexdigest()
+    return hashlib.sha256(resolve(p).read_bytes()).hexdigest()
 
 
 def prepare():
@@ -65,7 +67,7 @@ def prepare():
     files = [HERE / "run.py", HERE / "PROTOCOL.md"]
     for folder in ("src/skill_evolution/v23", "src/skill_evolution/v23_3", "tests/skill_evolution/v23_3"):
         files += [p for p in (ROOT / folder).iterdir() if p.suffix in (".py", ".md")]
-    files += list((HERE / "config").glob("*.json"))
+    files += list(archive_glob(HERE / 'config', '*.json'))
     files += [HERE.parent / "p3a_transport_retry_001/run.py",
               OLD / "run.py", HERE.parent / "memory_compaction_live_validation_001/run.py",
               ROOT / "src/skill_evolution/v22/diagnosis_editor.py"]
@@ -97,7 +99,7 @@ def load_a(out, saved):
     assert read(out / "messages.json") == messages(saved)["A"]
     response = read(out / "response.json")
     assert response["finish_reason"] == "stop"
-    assert (out / "raw_output.txt").read_text() == response["content"]
+    assert resolve(out / 'raw_output.txt').read_text() == response["content"]
     parsed = parse_json_response(response["content"])
     assert parsed == read(out / "parsed.json") == read(out / "preconditioner.json")
     effective = v23.compile_effective_plan(parsed, v23.preconditioner_input(saved))
@@ -110,8 +112,8 @@ def run(arm):
     key, cfg, saved = verify()
     if arm == "A":
         assert read(HERE / "results/B_execution.json")["production_gate_passed"]
-        assert (HERE / "results/B_EVALUATION.md").is_file(), "Evaluate B before generating A"
-        assert pc.load_preconditioner(HERE / "runs/B")["effective_plan"] is not None
+        assert resolve(HERE / 'results/B_EVALUATION.md').is_file(), "Evaluate B before generating A"
+        assert load_saved(pc.load_preconditioner, HERE / 'runs/B')["effective_plan"] is not None
     claim = HERE / "results" / f"{arm}_claim.json"
     save(claim, {"at": now(), "max_http_requests": 1})
     req = read(HERE / "config" / f"{arm}_request.json")
@@ -124,7 +126,7 @@ def run(arm):
         assert actual == req["body"]["messages"]
         assert meta["http_requests_started"] == 0
         dest = Path(directory) / "http/001"
-        dest.mkdir(parents=True, exist_ok=False)
+        resolve(dest).mkdir(parents=True, exist_ok=False)
         meta["http_requests_started"] = 1
         response = transport()(req, key, dest, {"connect_upload_timeout_seconds": 60,
                                                "read_timeout_seconds": 300})
@@ -137,15 +139,15 @@ def run(arm):
             gd = read(DD / "run.json")["grouping_directory"]
             result = pc.run_preconditioner(gd, DD, out, generate=generate, memory=saved["memory"],
                                           max_input_chars=4000000, call_config=cfg)
-            assert pc.load_preconditioner(out, expected_call_config=cfg, expected_memory_view=FORMAT) == result
+            assert load_saved(pc.load_preconditioner, out, expected_call_config=cfg, expected_memory_view=FORMAT) == result
         else:
-            out.mkdir(parents=True, exist_ok=False)
+            resolve(out).mkdir(parents=True, exist_ok=False)
             save(out / "input.json", saved)
             save(out / "model_input.json", pc.model_input(saved))
             save(out / "messages.json", req["body"]["messages"])
             response = generate(req["body"]["messages"], out)
             save(out / "response.json", response)
-            (out / "raw_output.txt").write_text(response["content"])
+            (resolve(out / "raw_output.txt")).write_text(response["content"])
             assert response["finish_reason"] == "stop", "Incomplete A response"
             parsed = parse_json_response(response["content"])
             save(out / "parsed.json", parsed)
@@ -159,8 +161,8 @@ def run(arm):
                     effective_plan_present=effective is not None, reloaded=True,
                     production_gate_passed=effective is not None)
     except Exception as exc:
-        out.mkdir(parents=True, exist_ok=True)
-        (out / "traceback.txt").write_text(traceback.format_exc())
+        resolve(out).mkdir(parents=True, exist_ok=True)
+        (resolve(out / "traceback.txt")).write_text(traceback.format_exc())
         meta.update(status="failed", error_type=type(exc).__name__, error=str(exc))
     finally:
         meta.update(finished_at=now(), elapsed_seconds=time.monotonic() - started)

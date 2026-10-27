@@ -15,13 +15,15 @@ ROOT = HERE.parents[3]
 FORMAL = ROOT / "artifacts/methods/v23/v23_alfworld_formal_001/S1/rounds"
 
 
+from experiments.methods.v23_3.archive_io import resolve
+
 def read(path):
-    return json.loads(path.read_text(encoding="utf-8"))
+    return json.loads(resolve(path).read_text(encoding='utf-8'))
 
 
 def write(path, value):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("x", encoding="utf-8") as f:
+    resolve(path.parent).mkdir(parents=True, exist_ok=True)
+    with resolve(path).open("x", encoding="utf-8") as f:
         json.dump(value, f, ensure_ascii=False, indent=2)
         f.write("\n")
 
@@ -35,7 +37,7 @@ def project_messages(messages, view):
     payload = json.loads(result[1]["content"])
     payload["memory"] = view
     result[1]["content"] = serialize(payload)
-    result[0]["content"] += "\n\n" + (HERE / "MODEL_FORMAT.md").read_text(encoding="utf-8")
+    result[0]["content"] += "\n\n" + resolve(HERE / 'MODEL_FORMAT.md').read_text(encoding='utf-8')
     return result
 
 
@@ -118,9 +120,9 @@ def main():
     write(HERE / "results/costs.json", summary)
     baseline = read(HERE / "baseline.json")["existing_files"]
     changed = [rel for rel, st in baseline.items()
-               if not (ROOT / rel).is_file()
-               or (ROOT / rel).stat().st_size != st["size"]
-               or (ROOT / rel).stat().st_mtime_ns != st["mtime_ns"]]
+               if not resolve(ROOT / rel).is_file()
+               or resolve(ROOT / rel).stat().st_size != st["size"]
+               or resolve(ROOT / rel).stat().st_mtime_ns != st["mtime_ns"]]
     write(HERE / "results/protection.json", {"checked_files": len(baseline), "changed": changed})
     assert not changed, "Previously existing files changed during offline work"
 

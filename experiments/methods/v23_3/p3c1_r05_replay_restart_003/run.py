@@ -10,6 +10,8 @@ ROOT=prior.ROOT
 read,save,now=prior.read,prior.save,prior.now
 COMPLETE=prior.COMPLETE
 
+from experiments.methods.v23_3.archive_io import resolve
+
 def prepare():
     recovery.verify()
     a=read(prior.HERE/'analysis.json')
@@ -20,7 +22,7 @@ def prepare():
     save(HERE/'baseline.json',{'at':now(),'head':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
         'git_status':subprocess.check_output(['git','status','--short'],cwd=ROOT,text=True),
         'git_diff':subprocess.check_output(['git','diff'],cwd=ROOT,text=True),
-        'files':{str(ROOT/p):[(ROOT/p).stat().st_size,(ROOT/p).stat().st_mtime_ns] for p in files if (ROOT/p).is_file() and not (ROOT/p).is_relative_to(HERE)}})
+        'files':{str(ROOT/p):[resolve(ROOT / p).stat().st_size,resolve(ROOT / p).stat().st_mtime_ns] for p in files if resolve(ROOT / p).is_file() and not (ROOT/p).is_relative_to(HERE)}})
     save(HERE/'config.json',{'at':now(),'original_config':prior.verify()['original_config'],
         'previous_actor_http':a['cumulative_including_editors']['decisions'],'cumulative_actor_http_max':600,
         'backoff_seconds':[120,240,300],'task':['Parent','P7'],'max_steps':50,'per_decision_http_attempts':1,
@@ -39,13 +41,13 @@ def episode(attempt):
     prior.previous.episode('Parent','P7')
 
 def batch():
-    cfg=verify();(HERE/'batch.claim').open('x').close()
+    cfg=verify();(resolve(HERE/'batch.claim')).open('x').close()
     results=[];spent=0;stop='budget_reservation';attempt=1
     while cfg['previous_actor_http']+spent+50<=cfg['cumulative_actor_http_max']:
-        folder=HERE/f'attempt_{attempt}';folder.mkdir(exist_ok=False)
-        with (folder/'Parent_P7.log').open('x') as log:
+        folder=HERE/f'attempt_{attempt}';resolve(folder).mkdir(exist_ok=False)
+        with (resolve(folder/'Parent_P7.log')).open('x') as log:
             proc=subprocess.run([prior.previous.original.PYTHON,'-B','-m','experiments.methods.v23_3.p3c1_r05_replay_restart_003.run','episode',str(attempt)],cwd=ROOT,stdout=log,stderr=subprocess.STDOUT,env={**os.environ,'PYTHONDONTWRITEBYTECODE':'1'})
-        path=folder/'episodes/Parent/P7/trajectory.json';r=read(path) if path.exists() else {}
+        path=folder/'episodes/Parent/P7/trajectory.json';r=read(path) if resolve(path).exists() else {}
         transports=[t for s in r.get('steps',[]) for t in s.get('transport_attempts',[])]
         status=r.get('status','setup_error');http=transports[-1].get('http_status') if transports else None
         spent+=len(transports)

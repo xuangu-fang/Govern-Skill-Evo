@@ -11,7 +11,7 @@ A、B 均一次真实生成有效 Candidate；离线严格重载、解析、应�
 | reasoning tokens（已含于 completion） | 6,531 | 6,831 |
 | 调用耗时（归档起止） | 36.42 秒 | 32.14 秒 |
 
-两个请求除 messages 内 Effective Plan 外，模型和采样参数相同，timeout 均 (60,300)，transport_retries=0；Editor payload 唯一差异字段为 `plan`。请求完整记录分别在 [A HTTP request](../p3c1_r05_replay_001/editors/A/http/001/request.json)、[B HTTP request](../p3c1_r05_replay_001/editors/B/http/001/request.json)。金额未返回，未知。
+两个请求除 messages 内 Effective Plan 外，模型和采样参数相同，timeout 均 (60,300)，transport_retries=0；Editor payload 唯一差异字段为 `plan`。请求完整记录分别在 [A HTTP request](../../../../artifacts/methods/v23_3/p3c1_r05_replay_001/editors/A/http/001/request.json)、[B HTTP request](../../../../artifacts/methods/v23_3/p3c1_r05_replay_001/editors/B/http/001/request.json)。金额未返回，未知。
 
 ## Effective → Skill 的落实
 

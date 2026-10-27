@@ -14,7 +14,7 @@
 
 仍保留此前的显式 before/after 和直接全局菜单引用。历史来源、证据选择、详细窗口、动作、反馈、状态、命令内容、结果与 Diff 均未改变。没有新增检索 LLM 或预计算数量提示。
 
-实现：[compact_v3.py](compact_v3.py)、[probes_v3.py](probes_v3.py)、[格式说明](MODEL_FORMAT.md)。调用前冻结的范围与门槛见 [PROTOCOL.md](PROTOCOL.md)。
+实现：[compact_v3.py](../compact_v3.py)、[probes_v3.py](../probes_v3.py)、[格式说明](../MODEL_FORMAT.md)。调用前冻结的范围与门槛见 [PROTOCOL.md](../PROTOCOL.md)。
 
 ## 离线验证
 
@@ -22,7 +22,7 @@
 
 R05 11 题、R06 14 题的目标事实保持不变。只有两题的步骤数组参考值增加来源前缀，逆向归一化后全部参考答案与 v2 相等。测试同时验证评分拒绝错误来源和旧局部 ID；未把题目答案放入模型请求。
 
-首次测试收集遇到新 offline 文件的导入路径笔误，已在冻结及模型调用前修正；最终完整测试为 14 passed。见 [测试与预检记录](results/preflight.json)、[来源回归样本](results/cross_source_regression.json)。
+首次测试收集遇到新 offline 文件的导入路径笔误，已在冻结及模型调用前修正；最终完整测试为 14 passed。见 [测试与预检记录](../results/preflight.json)、[来源回归样本](../results/cross_source_regression.json)。
 
 | 案例 | v3 预计生产总输入 tokens | 比 v2 增加 | 比原始输入减少 |
 |---|---:|---:|---:|
@@ -32,7 +32,7 @@ R05 11 题、R06 14 题的目标事实保持不变。只有两题的步骤数组
 | P3A_A | 277,344 | 2.61% | 41.57% |
 | P3A_B | 278,016 | 2.60% | 41.52% |
 
-估算包括生产 Prompt 的全部输入，使用 o200k 本地比率乘原调用实际输入用量；不是模型精确 tokenizer 计数。cl100k 结果一并归档。A/B user 输入仍相同。详见 [离线汇总](results/offline.json)。
+估算包括生产 Prompt 的全部输入，使用 o200k 本地比率乘原调用实际输入用量；不是模型精确 tokenizer 计数。cl100k 结果一并归档。A/B user 输入仍相同。详见 [离线汇总](../results/offline.json)。
 
 ## 同批真实模型读取
 
@@ -76,7 +76,7 @@ R05 `source_coverage`：
 
 本轮未添加计数提示、未改变该题、未修改评分或事后判为通过。尽管其余 24 项通过，原定两例全对的门槛仍未达到。
 
-证据：[来源清单](results/source_count_audit.json)、[R05 评分](runs/R05/evaluation.json)、[R06 评分](runs/R06/evaluation.json)。原始响应、最终答案与逐题评分均保留，没有用内部 reasoning 文本评分。
+证据：[来源清单](../results/source_count_audit.json)、[R05 评分](../runs/R05/evaluation.json)、[R06 评分](../runs/R06/evaluation.json)。原始响应、最终答案与逐题评分均保留，没有用内部 reasoning 文本评分。
 
 ## 决策
 
@@ -84,4 +84,4 @@ R05 `source_coverage`：
 
 若继续优化，下一项可考虑由程序提供明确分类的来源清单及数量，例如 execution_sources 与 edit_sources 分开计数，并离线验证计数一致性。该方向不需要额外 LLM，但会改变事实检查所衡量的能力，应重新说明验证目标，不能把显式给出数量后的答对解释为模型自主计数能力提高。本轮尚未执行该修改或追加模型调用。
 
-所有变更仅在本实验目录；4,069 个既有相关文件 size/mtime 未改变，冻结 SHA-256 校验通过。见 [保护记录](results/protection.json)、[机器可读汇总](results/summary.json)。
+所有变更仅在本实验目录；4,069 个既有相关文件 size/mtime 未改变，冻结 SHA-256 校验通过。见 [保护记录](../results/protection.json)、[机器可读汇总](../results/summary.json)。

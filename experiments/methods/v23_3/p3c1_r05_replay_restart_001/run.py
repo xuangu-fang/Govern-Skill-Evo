@@ -13,17 +13,19 @@ OLD=original.HERE
 read,save,now=original.read,original.save,original.now
 JOBS=[('Parent','P7'),('A','P7'),('A','P10'),('B','P3'),('B','P6'),('B','P7'),('B','P10')]
 
+from experiments.methods.v23_3.archive_io import load_saved, resolve
+
 def prepare():
     cfg=original.verify_freeze()
     selection=[]
     for condition,ref in JOBS:
         path=OLD/f'episodes/{condition}/{ref}/trajectory.json'
-        if path.exists():
+        if resolve(path).exists():
             record=read(path)
             assert record['status']=='error' and record['steps'][-1]['transport_attempts'][-1]['http_status']==429
             kind='restart_429'
         else:kind='previously_not_started'
-        selection.append({'condition':condition,'ref':ref,'kind':kind,'old_trajectory':str(path) if path.exists() else None})
+        selection.append({'condition':condition,'ref':ref,'kind':kind,'old_trajectory':str(path) if resolve(path).exists() else None})
     save(HERE/'config.json',{'at':now(),'original_config':cfg,'jobs':selection,
         'concurrency':1,'minimum_request_gap_seconds':2,'attempts_per_decision':1,
         'new_episodes_max':7,'new_decisions_max':350,'original_decisions':76,
@@ -46,10 +48,10 @@ def episode(condition,ref):
     key,base=original.credentials();assert cfg['endpoint']==base+'/chat/completions'
     skillfile=OLD/'parent.md' if condition=='Parent' else OLD/f'editors/{condition}/candidate.md'
     if condition!='Parent':
-        saved=original.editor.load_editor(OLD/'editors'/condition)
-        assert saved['editor_status']=='candidate' and saved['candidate_text']==skillfile.read_text()
+        saved=load_saved(original.editor.load_editor, OLD / 'editors' / condition)
+        assert saved['editor_status']=='candidate' and saved['candidate_text']==resolve(skillfile).read_text()
     task=next(t for t in read(OLD/'tasks.json') if t['ref']==ref)
-    out=HERE/f'episodes/{condition}/{ref}';out.mkdir(parents=True,exist_ok=False)
+    out=HERE/f'episodes/{condition}/{ref}';resolve(out).mkdir(parents=True,exist_ok=False)
     record=make_record(item=task['item'],split='val',purpose='optimization',skill=load_skill(skillfile),
         model=cfg['model'],max_steps=50,gamefile=Path(task['gamefile']),manifest_path=Path(task['manifest']),
         versions=installed_versions(),backend_id=digest(cfg['endpoint'].encode()))
@@ -72,14 +74,14 @@ def episode(condition,ref):
     print(condition,ref,record['status'],len(record['steps']),flush=True)
 
 def batch():
-    verify();(HERE/'batch.claim').open('x').close();results=[]
+    verify();(resolve(HERE/'batch.claim')).open('x').close();results=[]
     for condition,ref in JOBS:
         log=HERE/f'{condition}_{ref}.log'
-        with log.open('w') as output:
+        with resolve(log).open('w') as output:
             proc=subprocess.run([original.PYTHON,'-B','-m','experiments.methods.v23_3.p3c1_r05_replay_restart_001.run','episode',condition,ref],cwd=original.ROOT,stdout=output,stderr=subprocess.STDOUT,
                                 env={**os.environ,'PYTHONDONTWRITEBYTECODE':'1'})
         path=HERE/f'episodes/{condition}/{ref}/trajectory.json'
-        status=read(path)['status'] if path.exists() else 'setup_error'
+        status=read(path)['status'] if resolve(path).exists() else 'setup_error'
         results.append({'condition':condition,'ref':ref,'exit':proc.returncode,'status':status})
         save(HERE/'progress.json',{'at':now(),'results':results,'remaining':JOBS[len(results):]})
         print(condition,ref,status,flush=True)

@@ -13,10 +13,12 @@ read,save,now=previous.read,previous.save,previous.now
 JOBS=previous.JOBS
 COMPLETE={'success','step_limit','environment_ended'}
 
+from experiments.methods.v23_3.archive_io import resolve
+
 def prepare():
     cfg=previous.verify()
     files=set(subprocess.check_output(['git','ls-files','--cached','--others','--exclude-standard'],cwd=ROOT,text=True).splitlines())
-    protected={str(ROOT/p):[(ROOT/p).stat().st_size,(ROOT/p).stat().st_mtime_ns] for p in files if (ROOT/p).is_file() and not (ROOT/p).is_relative_to(HERE)}
+    protected={str(ROOT/p):[resolve(ROOT / p).stat().st_size,resolve(ROOT / p).stat().st_mtime_ns] for p in files if resolve(ROOT / p).is_file() and not (ROOT/p).is_relative_to(HERE)}
     save(HERE/'baseline.json',{'at':now(),'head':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
         'git_status':subprocess.check_output(['git','status','--short'],cwd=ROOT,text=True),
         'git_diff':subprocess.check_output(['git','diff'],cwd=ROOT,text=True),'files':protected})
@@ -39,17 +41,17 @@ def episode(round_no,condition,ref):
     previous.episode(condition,ref)
 
 def batch():
-    cfg=verify();(HERE/'batch.claim').open('x').close()
+    cfg=verify();(resolve(HERE/'batch.claim')).open('x').close()
     completed=set();results=[];stop='round_limit'
     for round_no in range(1,cfg['max_rounds']+1):
-        folder=HERE/f'attempt_{round_no}';folder.mkdir(exist_ok=False)
+        folder=HERE/f'attempt_{round_no}';resolve(folder).mkdir(exist_ok=False)
         rate_limited=False
         for condition,ref in JOBS:
             if (condition,ref) in completed:continue
-            with (folder/f'{condition}_{ref}.log').open('w') as log:
+            with (resolve(folder/f'{condition}_{ref}.log')).open('w') as log:
                 proc=subprocess.run([previous.original.PYTHON,'-B','-m','experiments.methods.v23_3.p3c1_r05_replay_restart_002.run','episode',str(round_no),condition,ref],cwd=ROOT,stdout=log,stderr=subprocess.STDOUT,env={**os.environ,'PYTHONDONTWRITEBYTECODE':'1'})
             path=folder/f'episodes/{condition}/{ref}/trajectory.json'
-            r=read(path) if path.exists() else {}
+            r=read(path) if resolve(path).exists() else {}
             status=r.get('status','setup_error')
             transport=[t for s in r.get('steps',[]) for t in s.get('transport_attempts',[])]
             http_status=transport[-1].get('http_status') if transport else None

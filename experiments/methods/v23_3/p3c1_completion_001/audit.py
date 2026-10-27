@@ -14,13 +14,15 @@ from src.skill_evolution.v23 import editor
 ROOT=original.ROOT
 HERE=Path(__file__).resolve().parent
 BASE=HERE.parent
-read=lambda p: json.loads(Path(p).read_text())
+read=lambda p: json.loads(resolve(Path(p)).read_text())
+from experiments.methods.v23_3.archive_io import archive_glob, load_saved, resolve
+
 def save(name,value):
-    (HERE/name).write_text(json.dumps(value,ensure_ascii=False,indent=2)+'\n')
+    (resolve(HERE/name)).write_text(json.dumps(value,ensure_ascii=False,indent=2)+'\n')
 def main():
     final.verify()
     upstream=original.upstreams()
-    editors={a:editor.load_editor(original.HERE/'editors'/a,expected_preconditioner=upstream[a]) for a in ['A','B']}
+    editors={a:load_saved(editor.load_editor, original.HERE / 'editors' / a, expected_preconditioner=upstream[a]) for a in ['A','B']}
     inputs={a:read(original.HERE/'editors'/a/'input.json') for a in ['A','B']}
     differing=[k for k in inputs['A'] if inputs['A'][k]!=inputs['B'][k]]
     assert differing==['plan'],differing
@@ -63,7 +65,7 @@ def main():
             assert p['request_policy']==q['request_policy']
             assert p['implementation']['files']==q['implementation']['files']
             pairs.append([ref,a,b])
-    paths=sorted(p for d in BASE.glob('p3c1_r05_replay*') if d.is_dir() for p in d.rglob('trajectory.json'))
+    paths=sorted(p for d in archive_glob(BASE, 'p3c1_r05_replay*') if resolve(d).is_dir() for p in archive_glob(d, 'trajectory.json', recursive=True))
     attempts=[];cost=Counter();completed={}
     for p in paths:
         r=read(p);a=verify_record(r);assert a['trace_valid'];condition=p.parts[-3];ref=p.parts[-2]
@@ -82,7 +84,7 @@ def main():
     for k in ['episodes','prompt_tokens','completion_tokens','total_tokens','reasoning_tokens','http_429','unknown_usage_attempts']:assert cost[k]==latest['cumulative_including_editors'][k],(k,cost[k])
     assert cost['actor_decisions']==480 and cost['actor_decisions']<=600 and cost['complete']==12
     save('costs.json',{'actor_only':actor_cost,'including_editors':dict(cost),'currency_cost':None,'reasoning_is_subset_of_completion':True,'unknown_usage_is_not_zero':True,'selected_executed_actions':sum(r['steps_executed'] for r in rows),'attempts':attempts})
-    train=read(original.HERE/'new_train_cases.json');ex=read(original.HERE/'new_train_exclusions.json');excluded={x['identity'] for x in ex};data=Path(train['source_root']);pool=sorted(data.glob('*/*/game.tw-pddl'));eligible={f:[] for f in FAMILIES}
+    train=read(original.HERE/'new_train_cases.json');ex=read(original.HERE/'new_train_exclusions.json');excluded={x['identity'] for x in ex};data=Path(train['source_root']);pool=sorted(archive_glob(data, '*/*/game.tw-pddl'));eligible={f:[] for f in FAMILIES}
     for p in pool:
         family=p.parent.parent.name.split('-')[0]
         if p.parent.name not in excluded and family in eligible:eligible[family].append(p)
@@ -96,7 +98,7 @@ def main():
     mem=read(BASE/'memory_v3_integration_001/config/model_input.json')['memory'];refs={'M3':['S1_R02/diff','S1_R02/P5','S1_R02/Q5','S1_R02/Q4','S1_R02/Q6'],'M6':['S1_R03/diff','S1_R03/P2','S1_R03/Q2','S1_R03/P4','S1_R03/Q4','S1_R03/P6','S1_R03/Q6'],'M8':['S1_R03/diff','S1_R04/diff','S1_R03/P5','S1_R03/Q5','S1_R03/P10','S1_R03/Q10','S1_R04/P1','S1_R04/Q1']}
     save('historical_evidence.json',{'source':'../memory_v3_integration_001/config/model_input.json','entries':[e for e in mem['entries'] if e['id'] in refs],'sources':{r:mem['sources'][r] for r in sorted(set(r for v in refs.values() for r in v))}})
     save('evidence.json',{'rows':rows,'paired_checks':pairs,'cost_scope':'Selected complete trajectories for behavior; all 25 attempts for cost.'})
-    (HERE/'TRAJECTORY_EVIDENCE.md').write_text('\n'.join(trace_md))
+    (resolve(HERE/'TRAJECTORY_EVIDENCE.md')).write_text('\n'.join(trace_md))
     save('validation.json',{'freeze_chain_verified':True,'editor_strict_reapplication_valid':True,'selected_complete':len(rows),'all_archived_attempts_trace_valid':len(attempts),'pair_checks':len(pairs),'first_complete_selection_verified':True,'train_selection_reproduced':True,'new_model_calls':0,'new_environment_runs':0})
     print(json.dumps({'rows':[{k:r[k] for k in ['condition','ref','steps_executed','location_count','location_classes','same_location_observation_repeat_steps','invalid_steps']} for r in rows],'cost':dict(cost)},ensure_ascii=False,indent=2))
 if __name__=='__main__':main()

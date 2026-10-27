@@ -6,7 +6,7 @@
 
 ## 结果与来源
 
-- 新尝试：[trajectory.json](episodes/Parent/P7/trajectory.json)，原始请求消息、传输记录、HTTP原文和原生反馈均保留；[audit.json](episodes/Parent/P7/audit.json)通过原verify_record，episode_complete=false、native_success=null。
+- 新尝试：[trajectory.json](../../../../artifacts/methods/v23_3/p3c1_r05_replay_restart_001/episodes/Parent/P7/trajectory.json)，原始请求消息、传输记录、HTTP原文和原生反馈均保留；[audit.json](episodes/Parent/P7/audit.json)通过原verify_record，episode_complete=false、native_success=null。
 - 环境版本、原初始观察与候选菜单、seed42、固定Parent、原模型参数检查通过。
 - 第14次请求被拒绝，不能把该Episode当作行为失败或判断它会成功；新旧Parent/P7分别为13步/19步截断，**不选择较长或看起来较好的前缀作为正式结果**。
 - A/P7、A/P10、B/P3本次没有重启，其旧失败仍在原目录；B/P6、P7、P10仍从未启动。B仍没有有效Actor动作，三方比较未完成。

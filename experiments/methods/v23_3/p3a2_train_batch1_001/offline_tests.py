@@ -20,7 +20,7 @@ def main():
  def case(label,items,expected,raises=False):
   with tempfile.TemporaryDirectory(dir=original,prefix='offline_') as temp:
    root=Path(temp);t.save(root/'config.json',{'timeout':[60,300],'minimum_request_interval_seconds':3});fake=Fake(items);d=root/'call';body={'messages':[{'role':'user','content':'immutable'}]}
-   with patch.object(t,'HERE',root),patch.object(t,'reserve_start',return_value=0),patch.object(t,'sleep_until',return_value=0),patch.object(t.socket,'create_connection',return_value=MagicMock()):
+   with patch.object(t,'HERE',root),patch.object(t,'ARCHIVE',root),patch.object(t,'reserve_start',return_value=0),patch.object(t,'sleep_until',return_value=0),patch.object(t.socket,'create_connection',return_value=MagicMock()):
     try:t.BoundedSession(fake,d).post('http://example.invalid',json=body);assert not raises
     except RuntimeError:assert raises
     except requests.ReadTimeout:assert raises

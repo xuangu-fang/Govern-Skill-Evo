@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import pytest
+from experiments.methods.v23_3.archive_io import materialized
 
 from src.skill_evolution.v23 import preconditioner as old_pc
 from src.skill_evolution.v23.memory import empty_memory
@@ -43,13 +44,27 @@ def test_same_ab_input_and_unchanged_original_policy(upstream):
     assert "format" not in old_pc.preconditioner_input(saved)["memory"]
 
 
-def test_old_archive_and_editor_still_reload():
-    root = Path("experiments/methods/v23_3/p2_offline_001/mock_chain")
-    saved = pc.load_preconditioner(root / "preconditioner")
-    assert "memory_view" not in read(root / "preconditioner/run.json")
-    assert read(root / "preconditioner/messages.json") == pc.messages_for(saved, memory_view=LEGACY)
-    from src.skill_evolution.v23_3.editor import load_editor
-    assert load_editor(root / "editor")["effective_plan"] == saved["effective_plan"]
+def test_old_preconditioner_handoff_to_current_editor(tmp_path):
+    with materialized(Path("experiments/methods/v23_3/p2_offline_001/mock_chain")) as root:
+        before = {str(p): p.read_bytes() for p in root.rglob('*') if p.is_file()}
+        saved = pc.load_preconditioner(root / "preconditioner")
+        assert "memory_view" not in read(root / "preconditioner/run.json")
+        assert read(root / "preconditioner/messages.json") == pc.messages_for(saved, memory_view=LEGACY)
+        from src.skill_evolution.v23_3 import editor
+        # The historical response is an offline fixture, not a fresh model decision.
+        # Save and reload a new archive with the current Prompt, leaving history intact.
+        fake = Fake(read(root / "editor/editor.json"))
+        out = tmp_path / "current_editor"
+        result = editor.run_editor(root / "preconditioner", out, generate=fake,
+                                   max_input_chars=4000000)
+        assert fake.messages == editor.messages_for(saved)
+        assert (out / "prompt.md").read_text() == fake.messages[0]["content"]
+        assert result["effective_plan"] == saved["effective_plan"]
+        assert editor.load_editor(out, expected_preconditioner=saved) == result
+        assert editor.run_editor(root / "preconditioner", out, generate=fake,
+                                 max_input_chars=4000000) == result
+        assert fake.calls == 1
+        assert before == {str(p): p.read_bytes() for p in root.rglob('*') if p.is_file()}
 
 
 def test_archive_view_version_resume_and_tamper(upstream):

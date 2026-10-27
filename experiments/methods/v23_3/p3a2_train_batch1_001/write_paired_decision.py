@@ -1,9 +1,10 @@
 """Final decision from verified paired metrics, no model or environment calls."""
+from .archive_io import ARCHIVE
 from .run import HERE,read,now
 
 
 def main():
-    metrics=read(HERE/'final_metrics.json');data=read(HERE/'analysis.json')
+    metrics=read(HERE/'final_metrics.json');data=read(ARCHIVE/'analysis.json')
     agg=metrics['aggregate'];assert 'B' in agg
     rows={(r['ref'],r['arm']):r for r in data['rows']};tot=data['totals']
     gains={};losses={}

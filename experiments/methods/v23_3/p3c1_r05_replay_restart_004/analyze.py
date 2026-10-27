@@ -6,8 +6,10 @@ from .run import HERE,ROOT,prior,read,save,verify,COMPLETE
 from src.adapters.alfworld.verify_skill_run import verify_record
 from src.skill_evolution.v23.replay import verify_pair
 
+from experiments.methods.v23_3.archive_io import resolve
+
 def main():
-    verify();execution=read(HERE/('final_results.json' if (HERE/'final_results.json').exists() else 'results.json'));old=read(prior.HERE/'analysis.json')
+    verify();execution=read(HERE/('final_results.json' if resolve(HERE / 'final_results.json').exists() else 'results.json'));old=read(prior.HERE/'analysis.json')
     new=Counter();records=[];attempts=[]
     for row in execution['results']:
         p=Path(row['trajectory']);r=read(p);a=verify_record(r);assert a['trace_valid']
@@ -42,7 +44,7 @@ def main():
     before=read(HERE/'baseline.json');changed=[]
     for name,st in before['files'].items():
         p=Path(name)
-        if not p.exists() or [p.stat().st_size,p.stat().st_mtime_ns]!=st:changed.append(name)
+        if not resolve(p).exists() or [resolve(p).stat().st_size,resolve(p).stat().st_mtime_ns]!=st:changed.append(name)
     same=before['git_diff']==subprocess.check_output(['git','diff'],cwd=ROOT,text=True)
     save(HERE/'protection.json',{'checked_files':len(before['files']),'changed_existing_files':changed,'tracked_diff_unchanged':same,'freezes_verified':True})
     assert not changed and same

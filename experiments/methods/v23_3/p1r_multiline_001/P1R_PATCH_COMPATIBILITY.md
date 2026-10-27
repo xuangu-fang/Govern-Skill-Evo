@@ -44,7 +44,7 @@ PYTHONDONTWRITEBYTECODE=1 python experiments/methods/v23_3/p1r_multiline_001/run
 | 混合增删替换 × 三例 | 3 | 新行坐标随前序插入/删除调整，同一字符串多 Hunk |
 | 语义风险反例 | 2 | 新增一行、在替换行内夹带类别一次出口：均结构通过，均不计为语义批准 |
 
-结果：[pytest.log](results/pytest.log)、[tests.json](results/tests.json)；首轮 115 项通过后补充混合坐标与行内风险测试，首轮日志保留为 [pytest_initial.log](results/pytest_initial.log)。测试源码：[test_compatibility.py](test_compatibility.py)、[run_tests.py](run_tests.py)。
+结果：[pytest.log](../../../../artifacts/methods/v23_3/p1r_multiline_001/results/pytest.log)、[tests.json](results/tests.json)；首轮 115 项通过后补充混合坐标与行内风险测试，首轮日志保留为 [pytest_initial.log](../../../../artifacts/methods/v23_3/p1r_multiline_001/results/pytest_initial.log)。测试源码：[test_compatibility.py](test_compatibility.py)、[run_tests.py](run_tests.py)。
 
 ## 3. 最小适配及未完成部分
 

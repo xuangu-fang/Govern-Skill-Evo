@@ -17,9 +17,9 @@
 
 主要证据入口（下文直接使用 JSON 字段名与完整步骤 ID）：
 
-- [A 实发请求](../memory_v3_integration_001/runs/A/http/001/request.json)、[B 实发请求](../memory_v3_integration_001/runs/B/http/001/request.json)；均逐字段核对冻结请求及 `messages.json`。
-- [A 原始 HTTP 响应](../memory_v3_integration_001/runs/A/http/001/http_response.txt)、[B 原始 HTTP 响应](../memory_v3_integration_001/runs/B/http/001/http_response.txt)；最终 content 与 `raw_output.txt`、parsed 一致。
-- [完整输入及 Original Plan](../memory_v3_integration_001/config/full_payload.json)、[实际 Memory v3 视图](../memory_v3_integration_001/config/model_input.json)。
+- [A 实发请求](../../../../artifacts/methods/v23_3/memory_v3_integration_001/runs/A/http/001/request.json)、[B 实发请求](../../../../artifacts/methods/v23_3/memory_v3_integration_001/runs/B/http/001/request.json)；均逐字段核对冻结请求及 `messages.json`。
+- [A 原始 HTTP 响应](../../../../artifacts/methods/v23_3/memory_v3_integration_001/runs/A/http/001/http_response.txt)、[B 原始 HTTP 响应](../../../../artifacts/methods/v23_3/memory_v3_integration_001/runs/B/http/001/http_response.txt)；最终 content 与 `raw_output.txt`、parsed 一致。
+- [完整输入及 Original Plan](../../../../artifacts/methods/v23_3/memory_v3_integration_001/config/full_payload.json)、[实际 Memory v3 视图](../../../../artifacts/methods/v23_3/memory_v3_integration_001/config/model_input.json)。
 - [A 最终回答](../memory_v3_integration_001/runs/A/raw_output.txt)、[B 最终回答](../memory_v3_integration_001/runs/B/raw_output.txt)、[Effective A](../memory_v3_integration_001/runs/A/effective_plan.json)、[Effective B](../memory_v3_integration_001/runs/B/effective_plan.json)。
 - [B 实际 Prompt](../memory_v3_integration_001/runs/B/prompt.md)、[原实验协议](../memory_v3_integration_001/PROTOCOL.md)、[冻结配置](../memory_v3_integration_001/config/freeze.json)。
 

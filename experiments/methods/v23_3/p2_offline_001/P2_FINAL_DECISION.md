@@ -13,6 +13,6 @@
 9. **后续先检验什么？** 固定同一多行 Original、当前事实、真实 Memory、模型及预算，对比 V23 自由替换与 V23.3 响应驱动 Patch 的实际最终 Update：对象、触发范围、强度、必要关联、附带承诺、保留能力与格式失败。再对照有/无 Memory，随后同 Editor/任务协议做 Candidate Replay。开发案例不作泛化证明，Test 不调参。
 10. **是否保护正式版本与历史实验？** 是。只新增 V23.3 源码/测试/P2 归档，更新本版 README；原 `docs/04_EXPERIMENT_LOG.md` 的 16 行删除保持。正式 V23/V23.2 及已有 P0/P1/P1-R 材料未修改，未切分支、提交、暂存或更改默认配置。检查边界见[最终检查](results/final_checks.json)。
 
-交付入口：[实现报告](P2_IMPLEMENTATION_REPORT.md)、[测试报告](P2_TEST_REPORT.md)、[接口报告](P2_INTERFACE_REPORT.md)、[人工 Mock 标记](mock_chain/manifest.json)、[Git Diff](results/implementation.diff)。
+交付入口：[实现报告](P2_IMPLEMENTATION_REPORT.md)、[测试报告](P2_TEST_REPORT.md)、[接口报告](P2_INTERFACE_REPORT.md)、[人工 Mock 标记](../../../../artifacts/methods/v23_3/p2_offline_001/mock_chain/manifest.json)、[Git Diff](results/implementation.diff)。
 
 本次只证明响应条件化 Prompt、多行 Update Patch、确定性编译与 Editor 工程贯通；不证明 Memory 改善决策、Patch 消除附带承诺、成功率提升或跨任务泛化。等待下一步实验授权。

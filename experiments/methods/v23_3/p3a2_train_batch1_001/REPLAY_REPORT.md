@@ -1,6 +1,6 @@
 # Batch-1 三方配对 Replay
 
-固定六条任务，Parent/A 已完成结果直接复用，仅新增六条 B。有效三方配对 6/6；Parent/A、Parent/B、A/B 配对分别为 {'Parent/A': 6, 'Parent/B': 6, 'A/B': 6}。初始状态、任务实例、模型参数、基础协议及实现文件由原 verifier 校验，详见 analysis.json。实际请求时点及 Parent 部分串行是比较限制。
+固定六条任务，Parent/A 已完成结果直接复用，仅新增六条 B。有效三方配对 6/6；Parent/A、Parent/B、A/B 配对分别为 {'Parent/A': 6, 'Parent/B': 6, 'A/B': 6}。初始状态、任务实例、模型参数、基础协议及实现文件由原 verifier 校验，详见 [analysis.json](../../../../artifacts/methods/v23_3/p3a2_train_batch1_001/analysis.json)。实际请求时点及 Parent 部分串行是比较限制。
 
 **这是 A2/B7 首个有效方案的授权恢复后行为对照，不是等预算一次生成端到端比较。** A 两次、B 七次；初次输出均无合法 Effective，所有失败和成本纳入报告。
 
@@ -42,7 +42,7 @@
 | P6/A | 8/3 | 未观察到 | 未发生 |
 | P6/B | 8/3 | 未观察到 | 未发生 |
 
-原始逐步证据见 TRAJECTORY_EVIDENCE.md、episodes/ 各 trajectory.json；完整请求、反馈、动作前菜单、非法动作及传输记录都保留。Parent/A 旧分析和所有此前阶段报告有 amendment_B_generation7/ 等快照。
+原始逐步证据见 TRAJECTORY_EVIDENCE.md、[episodes/](../../../../artifacts/methods/v23_3/p3a2_train_batch1_001/episodes/) 中的 trajectory.json；完整请求、反馈、动作前菜单、非法动作及传输记录都保留。Parent/A 旧分析和所有此前阶段报告有 amendment_B_generation7/ 等快照。
 
 A P1 第1步到 coffeetable、2 take、4 move；P2 在4 stoveburner 找到、7 clean、10 move。A P3 和 P6 仍 50 步失败、无目标获取或交付，重复代理各24/32；P6 增加 sidetable 3 导航仍未恢复成功。A P6 第13步动作混入解释文字，候选外且 Nothing happens，未重采样。P5 第4步带物回灯处属于必要回返。
 

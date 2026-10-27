@@ -1,6 +1,6 @@
 # V23.3 P2 测试报告
 
-最终本轮回归：**434 passed in 38.84s**，禁止入口尝试为 0。见 [日志](results/P2-D-01.log)和[逐项结果](results/P2-D-01.json)。这些是离线工程测试，不是 434 个策略、任务或独立算法实验。
+最终本轮回归：**434 passed in 38.84s**，禁止入口尝试为 0。见 [日志](../../../../artifacts/methods/v23_3/p2_offline_001/results/P2-D-01.log)和[逐项结果](results/P2-D-01.json)。这些是离线工程测试，不是 434 个策略、任务或独立算法实验。
 
 ## 顺序门控及修复记录
 
@@ -40,7 +40,7 @@
 
 ## 可重载样例
 
-[mock_chain/manifest.json](mock_chain/manifest.json) 标记 `HUMAN_MOCK_NOT_LLM_OR_BEHAVIOR_RESULT`。使用真实冻结 R05 Parent/Grouping/当轮 Memory，Diagnosis 为 P1-R 人工多行副本，Preconditioner 为人工 cross Patch，Editor 为人工拼接文本的 Skill Patch。
+[mock_chain/manifest.json](../../../../artifacts/methods/v23_3/p2_offline_001/mock_chain/manifest.json) 标记 `HUMAN_MOCK_NOT_LLM_OR_BEHAVIOR_RESULT`。使用真实冻结 R05 Parent/Grouping/当轮 Memory，Diagnosis 为 P1-R 人工多行副本，Preconditioner 为人工 cross Patch，Editor 为人工拼接文本的 Skill Patch。
 
 首次三环节各调用 Fake 一次；第二次运行构建器三个 Fake 调用数均为 0，恢复核对成功。样例 Candidate 仅为接口材料，不能计为 Editor 正确落实策略或真实行为收益。
 

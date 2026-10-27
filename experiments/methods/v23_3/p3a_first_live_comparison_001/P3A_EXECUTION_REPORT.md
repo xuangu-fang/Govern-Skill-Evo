@@ -34,8 +34,8 @@ ConnectionError: ('Connection aborted.', TimeoutError('timed out'))
 ## 原始结果及错误归档
 
 - [冻结 Diagnosis 请求](requests/diagnosis.json)、[实际请求及 HTTP 原文](runs/diagnosis/http/001/)、[解析与验证](runs/diagnosis/)、[Diagnosis 门](results/diagnosis_gate.json)。
-- [冻结 A 请求](requests/A.json)、[A 三次请求与逐次错误](runs/A/http/)、[A 阶段结果](results/A_execution.json)。
-- [冻结 B 请求](requests/B.json)、[B 三次请求与逐次错误](runs/B/http/)、[B 阶段结果](results/B_execution.json)。
+- [冻结 A 请求](../../../../artifacts/methods/v23_3/p3a_first_live_comparison_001/requests/A.json)、[A 三次请求与逐次错误](../../../../artifacts/methods/v23_3/p3a_first_live_comparison_001/runs/A/http/)、[A 阶段结果](results/A_execution.json)。
+- [冻结 B 请求](../../../../artifacts/methods/v23_3/p3a_first_live_comparison_001/requests/B.json)、[B 三次请求与逐次错误](../../../../artifacts/methods/v23_3/p3a_first_live_comparison_001/runs/B/http/)、[B 阶段结果](results/B_execution.json)。
 - [逐请求汇总](results/execution_summary.json)、[共同输入核查](results/common_input_checks.json)。
 
 A/B 没有模型输出，故不创建虚假的 response、parsed、preconditioner 或 effective_plan 文件。尤其不把缺失 Effective 写成 null：null 会混淆合法 no_change/need_evidence 与技术失败。各组 `validation.json` 标明 transport 阶段无效；这不是 Schema、Patch 或 compiler 拒绝了一份实际输出。

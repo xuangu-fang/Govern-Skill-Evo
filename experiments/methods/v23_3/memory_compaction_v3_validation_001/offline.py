@@ -19,12 +19,14 @@ V2 = HERE.parent / "memory_compaction_v2_validation_001"
 OLD_LIVE = HERE.parent / "memory_compaction_live_validation_001"
 
 
+from experiments.methods.v23_3.archive_io import resolve
+
 def messages_v3(original, view):
     result = deepcopy(original)
     payload = json.loads(result[1]["content"])
     payload["memory"] = view
     result[1]["content"] = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
-    result[0]["content"] += "\n\n" + (HERE / "MODEL_FORMAT.md").read_text(encoding="utf-8")
+    result[0]["content"] += "\n\n" + resolve(HERE / 'MODEL_FORMAT.md').read_text(encoding='utf-8')
     return result
 
 

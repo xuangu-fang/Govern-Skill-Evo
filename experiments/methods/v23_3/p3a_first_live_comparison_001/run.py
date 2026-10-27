@@ -23,18 +23,20 @@ S = ROOT / "artifacts/methods/v23/v23_alfworld_formal_001/S1"
 GD = S / "rounds/R05/grouping/attempts/002"
 
 
+from experiments.methods.v23_3.archive_io import load_saved, resolve
+
 def now():
     return datetime.now(timezone.utc).isoformat()
 
 
 def read(path):
-    return json.loads(Path(path).read_text(encoding="utf-8"))
+    return json.loads(resolve(Path(path)).read_text(encoding='utf-8'))
 
 
 def save(path, value):
     path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("x", encoding="utf-8") as f:
+    resolve(path.parent).mkdir(parents=True, exist_ok=True)
+    with resolve(path).open("x", encoding="utf-8") as f:
         json.dump(value, f, ensure_ascii=False, indent=2)
         f.write("\n")
 
@@ -61,8 +63,8 @@ def budget(messages):
 
 
 def prepare():
-    assert (E / "P3A_EXPERIMENT_PROTOCOL.md").exists()
-    grouped = grouping.load_grouping(GD)
+    assert resolve(E / 'P3A_EXPERIMENT_PROTOCOL.md').exists()
+    grouped = load_saved(grouping.load_grouping, GD)
     olddir = S / "rounds/R05/preconditioner/attempts/001"
     old, ri = read(olddir / "input.json"), read(S / "rounds/R05/round_input.json")
     mem = memory.load_memory(S / ri["state"]["active_memory"])
@@ -83,25 +85,25 @@ def prepare():
     for name, path in [("diagnosis_prompt.md", diagnosis.PROMPT_PATH),
                        ("A_preconditioner_prompt.md", v23.PROMPT_PATH),
                        ("B_preconditioner_prompt.md", v233.PROMPT_PATH)]:
-        (E / "config" / name).write_bytes(path.read_bytes())
+        (resolve(E / "config" / name)).write_bytes(resolve(path).read_bytes())
     messages = diagnosis.messages_for(grouped)
     assert "memory" not in json.loads(messages[1]["content"])
     save(E / "requests/diagnosis.json", request(messages, cfg))
     save(E / "config/preflight.json", {
         "frozen_at": now(), "diagnosis_budget": budget(messages), "memory_exact": True,
         "grouping_exact": True, "max_logical_calls": 3, "max_http_per_logical": 3,
-        "protocol": (E / "P3A_EXPERIMENT_PROTOCOL.md").read_text(),
+        "protocol": resolve(E / 'P3A_EXPERIMENT_PROTOCOL.md').read_text(),
         "diagnosis_prompt_equals_versioned_source": True, "capacity_probe": False})
     print("FROZEN", json.dumps(budget(messages)), flush=True)
 
 
 def verify_frozen():
-    assert read(E / "config/preflight.json")["protocol"] == (E / "P3A_EXPERIMENT_PROTOCOL.md").read_text()
+    assert read(E / "config/preflight.json")["protocol"] == resolve(E / 'P3A_EXPERIMENT_PROTOCOL.md').read_text()
     for name, path in [("diagnosis_prompt.md", diagnosis.PROMPT_PATH),
                        ("A_preconditioner_prompt.md", v23.PROMPT_PATH),
                        ("B_preconditioner_prompt.md", v233.PROMPT_PATH)]:
-        assert (E / "config" / name).read_bytes() == path.read_bytes()
-    assert read(E / "config/grouping.json") == grouping.load_grouping(GD)
+        assert resolve(E / 'config' / name).read_bytes() == resolve(path).read_bytes()
+    assert read(E / "config/grouping.json") == load_saved(grouping.load_grouping, GD)
     assert read(E / "config/memory.json") == memory.load_memory(Path(read(E / "config/sources.json")["active_memory"]))
 
 
@@ -121,7 +123,7 @@ def generator(label):
         save(E / f"results/{label}_claim.json", {"started_at": now(), "max_http": 3})
         for attempt in range(1, 4):
             dest = Path(directory) / "http" / f"{attempt:03}"
-            dest.mkdir(parents=True, exist_ok=False)
+            resolve(dest).mkdir(parents=True, exist_ok=False)
             started = time.monotonic()
             meta = {"label": label, "attempt": attempt, "started_at": now()}
             failure = None
@@ -131,7 +133,7 @@ def generator(label):
                 meta["status"] = "response_received"
             except Exception as exc:
                 failure = exc
-                code = read(dest / "http_status.json")["status_code"] if (dest / "http_status.json").exists() else None
+                code = read(dest / "http_status.json")["status_code"] if resolve(dest / 'http_status.json').exists() else None
                 transient = code in (408, 429, 500, 502, 503, 504) or (
                     isinstance(exc, (requests.Timeout, requests.ConnectionError))
                     and not isinstance(exc, requests.exceptions.SSLError))
@@ -139,7 +141,7 @@ def generator(label):
                             error_type=type(exc).__name__, error=str(exc))
             finally:
                 meta.update(finished_at=now(), elapsed_seconds=time.monotonic() - started)
-                if (dest / "request.json").exists():
+                if resolve(dest / 'request.json').exists():
                     assert read(dest / "request.json") == expected
                 save(dest / "attempt.json", meta)
                 print(label, attempt, meta["status"], round(meta["elapsed_seconds"], 2), flush=True)
@@ -154,7 +156,7 @@ def generator(label):
 
 def run_diagnosis():
     out = E / "runs/diagnosis"
-    assert not out.exists(), "Logical call already started; only inspect/reload"
+    assert not resolve(out).exists(), "Logical call already started; only inspect/reload"
     started = time.monotonic()
     result = {"started_at": now()}
     try:
@@ -172,7 +174,7 @@ def run_diagnosis():
 def freeze_common():
     verify_frozen()
     assert read(E / "results/diagnosis_gate.json")["passed"] is True
-    saved = diagnosis.load_diagnosis(E / "runs/diagnosis")
+    saved = load_saved(diagnosis.load_diagnosis, E / 'runs/diagnosis')
     saved["memory"] = read(E / "config/memory.json")
     messages = {"A": v23.messages_for(saved), "B": v233.messages_for(saved)}
     payload = v23.preconditioner_input(saved)
@@ -199,10 +201,10 @@ def run_arm(arm):
     assert arm in ("A", "B")
     assert read(E / "results/diagnosis_gate.json")["passed"] is True
     if arm == "B":
-        assert (E / "results/A_execution.json").exists(), "A must finish first"
+        assert resolve(E / 'results/A_execution.json').exists(), "A must finish first"
     verify_frozen()
     saved = read(E / "config/common_saved.json")
-    loaded = diagnosis.load_diagnosis(E / "runs/diagnosis")
+    loaded = load_saved(diagnosis.load_diagnosis, E / 'runs/diagnosis')
     assert saved == {**loaded, "memory": read(E / "config/memory.json")}
     payload = v23.preconditioner_input(saved)
     assert payload == read(E / "config/common_payload.json")
@@ -211,16 +213,16 @@ def run_arm(arm):
     expected_messages = (v23 if arm == "A" else v233).messages_for(saved)
     assert req["body"]["messages"] == expected_messages
     out = E / "runs" / arm
-    out.mkdir(exist_ok=False)
+    resolve(out).mkdir(exist_ok=False)
     save(out / "input.json", saved)
     save(out / "messages.json", expected_messages)
-    (out / "prompt.md").write_text(expected_messages[0]["content"], encoding="utf-8")
+    (resolve(out / "prompt.md")).write_text(expected_messages[0]["content"], encoding="utf-8")
     started = time.monotonic()
     meta = {"arm": arm, "started_at": now(), "stage": "transport"}
     try:
         response = generator(arm)(expected_messages, out)
         save(out / "response.json", response)
-        (out / "raw_output.txt").write_bytes(response["content"].encode())
+        (resolve(out / "raw_output.txt")).write_bytes(response["content"].encode())
         meta.update(stage="completion", finish_reason=response.get("finish_reason"),
                     response_model=response.get("response_model"), usage=response.get("usage"))
         assert response.get("finish_reason") == "stop", "Model response did not finish normally"

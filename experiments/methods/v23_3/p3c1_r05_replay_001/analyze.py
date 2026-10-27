@@ -4,12 +4,14 @@ from .run import HERE, read, save
 from src.adapters.alfworld.verify_skill_run import verify_record
 from src.skill_evolution.v23.replay import verify_pair
 
+from experiments.methods.v23_3.archive_io import resolve
+
 def main():
     records={};rows=[];total=Counter();pairs=[]
     for condition in ['Parent','A','B']:
         for task in read(HERE/'tasks.json'):
             ref=task['ref'];path=HERE/f'episodes/{condition}/{ref}/trajectory.json'
-            if not path.exists():
+            if not resolve(path).exists():
                 rows.append({'condition':condition,'ref':ref,'status':'not_started'});continue
             r=read(path);records[(condition,ref)]=r;audit=verify_record(r)
             steps=[s for s in r['steps'] if s['phase']=='executed'];visits=[];repeat=[];seen=set()

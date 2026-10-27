@@ -5,6 +5,7 @@ import json
 
 import pytest
 import requests
+from experiments.methods.v23_3.archive_io import resolve
 
 
 def module():
@@ -48,7 +49,7 @@ def test_three_attempt_limit_and_tracebacks(tmp_path, monkeypatch):
     original = m.E
     for name in ["transport.json", "freeze.json", "A_request.json", "original_protocol.md"]:
         (tmp_path / "config").mkdir(exist_ok=True)
-        (tmp_path / "config" / name).write_bytes((original / "config" / name).read_bytes())
+        (tmp_path / "config" / name).write_bytes(resolve(original / "config" / name).read_bytes())
     (tmp_path / "P3A_RETRY_PROTOCOL.md").write_bytes((original / "P3A_RETRY_PROTOCOL.md").read_bytes())
     monkeypatch.setattr(m, "E", tmp_path)
     cfg = m.read(tmp_path / "config/freeze.json")["call_config"]

@@ -5,13 +5,15 @@ from .run import HERE, ROOT, previous, read, save, verify, COMPLETE
 from src.adapters.alfworld.verify_skill_run import verify_record
 from src.skill_evolution.v23.replay import verify_pair
 
+from experiments.methods.v23_3.archive_io import archive_glob, resolve
+
 def main():
-    verify();result=read(HERE/('final_results.json' if (HERE/'final_results.json').exists() else 'results.json'))
+    verify();result=read(HERE/('final_results.json' if resolve(HERE / 'final_results.json').exists() else 'results.json'))
     totals={};all_records={};rows=[];pairs=[]
     scopes=[('original',previous.OLD),('prior_restart',previous.HERE)]+[(f'round_{i}',HERE/f'attempt_{i}') for i in range(1,4)]
     for scope,base in scopes:
         t=Counter()
-        for path in sorted((base/'episodes').glob('*/*/trajectory.json')):
+        for path in sorted(archive_glob(base / 'episodes', '*/*/trajectory.json')):
             r=read(path);a=verify_record(r);assert a['trace_valid'],(path,a)
             t.update(a['reported_usage']);t['episodes']+=1;t['http']+=a['transport_attempts_recorded']
             t['decisions']+=a['requests_recorded'];t['executed_steps']+=a['steps_executed'];t['complete']+=a['episode_complete']
@@ -63,7 +65,7 @@ def main():
     for name,stat in baseline['files'].items():
         from pathlib import Path
         p=Path(name)
-        if not p.exists() or [p.stat().st_size,p.stat().st_mtime_ns]!=stat:changed.append(name)
+        if not resolve(p).exists() or [resolve(p).stat().st_size,resolve(p).stat().st_mtime_ns]!=stat:changed.append(name)
     same_diff=baseline['git_diff']==subprocess.check_output(['git','diff'],cwd=ROOT,text=True)
     save(HERE/'protection.json',{'checked_files':len(baseline['files']),'changed_existing_files':changed,'tracked_diff_unchanged':same_diff,'freezes_verified':True})
     assert not changed and same_diff

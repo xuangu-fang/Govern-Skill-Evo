@@ -54,11 +54,11 @@
 
 | 案例 | 原始输入 | 紧凑输入 | 实际拟发送消息 | 展开/省略清单 |
 |---|---|---|---|---|
-| R04 | [原始](cases/R04/original_payload.json) | [紧凑](cases/R04/compact_payload.json) | [消息](cases/R04/compact_messages.json) | [覆盖](cases/R04/coverage.json) |
-| R05 | [原始](cases/R05/original_payload.json) | [紧凑](cases/R05/compact_payload.json) | [消息](cases/R05/compact_messages.json) | [覆盖](cases/R05/coverage.json) |
-| R06 | [原始](cases/R06/original_payload.json) | [紧凑](cases/R06/compact_payload.json) | [消息](cases/R06/compact_messages.json) | [覆盖](cases/R06/coverage.json) |
-| P3-A | [原始](cases/P3A_A/original_payload.json) | [紧凑](cases/P3A_A/compact_payload.json) | [消息](cases/P3A_A/compact_messages.json) | [覆盖](cases/P3A_A/coverage.json) |
-| P3-B | [原始](cases/P3A_B/original_payload.json) | [紧凑](cases/P3A_B/compact_payload.json) | [消息](cases/P3A_B/compact_messages.json) | [覆盖](cases/P3A_B/coverage.json) |
+| R04 | [原始](../../../../artifacts/methods/v23_3/memory_compaction_offline_001/cases/R04/original_payload.json) | [紧凑](../../../../artifacts/methods/v23_3/memory_compaction_offline_001/cases/R04/compact_payload.json) | [消息](../../../../artifacts/methods/v23_3/memory_compaction_offline_001/cases/R04/compact_messages.json) | [覆盖](cases/R04/coverage.json) |
+| R05 | [原始](../../../../artifacts/methods/v23_3/memory_compaction_offline_001/cases/R05/original_payload.json) | [紧凑](../../../../artifacts/methods/v23_3/memory_compaction_offline_001/cases/R05/compact_payload.json) | [消息](../../../../artifacts/methods/v23_3/memory_compaction_offline_001/cases/R05/compact_messages.json) | [覆盖](cases/R05/coverage.json) |
+| R06 | [原始](../../../../artifacts/methods/v23_3/memory_compaction_offline_001/cases/R06/original_payload.json) | [紧凑](../../../../artifacts/methods/v23_3/memory_compaction_offline_001/cases/R06/compact_payload.json) | [消息](../../../../artifacts/methods/v23_3/memory_compaction_offline_001/cases/R06/compact_messages.json) | [覆盖](cases/R06/coverage.json) |
+| P3-A | [原始](../../../../artifacts/methods/v23_3/memory_compaction_offline_001/cases/P3A_A/original_payload.json) | [紧凑](../../../../artifacts/methods/v23_3/memory_compaction_offline_001/cases/P3A_A/compact_payload.json) | [消息](../../../../artifacts/methods/v23_3/memory_compaction_offline_001/cases/P3A_A/compact_messages.json) | [覆盖](cases/P3A_A/coverage.json) |
+| P3-B | [原始](../../../../artifacts/methods/v23_3/memory_compaction_offline_001/cases/P3A_B/original_payload.json) | [紧凑](../../../../artifacts/methods/v23_3/memory_compaction_offline_001/cases/P3A_B/compact_payload.json) | [消息](../../../../artifacts/methods/v23_3/memory_compaction_offline_001/cases/P3A_B/compact_messages.json) | [覆盖](cases/P3A_B/coverage.json) |
 
 当前 Parent、Original、当前执行和当前命令表均未改变；只替换历史 Memory 的模型输入视图。本次 compact A/B 的 user message 逐字符串相等，系统 Prompt 分别保留各方法说明并附相同格式说明，见 [A/B 核查](results/ab_input_checks.json)。
 
@@ -89,3 +89,17 @@ PYTHONDONTWRITEBYTECODE=1 python -m pytest -q -p no:cacheprovider \
 - 首先检查模型是否正确理解窗口、菜单引用及证据边界，再评价 Update/Patch。两组均压缩只能比较压缩条件下 A/B，不能独立证明压缩相对全文无质量损失；若要作该结论，需要后续同方法全文/紧凑对照。
 
 本轮在离线验收和建议处结束，没有真实调用、默认接入或正式算法晋升。
+
+## 文件与归档
+
+配置、任务定义、报告、精选结果、候选及必要失败证据保留在本目录；人工测试夹具与源码快照仍纳入 Git。
+
+主要材料：
+
+- [EVIDENCE_AUDIT](EVIDENCE_AUDIT.md)
+
+完整模型输入、请求响应、运行元数据、轨迹、展开的 Memory、生成的 Mock 数据以及日志等已归入[本地原始归档](../../../../artifacts/methods/v23_3/memory_compaction_offline_001/)，不进入 Git。归档保留原相对层级；只需要日志归档的实验仍保留原配置和全部研究材料。
+
+当前脚本通过 [v23.3 归档读取工具](../archive_io.py) 读取分开存放的文件，并同时枚举实验目录与归档中的轨迹。加载链需要合并文件时只创建系统临时读取目录，退出后删除；历史 JSON 中的路径和阶段结论保持原文。历史启动约束未重置，本次没有重新执行模型或环境。
+
+返回 [v23.3 实验导航](../README.md)。

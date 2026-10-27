@@ -2,6 +2,7 @@
 from copy import deepcopy
 import json
 from pathlib import Path
+from experiments.methods.v23_3.archive_io import resolve
 
 from src.skill_evolution.v23.preconditioner import preconditioner_input
 
@@ -10,7 +11,7 @@ FIXTURES = ROOT / "experiments/methods/v23_3/p1r_multiline_001/fixtures"
 
 
 def read(path):
-    return json.loads(Path(path).read_text(encoding="utf-8"))
+    return json.loads(resolve(path).read_text(encoding="utf-8"))
 
 
 def frozen(case="R05", multiline=True):

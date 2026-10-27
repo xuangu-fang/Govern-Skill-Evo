@@ -18,6 +18,8 @@ from src.skill_evolution.v23 import diagnosis, editor, grouping, preconditioner,
 attempts = []
 
 
+from experiments.methods.v23_3.archive_io import archive_glob
+
 def deny(*args, **kwargs):
     attempts.append("forbidden_live_or_environment_entry")
     raise AssertionError("P2 forbids live API, Actor/environment, Replay, Gate and evolution")
@@ -64,7 +66,7 @@ with contextlib.redirect_stdout(buffer), contextlib.redirect_stderr(buffer):
 results = HERE / "results"
 results.mkdir(exist_ok=True)
 # Preserve every run, including failures, rather than overwrite a favorable result.
-index = 1 + len(list(results.glob(f"P2-{stage}-*.json")))
+index = 1 + len(list(archive_glob(results, f'P2-{stage}-*.json')))
 stem = f"P2-{stage}-{index:02}"
 (results / f"{stem}.log").write_text(buffer.getvalue(), encoding="utf-8")
 (results / f"{stem}.json").write_text(json.dumps({

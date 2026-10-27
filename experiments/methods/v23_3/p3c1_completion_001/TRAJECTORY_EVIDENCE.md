@@ -4,7 +4,7 @@
 
 ## Parent P3
 
-[原始 trajectory.json](/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_001/episodes/Parent/P3/trajectory.json)；success，4 步。
+[原始 trajectory.json](../../../../artifacts/methods/v23_3/p3c1_r05_replay_001/episodes/Parent/P3/trajectory.json)；success，4 步。
 
 任务：put some mug on sidetable.
 
@@ -17,7 +17,7 @@
 
 ## Parent P6
 
-[原始 trajectory.json](/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_001/episodes/Parent/P6/trajectory.json)；success，10 步。
+[原始 trajectory.json](../../../../artifacts/methods/v23_3/p3c1_r05_replay_001/episodes/Parent/P6/trajectory.json)；success，10 步。
 
 任务：put a clean butterknife in drawer.
 
@@ -36,7 +36,7 @@
 
 ## Parent P7
 
-[原始 trajectory.json](/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_004/attempt_1/episodes/Parent/P7/trajectory.json)；step_limit，50 步。
+[原始 trajectory.json](../../../../artifacts/methods/v23_3/p3c1_r05_replay_restart_004/attempt_1/episodes/Parent/P7/trajectory.json)；step_limit，50 步。
 
 任务：clean some butterknife and put it in drawer.
 
@@ -95,7 +95,7 @@
 
 ## Parent P10
 
-[原始 trajectory.json](/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_001/episodes/Parent/P10/trajectory.json)；success，14 步。
+[原始 trajectory.json](../../../../artifacts/methods/v23_3/p3c1_r05_replay_001/episodes/Parent/P10/trajectory.json)；success，14 步。
 
 任务：cool some apple and put it in microwave.
 
@@ -118,7 +118,7 @@
 
 ## A P3
 
-[原始 trajectory.json](/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_001/episodes/A/P3/trajectory.json)；success，4 步。
+[原始 trajectory.json](../../../../artifacts/methods/v23_3/p3c1_r05_replay_001/episodes/A/P3/trajectory.json)；success，4 步。
 
 任务：put some mug on sidetable.
 
@@ -131,7 +131,7 @@
 
 ## A P6
 
-[原始 trajectory.json](/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_001/episodes/A/P6/trajectory.json)；success，8 步。
+[原始 trajectory.json](../../../../artifacts/methods/v23_3/p3c1_r05_replay_001/episodes/A/P6/trajectory.json)；success，8 步。
 
 任务：put a clean butterknife in drawer.
 
@@ -148,7 +148,7 @@
 
 ## A P7
 
-[原始 trajectory.json](/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_002/attempt_1/episodes/A/P7/trajectory.json)；step_limit，50 步。
+[原始 trajectory.json](../../../../artifacts/methods/v23_3/p3c1_r05_replay_restart_002/attempt_1/episodes/A/P7/trajectory.json)；step_limit，50 步。
 
 任务：clean some butterknife and put it in drawer.
 
@@ -207,7 +207,7 @@
 
 ## A P10
 
-[原始 trajectory.json](/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_002/attempt_1/episodes/A/P10/trajectory.json)；success，12 步。
+[原始 trajectory.json](../../../../artifacts/methods/v23_3/p3c1_r05_replay_restart_002/attempt_1/episodes/A/P10/trajectory.json)；success，12 步。
 
 任务：cool some apple and put it in microwave.
 
@@ -228,7 +228,7 @@
 
 ## B P3
 
-[原始 trajectory.json](/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_002/attempt_2/episodes/B/P3/trajectory.json)；success，4 步。
+[原始 trajectory.json](../../../../artifacts/methods/v23_3/p3c1_r05_replay_restart_002/attempt_2/episodes/B/P3/trajectory.json)；success，4 步。
 
 任务：put some mug on sidetable.
 
@@ -241,7 +241,7 @@
 
 ## B P6
 
-[原始 trajectory.json](/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_002/attempt_2/episodes/B/P6/trajectory.json)；success，11 步。
+[原始 trajectory.json](../../../../artifacts/methods/v23_3/p3c1_r05_replay_restart_002/attempt_2/episodes/B/P6/trajectory.json)；success，11 步。
 
 任务：put a clean butterknife in drawer.
 
@@ -261,7 +261,7 @@
 
 ## B P7
 
-[原始 trajectory.json](/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_002/attempt_2/episodes/B/P7/trajectory.json)；step_limit，50 步。
+[原始 trajectory.json](../../../../artifacts/methods/v23_3/p3c1_r05_replay_restart_002/attempt_2/episodes/B/P7/trajectory.json)；step_limit，50 步。
 
 任务：clean some butterknife and put it in drawer.
 
@@ -320,7 +320,7 @@
 
 ## B P10
 
-[原始 trajectory.json](/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3c1_r05_replay_restart_002/attempt_3/episodes/B/P10/trajectory.json)；success，12 步。
+[原始 trajectory.json](../../../../artifacts/methods/v23_3/p3c1_r05_replay_restart_002/attempt_3/episodes/B/P10/trajectory.json)；success，12 步。
 
 任务：cool some apple and put it in microwave.
 

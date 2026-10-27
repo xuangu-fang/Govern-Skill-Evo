@@ -4,7 +4,7 @@
 
 ## P1 Parent
 
-put some box on armchair. — success, 39 executed steps. [raw](/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3a2_train_batch1_001/episodes/Parent/P1/trajectory.json)
+put some box on armchair. — success, 39 executed steps. [raw](/Users/didi/Desktop/Govern-Skill-Evo/artifacts/methods/v23_3/p3a2_train_batch1_001/episodes/Parent/P1/trajectory.json)
 
 | 步 | 动作 | 反馈 |
 |---|---|---|
@@ -50,7 +50,7 @@ put some box on armchair. — success, 39 executed steps. [raw](/Users/didi/Desk
 
 ## P1 A
 
-put some box on armchair. — success, 4 executed steps. [raw](/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3a2_train_batch1_001/episodes/A/P1/trajectory.json)
+put some box on armchair. — success, 4 executed steps. [raw](/Users/didi/Desktop/Govern-Skill-Evo/artifacts/methods/v23_3/p3a2_train_batch1_001/episodes/A/P1/trajectory.json)
 
 | 步 | 动作 | 反馈 |
 |---|---|---|
@@ -61,7 +61,7 @@ put some box on armchair. — success, 4 executed steps. [raw](/Users/didi/Deskt
 
 ## P1 B
 
-put some box on armchair. — success, 12 executed steps. [raw](/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3a2_train_batch1_001/episodes/B/P1/trajectory.json)
+put some box on armchair. — success, 12 executed steps. [raw](/Users/didi/Desktop/Govern-Skill-Evo/artifacts/methods/v23_3/p3a2_train_batch1_001/episodes/B/P1/trajectory.json)
 
 | 步 | 动作 | 反馈 |
 |---|---|---|
@@ -80,7 +80,7 @@ put some box on armchair. — success, 12 executed steps. [raw](/Users/didi/Desk
 
 ## P2 Parent
 
-clean some kettle and put it in cabinet. — success, 12 executed steps. [raw](/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3a2_train_batch1_001/episodes/Parent/P2/trajectory.json)
+clean some kettle and put it in cabinet. — success, 12 executed steps. [raw](/Users/didi/Desktop/Govern-Skill-Evo/artifacts/methods/v23_3/p3a2_train_batch1_001/episodes/Parent/P2/trajectory.json)
 
 | 步 | 动作 | 反馈 |
 |---|---|---|
@@ -99,7 +99,7 @@ clean some kettle and put it in cabinet. — success, 12 executed steps. [raw](/
 
 ## P2 A
 
-clean some kettle and put it in cabinet. — success, 10 executed steps. [raw](/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3a2_train_batch1_001/episodes/A/P2/trajectory.json)
+clean some kettle and put it in cabinet. — success, 10 executed steps. [raw](/Users/didi/Desktop/Govern-Skill-Evo/artifacts/methods/v23_3/p3a2_train_batch1_001/episodes/A/P2/trajectory.json)
 
 | 步 | 动作 | 反馈 |
 |---|---|---|
@@ -116,7 +116,7 @@ clean some kettle and put it in cabinet. — success, 10 executed steps. [raw](/
 
 ## P2 B
 
-clean some kettle and put it in cabinet. — success, 9 executed steps. [raw](/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3a2_train_batch1_001/episodes/B/P2/trajectory.json)
+clean some kettle and put it in cabinet. — success, 9 executed steps. [raw](/Users/didi/Desktop/Govern-Skill-Evo/artifacts/methods/v23_3/p3a2_train_batch1_001/episodes/B/P2/trajectory.json)
 
 | 步 | 动作 | 反馈 |
 |---|---|---|
@@ -132,7 +132,7 @@ clean some kettle and put it in cabinet. — success, 9 executed steps. [raw](/U
 
 ## P3 Parent
 
-heat some mug and put it in coffeemachine. — step_limit, 50 executed steps. [raw](/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3a2_train_batch1_001/episodes/Parent/P3/trajectory.json)
+heat some mug and put it in coffeemachine. — step_limit, 50 executed steps. [raw](/Users/didi/Desktop/Govern-Skill-Evo/artifacts/methods/v23_3/p3a2_train_batch1_001/episodes/Parent/P3/trajectory.json)
 
 | 步 | 动作 | 反馈 |
 |---|---|---|
@@ -189,7 +189,7 @@ heat some mug and put it in coffeemachine. — step_limit, 50 executed steps. [r
 
 ## P3 A
 
-heat some mug and put it in coffeemachine. — step_limit, 50 executed steps. [raw](/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3a2_train_batch1_001/episodes/A/P3/trajectory.json)
+heat some mug and put it in coffeemachine. — step_limit, 50 executed steps. [raw](/Users/didi/Desktop/Govern-Skill-Evo/artifacts/methods/v23_3/p3a2_train_batch1_001/episodes/A/P3/trajectory.json)
 
 | 步 | 动作 | 反馈 |
 |---|---|---|
@@ -246,7 +246,7 @@ heat some mug and put it in coffeemachine. — step_limit, 50 executed steps. [r
 
 ## P3 B
 
-heat some mug and put it in coffeemachine. — step_limit, 50 executed steps. [raw](/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3a2_train_batch1_001/episodes/B/P3/trajectory.json)
+heat some mug and put it in coffeemachine. — step_limit, 50 executed steps. [raw](/Users/didi/Desktop/Govern-Skill-Evo/artifacts/methods/v23_3/p3a2_train_batch1_001/episodes/B/P3/trajectory.json)
 
 | 步 | 动作 | 反馈 |
 |---|---|---|
@@ -303,7 +303,7 @@ heat some mug and put it in coffeemachine. — step_limit, 50 executed steps. [r
 
 ## P4 Parent
 
-cool some apple and put it in diningtable. — success, 8 executed steps. [raw](/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3a2_train_batch1_001/episodes/Parent/P4/trajectory.json)
+cool some apple and put it in diningtable. — success, 8 executed steps. [raw](/Users/didi/Desktop/Govern-Skill-Evo/artifacts/methods/v23_3/p3a2_train_batch1_001/episodes/Parent/P4/trajectory.json)
 
 | 步 | 动作 | 反馈 |
 |---|---|---|
@@ -318,7 +318,7 @@ cool some apple and put it in diningtable. — success, 8 executed steps. [raw](
 
 ## P4 A
 
-cool some apple and put it in diningtable. — success, 8 executed steps. [raw](/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3a2_train_batch1_001/episodes/A/P4/trajectory.json)
+cool some apple and put it in diningtable. — success, 8 executed steps. [raw](/Users/didi/Desktop/Govern-Skill-Evo/artifacts/methods/v23_3/p3a2_train_batch1_001/episodes/A/P4/trajectory.json)
 
 | 步 | 动作 | 反馈 |
 |---|---|---|
@@ -333,7 +333,7 @@ cool some apple and put it in diningtable. — success, 8 executed steps. [raw](
 
 ## P4 B
 
-cool some apple and put it in diningtable. — success, 7 executed steps. [raw](/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3a2_train_batch1_001/episodes/B/P4/trajectory.json)
+cool some apple and put it in diningtable. — success, 7 executed steps. [raw](/Users/didi/Desktop/Govern-Skill-Evo/artifacts/methods/v23_3/p3a2_train_batch1_001/episodes/B/P4/trajectory.json)
 
 | 步 | 动作 | 反馈 |
 |---|---|---|
@@ -347,7 +347,7 @@ cool some apple and put it in diningtable. — success, 7 executed steps. [raw](
 
 ## P5 Parent
 
-examine the alarmclock with the desklamp. — success, 5 executed steps. [raw](/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3a2_train_batch1_001/episodes/Parent/P5/trajectory.json)
+examine the alarmclock with the desklamp. — success, 5 executed steps. [raw](/Users/didi/Desktop/Govern-Skill-Evo/artifacts/methods/v23_3/p3a2_train_batch1_001/episodes/Parent/P5/trajectory.json)
 
 | 步 | 动作 | 反馈 |
 |---|---|---|
@@ -359,7 +359,7 @@ examine the alarmclock with the desklamp. — success, 5 executed steps. [raw](/
 
 ## P5 A
 
-examine the alarmclock with the desklamp. — success, 5 executed steps. [raw](/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3a2_train_batch1_001/episodes/A/P5/trajectory.json)
+examine the alarmclock with the desklamp. — success, 5 executed steps. [raw](/Users/didi/Desktop/Govern-Skill-Evo/artifacts/methods/v23_3/p3a2_train_batch1_001/episodes/A/P5/trajectory.json)
 
 | 步 | 动作 | 反馈 |
 |---|---|---|
@@ -371,7 +371,7 @@ examine the alarmclock with the desklamp. — success, 5 executed steps. [raw](/
 
 ## P5 B
 
-examine the alarmclock with the desklamp. — success, 6 executed steps. [raw](/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3a2_train_batch1_001/episodes/B/P5/trajectory.json)
+examine the alarmclock with the desklamp. — success, 6 executed steps. [raw](/Users/didi/Desktop/Govern-Skill-Evo/artifacts/methods/v23_3/p3a2_train_batch1_001/episodes/B/P5/trajectory.json)
 
 | 步 | 动作 | 反馈 |
 |---|---|---|
@@ -384,7 +384,7 @@ examine the alarmclock with the desklamp. — success, 6 executed steps. [raw](/
 
 ## P6 Parent
 
-put two watch in dresser. — step_limit, 50 executed steps. [raw](/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3a2_train_batch1_001/episodes/Parent/P6/trajectory.json)
+put two watch in dresser. — step_limit, 50 executed steps. [raw](/Users/didi/Desktop/Govern-Skill-Evo/artifacts/methods/v23_3/p3a2_train_batch1_001/episodes/Parent/P6/trajectory.json)
 
 | 步 | 动作 | 反馈 |
 |---|---|---|
@@ -441,7 +441,7 @@ put two watch in dresser. — step_limit, 50 executed steps. [raw](/Users/didi/D
 
 ## P6 A
 
-put two watch in dresser. — step_limit, 50 executed steps. [raw](/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3a2_train_batch1_001/episodes/A/P6/trajectory.json)
+put two watch in dresser. — step_limit, 50 executed steps. [raw](/Users/didi/Desktop/Govern-Skill-Evo/artifacts/methods/v23_3/p3a2_train_batch1_001/episodes/A/P6/trajectory.json)
 
 | 步 | 动作 | 反馈 |
 |---|---|---|
@@ -498,7 +498,7 @@ put two watch in dresser. — step_limit, 50 executed steps. [raw](/Users/didi/D
 
 ## P6 B
 
-put two watch in dresser. — step_limit, 50 executed steps. [raw](/Users/didi/Desktop/Govern-Skill-Evo/experiments/methods/v23_3/p3a2_train_batch1_001/episodes/B/P6/trajectory.json)
+put two watch in dresser. — step_limit, 50 executed steps. [raw](/Users/didi/Desktop/Govern-Skill-Evo/artifacts/methods/v23_3/p3a2_train_batch1_001/episodes/B/P6/trajectory.json)
 
 | 步 | 动作 | 反馈 |
 |---|---|---|

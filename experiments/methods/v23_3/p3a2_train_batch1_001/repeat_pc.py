@@ -3,23 +3,29 @@ import fcntl
 import sys
 import traceback
 from . import run as base
+from .archive_io import ARCHIVE,load_saved
 from .run import HERE,read,save,now,verify,generate,cc,oldpc,pc,normalize_update_patches,parse_json_response
 from experiments.methods.v23_3.memory_v3_integration_001.run import load_a
 
+def generation_record(name):
+    path=ARCHIVE/'runs'/name/'run.json'
+    if not path.exists():path=HERE/'runs'/name/'run.json'
+    return read(path)
+
 def selected(arm):
-    path=HERE/'runs'/('B_retry_006' if arm=='B' else 'A_retry_001')
-    if arm=='B':return pc.load_preconditioner(path)
-    return load_a(path,read(HERE/'common_saved.json'))
+    name='B_retry_006' if arm=='B' else 'A_retry_001'
+    if arm=='B':return load_saved('runs/'+name,pc.load_preconditioner)
+    return load_saved('runs/'+name,load_a,read(ARCHIVE/'common_saved.json'))
 def repeat(arm,generation=2):
     assert (arm,generation) in {('A',2),('B',2),('B',3),('B',4),('B',5),('B',6),('B',7)}
-    assert arm in {'A','B'};verify();original=HERE/'runs'/arm;out=HERE/'runs'/f'{arm}_retry_{generation-1:03d}'
+    assert arm in {'A','B'};verify();original=ARCHIVE/'runs'/arm;out=ARCHIVE/'runs'/f'{arm}_retry_{generation-1:03d}'
     assert read(original/'run.json')['status']=='invalid'
     if out.exists():
-        print('REUSE/STOP',arm,read(out/'run.json')['status'],flush=True);return
+        print('REUSE/STOP',arm,generation_record(out.name)['status'],flush=True);return
     
-    if generation>=3:assert read(HERE/'runs'/f'B_retry_{generation-2:03d}'/'run.json')['status']=='invalid'
-    out.mkdir();saved=read(HERE/'common_saved.json');messages=read(original/'messages.json')
-    assert messages==read(HERE/f'{arm}_preconditioner_messages_frozen.json')
+    if generation>=3:assert generation_record(f'B_retry_{generation-2:03d}')['status']=='invalid'
+    out.mkdir();saved=read(ARCHIVE/'common_saved.json');messages=read(original/'messages.json')
+    assert messages==read(ARCHIVE/f'{arm}_preconditioner_messages_frozen.json')
     for name,value in [('input',saved),('model_input',pc.model_input(saved)),('messages',messages)]:save(out/f'{name}.json',value)
     (out/'prompt.md').write_text(messages[0]['content'])
     meta={k:v for k,v in read(original/'run.json').items() if k not in {'status','started_at','finished_at','error','error_type'}}
@@ -38,7 +44,7 @@ def repeat(arm,generation=2):
     if meta['status']=='valid':selected(arm)
     print('REPEAT',arm,meta['status'],flush=True)
 if __name__=='__main__':
-    with (HERE/'process.lock').open('a') as lock:
+    with (ARCHIVE/'process.lock').open('a') as lock:
         fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
         if sys.argv[1]=='editor':base.load_pc=selected;base.editor_call(sys.argv[2])
         else:repeat(sys.argv[1],int(sys.argv[2]) if len(sys.argv)>2 else 2)

@@ -40,17 +40,19 @@ asked. No extra fields, commentary, explanations or reasoning transcript.
 """
 
 
+from experiments.methods.v23_3.archive_io import resolve
+
 def now():
     return datetime.now(timezone.utc).isoformat()
 
 
 def read(path):
-    return json.loads(Path(path).read_text(encoding="utf-8"))
+    return json.loads(resolve(Path(path)).read_text(encoding='utf-8'))
 
 
 def save(path, value):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("x", encoding="utf-8") as f:
+    resolve(path.parent).mkdir(parents=True, exist_ok=True)
+    with resolve(path).open("x", encoding="utf-8") as f:
         json.dump(value, f, ensure_ascii=False, indent=2)
         f.write("\n")
 
@@ -89,7 +91,7 @@ def prepare():
             save(HERE / "config" / label / "expected.json", expected)
             messages = [
                 {"role": "system", "content": PROBE_SYSTEM + "\n" +
-                 (OFFLINE / "MODEL_FORMAT.md").read_text(encoding="utf-8")},
+                 resolve(OFFLINE / 'MODEL_FORMAT.md').read_text(encoding='utf-8')},
                 {"role": "user", "content": json.dumps({"questions": questions, "payload": payload},
                                                      ensure_ascii=False, separators=(",", ":"))},
             ]
@@ -103,7 +105,7 @@ def prepare():
         print("FROZEN", label, "request_bytes", size, "max_tokens", max_tokens, flush=True)
     save(HERE / "config/freeze.json", {
         "at": now(), "route_config": cfg, "max_logical_calls": 3, "max_http_requests": 3,
-        "sources": {str(p.relative_to(ROOT)): p.read_text(encoding="utf-8") for p in SOURCE_FILES},
+        "sources": {str(p.relative_to(ROOT)): resolve(p).read_text(encoding='utf-8') for p in SOURCE_FILES},
         "no_editor_replay_or_memory_write": True,
     })
 
@@ -113,7 +115,7 @@ def verify_frozen():
     key, cfg = environment()
     assert cfg == frozen["route_config"]
     for rel, content in frozen["sources"].items():
-        assert (ROOT / rel).read_text(encoding="utf-8") == content, f"Frozen source changed: {rel}"
+        assert resolve(ROOT / rel).read_text(encoding='utf-8') == content, f"Frozen source changed: {rel}"
     for label in LABELS:
         case = "P3A_B" if label == "production_B" else label
         folder, dest = OFFLINE / "cases" / case, HERE / "config" / label
@@ -128,7 +130,7 @@ def verify_frozen():
             assert questions == read(dest / "questions.json") and expected == read(dest / "expected.json")
             expected_messages = [
                 {"role": "system", "content": PROBE_SYSTEM + "\n" +
-                 (OFFLINE / "MODEL_FORMAT.md").read_text(encoding="utf-8")},
+                 resolve(OFFLINE / 'MODEL_FORMAT.md').read_text(encoding='utf-8')},
                 {"role": "user", "content": json.dumps({"questions": questions, "payload": compact},
                                                      ensure_ascii=False, separators=(",", ":"))}]
         expected_body = {k: v for k, v in cfg.items() if k not in ("endpoint", "timeout_seconds")}
@@ -161,10 +163,10 @@ def run(label):
     req = read(HERE / "config" / label / "request.json")
     save(HERE / "results" / f"{label}_claim.json", {"at": now(), "max_http_requests": 1})
     out = HERE / "runs" / label
-    out.mkdir(parents=True, exist_ok=False)
+    resolve(out).mkdir(parents=True, exist_ok=False)
     save(out / "messages.json", req["body"]["messages"])
     dest = out / "http/001"
-    dest.mkdir(parents=True)
+    resolve(dest).mkdir(parents=True)
     started = time.monotonic()
     meta = {"label": label, "started_at": now(), "stage": "transport",
             "status": "started", "http_requests_started": 0}
@@ -174,7 +176,7 @@ def run(label):
         response = send(req, key, dest, {"connect_upload_timeout_seconds": 60,
                                       "read_timeout_seconds": 300})
         save(out / "response.json", response)
-        (out / "raw_output.txt").write_text(response.get("content", ""), encoding="utf-8")
+        (resolve(out / "raw_output.txt")).write_text(response.get("content", ""), encoding="utf-8")
         meta.update(stage="completion", finish_reason=response.get("finish_reason"),
                     usage=response.get("usage"), response_model=response.get("response_model"),
                     content_chars=len(response.get("content", "")))
@@ -201,7 +203,7 @@ def run(label):
                         adjustment_count=len(parsed["adjustments"]),
                         manual_evidence_review_required=True)
     except Exception as exc:
-        (out / "traceback.txt").write_text(traceback.format_exc(), encoding="utf-8")
+        (resolve(out / "traceback.txt")).write_text(traceback.format_exc(), encoding="utf-8")
         meta.update(status="failed", error_type=type(exc).__name__, error=str(exc))
     finally:
         meta.update(finished_at=now(), elapsed_seconds=time.monotonic() - started)

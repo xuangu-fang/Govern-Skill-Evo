@@ -11,7 +11,7 @@ from urllib.parse import urlsplit
 import requests
 from src.adapters.alfworld.skill_runtime import write_record
 
-HERE=Path(__file__).resolve().parent
+from .archive_io import HERE,ARCHIVE
 
 def now():return datetime.now(timezone.utc).isoformat()
 def read(p):return json.loads(Path(p).read_text())
@@ -23,9 +23,9 @@ def sleep_until(deadline):
     return time.time()-start
 
 def rate_update(deadline, status=None):
-    with (HERE/'rate.lock').open('a') as lock:
+    with (ARCHIVE/'rate.lock').open('a') as lock:
         fcntl.flock(lock,fcntl.LOCK_EX)
-        p=HERE/'throttle.json';v=read(p) if p.exists() else {'not_before':0}
+        p=ARCHIVE/'throttle.json';v=read(p) if p.exists() else {'not_before':0}
         v['not_before']=max(v['not_before'],deadline)
         if status==429:
             v['consecutive_429']=v.get('consecutive_429',0)+1
@@ -36,9 +36,9 @@ def rate_update(deadline, status=None):
 def reserve_start(own_deadline, wait_deadline=None):
     start=time.time()
     while True:
-        with (HERE/'rate.lock').open('a') as lock:
+        with (ARCHIVE/'rate.lock').open('a') as lock:
             fcntl.flock(lock,fcntl.LOCK_EX)
-            p=HERE/'throttle.json';v=read(p) if p.exists() else {'not_before':0}
+            p=ARCHIVE/'throttle.json';v=read(p) if p.exists() else {'not_before':0}
             deadline=max(v['not_before'],own_deadline)
             if wait_deadline is not None and max(time.time(),deadline)>wait_deadline:raise RuntimeError('Shared queue wait budget exhausted')
             if deadline<=time.time():
@@ -51,10 +51,10 @@ class RequestSlot:
         started=time.time()
         while True:
             if time.time()-started>600:raise RuntimeError('Request slot wait exceeded 600 seconds')
-            state=read(HERE/'throttle.json') if (HERE/'throttle.json').exists() else {}
+            state=read(ARCHIVE/'throttle.json') if (ARCHIVE/'throttle.json').exists() else {}
             limit=state.get('request_concurrency_limit',read(HERE/'config.json').get('concurrency',1))
             for i in range(limit):
-                f=(HERE/f'request_slot_{i}.lock').open('a')
+                f=(ARCHIVE/f'request_slot_{i}.lock').open('a')
                 try:fcntl.flock(f,fcntl.LOCK_EX|fcntl.LOCK_NB);self.file=f;return self
                 except BlockingIOError:f.close()
             time.sleep(.1)
@@ -86,7 +86,7 @@ class BoundedSession:
         req={'message_characters':chars,'rough_input_tokens_chars_div_3':round(chars/3),'estimate_not_provider_tokenizer':True,'endpoint':endpoint,'body':body,'timeout':cfg['timeout'],'actual_body_bytes':len(requests.Request('POST',endpoint,json=body).prepare().body)}
         if (d/'request.json').exists():assert read(d/'request.json')==req,'Cannot change a logical request'
         else:save(d/'request.json',req)
-        state=read(d/'state.json') if (d/'state.json').exists() else {'logical_call_id':str(d.relative_to(HERE)),'status':'ready','attempts':[],'wait_seconds':0,'started_at':now()}
+        state=read(d/'state.json') if (d/'state.json').exists() else {'logical_call_id':str(d.relative_to(ARCHIVE if d.is_relative_to(ARCHIVE) else HERE)),'status':'ready','attempts':[],'wait_seconds':0,'started_at':now()}
         if state['status']=='received':
             row=state['attempts'][-1];response=requests.Response();response.status_code=row['http_status'];response._content=(d/f"attempt_{row['attempt_index']:02}/response.bin").read_bytes();response.headers.update(row['headers']);return response
         if state['status'] not in {'ready','waiting'}:raise RuntimeError('Archived call is exhausted, stopped, or has uncertain outcome; no retry budget reset')

@@ -51,8 +51,8 @@ reasoning 已包含在 completion 内，不重复计费或加总。货币费用�
 
 ## 归档
 
-- [A 实际请求](runs/A/http/001/request.json)、[发送事件](runs/A/http/001/send_events.json)、[HTTP 原文](runs/A/http/001/http_response.txt)、[模型 envelope](runs/A/response.json)。
-- [B 实际请求](runs/B/http/001/request.json)、[发送事件](runs/B/http/001/send_events.json)、[HTTP 原文](runs/B/http/001/http_response.txt)、[模型 envelope](runs/B/response.json)。
-- [实际超时配置](config/transport.json)、[完整执行汇总](results/execution_summary.json)、[三项离线检查](results/offline_tests.log)。
+- [A 实际请求](../../../../artifacts/methods/v23_3/p3a_transport_retry_001/runs/A/http/001/request.json)、[发送事件](../../../../artifacts/methods/v23_3/p3a_transport_retry_001/runs/A/http/001/send_events.json)、[HTTP 原文](../../../../artifacts/methods/v23_3/p3a_transport_retry_001/runs/A/http/001/http_response.txt)、[模型 envelope](runs/A/response.json)。
+- [B 实际请求](../../../../artifacts/methods/v23_3/p3a_transport_retry_001/runs/B/http/001/request.json)、[发送事件](../../../../artifacts/methods/v23_3/p3a_transport_retry_001/runs/B/http/001/send_events.json)、[HTTP 原文](../../../../artifacts/methods/v23_3/p3a_transport_retry_001/runs/B/http/001/http_response.txt)、[模型 envelope](runs/B/response.json)。
+- [实际超时配置](config/transport.json)、[完整执行汇总](results/execution_summary.json)、[三项离线检查](../../../../artifacts/methods/v23_3/p3a_transport_retry_001/results/offline_tests.log)。
 
 没有创建虚假 parsed/Effective 文件或以 null 冒充合法停点。没有调用 Diagnosis、Editor、Actor、Replay、Gate、Memory 更新或完整进化。

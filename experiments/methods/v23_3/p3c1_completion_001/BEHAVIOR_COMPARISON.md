@@ -34,7 +34,7 @@ B/P10:2 是两个 `<action>` 开标签导致既有投影器取出异常内容，
 
 ## 与历史 M3/M6/M8 对照
 
-历史材料来自当次实际 [Memory v3 模型输入](../memory_v3_integration_001/config/model_input.json)，本次将相关 entry 与 source 原样摘录到 [historical_evidence.json](historical_evidence.json)。source 的 `diff` 为真实历史编辑，`run.trace` 保留动作/反馈，部分详细观察依 Memory v3 的窗口规则提供；不能把压缩视图叫作全量原轨迹，也不能把未给出的观察补成事实。以下引用使用原 source 和 step 标识。
+历史材料来自当次实际 [Memory v3 模型输入](../../../../artifacts/methods/v23_3/memory_v3_integration_001/config/model_input.json)，本次将相关 entry 与 source 原样摘录到 [historical_evidence.json](../../../../artifacts/methods/v23_3/p3c1_completion_001/historical_evidence.json)。source 的 `diff` 为真实历史编辑，`run.trace` 保留动作/反馈，部分详细观察依 Memory v3 的窗口规则提供；不能把压缩视图叫作全量原轨迹，也不能把未给出的观察补成事实。以下引用使用原 source 和 step 标识。
 
 | Memory / 实际编辑与响应 | 对当前更新的支持范围 | 本轮的对应观察与仍存问题 |
 |---|---|---|

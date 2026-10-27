@@ -11,30 +11,32 @@ FAMILIES = ['pick_and_place_simple','pick_clean_then_place_in_recep',
             'pick_heat_then_place_in_recep','pick_cool_then_place_in_recep',
             'look_at_obj_in_light','pick_two_obj_and_place']
 
+from experiments.methods.v23_3.archive_io import archive_glob, resolve, raw_path
+
 def main():
     # Inspect metadata/text identities, not final-test trajectories or game solutions.
     seen=set();hits={};scanned=0;truncated=0
     pattern=re.compile(r'trial_T\d{8}_\d{6}_\d+')
     excluded={'test','tests','final','final_test','final_evaluation','eval_test','test_runs'}
     for base in ['artifacts/methods','experiments/methods','docs']:
-        for p in (ROOT/base).rglob('*'):
-            if not p.is_file() or HERE in p.parents or p.suffix not in {'.json','.md'}:continue
+        for p in archive_glob(ROOT / base, '*', recursive=True):
+            if not resolve(p).is_file() or HERE in p.parents or raw_path(HERE) in p.parents or p.suffix not in {'.json','.md'}:continue
             if any(x.lower() in excluded or 'final_test' in x.lower() or 'test_evaluation' in x.lower() for x in p.parts):continue
             # Request/response bodies and game snapshots are not needed for identity screening.
             if p.name in {'http_response.json','response.json','request.json','messages.json','baseline.json','freeze.json','implementation.json'}:continue
-            with p.open('rb') as stream:blob=stream.read(131072)
-            scanned+=1;truncated+=p.stat().st_size>len(blob)
+            with resolve(p).open('rb') as stream:blob=stream.read(131072)
+            scanned+=1;truncated+=resolve(p).stat().st_size>len(blob)
             trials=set(pattern.findall(blob.decode('utf-8',errors='ignore')))
             for trial in trials:
                 seen.add(trial);hits.setdefault(trial,[])
                 if len(hits[trial])<4:hits[trial].append(str(p.relative_to(ROOT)))
     # Exclude every instance in the original training edition, whether used or merely allocated.
     legacy=ROOT/'benchmarks/alfworld/editions/skillopt_39_18_134/train/items.json'
-    for item in json.loads(legacy.read_text()):
+    for item in json.loads(resolve(legacy).read_text()):
         for trial in pattern.findall(item['gamefile']):
             seen.add(trial);hits.setdefault(trial,[]).append(str(legacy.relative_to(ROOT)))
     data=Path('/Users/didi/.cache/alfworld')
-    paths=sorted((data/'json_2.1.1/train').glob('*/*/game.tw-pddl'))
+    paths=sorted(archive_glob(data / 'json_2.1.1/train', '*/*/game.tw-pddl'))
     eligible={f:[] for f in FAMILIES};excluded_items=[]
     for p in paths:
         family=p.parent.parent.name.split('-')[0];trial=p.parent.name
@@ -86,7 +88,7 @@ def main():
 
 评价：原生成功、步数、类别与实例覆盖、无信息重复、无效动作、精确目标、必要处理/数量/交付、实际 Skill Diff 和退化；分别报告技术有效性、更新构造及行为结果。保留全部预注册案例，不据胜负筛除；不用于最终 Test 调参。
 '''
-    (HERE/'NEW_TRAIN_CASES.md').write_text(text)
+    (resolve(HERE/'NEW_TRAIN_CASES.md')).write_text(text)
     print('New train cases frozen',len(selected),'excluded',len(excluded_items),flush=True)
 
 if __name__=='__main__':main()

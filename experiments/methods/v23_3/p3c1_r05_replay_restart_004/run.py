@@ -13,6 +13,8 @@ read,save,now=prior.read,prior.save,prior.now
 COMPLETE=prior.COMPLETE
 WORKER=prior.prior.previous
 
+from experiments.methods.v23_3.archive_io import resolve
+
 def prepare():
     resume.verify();a=read(prior.HERE/'analysis.json')
     assert [(r['condition'],r['ref']) for r in a['rows'] if r['status'] not in COMPLETE]==[('Parent','P7')]
@@ -20,7 +22,7 @@ def prepare():
     save(HERE/'baseline.json',{'at':now(),'head':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
         'git_status':subprocess.check_output(['git','status','--short'],cwd=ROOT,text=True),
         'git_diff':subprocess.check_output(['git','diff'],cwd=ROOT,text=True),
-        'files':{str(ROOT/p):[(ROOT/p).stat().st_size,(ROOT/p).stat().st_mtime_ns] for p in paths if (ROOT/p).is_file() and not (ROOT/p).is_relative_to(HERE)}})
+        'files':{str(ROOT/p):[resolve(ROOT / p).stat().st_size,resolve(ROOT / p).stat().st_mtime_ns] for p in paths if resolve(ROOT / p).is_file() and not (ROOT/p).is_relative_to(HERE)}})
     save(HERE/'config.json',{'at':now(),'original_config':prior.verify()['original_config'],
         'previous_actor_http':a['cumulative_including_editors']['decisions'],'cumulative_actor_http_max':600,
         'backoff_seconds':[120,240,300],'task':['Parent','P7'],'max_steps':50,'per_decision_http_attempts':1,
@@ -39,7 +41,7 @@ def episode(attempt):
     WORKER.episode('Parent','P7')
 
 def batch():
-    cfg=verify();(HERE/'batch.claim').open('x').close();results=[];spent=0;attempt=1;stop='budget_reservation';checks=[]
+    cfg=verify();(resolve(HERE/'batch.claim')).open('x').close();results=[];spent=0;attempt=1;stop='budget_reservation';checks=[]
     target=urlparse(cfg['original_config']['endpoint'])
     while cfg['previous_actor_http']+spent+50<=cfg['cumulative_actor_http_max']:
         try:
@@ -50,10 +52,10 @@ def batch():
             checks.append({'at':now(),'status':'unavailable','error_type':type(exc).__name__,'model_call':False})
             stop='network_unavailable';save(HERE/'connectivity_checks.json',checks);break
         save(HERE/'connectivity_checks.json',checks)
-        folder=HERE/f'attempt_{attempt}';folder.mkdir(exist_ok=False)
-        with (folder/'Parent_P7.log').open('x') as log:
+        folder=HERE/f'attempt_{attempt}';resolve(folder).mkdir(exist_ok=False)
+        with (resolve(folder/'Parent_P7.log')).open('x') as log:
             proc=subprocess.run([WORKER.original.PYTHON,'-B','-m','experiments.methods.v23_3.p3c1_r05_replay_restart_004.run','episode',str(attempt)],cwd=ROOT,stdout=log,stderr=subprocess.STDOUT,env={**os.environ,'PYTHONDONTWRITEBYTECODE':'1'})
-        path=folder/'episodes/Parent/P7/trajectory.json';r=read(path) if path.exists() else {}
+        path=folder/'episodes/Parent/P7/trajectory.json';r=read(path) if resolve(path).exists() else {}
         transports=[t for s in r.get('steps',[]) for t in s.get('transport_attempts',[])]
         status=r.get('status','setup_error');http=transports[-1].get('http_status') if transports else None;spent+=len(transports)
         row={'attempt':attempt,'at':now(),'exit':proc.returncode,'status':status,'last_http_status':http,'error_type':r.get('error_type'),'http_requests':len(transports),'trajectory':str(path)}

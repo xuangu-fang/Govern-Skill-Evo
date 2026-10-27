@@ -19,6 +19,8 @@ from .probes_v2 import adapted_probe, score_answers
 LABELS = ("R05", "R06")
 
 
+from experiments.methods.v23_3.archive_io import archive_glob, resolve
+
 def request_for(label, cfg):
     folder = HERE / "cases" / label
     original = read(V1 / "cases" / label / "original_payload.json")
@@ -33,7 +35,7 @@ def request_for(label, cfg):
     assert changes == read(folder / "question_changes.json")
     messages = [
         {"role": "system", "content": PROBE_SYSTEM + "\n" +
-         (HERE / "MODEL_FORMAT.md").read_text(encoding="utf-8")},
+         resolve(HERE / 'MODEL_FORMAT.md').read_text(encoding='utf-8')},
         {"role": "user", "content": json.dumps({"questions": questions, "payload": payload},
                                              ensure_ascii=False, separators=(",", ":"))},
     ]
@@ -47,7 +49,7 @@ def request_for(label, cfg):
 
 
 def digest(path):
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    return hashlib.sha256(resolve(path).read_bytes()).hexdigest()
 
 
 def prepare():
@@ -57,8 +59,8 @@ def prepare():
         save(HERE / "config" / label / "request.json", req)
         size = len(requests.Request("POST", req["endpoint"], json=req["body"]).prepare().body)
         print("FROZEN", label, "request_bytes", size, "max_tokens", 16384, flush=True)
-    files = list(HERE.glob("*.py")) + [HERE / "MODEL_FORMAT.md", HERE / "PROTOCOL.md"]
-    files += list((HERE / "cases").rglob("*.json")) + list((HERE / "config").rglob("*.json"))
+    files = list(archive_glob(HERE, '*.py')) + [HERE / "MODEL_FORMAT.md", HERE / "PROTOCOL.md"]
+    files += list(archive_glob(HERE / 'cases', '*.json', recursive=True)) + list(archive_glob(HERE / 'config', '*.json', recursive=True))
     files += [OLD_LIVE / "run.py", OLD_LIVE / "probes.py", V1 / "compact.py",
               HERE.parent / "p3a_transport_retry_001/run.py",
               HERE.parent / "p3a_first_live_comparison_001/run.py",
@@ -88,9 +90,9 @@ def run(label):
     req = read(HERE / "config" / label / "request.json")
     save(HERE / "results" / f"{label}_claim.json", {"at": now(), "max_http_requests": 1})
     out = HERE / "runs" / label
-    out.mkdir(parents=True, exist_ok=False)
+    resolve(out).mkdir(parents=True, exist_ok=False)
     dest = out / "http/001"
-    dest.mkdir(parents=True)
+    resolve(dest).mkdir(parents=True)
     started = time.monotonic()
     meta = {"label": label, "started_at": now(), "stage": "transport",
             "status": "started", "http_requests_started": 0}
@@ -100,7 +102,7 @@ def run(label):
         response = send(req, key, dest, {"connect_upload_timeout_seconds": 60,
                                       "read_timeout_seconds": 300})
         save(out / "response.json", response)
-        (out / "raw_output.txt").write_text(response.get("content", ""), encoding="utf-8")
+        (resolve(out / "raw_output.txt")).write_text(response.get("content", ""), encoding="utf-8")
         meta.update(stage="completion", finish_reason=response.get("finish_reason"),
                     usage=response.get("usage"), response_model=response.get("response_model"),
                     content_chars=len(response.get("content", "")))
@@ -116,7 +118,7 @@ def run(label):
                     correct=sum(c["passed"] for c in evaluation["checks"].values()),
                     questions=len(expected))
     except Exception as exc:
-        (out / "traceback.txt").write_text(traceback.format_exc(), encoding="utf-8")
+        (resolve(out / "traceback.txt")).write_text(traceback.format_exc(), encoding="utf-8")
         meta.update(status="failed", error_type=type(exc).__name__, error=str(exc))
     finally:
         meta.update(finished_at=now(), elapsed_seconds=time.monotonic() - started)

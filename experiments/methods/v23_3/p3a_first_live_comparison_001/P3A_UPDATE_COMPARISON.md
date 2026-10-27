@@ -23,7 +23,7 @@
 | u1，3 行 | 不操作相近替代对象；容器无匹配目标时继续搜索；非目标处理/交付不算进展 | P7:5 取 knife、7 clean knife、9 放 knife，而任务要 butterknife；足以支持当前纠错。历史 M8 可加强相关认识，但本轮未观察到模型使用它 |
 | u3，2 行 | 命令须在当前候选中；导航不可用而直接操作可用时用适当直接操作 | P6:20 非法 go drawer5 后，21 合法 open drawer5；P8:5/6 类似。这是当前证据可支持的规则，不需先归功 Memory |
 
-来源为 [共同输入](config/common_payload.json) 内的 runs、memory.sources 和冻结 Actor 背景。没有加入未来 M10，也没有用历史总体成功率为某种调度背书。
+来源为 [共同输入](../../../../artifacts/methods/v23_3/p3a_first_live_comparison_001/config/common_payload.json) 内的 runs、memory.sources 和冻结 Actor 背景。没有加入未来 M10，也没有用历史总体成功率为某种调度背书。
 
 ## 先独立评价，再比较
 

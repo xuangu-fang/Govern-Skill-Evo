@@ -1,0 +1,19 @@
+# R05 Replay 完成审计与行为比较
+
+配置、任务定义、报告、精选结果、候选及必要失败证据保留在本目录；人工测试夹具与源码快照仍纳入 Git。
+
+主要材料：
+
+- [BEHAVIOR_COMPARISON](BEHAVIOR_COMPARISON.md)
+- [EDITOR_REPORT](EDITOR_REPORT.md)
+- [NEW_TRAIN_CASES](NEW_TRAIN_CASES.md)
+- [P3C1_DECISION](P3C1_DECISION.md)
+- [PROTOCOL](PROTOCOL.md)
+- [REPLAY_REPORT](REPLAY_REPORT.md)
+- [TRAJECTORY_EVIDENCE](TRAJECTORY_EVIDENCE.md)
+
+完整模型输入、请求响应、运行元数据、轨迹、展开的 Memory、生成的 Mock 数据以及日志等已归入[本地原始归档](../../../../artifacts/methods/v23_3/p3c1_completion_001/)，不进入 Git。归档保留原相对层级；只需要日志归档的实验仍保留原配置和全部研究材料。
+
+当前脚本通过 [v23.3 归档读取工具](../archive_io.py) 读取分开存放的文件，并同时枚举实验目录与归档中的轨迹。加载链需要合并文件时只创建系统临时读取目录，退出后删除；历史 JSON 中的路径和阶段结论保持原文。历史启动约束未重置，本次没有重新执行模型或环境。
+
+返回 [v23.3 实验导航](../README.md)。

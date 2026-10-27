@@ -5,11 +5,13 @@ from .run import HERE,OLD,JOBS,read,save
 from src.adapters.alfworld.verify_skill_run import verify_record
 from src.skill_evolution.v23.replay import verify_pair
 
+from experiments.methods.v23_3.archive_io import archive_glob, resolve
+
 def main():
     records={};rows=[];totals={};pairing=[]
     for scope,base in [('original',OLD),('restart',HERE)]:
         t=Counter()
-        for path in (base/'episodes').glob('*/*/trajectory.json'):
+        for path in archive_glob(base / 'episodes', '*/*/trajectory.json'):
             r=read(path);a=verify_record(r);t.update(a['reported_usage'])
             t['episodes']+=1;t['decisions']+=a['requests_recorded'];t['http']+=a['transport_attempts_recorded'];t['executed_steps']+=a['steps_executed']
             t['complete']+=a['episode_complete'];t['unknown_usage_attempts']+=a['transport_attempts_with_unknown_usage']
@@ -21,7 +23,7 @@ def main():
         for ref in ['P3','P6','P7','P10']:
             base=HERE if (condition,ref) in JOBS else OLD
             path=base/f'episodes/{condition}/{ref}/trajectory.json'
-            if not path.exists():rows.append({'condition':condition,'ref':ref,'status':'not_started'});continue
+            if not resolve(path).exists():rows.append({'condition':condition,'ref':ref,'status':'not_started'});continue
             r=read(path);a=verify_record(r);records[(condition,ref)]=r;steps=[s for s in r['steps'] if s['phase']=='executed']
             visits=list(dict.fromkeys(s['action'][6:] for s in steps if s['action'].startswith('go to ')))
             rows.append({'condition':condition,'ref':ref,'source':str(path),**a,
