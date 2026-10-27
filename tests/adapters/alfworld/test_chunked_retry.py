@@ -6,7 +6,7 @@ import requests
 from urllib3.exceptions import ProtocolError
 from src.adapters.alfworld.run_task_upstream import chat
 from src.adapters.alfworld.run_task_skill import RecordingSession, run_episode
-from src.adapters.alfworld.skill_runtime import load_skill
+from src.adapters.alfworld.skill_runtime import load_skill, execution_protocol
 from src.adapters.alfworld.response_archive import verify_response_archive
 from tests.adapters.alfworld.test_skill_episode import FakeEnvironment
 
@@ -23,7 +23,7 @@ class BrokenBody:
 ])
 def test_step_retry_and_archive(tmp_path, failure, failures):
     env=FakeEnvironment(win=True); sent=[]
-    record={'steps':[], 'won':False,'skill':load_skill(), 'protocol':{'max_steps':50}, 'status':'starting'}
+    record={'steps':[], 'won':False,'skill':load_skill(), 'protocol':execution_protocol(50), 'status':'starting'}
     output=tmp_path/'trajectory.json'
     # HTTPAdapter.send is the wire boundary. Session.send consumes response.content
     # before Session.post returns, exactly as in the real non-streaming request.

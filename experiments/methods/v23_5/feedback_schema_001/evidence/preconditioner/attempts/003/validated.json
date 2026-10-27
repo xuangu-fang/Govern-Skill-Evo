@@ -1,0 +1,274 @@
+{
+  "parsed": {
+    "adjustments": [
+      {
+        "target": "u1",
+        "focus": [],
+        "change": "KEEP",
+        "reason": "Direct heating while holding the target at a closed microwave succeeds in `P2:24` (heat plate 3) and `P3:17` (heat potato 3), exactly matching the update's preserve clause. Moving the target into the microwave and continuing microwave interactions without heating ends at the step limit in `P1:30`, `P1:31`, `P4:7`, `P4:8`, `P4:50`. `M3` reports the analogous hold-and-invoke heat success against an into-microwave failure (`S1_R03/P9:14`, `S1_R03/P9:50`, `S1_R03/Q9:4`, `S1_R03/Q9:7`, `S1_R03/Q9:9`); that historical support is a joint edit and not uniquely isolating, but the current successes at `P2:24` and `P3:17` together with the failures in `P1:30`, `P1:31`, `P4:7`, `P4:8`, `P4:50` directly concern the hold-versus-move choice. No current evidence contradicts the direct-heat direction, so the whole update remains as written.",
+        "to": null
+      },
+      {
+        "target": "u2",
+        "focus": [],
+        "change": "KEEP",
+        "reason": "`P5:11` shows dresser 1 exposing cd 3, cd 2, and cd 1, yet `P5:12` takes only cd 1 and the run never returns for the others, ending at the step limit (`P5:50`). `P6:1` shows candle 2 and candle 1 together on countertop 1 while `P6:2` takes only candle 1. In `P8:2` the Actor takes one of two newspapers and must return for the second (`P8:8`, `P8:9`). `P9:7` and `P9:8` take only the one still-needed instance, consistent with the no-extra clause. These support collecting the needed count from a known location; the update does not by itself dictate where to search (that is u4), and no current evidence contradicts it.",
+        "to": null
+      },
+      {
+        "target": "u3",
+        "focus": [],
+        "change": "KEEP",
+        "reason": "`P6` shuttles already-placed candles between drawers without consolidating (`P6:36`, `P6:42`, `P6:47`) and ends at the step limit (`P6:50`), whereas consolidation in a single receptacle succeeds in `P8:11` and `P9:10` after `P9:4`. `P5:26` and `P5:31` also relocate an already-placed instance, though that run's primary failure was not collecting a second cd rather than relocation. The consolidate-and-keep direction is supported and its relocation exception remains usable; the whole update stands.",
+        "to": null
+      },
+      {
+        "target": "u4",
+        "focus": [
+          "S",
+          "C"
+        ],
+        "change": "Narrow the anti-revisit requirement from a global 'unsearched before revisiting' order to a local rule: after a location proves not to contain the needed target instance, move on to a different candidate location instead of re-opening, re-examining, or oscillating back to that same one. Keep the ban on toggling the same container and shuttling objects. Explicitly preserve returning, as a priority, to a previously visited location that was seen to hold a still-needed uncollected instance. Broaden the candidate types to include surfaces (countertops, dining tables and similar) in addition to drawers, shelves, cabinets, and sidetables.",
+        "reason": "Current runs show the targeted problem: `P5:32`, `P5:40` re-walk shelves 1-9 already seen empty, `P6:44`, `P6:48` re-open drawers, and `P7:43`, `P7:48` revisit drawers opened empty at `P7:2`, `P7:12`. But `M2` reports that a similar joint broadened-coverage-plus-anti-revisit guidance did not ensure coverage of all candidate surfaces and did not stop extensive rechecking, and in one pair the candidate failed at the step limit while the parent succeeded by reaching diningtable1 (`S1_R02/P8:28`, `S1_R02/Q8:1`, `S1_R02/Q8:33`, `S1_R02/Q8:50`); `M1` likewise reports candidates still revisiting known-empty locations (`S1_R01/Q7:6`, `S1_R01/Q7:15`). The Actor sees only the current observation, admissible actions, and the last two observation/action pairs, so a global order over the whole visit set is not reliably enforceable, whereas 'the location just proven empty' is locally observable. Narrowing the restriction to that local object, while explicitly keeping the Goal's boundary of returning to a location that still holds an uncollected needed instance, avoids the risk of a search order that suppresses a productive return. Broadening candidate types to surfaces targets the coverage gap suggested by `M2`. Whether local move-on or added surface coverage actually lowers step limits is an unverified hypothesis, and `M2`'s failure is confounded by stochastic search choices.",
+        "to": {
+          "patch": "--- a/SKILL.md\n+++ b/SKILL.md\n@@\n-- While a multi-instance task is unmet and unsearched candidate receptacles remain, check those unsearched receptacles before revisiting receptacles already observed to be empty or already checked without finding the target.\n-- If a previously visited location was seen to contain a needed target instance but you did not collect it, treat that location as a priority; otherwise do not repeatedly toggle or open/close the same container or shuttle the same object between locations.\n-- Expand search to all types of candidate containers, including remaining drawers, shelves, cabinets, and sidetables, rather than cycling through the same subset.\n+- While a multi-instance task is unmet, after a candidate location proves not to contain the needed target instance, move on to a different candidate location instead of re-opening, re-examining, or oscillating back to that same one.\n+- If a previously visited location was seen to contain a needed target instance that you did not collect, treat returning there as a priority; otherwise do not repeatedly toggle or open/close the same container or shuttle the same object between locations.\n+- Expand search to all types of candidate locations, including remaining drawers, shelves, cabinets, sidetables, and surfaces such as countertops and dining tables, rather than cycling through the same subset.\n"
+        }
+      }
+    ],
+    "checks": [
+      {
+        "id": "c1",
+        "update_ids": [
+          "u1"
+        ],
+        "question": "When the Actor is holding a target object at a microwave, does it choose a direct heat action instead of moving the object into the microwave first?"
+      },
+      {
+        "id": "c2",
+        "update_ids": [
+          "u2"
+        ],
+        "question": "For multi-instance tasks, does the Actor retrieve all still-needed visible target instances from a known location before searching elsewhere, while taking no more than the remaining required count?"
+      },
+      {
+        "id": "c3",
+        "update_ids": [
+          "u3"
+        ],
+        "question": "For multi-instance tasks, does the Actor place subsequent target instances in the receptacle already used for the first instance and avoid shuttling already-placed instances between receptacles?"
+      },
+      {
+        "id": "c4",
+        "update_ids": [
+          "u4"
+        ],
+        "question": "After a candidate location proves not to contain the needed target instance, does the Actor move to a different candidate location instead of re-toggling the same container or cycling the same subset, while returning to any previously visited location that still holds an uncollected needed instance and covering varied container and surface types?"
+      }
+    ]
+  },
+  "validated": {
+    "preconditioner": {
+      "decision": "ready",
+      "reason": "Deterministically compiled from validated V23.5 adjustments.",
+      "adjustments": [
+        {
+          "from": [
+            "u4"
+          ],
+          "to": [
+            {
+              "id": "u4",
+              "text": "- While a multi-instance task is unmet, after a candidate location proves not to contain the needed target instance, move on to a different candidate location instead of re-opening, re-examining, or oscillating back to that same one.\n- If a previously visited location was seen to contain a needed target instance that you did not collect, treat returning there as a priority; otherwise do not repeatedly toggle or open/close the same container or shuttle the same object between locations.\n- Expand search to all types of candidate locations, including remaining drawers, shelves, cabinets, sidetables, and surfaces such as countertops and dining tables, rather than cycling through the same subset.\n"
+            }
+          ],
+          "basis": [
+            "G2",
+            "P5:16",
+            "P5:17",
+            "P5:18",
+            "P5:19",
+            "P5:20",
+            "P5:21",
+            "P5:22",
+            "P5:23",
+            "P5:24",
+            "P7:35",
+            "P7:36",
+            "P7:37",
+            "P7:38",
+            "P7:39",
+            "P7:40",
+            "P7:43",
+            "P7:44",
+            "P7:45",
+            "P7:48",
+            "P7:50",
+            "P5:32",
+            "P5:40",
+            "P6:44",
+            "P6:48",
+            "P7:2",
+            "P7:12",
+            "M2",
+            "M1"
+          ],
+          "reason": "target=u4; focus=S,C; change=Narrow the anti-revisit requirement from a global 'unsearched before revisiting' order to a local rule: after a location proves not to contain the needed target instance, move on to a different candidate location instead of re-opening, re-examining, or oscillating back to that same one. Keep the ban on toggling the same container and shuttling objects. Explicitly preserve returning, as a priority, to a previously visited location that was seen to hold a still-needed uncollected instance. Broaden the candidate types to include surfaces (countertops, dining tables and similar) in addition to drawers, shelves, cabinets, and sidetables.; reason=Current runs show the targeted problem: `P5:32`, `P5:40` re-walk shelves 1-9 already seen empty, `P6:44`, `P6:48` re-open drawers, and `P7:43`, `P7:48` revisit drawers opened empty at `P7:2`, `P7:12`. But `M2` reports that a similar joint broadened-coverage-plus-anti-revisit guidance did not ensure coverage of all candidate surfaces and did not stop extensive rechecking, and in one pair the candidate failed at the step limit while the parent succeeded by reaching diningtable1 (`S1_R02/P8:28`, `S1_R02/Q8:1`, `S1_R02/Q8:33`, `S1_R02/Q8:50`); `M1` likewise reports candidates still revisiting known-empty locations (`S1_R01/Q7:6`, `S1_R01/Q7:15`). The Actor sees only the current observation, admissible actions, and the last two observation/action pairs, so a global order over the whole visit set is not reliably enforceable, whereas 'the location just proven empty' is locally observable. Narrowing the restriction to that local object, while explicitly keeping the Goal's boundary of returning to a location that still holds an uncollected needed instance, avoids the risk of a search order that suppresses a productive return. Broadening candidate types to surfaces targets the coverage gap suggested by `M2`. Whether local move-on or added surface coverage actually lowers step limits is an unverified hypothesis, and `M2`'s failure is confounded by stochastic search choices."
+        }
+      ],
+      "checks": [
+        {
+          "id": "c1",
+          "update_ids": [
+            "u1"
+          ],
+          "question": "When the Actor is holding a target object at a microwave, does it choose a direct heat action instead of moving the object into the microwave first?"
+        },
+        {
+          "id": "c2",
+          "update_ids": [
+            "u2"
+          ],
+          "question": "For multi-instance tasks, does the Actor retrieve all still-needed visible target instances from a known location before searching elsewhere, while taking no more than the remaining required count?"
+        },
+        {
+          "id": "c3",
+          "update_ids": [
+            "u3"
+          ],
+          "question": "For multi-instance tasks, does the Actor place subsequent target instances in the receptacle already used for the first instance and avoid shuttling already-placed instances between receptacles?"
+        },
+        {
+          "id": "c4",
+          "update_ids": [
+            "u4"
+          ],
+          "question": "After a candidate location proves not to contain the needed target instance, does the Actor move to a different candidate location instead of re-toggling the same container or cycling the same subset, while returning to any previously visited location that still holds an uncollected needed instance and covering varied container and surface types?"
+        }
+      ]
+    },
+    "effective_plan": {
+      "goal": "Improve microwave heating behavior and multi-instance search/collection/placement behavior. Preserve successful direct heating while holding the target at the microwave (P2, P3), successful consolidation of multiple target instances in one receptacle (P8, P9), and successful relational desk interaction (P10). Do not impose a search order that prevents returning to a known target-object location when that location still contains a needed instance.",
+      "updates": [
+        {
+          "id": "u1",
+          "text": "- When a task requires a hot object and you are at a microwave while holding the target object, use the direct `heat <object> with microwave 1` action before moving the object into the microwave.\n- Do not move the target into the microwave and then close it expecting to heat it later; observed failures left the object unheated and ended at the step limit.\n- Preserve successful direct heating while holding the target at the microwave, as when P2 heats plate 3 and P3 heats potato 3 before container interaction.\n",
+          "basis": [
+            "G1",
+            "P1:29",
+            "P1:30",
+            "P1:31",
+            "P2:23",
+            "P2:24",
+            "P3:16",
+            "P3:17",
+            "P4:6",
+            "P4:7",
+            "P4:50"
+          ]
+        },
+        {
+          "id": "u2",
+          "text": "- When a task requires multiple target instances and a known location contains one or more still-needed visible instances of the target, prioritize going there and taking the needed number up to the remaining required count before searching other unknown locations.\n- If a location exposes more than one needed instance, collect as many as are needed in that visit rather than taking only one and leaving the others behind.\n- Do not take extra instances beyond the remaining required count.\n",
+          "basis": [
+            "G2",
+            "P5:11",
+            "P5:12",
+            "P5:13",
+            "P5:15",
+            "P5:16",
+            "P8:1",
+            "P8:2",
+            "P8:8",
+            "P8:9",
+            "P9:7",
+            "P9:8",
+            "P9:10"
+          ]
+        },
+        {
+          "id": "u3",
+          "text": "- When a task requires placing multiple target instances in a receptacle, after the first target instance is placed in a receptacle, use that same receptacle for subsequent target instances and keep the already-placed instance there.\n- Do not move an already-placed target instance to a different receptacle as an experiment or while searching; only move it if the current receptacle is invalid or the task completion requires a different configuration.\n- If the target receptacle is unspecified (e.g., “in drawer”), any suitable receptacle may be chosen, but once chosen, consolidate all required target instances there.\n",
+          "basis": [
+            "G2",
+            "P5:13",
+            "P5:14",
+            "P5:15",
+            "P5:31",
+            "P6:4",
+            "P6:5",
+            "P6:19",
+            "P6:20",
+            "P6:21",
+            "P6:35",
+            "P6:36",
+            "P6:47",
+            "P8:4",
+            "P8:11",
+            "P9:4",
+            "P9:10"
+          ]
+        },
+        {
+          "id": "u4",
+          "text": "- While a multi-instance task is unmet, after a candidate location proves not to contain the needed target instance, move on to a different candidate location instead of re-opening, re-examining, or oscillating back to that same one.\n- If a previously visited location was seen to contain a needed target instance that you did not collect, treat returning there as a priority; otherwise do not repeatedly toggle or open/close the same container or shuttle the same object between locations.\n- Expand search to all types of candidate locations, including remaining drawers, shelves, cabinets, sidetables, and surfaces such as countertops and dining tables, rather than cycling through the same subset.\n",
+          "basis": [
+            "G2",
+            "P5:16",
+            "P5:17",
+            "P5:18",
+            "P5:19",
+            "P5:20",
+            "P5:21",
+            "P5:22",
+            "P5:23",
+            "P5:24",
+            "P7:35",
+            "P7:36",
+            "P7:37",
+            "P7:38",
+            "P7:39",
+            "P7:40",
+            "P7:43",
+            "P7:44",
+            "P7:45",
+            "P7:48",
+            "P7:50"
+          ]
+        }
+      ],
+      "checks": [
+        {
+          "id": "c1",
+          "update_ids": [
+            "u1"
+          ],
+          "question": "When the Actor is holding a target object at a microwave, does it choose a direct heat action instead of moving the object into the microwave first?"
+        },
+        {
+          "id": "c2",
+          "update_ids": [
+            "u2"
+          ],
+          "question": "For multi-instance tasks, does the Actor retrieve all still-needed visible target instances from a known location before searching elsewhere, while taking no more than the remaining required count?"
+        },
+        {
+          "id": "c3",
+          "update_ids": [
+            "u3"
+          ],
+          "question": "For multi-instance tasks, does the Actor place subsequent target instances in the receptacle already used for the first instance and avoid shuttling already-placed instances between receptacles?"
+        },
+        {
+          "id": "c4",
+          "update_ids": [
+            "u4"
+          ],
+          "question": "After a candidate location proves not to contain the needed target instance, does the Actor move to a different candidate location instead of re-toggling the same container or cycling the same subset, while returning to any previously visited location that still holds an uncollected needed instance and covering varied container and surface types?"
+        }
+      ]
+    },
+    "actual_diffs": {
+      "u4": "--- a/SKILL.md\n+++ b/SKILL.md\n@@ -1,3 +1,3 @@\n-- While a multi-instance task is unmet and unsearched candidate receptacles remain, check those unsearched receptacles before revisiting receptacles already observed to be empty or already checked without finding the target.\n-- If a previously visited location was seen to contain a needed target instance but you did not collect it, treat that location as a priority; otherwise do not repeatedly toggle or open/close the same container or shuttle the same object between locations.\n-- Expand search to all types of candidate containers, including remaining drawers, shelves, cabinets, and sidetables, rather than cycling through the same subset.\n+- While a multi-instance task is unmet, after a candidate location proves not to contain the needed target instance, move on to a different candidate location instead of re-opening, re-examining, or oscillating back to that same one.\n+- If a previously visited location was seen to contain a needed target instance that you did not collect, treat returning there as a priority; otherwise do not repeatedly toggle or open/close the same container or shuttle the same object between locations.\n+- Expand search to all types of candidate locations, including remaining drawers, shelves, cabinets, sidetables, and surfaces such as countertops and dining tables, rather than cycling through the same subset.\n"
+    }
+  }
+}

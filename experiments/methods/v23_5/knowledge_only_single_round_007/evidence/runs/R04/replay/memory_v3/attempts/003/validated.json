@@ -1,0 +1,112 @@
+{
+  "replay": {
+    "entries": [
+      {
+        "revises": [],
+        "knowledge": [
+          {
+            "text": "With a null Parent and a newly created Skill that adds a 'heat the target directly while holding it at the microwave' clause, candidate runs that held the required target and then placed it used `heat <object> with microwave 1` while holding and succeeded, whereas paired parents that moved the object into the microwave and only toggled its door did not apply heat to that object and either failed or took more steps. In 'heat some tomato and put it in countertop', P4 moved tomato 2 into microwave 1 (P4:7) and cycled the door from P4:8 to the 50-step limit without heating (failure), while Q4 used `heat tomato 2 with microwave 1` while holding (Q4:5) and placed it on countertop 1 (Q4:7), succeeding in 7 steps. In 'put a hot potato in fridge', P3 moved potato 1 into microwave 1 (P3:5) and only toggled the door, later heating the alternative potato 3 while holding (P3:17) and placing it in the fridge (P3:20) for a 20-step success, while Q3 heated potato 1 while holding (Q3:5) and succeeded in 12 steps. Limit: in 'heat some plate and put it in cabinet' both sides used direct hold-heat (P2:24, Q2:6) and Q2 succeeded in 8 steps vs 27 for P2, but P2's extra steps came from pre-acquisition searching, so this pair does not isolate the heating clause; the whole Skill was added at once against a null parent.",
+            "evidence": [
+              "diff",
+              "P4:7",
+              "P4:8",
+              "P4:50",
+              "Q4:5",
+              "Q4:7",
+              "P3:5",
+              "P3:17",
+              "P3:20",
+              "Q3:5",
+              "Q3:12",
+              "P2:24",
+              "Q2:6",
+              "Q2:8"
+            ]
+          },
+          {
+            "text": "Direct hold-heat adherence alone did not produce success when object identity or placement was wrong: in 'put a hot mug in coffeemachine' the candidate repeatedly used `heat cup 2 with microwave 1` while holding (Q1:7 through Q1:50) but never placed the object and operated on a cup although the task named a mug, so Q1 ended at the 50-step limit; the parent P1 had moved cup 2 into microwave 1 and toggled (P1:30-P1:31) and also failed. The clause regulates the heating action, not correct target-type selection or the subsequent placement, so these failure causes were not covered by the edit.",
+            "evidence": [
+              "diff",
+              "Q1:5",
+              "Q1:7",
+              "Q1:50",
+              "P1:26",
+              "P1:30",
+              "P1:31"
+            ]
+          },
+          {
+            "text": "When a multi-instance task's receptacle was unspecified, the candidate that chose one already-inspected empty receptacle and placed every needed instance there succeeded, while the paired parent relocated already-placed instances across several receptacles and failed. In 'put two candle in drawer', Q6 opened drawer 1, drawer 2, and drawer 3 (all empty; Q6:2, Q6:3, Q6:5), took candle 1 from countertop 1 (Q6:7) and placed it in drawer 3 (Q6:9), returned to countertop 1 for candle 2 (Q6:11) and placed it in drawer 3 (Q6:13), succeeding in 13 steps; P6 placed candle 1 in drawer 1 (P6:5) and candle 2 in drawer 6 (P6:21), then took the already-placed candle 1 back out of drawer 1 (P6:24) and moved it to drawer 2 (P6:26), later relocating candle 2 to drawer 5 (P6:36) and candle 1 to drawer 1 (P6:42), and ended at the step limit. This is consistent with the receptacle-consistency clause, but the single pair and the parent's many independent detours limit isolation.",
+            "evidence": [
+              "diff",
+              "Q6:2",
+              "Q6:3",
+              "Q6:5",
+              "Q6:7",
+              "Q6:9",
+              "Q6:11",
+              "Q6:13",
+              "P6:5",
+              "P6:21",
+              "P6:24",
+              "P6:26",
+              "P6:36",
+              "P6:42",
+              "P6:50"
+            ]
+          },
+          {
+            "text": "When the receptacle was named, both sides consolidated the instances and no candidate efficiency gain was demonstrated. In 'find two newspaper and put them in sofa', Q8 took newspaper 1 from coffeetable 1 (Q8:2), placed it in sofa 1 (Q8:5), returned directly to coffeetable 1 for newspaper 2 (Q8:6-Q8:7) and placed it in sofa 1 (Q8:9), succeeding in 9 steps, while P8 also placed both newspapers in sofa 1 but took 11 steps after a sidetable 1 detour (P8:6). In 'put two saltshaker in sidetable', Q9 and P9 both placed both saltshakers in sidetable 1 (Q9:4, Q9:11 and P9:4, P9:10), but Q9 took 11 steps versus 10 for P9 because it added a diningtable 1 check (Q9:6) before taking saltshaker 2 from cabinet 1. These pairs preserve single-receptacle consolidation without confirming an efficiency benefit of the clauses.",
+            "evidence": [
+              "diff",
+              "Q8:2",
+              "Q8:5",
+              "Q8:6",
+              "Q8:7",
+              "Q8:9",
+              "P8:4",
+              "P8:6",
+              "P8:9",
+              "P8:11",
+              "Q9:4",
+              "Q9:6",
+              "Q9:11",
+              "P9:4",
+              "P9:10"
+            ]
+          },
+          {
+            "text": "In the two multi-instance tasks whose second instance was never acquired, both sides ended at the 50-step limit and the candidate still cycled among already-inspected containers, so the anti-revisit/expand-search clause neither prevented extended re-checking nor guaranteed coverage. In 'find two cd and put them in drawer', Q5 repeatedly revisited shelves 1-7 and drawers 1-5 (e.g., shelf 1 at Q5:1, Q5:8, Q5:36) and never reached dresser 1, where the parent had found cds (P5:11); P5 acquired cd 1 (P5:12) but moved it between drawer 1 and drawer 2 (P5:15, P5:26, P5:31) without obtaining a second cd, and both failed. In 'find two keychain and put them in armchair', both Q7 and P7 took the single keychain 2 from sidetable 2 (Q7:16, P7:36) and placed it in armchair 1 (Q7:18, P7:38), then repeatedly revisited drawers and sidetables without finding a second keychain and hit the step limit. Because no second instance was acquired, second-instance existence or absence cannot be inferred; the observable response is continued re-checking without completion.",
+            "evidence": [
+              "diff",
+              "Q5:1",
+              "Q5:8",
+              "Q5:36",
+              "P5:11",
+              "P5:12",
+              "P5:15",
+              "P5:26",
+              "P5:31",
+              "Q7:16",
+              "Q7:18",
+              "P7:36",
+              "P7:38"
+            ]
+          },
+          {
+            "text": "A task outside the edited clauses showed no regression: in 'look at alarmclock under the desklamp' both sides succeeded — P10 turned on desklamp 1, then looked and examined before taking alarmclock 2 (P10:2, P10:3, P10:4, P10:5; 5 steps), while Q10 turned on the lamp and took alarmclock 2 directly (Q10:2, Q10:3; 3 steps). The current Diff contains no desklamp clause, so the candidate's shorter run is attributable to run variance rather than to the edit.",
+            "evidence": [
+              "diff",
+              "P10:2",
+              "P10:3",
+              "P10:4",
+              "P10:5",
+              "Q10:2",
+              "Q10:3"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -3,6 +3,9 @@
 from copy import deepcopy
 
 from src.adapters.alfworld.actor_prompt import render_messages, visible_commands
+from src.adapters.alfworld.run_task_upstream import project_action, action_error
+from src.adapters.alfworld.skill_runtime import SKILLOPT_INJECTION, execution_protocol, inject_skill, protocol_output_format, protocol_action_retry, protocol_action_feedback
+from src.adapters.alfworld.verify_skill_run import verify_action_feedback
 
 
 BACKGROUND_FIELDS = ("system_prompt", "initial_template", "history_template", "max_steps")
@@ -108,11 +111,21 @@ def build_facts(records):
                                        **{k: context[k] for k in BACKGROUND_FIELDS[:-1]})
             if parent is not None:
                 protocol = record["protocol"]
-                require(protocol.get("skill_injection") == "append_to_system_every_request_when_fixed",
-                        "Unsupported recorded Skill injection")
-                expected[0]["content"] += protocol["skill_prefix"] + parent + protocol["skill_suffix"]
+                if protocol.get('skill_injection') == 'prepend_to_user_every_request_when_fixed':
+                    require(protocol == execution_protocol(protocol['max_steps'], SKILLOPT_INJECTION,
+                            output_format=protocol_output_format(protocol),
+                            retry_invalid_actions=protocol_action_retry(protocol),
+                            action_feedback=protocol_action_feedback(protocol)),
+                            'Unsupported recorded SkillOpt Actor protocol')
+                    inject_skill(expected, parent, SKILLOPT_INJECTION)
+                else:
+                    require(protocol.get("skill_injection") == "append_to_system_every_request_when_fixed",
+                            "Unsupported recorded Skill injection")
+                    expected[0]["content"] += protocol["skill_prefix"] + parent + protocol["skill_suffix"]
             require(event.get("messages") == expected,
                     f"{event_ref}: actual Prompt differs from recorded observation/history/candidates/Skill")
+            if protocol_action_feedback(record['protocol']):
+                verify_action_feedback(event)
             before = {"observation": observation, "commands_ref": menu(raw_menu)}
             before_states.append(before)
             phase = event.get("phase")
@@ -132,6 +145,13 @@ def build_facts(records):
             require(type(event.get("action_in_admissible_commands")) is bool
                     and event["action_in_admissible_commands"] == legal,
                     "Recorded action legality differs from the raw environment menu")
+            if protocol_action_retry(record['protocol']):
+                response = event.get('model_response', {})
+                content = response.get('content')
+                require(response.get('finish_reason') == 'stop' and isinstance(content, str)
+                        and action_error(content, visible_commands(raw_menu)) is None
+                        and project_action(content) == (action, event.get('fallback')),
+                        'Invalid action passed the recorded retry boundary')
             feedback = {k: deepcopy(event[k]) for k in
                         ("reward", "done", "won", "action_in_admissible_commands", "fallback") if k in event}
             # No after-menu field is recorded by the supported V22 runner.

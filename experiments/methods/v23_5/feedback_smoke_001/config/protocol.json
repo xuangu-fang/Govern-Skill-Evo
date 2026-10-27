@@ -1,0 +1,101 @@
+{
+  "source": "artifacts/methods/v23_5/feedback_smoke_001/manifest.json",
+  "spec": {
+    "question": "Does targeted feedback repair a known output failure?",
+    "hypothesis": "Feedback reduces repeated errors compared with unchanged regeneration.",
+    "rounds": [
+      "R03",
+      "R04",
+      "R05",
+      "R06"
+    ],
+    "call_config": {
+      "endpoint": "http://llm-proxy.intra.xiaojukeji.com/chat/completions",
+      "model": "deepseek-v4.1-flash",
+      "max_tokens": 32768,
+      "timeout_seconds": 300,
+      "temperature": 1.0,
+      "reasoning_effort": "medium",
+      "thinking": {
+        "type": "enabled"
+      },
+      "stream": false
+    },
+    "max_attempts": 1,
+    "max_input_chars": 4000000,
+    "max_input_bytes": 6000000,
+    "repetitions": 1,
+    "retry_delay_seconds": 2
+  },
+  "cases": [
+    {
+      "id": "json",
+      "source": "/Users/didi/Desktop/Govern-Skill-Evo/artifacts/methods/v23_5/knowledge_only_single_round_003/runs/R03/preconditioner/knowledge_only/attempts/003",
+      "cell": {
+        "round": "R03",
+        "stage": "preconditioner",
+        "arm": "knowledge_only"
+      },
+      "diagnostic": {
+        "location": "response",
+        "error": "JSON body line 1, column 1 (char 0): Expecting value"
+      }
+    },
+    {
+      "id": "reference",
+      "source": "/Users/didi/Desktop/Govern-Skill-Evo/artifacts/methods/v23_5/knowledge_only_single_round_001/runs/R03/preconditioner/knowledge_only/attempts/001",
+      "cell": {
+        "round": "R03",
+        "stage": "preconditioner",
+        "arm": "knowledge_only"
+      },
+      "diagnostic": {
+        "location": "Preconditioner output",
+        "error": "Update u1.reason: backtick content 'heat apple 1 with microwave 1' is not in the allowed reference set"
+      }
+    },
+    {
+      "id": "schema",
+      "source": "/Users/didi/Desktop/Govern-Skill-Evo/artifacts/methods/v23_5/knowledge_only_single_round_007/runs/R04/preconditioner/knowledge_only/attempts/001",
+      "cell": {
+        "round": "R04",
+        "stage": "preconditioner",
+        "arm": "knowledge_only"
+      },
+      "diagnostic": {
+        "location": "Preconditioner output",
+        "error": "Adjustment: unexpected fields"
+      }
+    }
+  ],
+  "order": [
+    {
+      "case": "json",
+      "arm": "unchanged"
+    },
+    {
+      "case": "json",
+      "arm": "feedback"
+    },
+    {
+      "case": "reference",
+      "arm": "feedback"
+    },
+    {
+      "case": "reference",
+      "arm": "unchanged"
+    },
+    {
+      "case": "schema",
+      "arm": "unchanged"
+    },
+    {
+      "case": "schema",
+      "arm": "feedback"
+    }
+  ],
+  "max_real_requests": 6,
+  "workers": 2,
+  "policy": "previous_output_validation_error_v1",
+  "design": "Historical-failure continuation; current prompt shared by both arms; one sample per arm."
+}

@@ -1,0 +1,117 @@
+{
+  "entries": [
+    {
+      "revises": [],
+      "knowledge": [
+        {
+          "text": "The added Locate Phase Search section (coverage sweep, anti-cycle, exit-on-acquire) left behavior unchanged in current pairs whose required object was obtainable at the first plausible location visited: Parent and Candidate executed the same actions in the same number of steps, still taking the object immediately and completing the required transform-and-place. train:0010 (put a toiletpaper in toiletpaperhanger): both 8 steps, taking toiletpaper 1 from countertop 1 and moving it to toiletpaperhanger 1. train:0011 (put some toiletpaper on toiletpaperhanger): both 7 steps, taking toiletpaper 3 from drawer 2 and moving it to toiletpaperhanger 1. train:0012 (put a clean apple in diningtable): both 7 steps, taking apple 2 from fridge 1, cleaning it with sinkbasin 1, and moving it to diningtable 1. train:0019 (put a clean lettuce in fridge): both 7 steps, taking lettuce 1 from countertop 1, cleaning it with sinkbasin 1, and moving it to fridge 1. train:0020 (clean some plate and put it in fridge): both 7 steps, taking plate 1 from countertop 1, cleaning it with sinkbasin 1, and moving it to fridge 1. These runs show no disruption of acquisition, cleaning, or delivery, but they only lightly exercise the missing-target locate phase.",
+          "evidence": [
+            "diff",
+            "P1:6",
+            "Q1:6",
+            "P1:8",
+            "Q1:8",
+            "P2:5",
+            "Q2:5",
+            "P2:7",
+            "Q2:7",
+            "P3:5",
+            "Q3:5",
+            "P3:7",
+            "Q3:7",
+            "P9:2",
+            "Q9:2",
+            "P9:4",
+            "Q9:4",
+            "P9:7",
+            "Q9:7",
+            "P10:2",
+            "Q10:2",
+            "P10:4",
+            "Q10:4",
+            "P10:7",
+            "Q10:7"
+          ]
+        },
+        {
+          "text": "When the object was initially missing and the Parent's locate phase cycled, the added guidance coincided with a large reduction in search steps while both sides eventually succeeded. In train:0014 (clean some dishsponge and put it in shelf), the Parent repeatedly re-entered already-observed shelves 1-4, sinkbasin 1 and cart 1 (for example returns to shelf 1 at P5:6 and P5:12, and visits to cart 1 at P5:11) and only reached the previously uninspected bathtubbasin 1 at P5:39, taking dishsponge 3 (P5:40) and finishing successfully in 44 steps; the Candidate made one pass through shelves 1-4, sinkbasin 1 and cart 1, reached bathtubbasin 1 at Q5:8, took the same dishsponge 3 (Q5:9), cleaned it with sinkbasin 1 (Q5:11), and completed the identical placement in 13 steps (Q5:13). The post-acquisition behavior matches on both sides, so the divergence is confined to the locate phase; the edit added coverage and anti-cycle clauses together, and the Candidate did still return once to shelf 1 (Q5:5), so the step reduction is not attributable to a single clause.",
+          "evidence": [
+            "diff",
+            "P5:1",
+            "P5:6",
+            "P5:11",
+            "P5:12",
+            "P5:39",
+            "P5:40",
+            "P5:44",
+            "Q5:1",
+            "Q5:4",
+            "Q5:5",
+            "Q5:8",
+            "Q5:9",
+            "Q5:13"
+          ]
+        },
+        {
+          "text": "In a missing-target case the added guidance coincided with turning a Parent step-limit failure into a Candidate success. In train:0015 (put a clean kettle in cabinet), the Parent spent all 50 steps cycling among cabinets 1-9, countertop 1-2 and repeated inventories (for example P6:3, P6:9, P6:15, P6:29) and never acquired the kettle; the Candidate systematically opened cabinets 1-9 (Q6:2-Q6:22), moved on to countertop 1 and drawers 1-5 (Q6:24-Q6:33), then took kettle 2 from stoveburner 6 (Q6:34), cleaned it with sinkbasin 1 (Q6:36) and placed it in cabinet 1 (Q6:38) for a 38-step success. This is a material Parent-step-limit/Candidate-success asymmetry under the joint edit. The Candidate's acquisition action (Q6:34) was admissible while its recorded observation was at drawer 5 (Q6:33), so the record does not show how that object became actionable, and no single clause can be credited with the outcome.",
+          "evidence": [
+            "diff",
+            "P6:3",
+            "P6:9",
+            "P6:15",
+            "P6:29",
+            "P6:50",
+            "Q6:1",
+            "Q6:13",
+            "Q6:24",
+            "Q6:33",
+            "Q6:34",
+            "Q6:36",
+            "Q6:38"
+          ]
+        },
+        {
+          "text": "The added guidance also coincided with a Parent-success/Candidate-step-limit regression in train:0016 (clean some knife and put it in drawer). After opening drawers 1-3, the Parent returned to drawer 1 (P7:6) and then went to countertop 1 (P7:7), took knife 1 there (P7:8), cleaned it with sinkbasin 1 (P7:10) and placed it in drawer 1 (P7:12), succeeding in 12 steps. The Candidate instead went to cabinet 1 (Q7:7), whose recorded admissible actions also included going to countertop 1, and then traversed and opened cabinets 1-19 (Q7:7-Q7:43) in a room listing cabinet 1-20, never visiting countertop 1, and after re-traversing drawer 1-3 and cabinet 1-4 (Q7:44-Q7:50) ended at the 50-step limit with the knife never acquired. The exhaustive same-category sweep is consistent with the coverage clause's instruction to finish the remaining uninspected instances of the current receptacle category, and the target-bearing countertop was an available but untaken option; however the edit was joint, the Candidate's choice one step earlier differed from the Parent's (Q7:6 examined drawer 3 instead of returning to drawer 1), and the rule does not say which uninspected category to enter, so no single clause can be shown to have caused the omission.",
+          "evidence": [
+            "diff",
+            "P7:6",
+            "P7:7",
+            "P7:8",
+            "P7:10",
+            "P7:12",
+            "Q7:6",
+            "Q7:7",
+            "Q7:16",
+            "Q7:43",
+            "Q7:44",
+            "Q7:50"
+          ]
+        },
+        {
+          "text": "The coverage clause did not ensure success, and the anti-cycle clause did not prevent re-traversal. In train:0013 (put a clean dishsponge in shelf), the Candidate covered cabinets 1-13 (Q4:3-Q4:29), including returns to already-opened cabinets 1-3 (Q4:10-Q4:12) and later re-traversal of cabinets 1-13 (Q4:32-Q4:44), yet neither side ever observed a dishsponge and both ended at the 50-step limit. In train:0017 (clean some lettuce and put it in diningtable), the Candidate likewise opened cabinets 1-13 (Q8:4-Q8:36), still observed no lettuce, re-traversed cabinets 1-8 (Q8:40-Q8:47), and left shelves 2-3 uninspected (the Parent had visited them at P8:10 and P8:40) before both sides hit the 50-step limit. Both tasks ended by step limit, so they are incomplete runs rather than proof the targets were unobtainable, and expanded coverage alone did not produce the object or stop cycling among already-inspected locations.",
+          "evidence": [
+            "diff",
+            "Q4:3",
+            "Q4:10",
+            "Q4:12",
+            "Q4:22",
+            "Q4:29",
+            "Q4:32",
+            "Q4:44",
+            "Q4:50",
+            "P4:50",
+            "P8:10",
+            "P8:40",
+            "P8:50",
+            "Q8:4",
+            "Q8:17",
+            "Q8:36",
+            "Q8:40",
+            "Q8:47",
+            "Q8:50"
+          ]
+        }
+      ]
+    }
+  ]
+}

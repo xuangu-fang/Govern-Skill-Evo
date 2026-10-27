@@ -1,0 +1,125 @@
+{
+  "review_method": "Assistant reading of selected structurally valid output, actual patches and frozen current trajectories; targeted semantic audit, not an exhaustive certification. No evaluator-model call or Actor execution.",
+  "round": "R06",
+  "failure_costs_used_in_quality_judgment": false,
+  "preconditioner": {
+    "memory_v3": {
+      "source_group": "009",
+      "attempt": "003",
+      "keep": [
+        "u2"
+      ],
+      "modify": {
+        "u1": [
+          "D",
+          "S",
+          "C"
+        ]
+      },
+      "positive": [
+        "明确 P6 已适用多实例规则却仍循环，没有只用扩展单实例解释所有失败。",
+        "把已有历史失败作为强化操作条件的理由，增加取得对象后的退出条件，保留已知目标返回。",
+        "保留热/冷方向，区分热顺序问题与历史错误对象类型问题。"
+      ],
+      "concerns": [
+        "将空容器标为当前搜索阶段已耗尽且不再选择，仍可能要求超出最近两步的持续状态。",
+        "不同位置选择与不得回当前位置的要求在候选不足时边界不够明确；具体策略仍未执行验证。"
+      ]
+    },
+    "knowledge_only": {
+      "source_group": "009",
+      "attempt": "001",
+      "keep": [
+        "u2"
+      ],
+      "modify": {
+        "u1": [
+          "D",
+          "S",
+          "C"
+        ]
+      },
+      "positive": [
+        "使用 M2/M4/M5 的搜索反例，并依据当前 P3/P6 的未覆盖位置提出更具体候选。",
+        "明确最近两步选择与已知目标返回覆盖优先级，保留热/冷正确行为。",
+        "承认最近窗口及目的地表面选择为待验证实现。"
+      ],
+      "concerns": [
+        "第一条新增下一搜索移动硬性排除当前和最近两步位置，但 reason 声称没有未检查候选时不禁止返回，这个兜底未落实到规则。",
+        "部分 unchecked/already-checked 条件仍不完全限于实际可用窗口。",
+        "历史反例说明原规则未保证覆盖，不独立证明更强排除或位置枚举有效。"
+      ]
+    },
+    "comparison": "两版核心 D/S/C 方向相近，均保留热/冷且细化搜索，未观察到 Knowledge Only 漏掉多实例覆盖失败。Memory v3 更强调退出，Knowledge Only 更强调候选覆盖和例外优先；都有规则可判断性与未验证强度问题。"
+  },
+  "replay": {
+    "memory_v3": {
+      "source_group": "009",
+      "attempt": "001",
+      "new_entries": 2,
+      "new_knowledge": 6,
+      "revises": [],
+      "positive": [
+        "保留反向热变换改善、plate 从成功到失败、creditcard 从9步到27步、book 最后一步发现及 apple 未找到等关键结果。",
+        "保留联合修改和搜索选择限制，没有把成功例推广为普遍有效。"
+      ],
+      "concerns": [
+        {
+          "item": "entry1 knowledge2",
+          "text": "称 P4 与 Q4 都对 tomato2 加热；实际 P4 是 tomato2，Q4:4/Q4:7 是 tomato1，且后文另一条又正确写成 tomato1。",
+          "verified_refs": [
+            "P4:3",
+            "P4:5",
+            "Q4:4",
+            "Q4:7"
+          ]
+        },
+        {
+          "item": "entry1 knowledge2",
+          "text": "将 Q4 多出的步骤归为起始搜索绕行，实际还增加了打开 microwave/fridge 的动作；对步骤差异的解释不完整。",
+          "verified_refs": [
+            "P4:1",
+            "P4:2",
+            "P4:3",
+            "P4:5",
+            "P4:7",
+            "Q4:1",
+            "Q4:2",
+            "Q4:3",
+            "Q4:6",
+            "Q4:9"
+          ]
+        }
+      ]
+    },
+    "knowledge_only": {
+      "source_group": "009",
+      "attempt": "001",
+      "new_entries": 2,
+      "new_knowledge": 6,
+      "revises": [],
+      "positive": [
+        "同样保留 plate 重大退步、creditcard 成功但效率退步及热变换改善。",
+        "区分 book 在最后一步已发现与 apple 位置未知，没有笼统说所有失败都未发现目标。",
+        "单独保留未修改的同容器放置能力。"
+      ],
+      "concerns": [
+        {
+          "item": "entry2 knowledge1",
+          "text": "把 Q1:35 的错误动作叙述在 drawers1-3 检查之前；实际 drawers 在 Q1:28–33，错误动作在其后。核心缺失 countertop2 的结论不受影响。",
+          "verified_refs": [
+            "Q1:28",
+            "Q1:29",
+            "Q1:30",
+            "Q1:31",
+            "Q1:32",
+            "Q1:33",
+            "Q1:35"
+          ]
+        }
+      ]
+    },
+    "comparison": "两版核心结论接近，都保留重要反例及限制；各有细节错误，不能根据本次定向核查断言总体准确率谁更高。"
+  },
+  "memory_retention": "两版均追加两个 entry，不替换旧 entry，原 29 条 Knowledge 按追加语义保留；未检验旧 entry 修订能力。"
+}

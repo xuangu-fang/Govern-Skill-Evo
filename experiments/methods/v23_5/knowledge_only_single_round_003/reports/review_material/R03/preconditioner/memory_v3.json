@@ -1,0 +1,520 @@
+{
+  "structural_validation_only": true,
+  "semantic_verdict": null,
+  "questions": [
+    "D/S/C 是否针对当前问题，且理由与修改一致？",
+    "历史知识的条件、反例和不确定性是否保留？",
+    "是否把历史转述说成已重新核查，或增加无依据事实？",
+    "是否出现不可执行条件、过宽恢复或跨阶段冲突？"
+  ],
+  "goal": "Install an initial manipulation Skill that fixes the batch's recurring behavioral gaps: apply temperature changes by holding the object and invoking the appliance verb instead of placing it inside and toggling the appliance door; act on an object matching the task's named type and recover when a sequence does not complete; search unvisited closed containers when the target is not visible; and always emit one verbatim admissible command. Preserve the already-correct hold-transform-place sequences (clean at sinkbasin, cool at fridge, then move the object to the named target).",
+  "decisions": [
+    {
+      "target": "u1",
+      "focus": [],
+      "change": "KEEP",
+      "reason": "The current batch supports every clause. The hold-and-invoke pattern succeeds: `P8:12` heats the held apple before `P8:14`, and `P3:8`, `P6:40`, `P7:9` cool a held object. The prohibited pattern is exactly the observed failure: `P9` moves the egg into the microwave at `P9:14`, then opens/closes the door to the step limit from `P9:16`, and `P10` repeats this from `P10:45` and `P10:47`. The direction, the holding precondition, the specific heat/cool commands and the door-toggling prohibition match the evidence and the Goal. No scope change is needed, and `u3`'s container inspection is a search action, not a transform action, so there is no conflict to coordinate.",
+      "to": null,
+      "mode": "keep",
+      "original_text": "- When an object must become hot, pick up the object and, while holding it, select `heat <object> with microwave 1`.\n- When an object must become cool, pick up the object and, while holding it, select `cool <object> with fridge 1`.\n- Do not move the object into the microwave (or fridge) and then repeatedly open and close its door: door toggling applies neither the heat/cool effect nor task progress.\n",
+      "effective_text": "- When an object must become hot, pick up the object and, while holding it, select `heat <object> with microwave 1`.\n- When an object must become cool, pick up the object and, while holding it, select `cool <object> with fridge 1`.\n- Do not move the object into the microwave (or fridge) and then repeatedly open and close its door: door toggling applies neither the heat/cool effect nor task progress.\n",
+      "actual_diff": null
+    },
+    {
+      "target": "u2",
+      "focus": [
+        "S"
+      ],
+      "change": "Keep the requirement to operate on an object matching the task's named type. Refine the recovery clause so that, when a state-change-then-place sequence does not end the task, the Actor first confirms that the carried object's type matches the task noun and, if it does not, acquires and uses a matching object (searching for one when necessary) before re-applying the state change and placing it; only if the object already matches the task noun and placement still does not complete should it try another instance of the named target.",
+      "reason": "`P5` is named a pan but takes pot 1 at `P5:28` and repeats the same move on stoveburner 1 at `P5:36` and `P5:43` without completing. `P7` initially handles pan 1 at `P7:4`, and after the cooled pan is placed without ending the task at `P7:11` it switches to pot 2 at `P7:16` and succeeds at `P7:20`. This supports keeping the matching-type requirement and making the object-type check the primary recovery step. The chosen strength fixes the observable ordering gap rather than adding a new obligation. The target-change fallback is an unverified choice with no observed recovery effect, so it is demoted to a last resort rather than removed.",
+      "to": {
+        "patch": "--- a/SKILL.md\n+++ b/SKILL.md\n@@\n - When the task names a required object type (e.g., pan, pot, plate, egg, bread), operate on an object whose type matches the task noun rather than the first similar object available.\n-- If a state-change-then-place sequence does not end the task, do not repeat the same object/action/target combination; instead try a different object of the required type or a different target.\n+- If a state-change-then-place sequence does not end the task, do not repeat the same object/action/target combination; first confirm the carried object's type matches the task noun, and if it does not, acquire and use a matching object (searching for one if necessary), then re-apply the state change and place it. Only if the object already matches the task noun and the placement still does not complete, try another instance of the named target.\n"
+      },
+      "mode": "modify",
+      "original_text": "- When the task names a required object type (e.g., pan, pot, plate, egg, bread), operate on an object whose type matches the task noun rather than the first similar object available.\n- If a state-change-then-place sequence does not end the task, do not repeat the same object/action/target combination; instead try a different object of the required type or a different target.\n",
+      "effective_text": "- When the task names a required object type (e.g., pan, pot, plate, egg, bread), operate on an object whose type matches the task noun rather than the first similar object available.\n- If a state-change-then-place sequence does not end the task, do not repeat the same object/action/target combination; first confirm the carried object's type matches the task noun, and if it does not, acquire and use a matching object (searching for one if necessary), then re-apply the state change and place it. Only if the object already matches the task noun and the placement still does not complete, try another instance of the named target.\n",
+      "actual_diff": "--- a/SKILL.md\n+++ b/SKILL.md\n@@ -1,2 +1,2 @@\n - When the task names a required object type (e.g., pan, pot, plate, egg, bread), operate on an object whose type matches the task noun rather than the first similar object available.\n-- If a state-change-then-place sequence does not end the task, do not repeat the same object/action/target combination; instead try a different object of the required type or a different target.\n+- If a state-change-then-place sequence does not end the task, do not repeat the same object/action/target combination; first confirm the carried object's type matches the task noun, and if it does not, acquire and use a matching object (searching for one if necessary), then re-apply the state change and place it. Only if the object already matches the task noun and the placement still does not complete, try another instance of the named target.\n"
+    },
+    {
+      "target": "u3",
+      "focus": [
+        "S",
+        "C"
+      ],
+      "change": "Keep the search direction but make it executable and coverage-complete: when the required object is not visible at the current location, continue searching instead of concluding it is absent, opening and inspecting closed containers (drawers, cabinets, fridge, microwave) before leaving them; cover the scene's candidate locations (cabinets, drawers, shelves, countertops, diningtables, listed appliances), preferring locations not yet inspected; re-anchor the anti-revisit condition from locations 'already shown empty' to the Actor's accessible recent history (do not immediately return to a location inspected within the last two steps while an unvisited candidate remains); and state the search-phase boundary so that, after the object is acquired, going to the appliance to clean/cool it and then to the named destination remains required productive behavior.",
+      "reason": "`P2` never acquires the bread, opening the fridge at `P2:5` and repeatedly returning to it at `P2:16` and `P2:48` without opening the drawers, ending at the step limit, while `P4` finds the bread only after extended search on diningtable 1 at `P4:41` and `P6` finds the plate in cabinet 9 at `P6:37`. Memory `M2` records that a prior broaden-coverage/anti-revisit edit did not ensure coverage and coincided with a candidate failure that never visited diningtable 1 (`S1_R02/Q8:50`), so the anti-revisit requirement is re-expressed in terms of the last-two-step history the Actor actually receives instead of an unobservable 'already empty' memory. The added coverage list and the post-acquisition boundary keep the rule from suppressing the Goal's preserve-clean/cool-then-place sequences.",
+      "to": {
+        "patch": "--- a/SKILL.md\n+++ b/SKILL.md\n@@\n-- When the required object is not visible on surfaces reached so far, search closed containers by opening drawers and cabinets (and the fridge/microwave) and check shelves, moving to unvisited containers rather than re-checking locations already shown to be empty.\n-- Countertops and diningtables reveal their contents directly when reached, so visit unvisited surfaces before returning to already-seen ones.\n+- When the required object is not visible at the current location, continue the search instead of concluding it is absent: open closed containers (drawers, cabinets, fridge, microwave) and inspect their contents before leaving, and check shelves and other surfaces.\n+- Cover the scene's candidate locations — all cabinets, drawers, shelves, countertops, diningtables, and the listed appliances — and prefer a location you have not yet inspected; to avoid pointless backtracking during the search, do not immediately return to a location you inspected within the last two steps while an unvisited candidate remains.\n+- Countertops and diningtables reveal their contents directly when reached, so prefer visiting them when they are unvisited.\n+- This search guidance applies only while the target has not yet been acquired; after acquiring the object, going to the appliance to clean or cool it and then to the named destination to place it are required productive steps, not unproductive revisiting.\n"
+      },
+      "mode": "modify",
+      "original_text": "- When the required object is not visible on surfaces reached so far, search closed containers by opening drawers and cabinets (and the fridge/microwave) and check shelves, moving to unvisited containers rather than re-checking locations already shown to be empty.\n- Countertops and diningtables reveal their contents directly when reached, so visit unvisited surfaces before returning to already-seen ones.\n",
+      "effective_text": "- When the required object is not visible at the current location, continue the search instead of concluding it is absent: open closed containers (drawers, cabinets, fridge, microwave) and inspect their contents before leaving, and check shelves and other surfaces.\n- Cover the scene's candidate locations — all cabinets, drawers, shelves, countertops, diningtables, and the listed appliances — and prefer a location you have not yet inspected; to avoid pointless backtracking during the search, do not immediately return to a location you inspected within the last two steps while an unvisited candidate remains.\n- Countertops and diningtables reveal their contents directly when reached, so prefer visiting them when they are unvisited.\n- This search guidance applies only while the target has not yet been acquired; after acquiring the object, going to the appliance to clean or cool it and then to the named destination to place it are required productive steps, not unproductive revisiting.\n",
+      "actual_diff": "--- a/SKILL.md\n+++ b/SKILL.md\n@@ -1,2 +1,4 @@\n-- When the required object is not visible on surfaces reached so far, search closed containers by opening drawers and cabinets (and the fridge/microwave) and check shelves, moving to unvisited containers rather than re-checking locations already shown to be empty.\n-- Countertops and diningtables reveal their contents directly when reached, so visit unvisited surfaces before returning to already-seen ones.\n+- When the required object is not visible at the current location, continue the search instead of concluding it is absent: open closed containers (drawers, cabinets, fridge, microwave) and inspect their contents before leaving, and check shelves and other surfaces.\n+- Cover the scene's candidate locations — all cabinets, drawers, shelves, countertops, diningtables, and the listed appliances — and prefer a location you have not yet inspected; to avoid pointless backtracking during the search, do not immediately return to a location you inspected within the last two steps while an unvisited candidate remains.\n+- Countertops and diningtables reveal their contents directly when reached, so prefer visiting them when they are unvisited.\n+- This search guidance applies only while the target has not yet been acquired; after acquiring the object, going to the appliance to clean or cool it and then to the named destination to place it are required productive steps, not unproductive revisiting.\n"
+    },
+    {
+      "target": "u4",
+      "focus": [],
+      "change": "KEEP",
+      "reason": "The batch contains many non-admissible actions matching the stated basis: empty strings at `P2:1`, `P2:29`, `P5:8`, ellipses at `P2:6`, `P9:21`, and reasoning text placed in the action field at `P4:28` and `P6:33`. Memory `M1` reports that this admissible-action guidance was associated with fewer malformed actions in several paired runs (for example `S1_R01/diff`, `S1_R01/Q1:11`), while noting compliance was not uniform. The requirement is adequate and executable under the Actor's protocol, so it is kept as written; a separate informative-fallback clause was not added because repeated inventory/look stalling already appears in this batch and would risk being reinforced.",
+      "to": null,
+      "mode": "keep",
+      "original_text": "- Emit exactly one action per step, written verbatim as a single command taken from the current admissible action list; never emit an empty string, an ellipsis, a placeholder, reasoning/explanatory text, or any target not present in the admissible list.\n",
+      "effective_text": "- Emit exactly one action per step, written verbatim as a single command taken from the current admissible action list; never emit an empty string, an ellipsis, a placeholder, reasoning/explanatory text, or any target not present in the admissible list.\n",
+      "actual_diff": null
+    }
+  ],
+  "effective_plan": {
+    "goal": "Install an initial manipulation Skill that fixes the batch's recurring behavioral gaps: apply temperature changes by holding the object and invoking the appliance verb instead of placing it inside and toggling the appliance door; act on an object matching the task's named type and recover when a sequence does not complete; search unvisited closed containers when the target is not visible; and always emit one verbatim admissible command. Preserve the already-correct hold-transform-place sequences (clean at sinkbasin, cool at fridge, then move the object to the named target).",
+    "updates": [
+      {
+        "id": "u1",
+        "text": "- When an object must become hot, pick up the object and, while holding it, select `heat <object> with microwave 1`.\n- When an object must become cool, pick up the object and, while holding it, select `cool <object> with fridge 1`.\n- Do not move the object into the microwave (or fridge) and then repeatedly open and close its door: door toggling applies neither the heat/cool effect nor task progress.\n",
+        "basis": [
+          "G4",
+          "P8:12",
+          "P8:14",
+          "P9:14",
+          "P9:16",
+          "P10:45",
+          "P10:47",
+          "P3:8",
+          "P6:40"
+        ]
+      },
+      {
+        "id": "u2",
+        "text": "- When the task names a required object type (e.g., pan, pot, plate, egg, bread), operate on an object whose type matches the task noun rather than the first similar object available.\n- If a state-change-then-place sequence does not end the task, do not repeat the same object/action/target combination; first confirm the carried object's type matches the task noun, and if it does not, acquire and use a matching object (searching for one if necessary), then re-apply the state change and place it. Only if the object already matches the task noun and the placement still does not complete, try another instance of the named target.\n",
+        "basis": [
+          "G2",
+          "P5:28",
+          "P5:36",
+          "P5:43",
+          "P7:4",
+          "P7:11",
+          "P7:16",
+          "P7:20"
+        ]
+      },
+      {
+        "id": "u3",
+        "text": "- When the required object is not visible at the current location, continue the search instead of concluding it is absent: open closed containers (drawers, cabinets, fridge, microwave) and inspect their contents before leaving, and check shelves and other surfaces.\n- Cover the scene's candidate locations — all cabinets, drawers, shelves, countertops, diningtables, and the listed appliances — and prefer a location you have not yet inspected; to avoid pointless backtracking during the search, do not immediately return to a location you inspected within the last two steps while an unvisited candidate remains.\n- Countertops and diningtables reveal their contents directly when reached, so prefer visiting them when they are unvisited.\n- This search guidance applies only while the target has not yet been acquired; after acquiring the object, going to the appliance to clean or cool it and then to the named destination to place it are required productive steps, not unproductive revisiting.\n",
+        "basis": [
+          "G1",
+          "P2:5",
+          "P2:16",
+          "P2:48",
+          "P4:41",
+          "P6:37"
+        ]
+      },
+      {
+        "id": "u4",
+        "text": "- Emit exactly one action per step, written verbatim as a single command taken from the current admissible action list; never emit an empty string, an ellipsis, a placeholder, reasoning/explanatory text, or any target not present in the admissible list.\n",
+        "basis": [
+          "P2:1",
+          "P2:6",
+          "P4:28",
+          "P5:41",
+          "P6:5",
+          "P6:33",
+          "P9:21"
+        ]
+      }
+    ],
+    "checks": [
+      {
+        "id": "c1",
+        "update_ids": [
+          "u1"
+        ],
+        "question": "When a hot/cool object is required, does the Actor hold the object and invoke heat/cool with the appliance directly, rather than moving it into the appliance and toggling its door?"
+      },
+      {
+        "id": "c2",
+        "update_ids": [
+          "u2"
+        ],
+        "question": "Does the Actor operate on an object whose type matches the task's named type, and after a state-change-then-place that does not end the task, switch to a matching object (or, secondarily, a different target instance) instead of repeating the same combination?"
+      },
+      {
+        "id": "c3",
+        "update_ids": [
+          "u3"
+        ],
+        "question": "When the required object is not visible at the current location, does the Actor open and inspect closed containers and visit unvisited candidate locations rather than immediately rechecking, so coverage is completed instead of looping?"
+      },
+      {
+        "id": "c4",
+        "update_ids": [
+          "u4"
+        ],
+        "question": "Does each step contain exactly one verbatim admissible command, with no empty, placeholder, or reasoning-text actions and no illegal targets?"
+      }
+    ]
+  },
+  "history": [
+    {
+      "id": "M1",
+      "knowledge": [
+        {
+          "text": "The Skill added clauses requiring only admissible action commands and immediate continuation after malformed actions. Under this joint edit, some candidate runs avoided invalid actions that the paired parent had: P1 used non-admissible '...' at P1:14 while Q1 completed 11 admissible steps; P4 used '...' at P4:5 while Q4 used valid 'use desklamp 1' at Q4:5; P8 embedded reasoning inside the action field at P8:5 while Q8 completed 15 admissible steps. However compliance was not uniform: Q3 emitted a long reasoning-like action at Q3:11 and '...' at Q3:20, and Q3 took 21 steps while P3 took 19, though both succeeded. Thus the valid-action guidance is associated with fewer malformed actions in several pairs but did not guarantee admissibility.",
+          "evidence": [
+            "S1_R01/diff",
+            "S1_R01/P1:14",
+            "S1_R01/Q1:11",
+            "S1_R01/P4:5",
+            "S1_R01/Q4:5",
+            "S1_R01/P8:5",
+            "S1_R01/Q8:15",
+            "S1_R01/Q3:11",
+            "S1_R01/Q3:20",
+            "S1_R01/P3:19",
+            "S1_R01/Q3:21"
+          ]
+        },
+        {
+          "text": "For desklamp look/examine tasks where the matching target and lamp were initially separated, candidate results were mixed but sometimes more efficient. In look at alarmclock under desklamp, Q1 took alarmclock2 from desk1, moved it to dresser1 with desklamp1, used the lamp, and took the target in 11 steps, whereas P1 took 24 steps via shelf1 and an invalid '...' at P1:14 before taking alarmclock1 to dresser1. In look at pillow under desklamp, Q4 carried pillow1 to desk1 and used desklamp1 in 5 steps, while P4 took 7 steps including '...' at P4:5. In examine cd with desklamp, P2 and Q2 were identical 4-step successes: both took cd1 from desk1, went to shelf1, and used desklamp1. This supports that bringing or using the target at the lamp can be efficient, but the joint edit and differing search choices prevent isolating the co-location clause.",
+          "evidence": [
+            "S1_R01/diff",
+            "S1_R01/P1:14",
+            "S1_R01/P1:16",
+            "S1_R01/P1:23",
+            "S1_R01/P1:24",
+            "S1_R01/Q1:2",
+            "S1_R01/Q1:7",
+            "S1_R01/Q1:8",
+            "S1_R01/Q1:11",
+            "S1_R01/P4:5",
+            "S1_R01/P4:7",
+            "S1_R01/Q4:5",
+            "S1_R01/P2:2",
+            "S1_R01/P2:4",
+            "S1_R01/Q2:2",
+            "S1_R01/Q2:4"
+          ]
+        },
+        {
+          "text": "In desklamp tasks where the matching target and lamp were already co-located, the candidate did not consistently perform the target interaction right after turning the lamp on. For look at statue under desklamp, P5 used desklamp1 on dresser1 and took statue1 in 3 steps, whereas Q5 used the lamp at Q5:2, then looked, examined dresser1, used the lamp again, examined dresser1 again, and took statue1 only at Q5:7, still succeeding in 7 steps. For look at cd under desklamp, after both sides moved cd1 to shelf2 and turned on the lamp, P3 examined shelf2 once and took cd1, while Q3 cycled look/examine/use/look/examine/look/use/look, emitted non-admissible actions at Q3:11 and Q3:20, and took cd1 only at Q3:21. Thus the post-lamp target-interaction guidance was not reliably followed and did not uniformly reduce steps.",
+          "evidence": [
+            "S1_R01/diff",
+            "S1_R01/P5:2",
+            "S1_R01/P5:3",
+            "S1_R01/Q5:2",
+            "S1_R01/Q5:3",
+            "S1_R01/Q5:4",
+            "S1_R01/Q5:5",
+            "S1_R01/Q5:6",
+            "S1_R01/Q5:7",
+            "S1_R01/P3:15",
+            "S1_R01/P3:16",
+            "S1_R01/P3:17",
+            "S1_R01/P3:18",
+            "S1_R01/P3:19",
+            "S1_R01/Q3:9",
+            "S1_R01/Q3:10",
+            "S1_R01/Q3:11",
+            "S1_R01/Q3:13",
+            "S1_R01/Q3:14",
+            "S1_R01/Q3:16",
+            "S1_R01/Q3:18",
+            "S1_R01/Q3:20",
+            "S1_R01/Q3:21"
+          ]
+        },
+        {
+          "text": "For put-object tasks where a matching target was available and the destination was named, the added put-object guidance was consistent with preserved successful behavior: put a cellphone in shelf (P6/Q6) both took cellphone1 from sidetable1 and moved it to shelf1 in 5 identical steps; put a soapbar in garbagecan (P9/Q9) both took soapbar2 from countertop1 and moved it to garbagecan1 in 4 identical steps. These identical pairs show no behavioral change, so they preserve but do not independently verify the new put-object clauses.",
+          "evidence": [
+            "S1_R01/diff",
+            "S1_R01/P6:3",
+            "S1_R01/P6:4",
+            "S1_R01/P6:5",
+            "S1_R01/Q6:3",
+            "S1_R01/Q6:4",
+            "S1_R01/Q6:5",
+            "S1_R01/P9:2",
+            "S1_R01/P9:3",
+            "S1_R01/P9:4",
+            "S1_R01/Q9:2",
+            "S1_R01/Q9:3",
+            "S1_R01/Q9:4"
+          ]
+        },
+        {
+          "text": "For put some newspaper on sofa, where the target was not initially visible, the candidate's search was longer and included extended rechecking contrary to the intended search guidance. Parent P7 found newspaper4 on armchair1 after inspecting coffeetable1, sidetable1, shelf1, and shelf2, and moved it to sofa in 10 steps. Candidate Q7 opened empty drawer1 at Q7:3-Q7:4, then after finding shelves1-4 empty it revisited those same empty shelves at Q7:6-Q7:15 before finding newspaper1 on tvstand1 at Q7:17-Q7:18 and moving it to sofa, taking 20 steps. Both succeeded, but the candidate did not avoid extended rechecking of known-empty locations and was less efficient in this task.",
+          "evidence": [
+            "S1_R01/diff",
+            "S1_R01/P7:3",
+            "S1_R01/P7:7",
+            "S1_R01/P7:8",
+            "S1_R01/P7:10",
+            "S1_R01/Q7:3",
+            "S1_R01/Q7:4",
+            "S1_R01/Q7:6",
+            "S1_R01/Q7:11",
+            "S1_R01/Q7:12",
+            "S1_R01/Q7:13",
+            "S1_R01/Q7:14",
+            "S1_R01/Q7:15",
+            "S1_R01/Q7:17",
+            "S1_R01/Q7:18",
+            "S1_R01/Q7:20"
+          ]
+        },
+        {
+          "text": "For put a pencil in desk, where the target was not initially visible, both sides searched drawers and eventually found pencil3 on shelf1. Parent P8 opened drawer2 and drawer3 empty but emitted a malformed action at P8:5, then rechecked drawer1, drawer2, and drawer3 repeatedly before taking pencil3 and moving it to desk in 20 steps. Candidate Q8 also opened drawer2 and drawer3 empty and revisited drawers, but completed in 15 steps with no malformed action before taking pencil3 at Q8:13 and moving it to desk at Q8:15. Both succeeded; the joint edit was associated with fewer redundant rechecks here, but the candidate still revisited known-empty drawers, so the improvement cannot be attributed solely to the search clause.",
+          "evidence": [
+            "S1_R01/diff",
+            "S1_R01/P8:5",
+            "S1_R01/P8:8",
+            "S1_R01/P8:11",
+            "S1_R01/P8:12",
+            "S1_R01/P8:13",
+            "S1_R01/P8:14",
+            "S1_R01/P8:15",
+            "S1_R01/P8:16",
+            "S1_R01/P8:17",
+            "S1_R01/P8:18",
+            "S1_R01/P8:20",
+            "S1_R01/Q8:5",
+            "S1_R01/Q8:8",
+            "S1_R01/Q8:9",
+            "S1_R01/Q8:10",
+            "S1_R01/Q8:11",
+            "S1_R01/Q8:12",
+            "S1_R01/Q8:13",
+            "S1_R01/Q8:15"
+          ]
+        },
+        {
+          "text": "For put some statue on coffeetable, where the target was not initially visible, the candidate was much more direct: P10 opened drawers1-4 empty and then moved statue1 from sidetable1 to coffeetable in 12 steps, while Q10 went directly to sidetable1, took statue1, and moved it to coffeetable in 4 steps. Both succeeded. Because the target location was not visible initially and the edited clauses do not determine which unsearched location to try first, this pair is consistent with search-order variance rather than a demonstrated effect of the search guidance.",
+          "evidence": [
+            "S1_R01/diff",
+            "S1_R01/P10:1",
+            "S1_R01/P10:2",
+            "S1_R01/P10:6",
+            "S1_R01/P10:8",
+            "S1_R01/P10:9",
+            "S1_R01/P10:10",
+            "S1_R01/P10:12",
+            "S1_R01/Q10:1",
+            "S1_R01/Q10:2",
+            "S1_R01/Q10:4"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "M2",
+      "knowledge": [
+        {
+          "text": "The actual edit adds broadened target-search guidance (inspect remaining plausible containers/surfaces, open closed containers) and a pre-acquisition anti-revisit rule, while explicitly preserving acquire→clean at sinkbasin 1→place and direct acquire→place sequences. When the target was available at the first inspected location, candidate runs showed no search detour: Q3 (apple in fridge) took the apple, cleaned it at sinkbasin 1, and placed it on diningtable1 in 7 steps versus parent 8, whose extra step was an invalid empty action; Q9 (lettuce in fridge) followed the identical 7-step fridge→sink→clean→fridge placement; Q10 (plate on countertop1) took, cleaned, and placed the plate in the fridge in 7 steps versus parent 8, whose extra step was an invalid empty action. These cases support preservation of the post-acquisition sequences but do not test the new search clauses.",
+          "evidence": [
+            "S1_R02/diff",
+            "S1_R02/P3:3",
+            "S1_R02/P3:4",
+            "S1_R02/P3:5",
+            "S1_R02/P3:6",
+            "S1_R02/P3:7",
+            "S1_R02/P3:8",
+            "S1_R02/Q3:3",
+            "S1_R02/Q3:4",
+            "S1_R02/Q3:5",
+            "S1_R02/Q3:6",
+            "S1_R02/Q3:7",
+            "S1_R02/P9:3",
+            "S1_R02/P9:4",
+            "S1_R02/P9:5",
+            "S1_R02/P9:6",
+            "S1_R02/P9:7",
+            "S1_R02/Q9:3",
+            "S1_R02/Q9:4",
+            "S1_R02/Q9:5",
+            "S1_R02/Q9:6",
+            "S1_R02/Q9:7",
+            "S1_R02/P10:2",
+            "S1_R02/P10:3",
+            "S1_R02/P10:4",
+            "S1_R02/P10:5",
+            "S1_R02/P10:6",
+            "S1_R02/P10:7",
+            "S1_R02/P10:8",
+            "S1_R02/Q10:2",
+            "S1_R02/Q10:3",
+            "S1_R02/Q10:4",
+            "S1_R02/Q10:5",
+            "S1_R02/Q10:6",
+            "S1_R02/Q10:7"
+          ]
+        },
+        {
+          "text": "When the candidate's first inspected location lacked the target, it sometimes continued to distinct unvisited locations and completed the task, but took more steps than a parent that found the target directly. In P2/Q2, the parent found toiletpaper2 on countertop1 and finished in 4 steps, while the candidate opened drawer1 (empty), continued to drawer2, found toiletpaper3, and finished in 8 steps. In P7/Q7, the parent took knife1 from countertop1 and finished in 7 steps, while the candidate checked drawer1, drawer2, and cabinet1 before finding knife1 on countertop1 and finishing in 12 steps. These are successful broaden-coverage responses, but the different search orders (and the target being directly reachable by the parent) prevent isolating any step cost to the edit.",
+          "evidence": [
+            "S1_R02/diff",
+            "S1_R02/P2:1",
+            "S1_R02/P2:2",
+            "S1_R02/P2:3",
+            "S1_R02/P2:4",
+            "S1_R02/Q2:1",
+            "S1_R02/Q2:2",
+            "S1_R02/Q2:3",
+            "S1_R02/Q2:4",
+            "S1_R02/Q2:5",
+            "S1_R02/Q2:6",
+            "S1_R02/Q2:7",
+            "S1_R02/Q2:8",
+            "S1_R02/P7:1",
+            "S1_R02/P7:2",
+            "S1_R02/P7:3",
+            "S1_R02/P7:4",
+            "S1_R02/P7:5",
+            "S1_R02/P7:6",
+            "S1_R02/P7:7",
+            "S1_R02/Q7:1",
+            "S1_R02/Q7:2",
+            "S1_R02/Q7:3",
+            "S1_R02/Q7:4",
+            "S1_R02/Q7:5",
+            "S1_R02/Q7:6",
+            "S1_R02/Q7:7",
+            "S1_R02/Q7:8",
+            "S1_R02/Q7:9",
+            "S1_R02/Q7:10",
+            "S1_R02/Q7:11",
+            "S1_R02/Q7:12"
+          ]
+        },
+        {
+          "text": "In P5/Q5 (clean dishsponge and put it in shelf), both sides searched multiple bathroom locations before finding dishsponge3 on bathtubbasin1. The candidate completed in 12 steps versus 17 for the parent, with the candidate visiting cart1, shelves1-3, sinkbasin1, then returning to cart1 and bathtubbasin1, taking the sponge, cleaning it at sinkbasin1, and placing it on shelf1. This is consistent with the joint broader-coverage/anti-revisit guidance being helpful in this hard search, but the candidate still revisited cart1 before acquisition, so the anti-revisit improvement is partial and not isolated.",
+          "evidence": [
+            "S1_R02/diff",
+            "S1_R02/P5:1",
+            "S1_R02/P5:2",
+            "S1_R02/P5:3",
+            "S1_R02/P5:4",
+            "S1_R02/P5:5",
+            "S1_R02/P5:6",
+            "S1_R02/P5:7",
+            "S1_R02/P5:8",
+            "S1_R02/P5:9",
+            "S1_R02/P5:10",
+            "S1_R02/P5:11",
+            "S1_R02/P5:12",
+            "S1_R02/P5:13",
+            "S1_R02/P5:14",
+            "S1_R02/P5:15",
+            "S1_R02/P5:16",
+            "S1_R02/P5:17",
+            "S1_R02/Q5:1",
+            "S1_R02/Q5:2",
+            "S1_R02/Q5:3",
+            "S1_R02/Q5:4",
+            "S1_R02/Q5:5",
+            "S1_R02/Q5:6",
+            "S1_R02/Q5:7",
+            "S1_R02/Q5:8",
+            "S1_R02/Q5:9",
+            "S1_R02/Q5:10",
+            "S1_R02/Q5:11",
+            "S1_R02/Q5:12"
+          ]
+        },
+        {
+          "text": "Critical counterexample: in P8/Q8 (clean lettuce and put it in diningtable), the parent succeeded in 28 steps, while the candidate hit the 50-step limit and failed. The parent eventually reached diningtable1, took lettuce1, cleaned it at sinkbasin1, returned, and moved it to diningtable1. The candidate's recorded 50-step trajectory repeatedly cycled among previously inspected fridge1, countertop1, cabinet1/2, shelf1/2, and drawer1 and never visited diningtable1, even though diningtable1 was in the initial scene and is one of the plausible candidate surfaces named by the edit. This material parent-success/candidate-failure asymmetry shows that the joint search guidance did not ensure coverage of all plausible candidate locations and did not stop extensive revisiting; single-task evidence and stochastic search choices limit attribution to a specific clause.",
+          "evidence": [
+            "S1_R02/diff",
+            "S1_R02/P8:21",
+            "S1_R02/P8:22",
+            "S1_R02/P8:23",
+            "S1_R02/P8:24",
+            "S1_R02/P8:27",
+            "S1_R02/P8:28",
+            "S1_R02/Q8:1",
+            "S1_R02/Q8:3",
+            "S1_R02/Q8:6",
+            "S1_R02/Q8:12",
+            "S1_R02/Q8:16",
+            "S1_R02/Q8:21",
+            "S1_R02/Q8:27",
+            "S1_R02/Q8:33",
+            "S1_R02/Q8:38",
+            "S1_R02/Q8:42",
+            "S1_R02/Q8:46",
+            "S1_R02/Q8:50"
+          ]
+        },
+        {
+          "text": "In two hard target-not-found tasks, both parent and candidate ended at the 50-step limit even though the candidate expanded to some new containers. In P4/Q4 (clean dishsponge in shelf), Q4 eventually opened cabinet4 but repeatedly returned to sinkbasin1, countertop1, drawer1, and cabinet1/2 without acquiring the target. In P6/Q6 (clean kettle in cabinet), Q6 opened cabinets1-4 and checked countertops/stoveburners but repeatedly returned to cabinet1/3 and countertop1/stoveburner1 without acquiring the target. Because no target was acquired, target location or global absence is unknown; the observable response is that the anti-revisit guidance did not prevent recheck loops and broader coverage did not avoid the step limit.",
+          "evidence": [
+            "S1_R02/diff",
+            "S1_R02/P4:1",
+            "S1_R02/P4:14",
+            "S1_R02/P4:22",
+            "S1_R02/P4:24",
+            "S1_R02/P4:25",
+            "S1_R02/P4:32",
+            "S1_R02/P4:50",
+            "S1_R02/Q4:1",
+            "S1_R02/Q4:16",
+            "S1_R02/Q4:24",
+            "S1_R02/Q4:25",
+            "S1_R02/Q4:32",
+            "S1_R02/Q4:38",
+            "S1_R02/Q4:50",
+            "S1_R02/P6:1",
+            "S1_R02/P6:7",
+            "S1_R02/P6:14",
+            "S1_R02/P6:20",
+            "S1_R02/P6:24",
+            "S1_R02/P6:50",
+            "S1_R02/Q6:4",
+            "S1_R02/Q6:9",
+            "S1_R02/Q6:10",
+            "S1_R02/Q6:15",
+            "S1_R02/Q6:23",
+            "S1_R02/Q6:25",
+            "S1_R02/Q6:40",
+            "S1_R02/Q6:50"
+          ]
+        },
+        {
+          "text": "Across all candidate runs that acquired the target, the required post-acquisition sequences were preserved. In clean tasks Q3, Q5, Q7, Q9, and Q10, the candidate cleaned the acquired object at sinkbasin1 and then moved it to the named destination; in simple placement Q1 and Q2, it took the target and moved it directly to toiletpaperhanger1. The candidate did not abandon an acquired target to resume search, and its returns to sinkbasin1 or the destination after acquisition were productive rather than anti-revisit violations. This supports the explicit preservation clauses but does not show that the search clauses caused those successes.",
+          "evidence": [
+            "S1_R02/diff",
+            "S1_R02/Q3:3",
+            "S1_R02/Q3:4",
+            "S1_R02/Q3:5",
+            "S1_R02/Q3:6",
+            "S1_R02/Q3:7",
+            "S1_R02/Q5:8",
+            "S1_R02/Q5:9",
+            "S1_R02/Q5:10",
+            "S1_R02/Q5:11",
+            "S1_R02/Q5:12",
+            "S1_R02/Q7:8",
+            "S1_R02/Q7:9",
+            "S1_R02/Q7:10",
+            "S1_R02/Q7:11",
+            "S1_R02/Q7:12",
+            "S1_R02/Q9:3",
+            "S1_R02/Q9:4",
+            "S1_R02/Q9:5",
+            "S1_R02/Q9:6",
+            "S1_R02/Q9:7",
+            "S1_R02/Q10:2",
+            "S1_R02/Q10:3",
+            "S1_R02/Q10:4",
+            "S1_R02/Q10:5",
+            "S1_R02/Q10:6",
+            "S1_R02/Q10:7",
+            "S1_R02/Q1:6",
+            "S1_R02/Q1:7",
+            "S1_R02/Q1:8",
+            "S1_R02/Q2:6",
+            "S1_R02/Q2:7",
+            "S1_R02/Q2:8"
+          ]
+        }
+      ]
+    }
+  ]
+}

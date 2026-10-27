@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from copy import deepcopy
 from datetime import datetime, timezone
 import importlib
 import importlib.metadata
@@ -15,11 +16,13 @@ import requests
 from dotenv import load_dotenv
 
 from .run_task import REPO_ROOT, SPLIT_ROOT
-from .run_task_upstream import chat, project_action
+from .run_task_upstream import chat, project_action, action_error, action_diagnostic
+from .actor_prompt import visible_commands
 from .response_archive import archive_response
 from .skill_runtime import (
     build_skill_messages, digest, load_skill, make_record, object_digest,
-    validate_access, write_record,
+    validate_access, write_record, protocol_injection, LEGACY_INJECTION, SKILLOPT_INJECTION,
+    protocol_output_format, protocol_action_retry, protocol_action_feedback, LEGACY_OUTPUT, ACTION_ONLY_OUTPUT,
 )
 
 
@@ -57,6 +60,10 @@ class RecordingSession:
                    "status": "requesting", "usage": None,
                    "request_parameters": {key: value for key, value in body.items() if key != "messages"},
                    "request_sha256": object_digest(body)}
+        if protocol_action_feedback(self.record.get('protocol', {})):
+            attempt['messages'] = deepcopy(body['messages'])
+            attempt['feedback_from_attempt'] = next((a['attempt'] for a in reversed(attempts)
+                                                     if 'action_validation' in a), None)
         attempts.append(attempt)
         write_record(self.output, self.record)
         started = time.monotonic()
@@ -76,6 +83,13 @@ class RecordingSession:
             attempt.update(finished_at=timestamp(), elapsed_seconds=time.monotonic() - started)
             write_record(self.output, self.record)
 
+    def response_error(self, reason, *, content=None):
+        attempt = self.record['steps'][-1]['transport_attempts'][-1]
+        attempt['response_validation_error'] = reason
+        if content is not None:
+            attempt['action_validation'] = {'content': content, 'diagnostic': action_diagnostic(content, reason)}
+        write_record(self.output, self.record)
+
 
 def run_episode(env, generate, record, output):
     """Execute once, preserving requests and responses even if the next step fails."""
@@ -94,13 +108,21 @@ def run_episode(env, generate, record, output):
         history = []
         for step in range(1, record["protocol"]["max_steps"] + 1):
             admissible = list(state.admissible_commands)
-            messages = build_skill_messages(observation, admissible, goal, history, record["skill"])
+            messages = build_skill_messages(observation, admissible, goal, history, record["skill"],
+                                            protocol_injection(record['protocol']),
+                                            output_format=protocol_output_format(record['protocol']))
             event = {"step": step, "phase": "requesting", "messages": messages,
                      "admissible_commands": admissible, "request_started_at": timestamp()}
             record["steps"].append(event)
             record["active_phase"] = "model_request"
             write_record(output, record)
             result = generate(messages)
+            if protocol_action_retry(record['protocol']):
+                # The HTTP loop normally rejects these before returning. Keep the
+                # environment boundary safe for custom generators as well.
+                if (result.get('finish_reason') != 'stop' or
+                        action_error(result['content'], visible_commands(admissible)) is not None):
+                    raise ValueError('Actor generator returned an invalid action')
             event.update(model_response=result, phase="responded", response_received_at=timestamp())
             write_record(output, record)
             action, fallback = project_action(result["content"])
@@ -158,6 +180,8 @@ def main(argv=None, *, chat_fn=chat, output_budget_policy=None, implementation_e
     parser.add_argument("--purpose", choices=["smoke", "learning", "optimization", "selection", "final"], default="smoke")
     parser.add_argument("--task-id")
     parser.add_argument("--skill-file", type=Path)
+    parser.add_argument('--skill-injection', choices=[LEGACY_INJECTION, SKILLOPT_INJECTION], default=LEGACY_INJECTION)
+    parser.add_argument('--output-format', choices=[LEGACY_OUTPUT, ACTION_ONLY_OUTPUT], default=LEGACY_OUTPUT)
     parser.add_argument("--max-steps", type=int, choices=range(1, 51), default=50)
     parser.add_argument("--env-file", type=Path, default=REPO_ROOT / ".env")
     parser.add_argument("--output-root", type=Path, default=REPO_ROOT / "artifacts/benchmarks/alfworld")
@@ -166,7 +190,13 @@ def main(argv=None, *, chat_fn=chat, output_budget_policy=None, implementation_e
                         help="Archive every HTTP response body and disable redirects; keep existing bounded retries.")
     parser.add_argument("--request-attempts", type=int, choices=range(1, 7), default=6)
     parser.add_argument("--strict-response", action="store_true")
+    parser.add_argument('--retry-invalid-actions', action='store_true')
+    parser.add_argument('--action-feedback', action='store_true')
     args = parser.parse_args(argv)
+    if args.retry_invalid_actions and not args.strict_response:
+        parser.error('--retry-invalid-actions requires --strict-response')
+    if args.action_feedback and not args.retry_invalid_actions:
+        parser.error('--action-feedback requires --retry-invalid-actions')
     try:
         validate_access(args.split, args.purpose)
         skill = load_skill(args.skill_file)
@@ -190,7 +220,7 @@ def main(argv=None, *, chat_fn=chat, output_budget_policy=None, implementation_e
         except Exception as exc:
             parser.error(f"Environment interface unavailable ({type(exc).__name__}).")
         print(f"Config OK: task={item['id']}; split={args.split}; purpose={args.purpose}; "
-              f"skill={skill['skill_id']}; model={args.model}; max_steps={args.max_steps}; versions={versions}")
+              f"skill={skill['skill_id']}; injection={args.skill_injection}; model={args.model}; max_steps={args.max_steps}; versions={versions}")
         return 0
 
     load_dotenv(args.env_file, override=False)
@@ -202,7 +232,9 @@ def main(argv=None, *, chat_fn=chat, output_budget_policy=None, implementation_e
     record = make_record(item=item, split=args.split, purpose=args.purpose, skill=skill,
                          model=args.model, max_steps=args.max_steps, gamefile=gamefile,
                          manifest_path=manifest_path, versions=versions,
-                         backend_id=digest(endpoint.encode("utf-8")))
+                         backend_id=digest(endpoint.encode("utf-8")), injection=args.skill_injection,
+                         output_format=args.output_format, retry_invalid_actions=args.retry_invalid_actions,
+                         action_feedback=args.action_feedback)
     if output_budget_policy is not None:
         from .skill_runtime import context_fingerprint, execution_fingerprint
         record['output_budget_policy'] = output_budget_policy
@@ -227,9 +259,16 @@ def main(argv=None, *, chat_fn=chat, output_budget_policy=None, implementation_e
                 session.trust_env = False
             recording_session = RecordingSession(session, record, output,
                                                  archive_responses=args.archive_responses)
-            run_episode(env, lambda messages: chat_fn(recording_session, endpoint, key, args.model, messages,
-                max_attempts=args.request_attempts, strict_response=args.strict_response),
-                        record, output)
+            def generate(messages):
+                options = {}
+                if args.retry_invalid_actions:
+                    options = {'action_candidates': visible_commands(record['steps'][-1]['admissible_commands']),
+                               'on_response_error': recording_session.response_error}
+                    if args.action_feedback:
+                        options['action_feedback'] = True
+                return chat_fn(recording_session, endpoint, key, args.model, messages,
+                               max_attempts=args.request_attempts, strict_response=args.strict_response, **options)
+            run_episode(env, generate, record, output)
     except (Exception, KeyboardInterrupt) as exc:
         record_failure(record, exc)
         record["finished_at"] = timestamp()

@@ -6,10 +6,12 @@ from copy import deepcopy
 import json
 from pathlib import Path
 
-from .run_task_upstream import project_action
+from .run_task_upstream import project_action, action_error, action_diagnostic, action_feedback_messages
+from .actor_prompt import visible_commands
 from .skill_runtime import (
     SCHEMA, access_metadata, build_skill_messages, context_fingerprint,
-    execution_fingerprint, execution_protocol, object_digest, validate_skill,
+    execution_fingerprint, execution_protocol, object_digest, validate_skill, protocol_injection,
+    protocol_output_format, protocol_action_retry, protocol_action_feedback,
 )
 
 COMPLETE = {"success", "environment_ended", "step_limit"}
@@ -21,12 +23,45 @@ def require(condition, message):
         raise ValueError(message)
 
 
+def verify_action_feedback(event):
+    """Rebuild the exact request chain from the most recent rejected response."""
+    base, expected, source = event['messages'], event['messages'], None
+    menu = visible_commands(event['admissible_commands'])
+    for number, attempt in enumerate(event.get('transport_attempts', []), 1):
+        require(attempt['attempt'] == number, 'Feedback attempt order differs')
+        require(attempt.get('messages') == expected and attempt.get('feedback_from_attempt') == source,
+                'Actor feedback request/provenance differs')
+        require(attempt['request_sha256'] == object_digest({**attempt['request_parameters'], 'messages': expected}),
+                'Actor feedback request hash differs')
+        reason = attempt.get('response_validation_error')
+        output_error = reason in {'missing_action_tag', 'action_not_admissible'}
+        require(('action_validation' in attempt) == output_error, 'Missing/unexpected Actor feedback source')
+        if output_error:
+            value = attempt['action_validation']
+            content = value.get('content')
+            require(200 <= attempt.get('http_status', 0) < 300 and isinstance(content, str)
+                    and bool(content.strip()) and action_error(content, menu) == reason,
+                    'Invalid Actor feedback source')
+            require(value.get('diagnostic') == action_diagnostic(content, reason), 'Actor diagnostic differs')
+            expected = action_feedback_messages(base, content, reason)
+            source = number
+
+
 def verify_record(record):
     require(record["schema_version"] == SCHEMA, "Unknown trace schema.")
     validate_skill(record["skill"])
     require(record["access"] == access_metadata(record["split"], record["purpose"]), "Access metadata mismatch.")
     require(record["task"]["id"].startswith(record["split"] + ":"), "Task/split mismatch.")
-    require(record["protocol"] == execution_protocol(record["protocol"]["max_steps"]), "Protocol mismatch.")
+    injection = protocol_injection(record['protocol'])
+    output_format = protocol_output_format(record['protocol'])
+    action_retry = protocol_action_retry(record['protocol'])
+    action_feedback = protocol_action_feedback(record['protocol'])
+    require(record["protocol"] == execution_protocol(record["protocol"]["max_steps"], injection,
+            output_format=output_format, retry_invalid_actions=action_retry,
+            action_feedback=action_feedback), "Protocol mismatch.")
+    if action_retry:
+        require(record.get('request_policy', {}).get('strict_response') is True,
+                'Action retries require strict response handling.')
     require(record["context_fingerprint"] == context_fingerprint(record), "Context fingerprint mismatch.")
     require(record["execution_fingerprint"] == execution_fingerprint(record), "Execution fingerprint mismatch.")
     require(record["status"] in STATUSES, "Unknown episode status.")
@@ -50,7 +85,8 @@ def verify_record(record):
         require(event["phase"] in {"requesting", "responded", "executed"}, f"Unknown phase at {where}.")
         if index == 1:
             require(event["admissible_commands"] == record["initial_admissible_commands"], "Initial actions mismatch.")
-        expected = build_skill_messages(observation, event["admissible_commands"], goal, history, record["skill"])
+        expected = build_skill_messages(observation, event["admissible_commands"], goal, history, record["skill"], injection,
+                                        output_format=output_format)
         require(event["messages"] == expected, f"Prompt/Skill mismatch at {where}.")
         transport_attempts += len(event.get("transport_attempts", []))
         protocol = record["protocol"]
@@ -58,14 +94,28 @@ def verify_record(record):
                       "max_tokens": protocol["max_tokens"], "reasoning_effort": protocol["reasoning_effort"],
                       "thinking": {"type": protocol["thinking"]}, "stream": False}
         attempts = event.get("transport_attempts", [])
-        require(len(attempts) <= 6, f"Transport retry budget exceeded at {where}.")
+        if action_feedback:
+            verify_action_feedback(event)
+        limit = record.get('request_policy', {}).get('max_attempts', 6)
+        require(type(limit) is int and 1 <= limit <= 6 and len(attempts) <= limit,
+                f"Transport retry budget exceeded at {where}.")
         for number, attempt in enumerate(attempts, 1):
             require(attempt["attempt"] == number, f"Transport order mismatch at {where}.")
             require(attempt["request_parameters"] == parameters, f"Request parameters mismatch at {where}.")
-            require(attempt["request_sha256"] == object_digest({**parameters, "messages": expected}), f"Request body hash mismatch at {where}.")
+            sent = attempt['messages'] if action_feedback else expected
+            require(attempt["request_sha256"] == object_digest({**parameters, "messages": sent}), f"Request body hash mismatch at {where}.")
             require(attempt["status"] in {"requesting", "responded", "error", "interrupted"}, f"Unknown transport state at {where}.")
             if number < len(attempts):
-                require(attempt.get("http_status") in {429, 500, 502, 503, 504}, f"Unexpected transport retry at {where}.")
+                response_retry = action_retry and 200 <= attempt.get('http_status', 0) < 300 and (
+                    attempt.get('response_validation_error') in {'missing_action_tag', 'action_not_admissible',
+                                                                 'empty_or_incomplete_response', 'malformed_response'})
+                network_retry = action_retry and attempt.get('status') == 'error' and (
+                    attempt.get('error_type') in {'Timeout', 'ReadTimeout', 'ConnectTimeout',
+                                                 'ConnectionError', 'ChunkedEncodingError'})
+                require(attempt.get("http_status") in {429, 500, 502, 503, 504} or
+                        (attempt.get("http_status") == 401 and record.get("request_policy", {}).get("strict_response") is True)
+                        or response_retry or network_retry,
+                        f"Unexpected transport retry at {where}.")
             if attempt["status"] == "requesting":
                 require(number == len(attempts) and not complete, f"Unfinished transport in completed run at {where}.")
             transport_unknown_usage += attempt.get("usage") is None
@@ -87,6 +137,10 @@ def verify_record(record):
                 action, fallback = project_action(response["content"])
                 require((event["action"], event["fallback"]) == (action, fallback), f"Action projection mismatch at {where}.")
                 require(event["action_in_admissible_commands"] == (action in event["admissible_commands"]), f"Action membership mismatch at {where}.")
+                if action_retry:
+                    require(response.get('finish_reason') == 'stop' and fallback is None
+                            and action in visible_commands(event['admissible_commands']),
+                            f'Invalid action passed the retry boundary at {where}.')
             else:
                 require(event["phase"] == "responded" and not complete, f"Missing action at {where}.")
             require(event["phase"] in {"responded", "executed"}, f"Response/phase mismatch at {where}.")

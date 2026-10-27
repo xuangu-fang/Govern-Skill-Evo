@@ -1,0 +1,179 @@
+{
+  "preconditioner": {
+    "decision": "ready",
+    "reason": "Deterministically compiled from validated V23.5 adjustments.",
+    "adjustments": [
+      {
+        "from": [
+          "u2"
+        ],
+        "to": [
+          {
+            "id": "u2",
+            "text": "- When the task names a required object type (e.g., pan, pot, plate, egg, bread), operate on an object whose type matches the task noun rather than the first similar object available.\n- If a state-change-then-place sequence does not end the task, do not repeat the same object/action/target combination; first confirm the carried object's type matches the task noun, and if it does not, acquire and use a matching object (searching for one if necessary), then re-apply the state change and place it. Only if the object already matches the task noun and the placement still does not complete, try another instance of the named target.\n"
+          }
+        ],
+        "basis": [
+          "G2",
+          "P5:28",
+          "P5:36",
+          "P5:43",
+          "P7:4",
+          "P7:11",
+          "P7:16",
+          "P7:20",
+          "P5",
+          "P7"
+        ],
+        "reason": "target=u2; focus=S; change=Keep the requirement to operate on an object matching the task's named type. Refine the recovery clause so that, when a state-change-then-place sequence does not end the task, the Actor first confirms that the carried object's type matches the task noun and, if it does not, acquires and uses a matching object (searching for one when necessary) before re-applying the state change and placing it; only if the object already matches the task noun and placement still does not complete should it try another instance of the named target.; reason=`P5` is named a pan but takes pot 1 at `P5:28` and repeats the same move on stoveburner 1 at `P5:36` and `P5:43` without completing. `P7` initially handles pan 1 at `P7:4`, and after the cooled pan is placed without ending the task at `P7:11` it switches to pot 2 at `P7:16` and succeeds at `P7:20`. This supports keeping the matching-type requirement and making the object-type check the primary recovery step. The chosen strength fixes the observable ordering gap rather than adding a new obligation. The target-change fallback is an unverified choice with no observed recovery effect, so it is demoted to a last resort rather than removed."
+      },
+      {
+        "from": [
+          "u3"
+        ],
+        "to": [
+          {
+            "id": "u3",
+            "text": "- When the required object is not visible at the current location, continue the search instead of concluding it is absent: open closed containers (drawers, cabinets, fridge, microwave) and inspect their contents before leaving, and check shelves and other surfaces.\n- Cover the scene's candidate locations — all cabinets, drawers, shelves, countertops, diningtables, and the listed appliances — and prefer a location you have not yet inspected; to avoid pointless backtracking during the search, do not immediately return to a location you inspected within the last two steps while an unvisited candidate remains.\n- Countertops and diningtables reveal their contents directly when reached, so prefer visiting them when they are unvisited.\n- This search guidance applies only while the target has not yet been acquired; after acquiring the object, going to the appliance to clean or cool it and then to the named destination to place it are required productive steps, not unproductive revisiting.\n"
+          }
+        ],
+        "basis": [
+          "G1",
+          "P2:5",
+          "P2:16",
+          "P2:48",
+          "P4:41",
+          "P6:37",
+          "P2",
+          "P4",
+          "P6",
+          "M2"
+        ],
+        "reason": "target=u3; focus=S,C; change=Keep the search direction but make it executable and coverage-complete: when the required object is not visible at the current location, continue searching instead of concluding it is absent, opening and inspecting closed containers (drawers, cabinets, fridge, microwave) before leaving them; cover the scene's candidate locations (cabinets, drawers, shelves, countertops, diningtables, listed appliances), preferring locations not yet inspected; re-anchor the anti-revisit condition from locations 'already shown empty' to the Actor's accessible recent history (do not immediately return to a location inspected within the last two steps while an unvisited candidate remains); and state the search-phase boundary so that, after the object is acquired, going to the appliance to clean/cool it and then to the named destination remains required productive behavior.; reason=`P2` never acquires the bread, opening the fridge at `P2:5` and repeatedly returning to it at `P2:16` and `P2:48` without opening the drawers, ending at the step limit, while `P4` finds the bread only after extended search on diningtable 1 at `P4:41` and `P6` finds the plate in cabinet 9 at `P6:37`. Memory `M2` records that a prior broaden-coverage/anti-revisit edit did not ensure coverage and coincided with a candidate failure that never visited diningtable 1 (`S1_R02/Q8:50`), so the anti-revisit requirement is re-expressed in terms of the last-two-step history the Actor actually receives instead of an unobservable 'already empty' memory. The added coverage list and the post-acquisition boundary keep the rule from suppressing the Goal's preserve-clean/cool-then-place sequences."
+      }
+    ],
+    "checks": [
+      {
+        "id": "c1",
+        "update_ids": [
+          "u1"
+        ],
+        "question": "When a hot/cool object is required, does the Actor hold the object and invoke heat/cool with the appliance directly, rather than moving it into the appliance and toggling its door?"
+      },
+      {
+        "id": "c2",
+        "update_ids": [
+          "u2"
+        ],
+        "question": "Does the Actor operate on an object whose type matches the task's named type, and after a state-change-then-place that does not end the task, switch to a matching object (or, secondarily, a different target instance) instead of repeating the same combination?"
+      },
+      {
+        "id": "c3",
+        "update_ids": [
+          "u3"
+        ],
+        "question": "When the required object is not visible at the current location, does the Actor open and inspect closed containers and visit unvisited candidate locations rather than immediately rechecking, so coverage is completed instead of looping?"
+      },
+      {
+        "id": "c4",
+        "update_ids": [
+          "u4"
+        ],
+        "question": "Does each step contain exactly one verbatim admissible command, with no empty, placeholder, or reasoning-text actions and no illegal targets?"
+      }
+    ]
+  },
+  "effective_plan": {
+    "goal": "Install an initial manipulation Skill that fixes the batch's recurring behavioral gaps: apply temperature changes by holding the object and invoking the appliance verb instead of placing it inside and toggling the appliance door; act on an object matching the task's named type and recover when a sequence does not complete; search unvisited closed containers when the target is not visible; and always emit one verbatim admissible command. Preserve the already-correct hold-transform-place sequences (clean at sinkbasin, cool at fridge, then move the object to the named target).",
+    "updates": [
+      {
+        "id": "u1",
+        "text": "- When an object must become hot, pick up the object and, while holding it, select `heat <object> with microwave 1`.\n- When an object must become cool, pick up the object and, while holding it, select `cool <object> with fridge 1`.\n- Do not move the object into the microwave (or fridge) and then repeatedly open and close its door: door toggling applies neither the heat/cool effect nor task progress.\n",
+        "basis": [
+          "G4",
+          "P8:12",
+          "P8:14",
+          "P9:14",
+          "P9:16",
+          "P10:45",
+          "P10:47",
+          "P3:8",
+          "P6:40"
+        ]
+      },
+      {
+        "id": "u2",
+        "text": "- When the task names a required object type (e.g., pan, pot, plate, egg, bread), operate on an object whose type matches the task noun rather than the first similar object available.\n- If a state-change-then-place sequence does not end the task, do not repeat the same object/action/target combination; first confirm the carried object's type matches the task noun, and if it does not, acquire and use a matching object (searching for one if necessary), then re-apply the state change and place it. Only if the object already matches the task noun and the placement still does not complete, try another instance of the named target.\n",
+        "basis": [
+          "G2",
+          "P5:28",
+          "P5:36",
+          "P5:43",
+          "P7:4",
+          "P7:11",
+          "P7:16",
+          "P7:20"
+        ]
+      },
+      {
+        "id": "u3",
+        "text": "- When the required object is not visible at the current location, continue the search instead of concluding it is absent: open closed containers (drawers, cabinets, fridge, microwave) and inspect their contents before leaving, and check shelves and other surfaces.\n- Cover the scene's candidate locations — all cabinets, drawers, shelves, countertops, diningtables, and the listed appliances — and prefer a location you have not yet inspected; to avoid pointless backtracking during the search, do not immediately return to a location you inspected within the last two steps while an unvisited candidate remains.\n- Countertops and diningtables reveal their contents directly when reached, so prefer visiting them when they are unvisited.\n- This search guidance applies only while the target has not yet been acquired; after acquiring the object, going to the appliance to clean or cool it and then to the named destination to place it are required productive steps, not unproductive revisiting.\n",
+        "basis": [
+          "G1",
+          "P2:5",
+          "P2:16",
+          "P2:48",
+          "P4:41",
+          "P6:37"
+        ]
+      },
+      {
+        "id": "u4",
+        "text": "- Emit exactly one action per step, written verbatim as a single command taken from the current admissible action list; never emit an empty string, an ellipsis, a placeholder, reasoning/explanatory text, or any target not present in the admissible list.\n",
+        "basis": [
+          "P2:1",
+          "P2:6",
+          "P4:28",
+          "P5:41",
+          "P6:5",
+          "P6:33",
+          "P9:21"
+        ]
+      }
+    ],
+    "checks": [
+      {
+        "id": "c1",
+        "update_ids": [
+          "u1"
+        ],
+        "question": "When a hot/cool object is required, does the Actor hold the object and invoke heat/cool with the appliance directly, rather than moving it into the appliance and toggling its door?"
+      },
+      {
+        "id": "c2",
+        "update_ids": [
+          "u2"
+        ],
+        "question": "Does the Actor operate on an object whose type matches the task's named type, and after a state-change-then-place that does not end the task, switch to a matching object (or, secondarily, a different target instance) instead of repeating the same combination?"
+      },
+      {
+        "id": "c3",
+        "update_ids": [
+          "u3"
+        ],
+        "question": "When the required object is not visible at the current location, does the Actor open and inspect closed containers and visit unvisited candidate locations rather than immediately rechecking, so coverage is completed instead of looping?"
+      },
+      {
+        "id": "c4",
+        "update_ids": [
+          "u4"
+        ],
+        "question": "Does each step contain exactly one verbatim admissible command, with no empty, placeholder, or reasoning-text actions and no illegal targets?"
+      }
+    ]
+  },
+  "actual_diffs": {
+    "u2": "--- a/SKILL.md\n+++ b/SKILL.md\n@@ -1,2 +1,2 @@\n - When the task names a required object type (e.g., pan, pot, plate, egg, bread), operate on an object whose type matches the task noun rather than the first similar object available.\n-- If a state-change-then-place sequence does not end the task, do not repeat the same object/action/target combination; instead try a different object of the required type or a different target.\n+- If a state-change-then-place sequence does not end the task, do not repeat the same object/action/target combination; first confirm the carried object's type matches the task noun, and if it does not, acquire and use a matching object (searching for one if necessary), then re-apply the state change and place it. Only if the object already matches the task noun and the placement still does not complete, try another instance of the named target.\n",
+    "u3": "--- a/SKILL.md\n+++ b/SKILL.md\n@@ -1,2 +1,4 @@\n-- When the required object is not visible on surfaces reached so far, search closed containers by opening drawers and cabinets (and the fridge/microwave) and check shelves, moving to unvisited containers rather than re-checking locations already shown to be empty.\n-- Countertops and diningtables reveal their contents directly when reached, so visit unvisited surfaces before returning to already-seen ones.\n+- When the required object is not visible at the current location, continue the search instead of concluding it is absent: open closed containers (drawers, cabinets, fridge, microwave) and inspect their contents before leaving, and check shelves and other surfaces.\n+- Cover the scene's candidate locations — all cabinets, drawers, shelves, countertops, diningtables, and the listed appliances — and prefer a location you have not yet inspected; to avoid pointless backtracking during the search, do not immediately return to a location you inspected within the last two steps while an unvisited candidate remains.\n+- Countertops and diningtables reveal their contents directly when reached, so prefer visiting them when they are unvisited.\n+- This search guidance applies only while the target has not yet been acquired; after acquiring the object, going to the appliance to clean or cool it and then to the named destination to place it are required productive steps, not unproductive revisiting.\n"
+  }
+}

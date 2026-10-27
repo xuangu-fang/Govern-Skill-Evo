@@ -4,9 +4,10 @@
 
 | 对象 | 入口 |
 |---|---|
-| 方法实验 | [v01–v23.2 配置、结果与运行导航](../experiments/methods/README.md) |
+| 方法实验 | [各版本配置、结果与运行导航](../experiments/methods/README.md) |
 | 方法文档 | [v17](methods/v17/README.md)、[v18](methods/v18/README.md)、[v19](methods/v19/README.md)、[v20](methods/v20/README.md)、[v21](methods/v21/README.md)、[v22 诊断预条件化设计](methods/v22/README.md)、[v23 自动分组设计](methods/v23/README.md)、[v23.2 独立验证](methods/v23_2/README.md)、[v23.4 输入输出契约](methods/v23_4/README.md) |
 | Benchmark 总导航 | [系列、版本和材料归属](../benchmarks/README.md) |
+| v23.5 | [实现与协议](../src/skill_evolution/v23_5/README.md) · [24 个实验与正式结果](../experiments/methods/v23_5/README.md) |
 | Benchmark v5 | [设计、协议与报告](benchmarks/v5/README.md) |
 | 实验日志 | [docs 下实验日志](04_EXPERIMENT_LOG.md)；根目录副本保持原样 |
 | 迁移审计与历史材料 | [迁移说明](archive/README.md)、[路径映射](path-map.json) |

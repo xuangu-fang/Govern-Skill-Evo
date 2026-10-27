@@ -11,7 +11,7 @@ from unittest import mock
 
 from src.adapters.alfworld import run_task_skill
 from src.adapters.alfworld.run_task_upstream import build_messages, chat
-from src.adapters.alfworld.skill_runtime import load_skill, object_digest, write_record
+from src.adapters.alfworld.skill_runtime import load_skill, object_digest, write_record, execution_protocol
 
 
 class FakeEnvironment:
@@ -40,7 +40,7 @@ class SkillEpisodeTests(unittest.TestCase):
 
     def run_episode(self, env=None, generate=None, skill=None, max_steps=3):
         record = {"steps": [], "won": False, "skill": skill or load_skill(),
-                  "protocol": {"max_steps": max_steps}, "status": "starting"}
+                  "protocol": execution_protocol(max_steps), "status": "starting"}
         with contextlib.redirect_stdout(io.StringIO()):
             run_task_skill.run_episode(env or FakeEnvironment(), generate or (
                 lambda messages: {"content": "<action>look</action>"}), record, self.output)
@@ -130,7 +130,7 @@ class SkillEpisodeTests(unittest.TestCase):
             "content": "<action>look</action>"}}], "usage": {"total_tokens": 12}}
         session.post.side_effect = [first, second]
         record = {"steps": [], "won": False, "skill": load_skill(),
-                  "protocol": {"max_steps": 1}, "status": "starting"}
+                  "protocol": execution_protocol(1), "status": "starting"}
         recorder = run_task_skill.RecordingSession(session, record, self.output)
         with mock.patch("src.adapters.alfworld.run_task_upstream.time.sleep"), contextlib.redirect_stdout(io.StringIO()):
             run_task_skill.run_episode(FakeEnvironment(), lambda messages: chat(

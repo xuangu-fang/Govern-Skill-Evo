@@ -47,3 +47,14 @@ def verify_response_archive(output, attempt):
         usage, parse_error = None, type(exc).__name__
     if attempt.get("usage") != usage or attempt.get("response_json_error") != parse_error:
         raise ValueError("Archived response usage or parse status changed.")
+    if 'action_validation' in attempt:
+        if parse_error is not None:
+            raise ValueError('Actor feedback source is not a complete JSON response')
+        try:
+            choice = payload['choices'][0]
+            valid = (choice['finish_reason'] == 'stop' and
+                     choice['message']['content'] == attempt['action_validation']['content'])
+        except (TypeError, KeyError, IndexError):
+            valid = False
+        if not valid:
+            raise ValueError('Actor feedback source differs from raw response')

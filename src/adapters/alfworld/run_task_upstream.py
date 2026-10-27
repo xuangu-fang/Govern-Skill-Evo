@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from copy import deepcopy
 from datetime import datetime, timezone
 import importlib.metadata
 import json
@@ -53,8 +54,44 @@ def project_action(content):
     return match.group(1).strip().lower(), None
 
 
-def chat(session, endpoint, key, model, messages, *, max_attempts=6, strict_response=False):
-    body = {"model": model, "messages": messages, "temperature": 1.0,
+def action_error(content, candidates):
+    """Reuse the existing projection; never guess or replace a command."""
+    action, fallback = project_action(content)
+    if fallback is not None:
+        return 'missing_action_tag'
+    return None if action in candidates else 'action_not_admissible'
+
+
+def action_diagnostic(content, reason):
+    if reason == 'missing_action_tag':
+        detail = 'No complete action element was found; no command could be extracted.'
+    elif reason == 'action_not_admissible':
+        command, _ = project_action(content)
+        detail = f'The extracted command {json.dumps(command, ensure_ascii=False)} is not in the current admissible action list.'
+    else:
+        raise ValueError('Only identified action errors can produce feedback')
+    return ('# Previous Action Validation Error\n\n' + detail + '\n'
+            'No action was executed; the environment state is unchanged.\n\n'
+            'Choose a command copied verbatim from the original admissible action list '
+            'and return it under the original output contract. This diagnostic is not task evidence.')
+
+
+def action_feedback_messages(base, content, reason):
+    return deepcopy(base) + [
+        {'role': 'assistant', 'content': content},
+        {'role': 'user', 'content': action_diagnostic(content, reason)},
+    ]
+
+
+def chat(session, endpoint, key, model, messages, *, max_attempts=6, strict_response=False,
+         action_candidates=None, on_response_error=None, action_feedback=False):
+    if action_candidates is not None and not strict_response:
+        raise ValueError('Action retries require strict response handling')
+    candidates = None if action_candidates is None else frozenset(action_candidates)
+    if action_feedback and candidates is None:
+        raise ValueError('Action feedback requires action validation')
+    base_messages = deepcopy(messages)
+    body = {"model": model, "messages": deepcopy(messages), "temperature": 1.0,
             "max_tokens": 16384, "reasoning_effort": "medium",
             "thinking": {"type": "enabled"}, "stream": False}
     for attempt in range(max_attempts):
@@ -65,7 +102,7 @@ def chat(session, endpoint, key, model, messages, *, max_attempts=6, strict_resp
                 raise
             time.sleep(min(2 ** attempt, 30))
             continue
-        transient = response.status_code in {429, 500, 502, 503, 504}
+        transient = response.status_code in {429, 500, 502, 503, 504} or (strict_response and response.status_code == 401)
         if strict_response and response.status_code == 429:
             transient = 'insufficient_quota' not in response.text and 'quota_exceeded' not in response.text
         if transient and attempt < max_attempts - 1:
@@ -73,12 +110,24 @@ def chat(session, endpoint, key, model, messages, *, max_attempts=6, strict_resp
             continue
         if not response.ok:
             raise RuntimeError(f"Model API returned HTTP {response.status_code}.")
+        response_error = 'malformed_response'
         try:
             payload = response.json(); choice = payload["choices"][0]; message = choice["message"]
             content = message.get("content") or ""
             if strict_response and (not isinstance(content, str) or not content.strip() or choice.get("finish_reason") != "stop"):
+                response_error = 'empty_or_incomplete_response'
                 raise ValueError("Empty or incomplete Actor response")
+            if candidates is not None:
+                response_error = action_error(content, candidates)
+                if response_error is not None:
+                    raise ValueError(response_error)
         except (ValueError, KeyError, IndexError, TypeError):
+            if action_feedback and response_error in {'missing_action_tag', 'action_not_admissible'}:
+                if on_response_error is not None:
+                    on_response_error(response_error, content=content)
+                body['messages'] = action_feedback_messages(base_messages, content, response_error)
+            elif on_response_error is not None:
+                on_response_error(response_error)
             if not strict_response or attempt == max_attempts - 1:
                 raise
             time.sleep(min(2 ** attempt, 30))

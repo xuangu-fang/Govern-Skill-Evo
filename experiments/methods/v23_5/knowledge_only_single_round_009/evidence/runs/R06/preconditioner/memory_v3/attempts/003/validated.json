@@ -1,0 +1,118 @@
+{
+  "preconditioner": {
+    "decision": "ready",
+    "reason": "Deterministically compiled from validated V23.5 adjustments.",
+    "adjustments": [
+      {
+        "from": [
+          "u1"
+        ],
+        "to": [
+          {
+            "id": "u1",
+            "text": "- When a task's required target is missing because it is neither visible nor held, do not repeatedly cycle among the same small set of already-checked locations; after a checked location yields no target, choose a different candidate location for the next move.\n- Prefer a candidate that is not shown as already checked in the recent observations; treat an open, visibly empty container as exhausted for the current missing-target search and do not choose it again while another plausible candidate remains. When the current or recent location is an empty container, prefer an unexamined numbered instance of the same container type or a different visible container/surface type before returning to the checked set.\n- Apply this missing-target search expansion to both single-instance and multi-instance target tasks, not only while a multi-instance task remains unmet; once the target or remaining required instances are held, stop applying the search-expansion rule and proceed with the required transformation or placement.\n- Do not repeatedly alternate between two or more already-checked locations; each missing-target move should search a not-yet-recently-checked candidate or open a newly reached closed container while plausible candidates remain, and should not choose the current location or the location from the immediately previous move merely because it remains admissible.\n- Preserve the existing collection exception: when a known location still contains a needed target instance, return to it as required by the collection guidance rather than avoiding it solely because it was previously visited.\n"
+          }
+        ],
+        "basis": [
+          "G2",
+          "P3:11",
+          "P3:20",
+          "P3:24",
+          "P3:34",
+          "P3:44",
+          "P3:outcome",
+          "P6:13",
+          "P6:20",
+          "P6:29",
+          "P6:39",
+          "P6:50",
+          "P6:outcome",
+          "P3",
+          "P3:18",
+          "P6",
+          "M5"
+        ],
+        "reason": "target=u1; focus=D,S,C; change=Broaden the missing-target search rule from multi-instance-only to all missing-target tasks; after any checked location yields no target, treat an open, visibly empty container as exhausted and choose a different not-yet-recently-checked candidate, preferring an unexamined numbered instance or a different container/surface type; do not choose the current or immediately previous location merely because it is admissible; stop the search expansion once the target or remaining instances are held, while preserving known-target return and collection.; reason=Current `P3` is a single-instance missing-apple task that repeatedly returns to fridge 1, countertop 1, countertop 2, cabinet 1, and drawer 1 rather than reaching other listed cabinets/drawers (e.g. `P3:18`, `P3:20`, `P3:24`, `P3:34`, `P3:44`) and ends at `P3:outcome` step_limit; `P6` shows the same cycling for a multi-instance task despite the parent's multi-instance-only Search Efficiency clause (`P6:13`, `P6:20`, `P6:29`, `P6:39`, `P6:50`, `P6:outcome`). This supports broadening and making the anti-revisit rule concrete. The historical broad-search edit in `M5` (`S1_R05/diff`) still cycled in `S1_R05/Q10:1`, `S1_R05/Q10:6`, `S1_R05/Q10:10`, `S1_R05/Q10:13`, and `S1_R05/Q10:19`, so I add narrower operational conditions—open-empty exhaustion, no immediate return, and explicit stop after acquisition—rather than only repeating a broad expansion request; these conditions are unverified as a cure and are intended to test better short-horizon search choices under the last-two-pair protocol. Preserve the known-instance return because the multi-instance collection rule depends on it."
+      }
+    ],
+    "checks": [
+      {
+        "id": "c1",
+        "update_ids": [
+          "u1"
+        ],
+        "question": "When the target is missing, does the Actor avoid returning to recently checked empty locations and expand to unchecked or different candidate locations, while still returning to a known target location when one still contains a needed instance?"
+      },
+      {
+        "id": "c2",
+        "update_ids": [
+          "u2"
+        ],
+        "question": "When the task requires a hot or cool object and the final receptacle is an appliance, does the Actor perform the required transformation while holding the target before placement, and avoid moving it into the receptacle first or applying the opposite thermal command?"
+      }
+    ]
+  },
+  "effective_plan": {
+    "goal": "Improve missing-target search expansion for both single-instance and multi-instance tasks, and tighten thermal transformation order so a required hot or cool state is achieved before final placement without redundant opposite transformations. Preserve successful direct thermal actions, known-target return behavior, and successful multi-instance placement patterns.",
+    "updates": [
+      {
+        "id": "u1",
+        "text": "- When a task's required target is missing because it is neither visible nor held, do not repeatedly cycle among the same small set of already-checked locations; after a checked location yields no target, choose a different candidate location for the next move.\n- Prefer a candidate that is not shown as already checked in the recent observations; treat an open, visibly empty container as exhausted for the current missing-target search and do not choose it again while another plausible candidate remains. When the current or recent location is an empty container, prefer an unexamined numbered instance of the same container type or a different visible container/surface type before returning to the checked set.\n- Apply this missing-target search expansion to both single-instance and multi-instance target tasks, not only while a multi-instance task remains unmet; once the target or remaining required instances are held, stop applying the search-expansion rule and proceed with the required transformation or placement.\n- Do not repeatedly alternate between two or more already-checked locations; each missing-target move should search a not-yet-recently-checked candidate or open a newly reached closed container while plausible candidates remain, and should not choose the current location or the location from the immediately previous move merely because it remains admissible.\n- Preserve the existing collection exception: when a known location still contains a needed target instance, return to it as required by the collection guidance rather than avoiding it solely because it was previously visited.\n",
+        "basis": [
+          "G2",
+          "P3:11",
+          "P3:20",
+          "P3:24",
+          "P3:34",
+          "P3:44",
+          "P3:outcome",
+          "P6:13",
+          "P6:20",
+          "P6:29",
+          "P6:39",
+          "P6:50",
+          "P6:outcome"
+        ]
+      },
+      {
+        "id": "u2",
+        "text": "- When a task requires a hot or cool target and the target is held, perform the required heat/cool transformation at the appropriate appliance using the direct heat/cool action before moving the target into any container or final receptacle.\n- If the final receptacle is itself a thermal appliance such as a microwave or fridge, do not treat opening it, moving the target into it, and closing it as satisfying the required transformation; after transforming the held target, place it directly in the final receptacle.\n- Do not apply the opposite thermal transformation at the final receptacle after the required heated or cooled state has been achieved; the destination appliance's role in placement does not require the reverse heat/cool command.\n- Preserve the successful direct-transformation pattern: cool or heat the target while holding it at the appropriate appliance, then carry it to the destination and place it without a redundant thermal round trip.\n",
+        "basis": [
+          "G1",
+          "P1:5",
+          "P1:7",
+          "P2:7",
+          "P2:9",
+          "P2:16",
+          "P2:18",
+          "P2:20",
+          "P4:5",
+          "P4:7",
+          "P5:4",
+          "P5:6",
+          "P5:9",
+          "P5:12"
+        ]
+      }
+    ],
+    "checks": [
+      {
+        "id": "c1",
+        "update_ids": [
+          "u1"
+        ],
+        "question": "When the target is missing, does the Actor avoid returning to recently checked empty locations and expand to unchecked or different candidate locations, while still returning to a known target location when one still contains a needed instance?"
+      },
+      {
+        "id": "c2",
+        "update_ids": [
+          "u2"
+        ],
+        "question": "When the task requires a hot or cool object and the final receptacle is an appliance, does the Actor perform the required transformation while holding the target before placement, and avoid moving it into the receptacle first or applying the opposite thermal command?"
+      }
+    ]
+  },
+  "actual_diffs": {
+    "u1": "--- a/SKILL.md\n+++ b/SKILL.md\n@@ -1,5 +1,5 @@\n - When a task's required target is missing because it is neither visible nor held, do not repeatedly cycle among the same small set of already-checked locations; after a checked location yields no target, choose a different candidate location for the next move.\n-- Prefer a candidate that is not shown as already checked in the recent observations; when the current or recent location is an empty container, prefer the next unexamined instance of the same container type or a different visible container/surface type before returning to the same checked set.\n-- Apply this missing-target search expansion to both single-instance and multi-instance target tasks, not only while a multi-instance task remains unmet.\n-- Do not repeatedly alternate between two or more already-checked locations; each missing-target move should search a not-yet-recently-checked candidate or open a newly reached closed container while plausible candidates remain.\n+- Prefer a candidate that is not shown as already checked in the recent observations; treat an open, visibly empty container as exhausted for the current missing-target search and do not choose it again while another plausible candidate remains. When the current or recent location is an empty container, prefer an unexamined numbered instance of the same container type or a different visible container/surface type before returning to the checked set.\n+- Apply this missing-target search expansion to both single-instance and multi-instance target tasks, not only while a multi-instance task remains unmet; once the target or remaining required instances are held, stop applying the search-expansion rule and proceed with the required transformation or placement.\n+- Do not repeatedly alternate between two or more already-checked locations; each missing-target move should search a not-yet-recently-checked candidate or open a newly reached closed container while plausible candidates remain, and should not choose the current location or the location from the immediately previous move merely because it remains admissible.\n - Preserve the existing collection exception: when a known location still contains a needed target instance, return to it as required by the collection guidance rather than avoiding it solely because it was previously visited.\n"
+  }
+}

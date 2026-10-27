@@ -1,0 +1,67 @@
+{
+  "adjustments": [
+    {
+      "target": "u1",
+      "focus": [],
+      "change": "KEEP",
+      "reason": "Current evidence in `G4` pairs a hold-and-invoke success with move-and-toggle failures: at `P8:12` the Actor heats apple 1 while holding it and wins by placing it (`P8:14`), whereas `P9:14` and `P10:45` move the object into microwave 1, `P9:15` and `P10:46` close it, and the Actor then only toggles the door through `P9:50` and `P10:50`, hitting step_limit without ever invoking heat. The cool branch is consistent with hold-and-invoke successes at `P3:8`, `P4:45`, `P6:40`, and `P7:9`. The prohibition clause is directly exercised by these failures and no supplied evidence contradicts it, so the whole Update can remain; this also preserves the goal's hold-the-object temperature behavior.",
+      "to": null
+    },
+    {
+      "target": "u2",
+      "focus": [],
+      "change": "KEEP",
+      "reason": "`P5` and `P7` show both clauses remain live and unrefuted. `P5` has task 'cool some pan' but takes pot 1 at `P5:28` and repeats the identical object/action/target combination at `P5:29`, `P5:36`, and `P5:43`, ending at step_limit; `P7` has task 'cool some pot', first places the wrong-type pan 1 (`P7:4`, `P7:11`, no win), then switches to pot 2 (`P7:16`), cools it (`P7:18`), and wins by placing it at `P7:20`. These contrasting outcomes support acting on the named type and changing the object of the required type after a non-terminating sequence, and no current evidence shows a regression from the clause. Kept as written.",
+      "to": null
+    },
+    {
+      "target": "u3",
+      "focus": [
+        "D",
+        "S"
+      ],
+      "change": "Replace the search bullets with a systematic-coverage form: when the required object is not visible, cover all location types - open each unvisited closed container (drawers, cabinets, and the fridge/microwave) and reach each unvisited open surface (shelves, countertops, diningtables) - before returning to any location already known to be empty or to lack the target; do not loop on the same few containers or the appliance, and treat a countertop/diningtable as cleared after one visit. Preserve the existing fact that countertops/diningtables reveal their contents directly.",
+      "reason": "Direct current evidence shows incomplete coverage: in `P2` the Actor shuttles between fridge 1 and cabinets (`P2:5`, `P2:10`, `P2:16`, `P2:48`) but never reaches shelf 1/2/3 or any drawer even though they are admissible in `C9`, and ends at step_limit without the bread; in `P4` the bread is found only at `P4:41` on diningtable 1. `M2`'s historical understanding of broaden-coverage-plus-anti-revisit guidance reports the same unresolved pattern - a candidate that never visited a plausible surface present in the initial scene and recheck loops that persisted to the step limit (`S1_R02/Q8:50`, `S1_R02/P8:28`) - while some first-pass coverage reduced steps (`S1_R02/Q5:12`). The direction is supported, but the existing wording did not ensure coverage of all location types, so the change strengthens coverage and keeps the anti-revisit boundary and the surfaces-reveal-contents fact. Transferring the enumerate-all-types emphasis from `M2`'s different task family is an unverified hypothesis; the current `P2` and `P4` outcomes directly motivate reaching shelves, drawers, and diningtables. `c3` is revised to match the strengthened requirement.",
+      "to": {
+        "patch": "--- a/SKILL.md\n+++ b/SKILL.md\n@@\n-- When the required object is not visible on surfaces reached so far, search closed containers by opening drawers and cabinets (and the fridge/microwave) and check shelves, moving to unvisited containers rather than re-checking locations already shown to be empty.\n-- Countertops and diningtables reveal their contents directly when reached, so visit unvisited surfaces before returning to already-seen ones.\n+- When the required object is not visible on surfaces reached so far, search systematically and cover all location types rather than looping on the same few: open each unvisited closed container (drawers, cabinets, and the fridge/microwave) and reach each unvisited open surface (shelves, countertops, diningtables) before returning to any location whose contents you already know.\n+- A location already shown to be empty or to lack the target should not be revisited while any unvisited location remains; do not confine the search to the appliance or to a handful of cabinets.\n+- Countertops and diningtables reveal their contents directly when reached, so a single visit is enough; treat such a surface as cleared once seen.\n"
+      }
+    },
+    {
+      "target": "u4",
+      "focus": [],
+      "change": "KEEP",
+      "reason": "Malformed emissions matching the prohibited forms remain common in current runs: empty strings (`P2:1`, `P5:5`, `P6:16`, `P9:45`), reasoning text inside the action field (`P2:2`, `P4:28`, `P5:30`, `P9:6`), ellipsis/placeholder (`P2:6`, `P6:20`, `P9:21`), the literal 'action' (`P6:33`), and a non-admissible target (`P6:5`), while verbatim admissible commands accompany progress (`P3:8`, `P7:20`, `P8:12`). `M1` reports that such valid-action guidance was associated with fewer malformed actions in several pairs but did not guarantee admissibility, so the direction is supported and this is not a mere repetition of an already-failed edit. The whole Update can remain.",
+      "to": null
+    }
+  ],
+  "checks": [
+    {
+      "id": "c1",
+      "update_ids": [
+        "u1"
+      ],
+      "question": "When a hot/cool object is required, does the Actor hold the object and invoke `heat`/`cool` with the appliance directly, rather than moving it into the appliance and toggling its door?"
+    },
+    {
+      "id": "c2",
+      "update_ids": [
+        "u2"
+      ],
+      "question": "Does the Actor select an object matching the task's named type, and after a placement that does not end the task, does it change the object or target instead of repeating the same combination?"
+    },
+    {
+      "id": "c3",
+      "update_ids": [
+        "u3"
+      ],
+      "question": "When the required object is not visible on the surfaces reached, does the Actor cover all unvisited location types (opening drawers, cabinets, and the fridge/microwave, and reaching shelves, countertops, and diningtables) before returning to any location already shown to be empty, rather than looping on the same few containers?"
+    },
+    {
+      "id": "c4",
+      "update_ids": [
+        "u4"
+      ],
+      "question": "Does each step contain exactly one verbatim admissible command, with no empty, placeholder, or reasoning-text actions and no illegal targets?"
+    }
+  ]
+}

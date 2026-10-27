@@ -1,0 +1,318 @@
+# 运行前参考基准：明显事实错误筛查
+
+审阅者：Codex；尚未经人类确认。已看过旧版输出，不是盲评。新版尚未运行模型。此表从 reference_review.json 渲染，旧标签仅用于解释边界变化，不用来计算性能提升。所有位置为零基索引。
+
+18 条目标：4 条预期 CONFLICT、14 条预期 SUPPORTED。主评价集 16 条（4 条拦截、12 条通过）；2 条措辞/重要性歧义项预先列为 review_only，未来无论结果如何都单列。SUPPORTED 仅为未发现应拦截的问题，不是事实认证。
+
+| 轮次 | 位置 | 旧输入内标签 | 新预期 | 评价分组 |
+|---|---|---|---|---|
+| R01 | [0,0] | CONFLICT | SUPPORTED | primary |
+| R01 | [0,1] | CONFLICT | SUPPORTED | primary |
+| R01 | [0,2] | CONFLICT | SUPPORTED | primary |
+| R01 | [0,3] | CONFLICT | SUPPORTED | review_only |
+| R01 | [0,4] | CONFLICT | CONFLICT | primary |
+| R02 | [0,0] | CONFLICT | SUPPORTED | primary |
+| R02 | [0,1] | CONFLICT | SUPPORTED | primary |
+| R02 | [0,2] | CONFLICT | CONFLICT | primary |
+| R02 | [0,3] | SUPPORTED | SUPPORTED | primary |
+| R02 | [0,4] | SUPPORTED | SUPPORTED | primary |
+| R02 | [0,5] | SUPPORTED | SUPPORTED | primary |
+| R03 | [0,0] | CONFLICT | SUPPORTED | primary |
+| R03 | [0,1] | CONFLICT | CONFLICT | primary |
+| R03 | [0,2] | CONFLICT | SUPPORTED | primary |
+| R03 | [0,3] | CONFLICT | CONFLICT | primary |
+| R03 | [0,4] | CONFLICT | SUPPORTED | review_only |
+| R03 | [0,5] | SUPPORTED | SUPPORTED | primary |
+| R03 | [0,6] | SUPPORTED | SUPPORTED | primary |
+
+## R01 [0,0] — SUPPORTED / primary
+
+The added search-phase and desklamp guidance produced no observable step or outcome change when the target object was found at the first location the Actor visited in a current task: in train:0000 (look at alarmclock under the desklamp), train:0001 (examine the cd with the desklamp), train:0003 (look at pillow under the desklamp), train:0008 (put a soapbar in garbagecan) and train:0009 (put some statue on coffeetable), Parent and Candidate ran identical step sequences and both succeeded (5/5, 4/4, 4/4, 4/4 and 4/4 steps). Under these easy conditions the edit neither harmed nor helped; taking the required object as soon as it was observed, delivering it straight to the target receptacle, and immediately using a desklamp present at the current location were all preserved.
+
+**本版判断：** 观测到的取物、用灯及终态记录没有明确重要矛盾。缺少若干中段及终态，不再单因无法证明五组全程一致而拒绝。
+
+**接受的局限：** 未证明所有步骤一致或全部首访条件；通过不是这些断言的认证。
+
+**与旧版关系：** 从充分性审计改为明显重要错误筛查；缺证据/轻微歧义不再单独拦截。
+
+[实际输入](../../../../artifacts/methods/v23_5/verifier_input_002/cases/R01/verifier_input.json)；检查位置：`diff`, `P1:2`, `Q1:2`, `P2:4`, `Q2:4`, `P4:2`, `Q4:2`, `P9:2`, `Q9:2`, `P10:4`, `Q10:4`。
+
+人工复核：待填写（同意 / 不同意 / 不确定；理由；审阅者；时间）。
+
+## R01 [0,1] — SUPPORTED / primary
+
+On train:0007 (put a pencil in desk) both sides still succeeded in 12 steps; the Candidate diverged only mid-search (Q8:8 moved to drawer 2 where the Parent returned to desk 1 at P8:8), then took pencil 3 (Q8:10) and delivered it to desk 1 (Q8:12) as the Parent did (P8:10, P8:12). So the guidance did not disrupt locate-take-deliver for this pick-and-place, though a single divergent step is too small to attribute to the edit.
+
+**本版判断：** 已给 P8/Q8:8 支持 desk1 与 drawer2 的不同，10/12 支持取笔、递送及双方成功。
+
+**接受的局限：** 未证明只有一个分歧步骤；对此不补读完整过程。
+
+**与旧版关系：** 从充分性审计改为明显重要错误筛查；缺证据/轻微歧义不再单独拦截。
+
+[实际输入](../../../../artifacts/methods/v23_5/verifier_input_002/cases/R01/verifier_input.json)；检查位置：`diff`, `P8:8`, `P8:10`, `P8:12`, `Q8:8`, `Q8:10`, `Q8:12`。
+
+人工复核：待填写（同意 / 不同意 / 不确定；理由；审阅者；时间）。
+
+## R01 [0,2] — SUPPORTED / primary
+
+In the examine task train:0002 (look at cd under the desklamp) the Parent backtracked to desk 1 at P3:5 although it had already checked that location without a desklamp at P3:1, then reached shelf 2 and used the desklamp at P3:7 (7 steps), whereas the Candidate moved directly to shelf 2 at Q3:5 and used the desklamp at Q3:6 (6 steps); both succeeded. The one-step improvement is consistent with the desklamp clause discouraging a return to an already-checked lamp-less location, but with a single pair, identical steps through Q3:4, and no stated reason for the divergent choice, a stochastic explanation cannot be excluded.
+
+**本版判断：** P3:1/5 的 desk、P3:7 与 Q3:6 的用灯成功和 7→6 步比较相符；因果措辞明确保留随机解释。
+
+**接受的局限：** 早期动作是否完全相同未证明，不因此拒绝。
+
+**与旧版关系：** 从充分性审计改为明显重要错误筛查；缺证据/轻微歧义不再单独拦截。
+
+[实际输入](../../../../artifacts/methods/v23_5/verifier_input_002/cases/R01/verifier_input.json)；检查位置：`diff`, `P3:1`, `P3:5`, `P3:7`, `Q3:4`, `Q3:5`, `Q3:6`。
+
+人工复核：待填写（同意 / 不同意 / 不确定；理由；审阅者；时间）。
+
+## R01 [0,3] — SUPPORTED / review_only
+
+Under the joint insertion of the search-phase and desklamp sections, three current tasks flipped from Parent success to Candidate step-limit failure at 50 steps: train:0004 look at statue under the desklamp (P5 succeeded in 3 steps, Q5 hit the step limit), train:0005 put a cellphone in shelf (P6 succeeded in 5, Q6 hit the step limit) and train:0006 put some newspaper on sofa (P7 succeeded in 26, Q7 hit the step limit). In each, the Parent reached the target's own location early — dresser 1 holding the statue with a co-located desklamp (P5:1, P5:3), sidetable 1 holding cellphone 1 (P6:2, P6:3), tvstand 1 holding newspaper 1 (P7:23, P7:24) — while the Candidate's searches never entered that location before running out of steps (Q5 cycled drawers and shelves until Q5:50; Q6 stayed in drawers/shelves until Q6:50; Q7 cycled shelves until Q7:50). This is a material Parent-success/Candidate-failure asymmetry; because both sections were added together and search guidance changed globally, causation is not isolated to a single clause and is not proven.
+
+**本版判断：** 主要经验是三组 Parent 成功/Candidate 失败及搜索循环。Q6:2.before 已显示 desk1，因此 stayed in drawers/shelves 不是严格准确的全程排他描述；按概括性模式理解可通过，是否重要到必须改写保留人工审阅。
+
+**接受的局限：** 不将缺终态或 never entered 的覆盖不足算错误；同时明确承认已有 desk1 观察，不能声称不存在反证。该措辞歧义项不进入主指标。
+
+**与旧版关系：** 从充分性审计改为明显重要错误筛查；缺证据/轻微歧义不再单独拦截。
+
+[实际输入](../../../../artifacts/methods/v23_5/verifier_input_002/cases/R01/verifier_input.json)；检查位置：`diff`, `P5:1`, `P5:3`, `Q5:13`, `Q5:50`, `P6:2`, `P6:3`, `Q6:31`, `Q6:50`, `P7:23`, `P7:24`, `Q7:5`, `Q7:50`, `Q6:2`。
+
+人工复核：待填写（同意 / 不同意 / 不确定；理由；审阅者；时间）。
+
+## R01 [0,4] — CONFLICT / primary
+
+The clause's loop-avoidance memory is explicitly the Actor's last two observations/actions; in the regressed runs the Actor satisfied that two-step window while still re-sweeping whole location classes over long horizons, so the aimed-at redundant re-examination was not prevented: Q5 reached drawer 1 at Q5:1 and returned to it at Q5:12, Q5:22, Q5:35 and Q5:49 while cycling the shelf 1-9 block repeatedly, and Q6 re-ran its drawer sequence (Q6:2 and again by Q6:18, Q6:24) many times. A window of two steps cannot flag a location re-entered after a longer sweep, so the intended loop avoidance does not extend to full multi-location cycles.
+
+**本版判断：** Q5:49.action 明确为 go to shelf 1，原文将该步列为返回 drawer1；这是精确引用事件错写。
+
+**接受的局限：** 更早的 drawer1 返回例子仍成立；不因这一错误否定整个长周期循环经验，也不证明所有时刻遵循两步窗口。
+
+**与旧版关系：** 标签相同；判定依据改按当前筛查边界复核，不沿用旧模型判定。
+
+[实际输入](../../../../artifacts/methods/v23_5/verifier_input_002/cases/R01/verifier_input.json)；检查位置：`diff`, `Q5:1`, `Q5:12`, `Q5:22`, `Q5:35`, `Q5:49`, `Q6:2`, `Q6:18`, `Q6:24`。
+
+**必须检出的具体问题：wrong_Q5_49**
+
+Q5 reached drawer 1 at Q5:1 and returned to it at Q5:12, Q5:22, Q5:35 and Q5:49
+
+重要性：将一个具体引用的访问动作写成错误地点，会污染后续对循环过程的回忆。
+
+检出标准：反馈明确指出 Q5:49 是 go to shelf 1，而非返回 drawer1；只说覆盖不足不算命中。
+
+原始字段定位：`Q5:49.record/action`。准确字段值保存在 JSON 基准中。
+
+人工复核：待填写（同意 / 不同意 / 不确定；理由；审阅者；时间）。
+
+## R02 [0,0] — SUPPORTED / primary
+
+Under the current multi-clause edit (forward "go to" sweep with closed-container checks and last-two-destination skipping, plus stop-and-grab and admissible-action/loop clauses), three successful tasks showed increased Candidate search cost when the Candidate checked closed cabinets/drawers before the location that held the target: train:0010 put toiletpaper in toiletpaperhanger (Parent 4, Candidate 10; Q1 opened cabinet1/2 before reaching countertop at Q1:7), train:0011 put toiletpaper on toiletpaperhanger (Parent 4, Candidate 7; Q2 opened drawer1/2 before taking the toiletpaper at Q2:4-5), and train:0012 clean apple in diningtable (Parent 10, Candidate 12; Q3 opened cabinet1/2 before countertop/fridge and still cleaned/delivered). When both sides first went to the same target-bearing location, behavior was identical: train:0016 clean knife in drawer and train:0019 clean plate in fridge each succeeded in 7/7 steps. Success was preserved in all five, but the added forward/container search can add steps on easy tasks; single runs and the joint edit prevent isolated attribution.
+
+**本版判断：** 提供的动作、对象与成功终态支持主要的搜索成本比较，未见明确重要反证。
+
+**接受的局限：** behavior was identical 的全程中段覆盖不足不再单独拦截；不证明唯一因果。
+
+**与旧版关系：** 从充分性审计改为明显重要错误筛查；缺证据/轻微歧义不再单独拦截。
+
+[实际输入](../../../../artifacts/methods/v23_5/verifier_input_002/cases/R02/verifier_input.json)；检查位置：`diff`, `P1:1`, `Q1:1`, `Q1:2`, `Q1:4`, `Q1:7`, `P1:4`, `Q1:10`, `P2:1`, `Q2:1`, `Q2:2`, `Q2:4`, `Q2:5`, `P2:4`, `Q2:7`, `P3:1`, `Q3:1`, `Q3:3`, `Q3:4`, `Q3:7`, `P3:10`, `Q3:12`, `P7:1`, `Q7:1`, `P7:7`, `Q7:7`, `P10:1`, `Q10:1`, `P10:7`, `Q10:7`。
+
+人工复核：待填写（同意 / 不同意 / 不确定；理由；审阅者；时间）。
+
+## R02 [0,1] — SUPPORTED / primary
+
+The forward-sweep/loop-avoidance change was accompanied by clear step reductions in two successful hidden-target searches. In train:0014 clean dishsponge and put it in shelf, Parent repeatedly cycled shelf1/sink/cart and only reached the dishsponge at bathtubbasin at P5:19, finishing in 24 steps; Candidate visited cart, garbagecan, shelf1, sink, then bathtubbasin without the same repeats, took the dishsponge at Q5:5-6, and finished in 10 steps. In train:0018 put a clean lettuce in fridge, Candidate opened the closed fridge first, took lettuce4 at Q9:2-3, cleaned it, and returned to place it in 7 steps; Parent first went to countertop1, took lettuce1, cleaned it, and opened the fridge only for delivery in 8 steps. These reductions are consistent with the forward/container-check guidance but are single-pair observations within a joint edit.
+
+**本版判断：** 提供的 P5/Q5 和 P9/Q9 取物、清洁、递送、终态支持主要步数下降观察。
+
+**接受的局限：** 旧完整档案审阅已知 Parent 首步不是 countertop1，但 P9:1/2 未给模型；不能用模型看不到的反证要求拦截 first。通过不代表该首步陈述正确。
+
+**与旧版关系：** 从充分性审计改为明显重要错误筛查；缺证据/轻微歧义不再单独拦截。
+
+[实际输入](../../../../artifacts/methods/v23_5/verifier_input_002/cases/R02/verifier_input.json)；检查位置：`diff`, `P5:1`, `P5:6`, `P5:12`, `P5:13`, `P5:17`, `P5:19`, `P5:24`, `Q5:1`, `Q5:2`, `Q5:3`, `Q5:4`, `Q5:5`, `Q5:6`, `Q5:10`, `P9:3`, `P9:7`, `P9:8`, `Q9:2`, `Q9:3`, `Q9:5`, `Q9:7`。
+
+人工复核：待填写（同意 / 不同意 / 不确定；理由；审阅者；时间）。
+
+## R02 [0,2] — CONFLICT / primary
+
+The current search edit did not convert the three step-limit failures into successes: train:0013 clean dishsponge in shelf (P4/Q4 both step_limit at 50), train:0015 put a clean kettle in cabinet (P6/Q6 both step_limit at 50), and train:0017 clean lettuce in diningtable (P8/Q8 both step_limit at 50). In the two tasks where the target was never observed, Candidate expanded closed-container coverage beyond Parent—e.g., Q4 covered cabinets 5,7,9-13 while P4 stayed around cabinets 1-4 and 6 (P4:4, P4:6, P4:8, P4:15, P4:23; Q4:14, Q4:17, Q4:20, Q4:23, Q4:25, Q4:26, Q4:38)—but still exhausted the budget without finding the dishsponge; Q8 likewise reached cabinet10/4/5 (Q8:19, Q8:47, Q8:49) but did not find the lettuce. In train:0015 a kettle was visible at countertop1 to both sides (P6:1, Q6:9) yet neither took it before the step limit; the run does not establish whether a take opportunity existed or whether the search clause was applicable.
+
+**本版判断：** P6:1.after 与 Q6:9.after 的对应完整可见对象列表均没有 kettle，原文具体声称在这两步可见水壶；误构造了未取目标的机会。
+
+**接受的局限：** 不由此推断整个房间没有 kettle；其他覆盖范围对比的缺证据不另列为必须检出的错误。
+
+**与旧版关系：** 标签相同；判定依据改按当前筛查边界复核，不沿用旧模型判定。
+
+[实际输入](../../../../artifacts/methods/v23_5/verifier_input_002/cases/R02/verifier_input.json)；检查位置：`diff`, `P4:4`, `P4:6`, `P4:8`, `P4:15`, `P4:23`, `P4:50`, `Q4:14`, `Q4:17`, `Q4:20`, `Q4:23`, `Q4:25`, `Q4:26`, `Q4:38`, `Q4:50`, `P6:1`, `Q6:9`, `P6:50`, `Q6:50`, `P8:50`, `Q8:19`, `Q8:47`, `Q8:49`, `Q8:50`。
+
+**必须检出的具体问题：kettle_visibility**
+
+In train:0015 a kettle was visible at countertop1 to both sides (P6:1, Q6:9) yet neither took it before the step limit
+
+重要性：会把未见目标错误解释为看见目标却不取，影响 grab/search 经验。
+
+检出标准：反馈针对 P6:1/Q6:9 的对应观察未显示 kettle，纠正该具体可见性前提；只说未给全程不算命中。
+
+原始字段定位：`P6:1.record/after/observation`, `Q6:9.record/after/observation`。准确字段值保存在 JSON 基准中。
+
+人工复核：待填写（同意 / 不同意 / 不确定；理由；审阅者；时间）。
+
+## R02 [0,3] — SUPPORTED / primary
+
+Where Candidate located the required object, it followed the new stop-searching-and-grab behavior on the next step and, in clean tasks, cleaned before delivery: toiletpaper at Q1:7→Q1:8 (delivered Q1:10), Q2:4→Q2:5 (delivered Q2:7), apple at Q3:7→Q3:8 (cleaned Q3:10; delivered Q3:12), dishsponge at Q5:5→Q5:6 (cleaned Q5:8; delivered Q5:10), knife at Q7:1→Q7:2 (cleaned Q7:4; delivered Q7:7), lettuce at Q9:2→Q9:3 (cleaned Q9:5; delivered Q9:7), and plate at Q10:1→Q10:2 (cleaned Q10:4; delivered Q10:7). No current Candidate success run shows continued searching after the target became visible, so the grab/transform/deliver sequence was preserved under these observations.
+
+**本版判断：** 列举的相邻观察→取物及后续清洁/递送记录相符，没有明确的相反动作例子。
+
+**接受的局限：** 不证明所有可能的更早可见时刻或普遍策略效果。
+
+**与旧版关系：** 标签相同；判定依据改按当前筛查边界复核，不沿用旧模型判定。
+
+[实际输入](../../../../artifacts/methods/v23_5/verifier_input_002/cases/R02/verifier_input.json)；检查位置：`diff`, `Q1:7`, `Q1:8`, `Q1:10`, `Q2:4`, `Q2:5`, `Q2:7`, `Q3:7`, `Q3:8`, `Q3:10`, `Q3:12`, `Q5:5`, `Q5:6`, `Q5:8`, `Q5:10`, `Q7:1`, `Q7:2`, `Q7:4`, `Q7:7`, `Q9:2`, `Q9:3`, `Q9:5`, `Q9:7`, `Q10:1`, `Q10:2`, `Q10:4`, `Q10:7`。
+
+人工复核：待填写（同意 / 不同意 / 不确定；理由；审阅者；时间）。
+
+## R02 [0,4] — SUPPORTED / primary
+
+The added failed-repeat rule was followed in observed "Nothing happens" cases but the current-admissible rule was not fully realized. In train:0015, Q6:6 selected go to cabinet4 when it was not admissible and got "Nothing happens"; the Candidate then chose the different open cabinet4 (Q6:7) instead of repeating. After "..." also yielded "Nothing happens" at Q6:8, it switched to go to countertop1 (Q6:9), and after another failed go to cabinet4 at Q6:34 it switched to go to cabinet2 (Q6:35). By contrast the Parent repeated the same failed go to cabinet4 at P6:14 and P6:15. However the Candidate still emitted invalid commands ("..." at Q6:8 and go to cabinet4 at Q6:50), so the current-admissible restriction was only partial, and both P6 and Q6 ended at the step limit, so no task benefit is established.
+
+**本版判断：** Q6 三组失败后的下一步切换、P6 的重复失败、无效动作及末步失败均与输入相符。
+
+**接受的局限：** 不把动作合法等同任务成功，也不扩展为全部错误后行为的证明。
+
+**与旧版关系：** 标签相同；判定依据改按当前筛查边界复核，不沿用旧模型判定。
+
+[实际输入](../../../../artifacts/methods/v23_5/verifier_input_002/cases/R02/verifier_input.json)；检查位置：`diff`, `Q6:6`, `Q6:7`, `Q6:8`, `Q6:9`, `Q6:34`, `Q6:35`, `Q6:50`, `P6:14`, `P6:15`, `P6:50`。
+
+人工复核：待填写（同意 / 不同意 / 不确定；理由；审阅者；时间）。
+
+## R02 [0,5] — SUPPORTED / primary
+
+The two-most-recent-destination skip did not prevent longer-horizon re-sweeps in the Candidate. In train:0013, Q4:1 went to cabinet1 and Q4:8 returned to cabinet1 after intervening cabinets, then Q4:19 returned again after a broader cabinet sweep. In train:0017, the Candidate repeatedly cycled among cabinet1, cabinet2/cabinet3, fridge1 and countertop1 despite the recency skip—e.g., Q8:13 cabinet1, Q8:14 fridge1, Q8:15 countertop1, Q8:16 cabinet2, Q8:17 cabinet1, Q8:18 fridge1, and later Q8:28-Q8:30 cabinet1→cabinet2→cabinet3 before Q8:31 fridge1 and Q8:32 countertop1. Such cycles can satisfy a two-step exclusion while revisiting locations after a longer interval; these Candidate runs still hit the step limit.
+
+**本版判断：** 列举的返回柜子与 Q8 连续片段相符；can satisfy 说明两步窗口可容许长循环，并非断言所有时刻都合规。
+
+**接受的局限：** 不穷举完整运行中的每个两步窗口。
+
+**与旧版关系：** 标签相同；判定依据改按当前筛查边界复核，不沿用旧模型判定。
+
+[实际输入](../../../../artifacts/methods/v23_5/verifier_input_002/cases/R02/verifier_input.json)；检查位置：`diff`, `Q4:1`, `Q4:8`, `Q4:19`, `Q4:50`, `Q8:13`, `Q8:14`, `Q8:15`, `Q8:16`, `Q8:17`, `Q8:18`, `Q8:28`, `Q8:29`, `Q8:30`, `Q8:31`, `Q8:32`, `Q8:50`。
+
+人工复核：待填写（同意 / 不同意 / 不确定；理由；审阅者；时间）。
+
+## R03 [0,0] — SUPPORTED / primary
+
+The edited transformation clause — apply clean/cool/heat to the object you are holding at the appliance instead of putting the object into the appliance first — was followed in every current transform task in which the Candidate reached the target: the Candidate applied the state change directly to the held object (Q2:6 cool bread 1 with fridge 1; Q3:4 cool bread 1 with fridge 1; Q4:6 cool bread 1 with fridge 1; Q7:6 cool pot 1 with fridge 1; Q8:5 heat apple 1 with microwave 1; Q9:6 heat egg 1 with microwave 1; Q10:7 heat mug 4 with microwave 1), and no Candidate run moved the object into the appliance or retrieved it before transforming. In the cool tasks and in the heat tasks train:0027 and train:0028 the state change succeeded while the appliance was still closed: the Candidate had just arrived at a closed fridge 1 (Q2:5, Q3:3, Q4:5, Q7:5) or a closed microwave 1 (Q8:4, Q9:5) when its cool/heat action succeeded, so opening was not required; train:0029 is the exception in which the Candidate opened microwave 1 (Q10:6) before heating the held mug (Q10:7).
+
+**本版判断：** 所列持物冷/热变换、closed before 与变换成功反馈，以及 Q10 先开微波炉例外均吻合。
+
+**接受的局限：** 未证明每个 Candidate 早前均从未放入设备；输入没有明确重要反例时允许通过。
+
+**与旧版关系：** 从充分性审计改为明显重要错误筛查；缺证据/轻微歧义不再单独拦截。
+
+[实际输入](../../../../artifacts/methods/v23_5/verifier_input_002/cases/R03/verifier_input.json)；检查位置：`diff`, `Q2:5`, `Q2:6`, `Q3:3`, `Q3:4`, `Q4:5`, `Q4:6`, `Q7:5`, `Q7:6`, `Q8:4`, `Q8:5`, `Q9:5`, `Q9:6`, `Q10:6`, `Q10:7`。
+
+人工复核：待填写（同意 / 不同意 / 不确定；理由；审阅者；时间）。
+
+## R03 [0,1] — CONFLICT / primary
+
+The Parents in these transform pairs (except train:0029) instead deposited the object into the appliance and cycled its door before the transformation succeeded: in train:0027 the Parent moved apple 1 into the microwave (P8:19), cycled the door (P8:20, P8:21, P8:22, P8:23), took the apple back out (P8:24) and only then heated it (P8:25), ending in 27 steps versus the Candidate's 8; in train:0028 the Parent moved egg 1 into the microwave (P9:7), cycled the door (P9:8, P9:9, P9:10, P9:11), retrieved it (P9:12) and heated it (P9:13), taking 15 steps versus the Candidate's 8. In train:0029 the Parent also heated the held mug directly (P10:30) and took 32 steps versus the Candidate's 9, but its length came largely from search, since it reached the mug only at P10:27/P10:28 whereas the Candidate took it at Q10:3/Q10:4. Both sides succeeded in train:0022 (8 vs 6), train:0026 (9 vs 8), train:0027 (27 vs 8), train:0028 (15 vs 8) and train:0029 (32 vs 9), and the two remaining transform pairs were Parent step-limit failures that the Candidate completed in 8 steps (train:0021 50 vs 8, train:0023 50 vs 8). Since the Candidate's lower counts in these tasks also reflect shorter searches, the transformation clause's own contribution is not isolated by this batch.
+
+**本版判断：** Parent 普遍先放入设备并反复开关门的概括被输入内冷却片段反驳：P3:4 在关闭冰箱处已有 cool 候选，P3:5 打开后观察没有 bread，紧接 P3:6 完成持物冷却；不能把 P8/P9 的微波炉模式概括给这些冷却案例。
+
+**接受的局限：** 反馈应限定在 P3:4–6 已给片段及模式差异；不能声称已审计 P3 更早所有动作，也不能仅从 P2/P4 最终失败推断从未成功变换过物体。
+
+**与旧版关系：** 标签相同；判定依据改按当前筛查边界复核，不沿用旧模型判定。
+
+[实际输入](../../../../artifacts/methods/v23_5/verifier_input_002/cases/R03/verifier_input.json)；检查位置：`diff`, `P8:19`, `P8:20`, `P8:21`, `P8:22`, `P8:23`, `P8:24`, `P8:25`, `P9:7`, `P9:8`, `P9:9`, `P9:10`, `P9:11`, `P9:12`, `P9:13`, `P10:27`, `P10:28`, `P10:30`, `Q10:3`, `Q10:4`, `P3:8`, `Q3:6`, `P7:9`, `Q7:8`, `P8:27`, `Q8:8`, `P9:15`, `Q9:8`, `P10:32`, `Q10:9`, `P2:50`, `Q2:8`, `P4:50`, `Q4:8`, `P3:4`, `P3:5`, `P3:6`。
+
+**必须检出的具体问题：transform_overgeneralization**
+
+The Parents in these transform pairs (except train:0029) instead deposited the object into the appliance and cycled its door before the transformation succeeded
+
+重要性：把加热案例的存放和开关门模式错误推广到冷却案例，会误导变换条款经验。
+
+检出标准：反馈使用输入内 P3 冷却片段，指出 Parent 模式不能概括为除了 P10 都先存入设备并循环开关门；单纯要求补全其他轨迹不算命中。
+
+原始字段定位：`P3:4.record/before/observation`, `P3:5.record/action`, `P3:5.record/after/observation`, `P3:6.record/action`, `P3:6.record/after/observation`。准确字段值保存在 JSON 基准中。
+
+人工复核：待填写（同意 / 不同意 / 不确定；理由；审阅者；时间）。
+
+## R03 [0,2] — SUPPORTED / primary
+
+Two Parent step-limit failures became short Candidate successes when the goal object lay on an open surface the Parent's sweep never reached. train:0021 (put a cool bread in countertop): the Parent spent all 50 steps cycling cabinets 1-3, the fridge, countertops 1-2, shelf 1 and drawers 1-2 (P2:1 cabinet 1, P2:7 countertop 1, P2:14 countertop 2, P2:16 shelf 1, P2:35 drawer 1, final step P2:50) and never arrived at countertop 3, where bread 1 lay; the Candidate went countertop 1 → countertop 2 → countertop 3 (Q2:1-Q2:3), took bread 1 at Q2:4 and finished in 8. train:0023 (put a cool bread in countertop): the Parent cycled countertop 1/2, the fridge, cabinets 1-4 and drawer 1 (P4:1, P4:2, P4:3, P4:5, P4:30, P4:39, final step P4:50) and never visited diningtable 1, which held breads 1-4; the Candidate reached diningtable 1 at Q4:3, took bread 1 at Q4:4 and finished in 8. A milder version appears in train:0020 (clean some spoon and put it in diningtable), where the Parent went countertop 1 (nothing), then opened drawer 1 (empty) and drawer 2 (spatula 1, spoon 1) before taking spoon 1 at P1:6 for 10 steps, while the Candidate went countertop 1 then the uninspected countertop 2, took spoon 2 at Q1:3, cleaned it and delivered in 7 steps; both succeeded. These comparisons are consistent with the edited instruction to cover uninspected open surfaces as well as unopened closed containers, but search, loop-breaking, grab and transform clauses were edited together and each task was run once per side, so no single clause can be credited.
+
+**本版判断：** 已给 Candidate 找到目标、取物与成功终态及 Parent 失败记录支持主要观察，未见重要反证。
+
+**接受的局限：** Parent never visited 全程覆盖不足不再是拒绝依据。
+
+**与旧版关系：** 从充分性审计改为明显重要错误筛查；缺证据/轻微歧义不再单独拦截。
+
+[实际输入](../../../../artifacts/methods/v23_5/verifier_input_002/cases/R03/verifier_input.json)；检查位置：`diff`, `P2:1`, `P2:7`, `P2:14`, `P2:16`, `P2:35`, `P2:50`, `Q2:1`, `Q2:2`, `Q2:3`, `Q2:4`, `Q2:8`, `P4:1`, `P4:2`, `P4:3`, `P4:5`, `P4:30`, `P4:39`, `P4:50`, `Q4:3`, `Q4:4`, `Q4:8`, `P1:1`, `P1:2`, `P1:3`, `P1:4`, `P1:5`, `P1:6`, `Q1:2`, `Q1:3`, `P1:10`, `Q1:7`。
+
+人工复核：待填写（同意 / 不同意 / 不确定；理由；审阅者；时间）。
+
+## R03 [0,3] — CONFLICT / primary
+
+Both current step-limit failures occur on tasks where neither side ever observed the goal object, so the search guidance's applicability there cannot be judged and the object's absence from visited locations is unknown rather than established. In train:0024 (cool some pan and put it in stoveburner) the Candidate cycled among countertop 1, countertop 2, stoveburner 1, stoveburner 2 and cabinet 1 (Q5:7 countertop 1, Q5:8 countertop 2, Q5:9 stoveburner 1, Q5:11 stoveburner 2, Q5:13 countertop 1) while also visiting sinkbasin 1 (Q5:15), diningtable 1 (Q5:21), cabinet 3 (Q5:32) and cabinet 4 (Q5:34) without finding a pan, ending at the 50-step limit as the Parent did. In train:0025 (cool some plate and put it in diningtable) the Candidate cycled countertop 1/2 with cabinets 1-4 (Q6:16 countertop 1, Q6:17 countertop 2, Q6:18 cabinet 1, Q6:19 cabinet 2; later Q6:42 countertop 1, Q6:43 countertop 2, Q6:45 cabinet 4) and also ended at the step limit, again as the Parent did; no plate was seen on either side. The edited loop-avoidance rule therefore did not convert these two tasks into successes, and because both runs ended by budget exhaustion with the object never observed, whether any listed location contained it remains unresolved.
+
+**本版判断：** 因为未找到目标而称搜索规则适用性不能判断，与实际 Diff 中 while the goal object has not been found 的明确触发条件相反；这是会误导后续使用经验的规则条件解释错误。
+
+**接受的局限：** 只纠正适用条件，不能推断规则已被正确执行、必然有效或物体实际不存在；不要求证明整个运行都未见目标。
+
+**与旧版关系：** 标签相同；判定依据改按当前筛查边界复核，不沿用旧模型判定。
+
+[实际输入](../../../../artifacts/methods/v23_5/verifier_input_002/cases/R03/verifier_input.json)；检查位置：`diff`, `P5:50`, `Q5:7`, `Q5:8`, `Q5:9`, `Q5:11`, `Q5:13`, `Q5:15`, `Q5:21`, `Q5:32`, `Q5:34`, `Q5:50`, `P6:50`, `Q6:16`, `Q6:17`, `Q6:18`, `Q6:19`, `Q6:42`, `Q6:43`, `Q6:45`, `Q6:50`。
+
+**必须检出的具体问题：search_rule_trigger**
+
+so the search guidance's applicability there cannot be judged
+
+重要性：把搜索规则的明确触发条件误当作无法判断适用性的理由，可能使后续轮次忽略本应分析的搜索行为。
+
+检出标准：反馈将该结论与 Diff 的未找到目标时适用搜索规则相对照；仅批评 never observed 缺证据不算命中。
+
+原始字段定位：`diff.diff`。准确字段值保存在 JSON 基准中。
+
+人工复核：待填写（同意 / 不同意 / 不确定；理由；审阅者；时间）。
+
+## R03 [0,4] — SUPPORTED / review_only
+
+The 'emit only actions whose exact text appears in the current admissible list, and do not repeat a guess that produced no change' clause was only partially realized. In train:0025 the Candidate chose the unlisted destination cabinet 3 eight times, each producing 'Nothing happens' (Q6:5, Q6:9, Q6:15, Q6:20, Q6:25, Q6:30, Q6:36, Q6:50), so it re-issued a guess it had already seen fail; the Parent did the same six times (P6:5, P6:11, P6:17, P6:29, P6:37, P6:43). By contrast, in train:0024 no Candidate action was non-admissible while the Parent twice chose locations that produced 'Nothing happens' (P5:14 go to cabinet 7, P5:21 go to stoveburner 3); and in train:0022 the Parent emitted the non-action '...' which failed at P3:4, needing a further open of fridge 1 (P3:5) before cooling at P3:6 (8 steps), whereas the Candidate went straight from the closed fridge to cooling the held bread (Q3:4) and finished in 6. These differences yielded no task-level benefit in this batch: train:0022 succeeded on both sides and train:0024/train:0025 ended at the step limit on both sides.
+
+**本版判断：** 8 次/6 次 cabinet3 失败及 P3 额外动作、双方成功/失败状态有记录支持。needing a further open 可读为实际多走一步，而非必要条件；no task-level benefit 可指成功结果而非步数。按宽松边界暂通过，歧义单列。
+
+**接受的局限：** 若明确声称冷却必须开门则会与 Q3:4 冲突，但不强加这种解读；全程 Q5 合法性的缺证据也不拒绝。主指标预先排除此项。
+
+**与旧版关系：** 从充分性审计改为明显重要错误筛查；缺证据/轻微歧义不再单独拦截。
+
+[实际输入](../../../../artifacts/methods/v23_5/verifier_input_002/cases/R03/verifier_input.json)；检查位置：`diff`, `Q6:5`, `Q6:9`, `Q6:15`, `Q6:20`, `Q6:25`, `Q6:30`, `Q6:36`, `Q6:50`, `P6:5`, `P6:11`, `P6:17`, `P6:29`, `P6:37`, `P6:43`, `P5:14`, `P5:21`, `P3:4`, `P3:5`, `P3:6`, `Q3:4`, `P3:8`, `Q3:6`, `P5:50`, `Q5:50`, `P6:50`。
+
+人工复核：待填写（同意 / 不同意 / 不确定；理由；审阅者；时间）。
+
+## R03 [0,5] — SUPPORTED / primary
+
+Once the Candidate found the goal object it stopped searching, took it on the next step and completed the required transformation and delivery: spoon 2 (Q1:3 taken, Q1:5 cleaned, Q1:7 moved to diningtable 1), bread 1 (Q2:4 taken, Q2:6 cooled, Q2:8 moved to countertop 1), bread 1 (Q4:4, Q4:6, Q4:8), pot 1 (Q7:4, Q7:6, Q7:8), apple 1 (Q8:3, Q8:5 heated, Q8:8 moved to fridge 1), egg 1 (Q9:4, Q9:6, Q9:8) and mug 4 (Q10:4, Q10:7, Q10:9). The revised clause's stated exception also held: in train:0026 the Candidate carried the cooled pot back to countertop 3, the already-visited location from which it had taken the pot (Q7:7 arrived, Q7:8 moved), and the run succeeded — so the search-phase restriction on revisiting known locations did not block a delivery revisit while holding the object.
+
+**本版判断：** 已列取物、变换、递送步骤和 pot 返回 countertop3 的例外都与输入相符。
+
+**接受的局限：** 不要求证明所有未给出的历史时刻从未继续搜索。
+
+**与旧版关系：** 标签相同；判定依据改按当前筛查边界复核，不沿用旧模型判定。
+
+[实际输入](../../../../artifacts/methods/v23_5/verifier_input_002/cases/R03/verifier_input.json)；检查位置：`diff`, `Q1:2`, `Q1:3`, `Q1:5`, `Q1:7`, `Q2:3`, `Q2:4`, `Q2:6`, `Q2:8`, `Q4:3`, `Q4:4`, `Q4:6`, `Q4:8`, `Q7:4`, `Q7:6`, `Q7:7`, `Q7:8`, `Q8:3`, `Q8:5`, `Q8:8`, `Q9:4`, `Q9:6`, `Q9:8`, `Q10:4`, `Q10:7`, `Q10:9`。
+
+人工复核：待填写（同意 / 不同意 / 不确定；理由；审阅者；时间）。
+
+## R03 [0,6] — SUPPORTED / primary
+
+Across the ten current verified pairs the Candidate was never worse than the Parent. In all six pairs where the Parent succeeded the Candidate also succeeded with equal or fewer steps (train:0020 10 vs 7, train:0022 8 vs 6, train:0026 9 vs 8, train:0027 27 vs 8, train:0028 15 vs 8, train:0029 32 vs 9); the two Parent step-limit failures became Candidate successes in 8 steps each (train:0021, train:0023); and only the two tasks neither side could solve remained step-limit failures (train:0024, train:0025). This is a batch-level observation under a joint multi-clause edit with one execution per side per task, so it supports absence of observed harm and frequent step savings, not attribution of the gains to any specific clause.
+
+**本版判断：** 20 个末步记录覆盖本批十组结果和步数；批内 never worse 已限定为成功与步数，且明确不归因给单一条款。
+
+**接受的局限：** 不扩展成未来任务普遍安全或技能因果效果证明。
+
+**与旧版关系：** 标签相同；判定依据改按当前筛查边界复核，不沿用旧模型判定。
+
+[实际输入](../../../../artifacts/methods/v23_5/verifier_input_002/cases/R03/verifier_input.json)；检查位置：`diff`, `P1:10`, `Q1:7`, `P3:8`, `Q3:6`, `P7:9`, `Q7:8`, `P8:27`, `Q8:8`, `P9:15`, `Q9:8`, `P10:32`, `Q10:9`, `P2:50`, `Q2:8`, `P4:50`, `Q4:8`, `P5:50`, `Q5:50`, `P6:50`, `Q6:50`。
+
+人工复核：待填写（同意 / 不同意 / 不确定；理由；审阅者；时间）。
