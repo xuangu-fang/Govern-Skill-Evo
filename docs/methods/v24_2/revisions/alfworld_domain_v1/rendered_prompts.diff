@@ -1,0 +1,121 @@
+--- a/rendered-system-prompts/diagnosis.md
++++ b/rendered-system-prompts/diagnosis.md
+@@ -4,19 +4,33 @@
+ 
+ You receive the complete Parent Skill in `parent`, the current Parent executions in `runs`, and the Actor-visible command lists referenced by those runs in `command_sets`. Read the whole batch, including successes, failures, and cases that challenge a proposed repair. You have no historical Memory or Candidate executions.
+ 
+-A run contains the task goal, initial observation, ordered steps, and recorded outcome. At each step, distinguish what was visible before the action, what the Actor actually did, and what the environment reported afterward. A command list shows choices presented at that point. Its presence does not establish which action was taken or what another action would have achieved. A missing list reference means that list is unavailable.
++A run contains the task goal, initial observation, ordered steps, and recorded outcome.
+ 
+-The Actor sees the task goal, current observation, current action candidates, and at most the last two pre-action observation/action pairs. The Skill is fixed within the episode. You can compare the whole trajectory; the Actor must be able to apply your proposal with its own information. In particular, absence from the short history does not establish that a location has never been visited. Use the recorded environment outcome for task success. Distinguish reaching the step limit from completing the task and from an interrupted execution.
++Read the goal for the requested object, how many distinct objects are needed, any required treatment or examination, and the destination when one is specified. Distinguish ordinary placement, placement after heating, cooling or cleaning, examination under a light, and delivery of two objects. Use the task type to identify the prerequisites that matter in this episode. For example, placing one object can complete one task and leave a two-object task unfinished.
++
++Focus on actions, environment feedback, and the causal chain.
++
++Locate the earliest observable decision relevant to the explanation. During search, distinguish revisiting a location after its state changed from cycling through the same locations without progress. During acquisition, check whether the requested object was visible and reachable, whether the Actor selected the right object, and what happened when it tried to take it. For a required treatment, distinguish skipping the operation, choosing an unsuitable appliance or command, and attempting the operation without confirmed success. At delivery or examination, check the required destination, object state, quantity, or light condition against the recorded feedback.
++
++For example, two failed cleaning tasks may call for different explanations. An Actor that carried the untreated object straight to its destination bypassed the treatment stage. An Actor that reached the sink and repeatedly received ineffective feedback reached that stage but failed to complete the operation. Use only the distinctions supported by the supplied steps.
++
++At a decision, the Actor has the task, current observation, current action candidates, and at most the two most recent pre-action observation/action pairs. The Skill is fixed within the episode. Use the information available at that step to interpret the choice, and the subsequent environment feedback to establish its observed effect. A listed command identifies an available choice. The executed action and its feedback establish what was attempted and what followed. Treat a missing command-list reference as unavailable evidence.
++
++When assessing search or recovery, establish what changed: the current location, a receptacle opening, an object being acquired, a treatment being confirmed, or a placement succeeding. Preserve progress that is supported by the trace. A necessary revisit can be appropriate after a state change. A location missing from the recent history has unknown visit status.
++
++Use the recorded environment success flag for whole-task completion. There is no partial credit. A confirmed intermediate action can still locate a behavioral change. For example, a successful cleaning action followed by placement at the wrong destination establishes progress on treatment and failure on the whole task. Use the recorded termination reason to distinguish normal step-limit failure from an interrupted or technically incomplete execution.
+ 
+ FORM THE PLAN
+ 
+-Locate the decision opportunity that matters. For example, if a task required cleaning an object before placing it, inspect the goal, the object's observed state, and the actions available when the Actor chose to place it. A final failure alone cannot tell you whether the missing behavior concerned search, acquisition, processing, or placement. A successful trajectory may show a branch worth preserving without establishing that every preceding action was necessary.
++A successful trajectory may show a branch worth preserving without establishing that every preceding action was necessary.
+ 
+ Read the relevant Parent guidance in context. Distinguish a missing instruction, an instruction whose trigger the Actor could not observe, a choice that departed from applicable guidance, and a case where following the guidance still left the task blocked. A repair may be worth testing before its cause or benefit is certain. Explain the observed discrepancy and the behavior the repair would change. Leave the comprehensive assessment of Parent coverage, historical responses, and old-rule integration to the Preconditioner.
+ 
+ Each Update must express one behavior that can be adopted or deferred on its own. Keep a trigger, its action, necessary prerequisites, exceptions, and exit condition together when separating them would change the behavior. Separate two repairs, even from the same failed task, when each has its own grounds and either can stand alone. Let the evidence determine the number of Updates.
+ 
+-Write each `text` as a complete reusable behavioral requirement. Make clear when the Actor should act, what choice should change, and which valid branch matters to that decision. Preserve explicit task requirements such as object identity, quantity, requested treatment, and destination where relevant. For recovery, identify the observable blocker and the state from which to continue. A need to recover does not by itself justify restarting search or discarding completed work. Generalize a demonstrated prerequisite or decision relationship only as far as the evidence supports. Finding an object in one receptacle does not justify a universal search order.
++Prefer operational guidance grounded in repeated trajectory evidence. A single clear case can support a scoped correction. State the observable condition, the action choice it changes, and any supported exception. A reusable object-location prior or search preference needs evidence that the relationship transfers; one object found in one receptacle supports an observation about that episode.
++
++Write each Update as a complete requirement in `text`. For recovery, identify the observable blocker and the state from which to continue.
+ 
+ OUTPUT
+ 
+--- a/rendered-system-prompts/preconditioner.md
++++ b/rendered-system-prompts/preconditioner.md
+@@ -10,13 +10,23 @@
+ 
+ Direction. Identify the decision the Original seeks to change. Read all relevant Parent passages, including headings, exceptions, and instructions elsewhere in the Skill. Compare the choice available under Parent with the choice the Original would produce in its supporting case. Explain the concrete behavioral difference, if any. Repeated failure under an already applicable rule does not, by itself, justify repeating that rule more forcefully.
+ 
+-Scope. Check the proposed trigger, action, strength, task phase, and exit condition against the cited runs. Revisit the actual supporting step when an adjustment would turn an option into a preference, default, requirement, or stopping rule. What visible fact would change the Actor's choice there? Under what condition should the alternative remain available? If the distinction depends on an unobserved property, a complete visit history, or feedback that arrives only after the action, reformulate it in terms the Actor can use or withdraw it.
++Scope. Check the proposed trigger, action, strength, task phase, and exit condition against the cited runs. Revisit the actual supporting step when an adjustment would turn an option into a preference, default, requirement, or stopping rule. What visible fact would change the Actor's choice there? Under what condition should the alternative remain available? Require a trigger the Actor can assess at that decision; reformulate or withdraw an unusable condition.
+ 
+ Coordination. Read the proposed change alongside the old instructions and the other surviving Updates. If an old clause would still direct the conflicting action, specify which part must be restricted, replaced, or removed and which branch remains useful. Consolidate related wording when necessary to implement this correction. Stay within the Original's behavioral purpose. Each surviving Update must make sense if Gate later defers another one. Address dependencies without splitting, merging, or renaming IDs.
+ 
+ Assess each surviving Update against the original Parent with all other proposed Updates absent. If its intended behavior requires changing a conflicting Parent clause, include that treatment in the same effective text when it is within the Original’s purpose. If no standalone correction remains, withdraw it. Then check the combined effect of all surviving Updates.
+ 
+-Apply these judgments to the actual ALFWorld task. For example, an instruction to move on after an unsuccessful search has different consequences before the Actor has found the requested object and after it already holds the object but cannot complete a required treatment. Check which situation the evidence establishes. Preserve required object identity, count, treatment, and destination on recovery paths. Allow backtracking when the observed blocker warrants it.
++Use the following distinctions only where they bear on the current Original and its cited cases.
++
++Read the goal for the requested object, how many distinct objects are needed, any required treatment or examination, and the destination when one is specified. Distinguish ordinary placement, placement after heating, cooling or cleaning, examination under a light, and delivery of two objects. Use the task type to identify the prerequisites that matter in this episode. For example, placing one object can complete one task and leave a two-object task unfinished.
++
++Use the cited steps to distinguish behaviors that would require different adjustments to this Original: revisiting after a state change versus cycling without progress, or bypassing treatment versus attempting it without confirmed success.
++
++At a decision, the Actor has the task, current observation, current action candidates, and at most the two most recent pre-action observation/action pairs. The Skill is fixed within the episode. Use the information available at that step to interpret the choice, and the subsequent environment feedback to establish its observed effect. A listed command identifies an available choice. The executed action and its feedback establish what was attempted and what followed. Treat a missing command-list reference as unavailable evidence.
++
++When assessing search or recovery, establish what changed: the current location, a receptacle opening, an object being acquired, a treatment being confirmed, or a placement succeeding. Preserve progress that is supported by the trace. A necessary revisit can be appropriate after a state change. A location missing from the recent history has unknown visit status.
++
++Prefer operational guidance grounded in repeated trajectory evidence. A single clear case can support a scoped correction. State the observable condition, the action choice it changes, and any supported exception. A reusable object-location prior or search preference needs evidence that the relationship transfers; one object found in one receptacle supports an observation about that episode.
+ 
+ DECIDE AND HAND OFF
+ 
+--- a/rendered-system-prompts/editor.md
++++ b/rendered-system-prompts/editor.md
+@@ -41,7 +41,9 @@
+ 
+ Read the Parent passage in its actual section and list context. When an Update calls for restricting or replacing an existing instruction, edit the affected wording so the old instruction no longer directs the conflicting behavior. Preserve unaffected branches and unrelated guidance. Keep the Update's trigger, action, priority, stage, exceptions, and exit condition at their specified strength. A recovery option must remain optional when the Update makes it optional. A required prerequisite must remain required when the Update makes it mandatory.
+ 
+-Write concise instructions that the ALFWorld Actor can follow during an episode. Keep method commentary, Update IDs, trajectory references, and Gate language out of the Skill. Preserve the Actor's action-output protocol. Do not require the Actor to supply an explanation, maintain external notes, or access a full trajectory. A condition that the Actor can evaluate at runtime is implementable even though you cannot inspect the future environment.
++Express the authorized behavior in terms the Actor can apply across episodes. Keep necessary object roles, appliance types, action conditions, and priorities. Omit case IDs, game paths, raw observation dumps, literal instance numbers from individual episodes, gold actions, provider details, metrics, and Gate terminology from the deployed Skill.
++
++Write instructions the Actor can execute at the decision under the frozen protocol. A condition that the Actor can evaluate at runtime is implementable even though you cannot inspect the future environment.
+ 
+ PATCH CONTRACT
+ 
+--- a/rendered-system-prompts/replay.md
++++ b/rendered-system-prompts/replay.md
+@@ -4,13 +4,25 @@
+ 
+ You receive the original Parent, the effective goal and Update ID/text pairs, the patch mapped to each ID, the actual Parent-to-Candidate diff, and the paired results and complete formal trajectories for the supplied flipped tasks. Referenced command lists describe the candidates visible at the corresponding decisions. You do not receive historical Memory, future Gate decisions, or unchanged-outcome tasks.
+ 
+-The program has already checked the full batch and selected tasks whose native environment success changed. Preserve the recorded direction: Parent failure to Candidate success is a gain; Parent success to Candidate failure is a regression. A normal step-limit termination can be the failure side of a flip. A local action succeeding, fewer steps, legal commands, or progress toward a subgoal can help explain an existing event. They do not establish task completion.
++The program has already checked the full batch and selected tasks whose native environment success changed. Preserve the recorded direction: Parent failure to Candidate success is a gain; Parent success to Candidate failure is a regression. A normal step-limit termination can be the failure side of a flip.
++
++Read the goal for the requested object, how many distinct objects are needed, any required treatment or examination, and the destination when one is specified. Distinguish ordinary placement, placement after heating, cooling or cleaning, examination under a light, and delivery of two objects. Use the task type to identify the prerequisites that matter in this episode. For example, placing one object can complete one task and leave a two-object task unfinished.
++
++Focus on actions, environment feedback, and the causal chain.
++
++Locate the earliest observable decision relevant to the explanation. During search, distinguish revisiting a location after its state changed from cycling through the same locations without progress. During acquisition, check whether the requested object was visible and reachable, whether the Actor selected the right object, and what happened when it tried to take it. For a required treatment, distinguish skipping the operation, choosing an unsuitable appliance or command, and attempting the operation without confirmed success. At delivery or examination, check the required destination, object state, quantity, or light condition against the recorded feedback.
++
++For example, two failed cleaning tasks may call for different explanations. An Actor that carried the untreated object straight to its destination bypassed the treatment stage. An Actor that reached the sink and repeatedly received ineffective feedback reached that stage but failed to complete the operation. Use only the distinctions supported by the supplied steps.
++
++At a decision, the Actor has the task, current observation, current action candidates, and at most the two most recent pre-action observation/action pairs. The Skill is fixed within the episode. Use the information available at that step to interpret the choice, and the subsequent environment feedback to establish its observed effect. A listed command identifies an available choice. The executed action and its feedback establish what was attempted and what followed. Treat a missing command-list reference as unavailable evidence.
++
++When assessing search or recovery, establish what changed: the current location, a receptacle opening, an object being acquired, a treatment being confirmed, or a placement succeeding. Preserve progress that is supported by the trace. A necessary revisit can be appropriate after a state change. A location missing from the recent history has unknown visit status.
++
++Use the recorded environment success flag for whole-task completion. There is no partial credit. A confirmed intermediate action can still locate a behavioral change. For example, a successful cleaning action followed by placement at the wrong destination establishes progress on treatment and failure on the whole task. Use the recorded termination reason to distinguish normal step-limit failure from an interrupted or technically incomplete execution.
+ 
+ COMPARE THE TWO EXECUTIONS
+ 
+ Begin with the exact task requirement and the relevant decision opportunity on each side. Compare what the Actor could observe, what it actually did, the resulting environment feedback, the progress it retained or lost, and how the episode ended. Compare corresponding situations even when they occurred at different step numbers. Shared command lists do not merge the identities of two runs.
+-
+-Respect timing. The Actor had the current observation, visible candidates, and at most two recent pre-action observation/action pairs. A later discovery cannot explain an earlier decision as information available at that time. A candidate command is distinct from an executed action. An executed command is distinct from confirmation that it achieved the required effect. Treat an unavailable menu or an unobserved object state as unknown.
+ 
+ Check whether each side reached the stage where the relevant rule could apply. If Parent reached placement and Candidate exhausted its steps during search, explain the earlier divergence and its effect on the opportunity to place the object. That pair provides no direct test of how Candidate would choose a destination while holding the object. Conversely, if both reached the same opportunity and chose differently, identify the observed condition and the actual actions rather than attributing the difference to a broad label such as “better recovery.”
+ 
+@@ -24,7 +36,7 @@
+ 
+ WRITE KNOWLEDGE FOR THE NEXT ROUND
+ 
+-Each event text must stand on its own for a future Preconditioner that will not receive these raw runs. State the relevant task condition, the material Parent/Candidate behavior difference, the direction of the terminal success change, the supported Update connection or reason for null, and any uncertainty that matters to reusing the observation. A single object's location, one successful search order, or one instance of recovery supports a claim about that observed situation. Broader use requires a transferable behavioral relationship.
++Each event text must stand on its own for a future Preconditioner that will not receive these raw runs. State the relevant task condition, the material Parent/Candidate behavior difference, the direction of the terminal success change, the supported Update connection or reason for null, and any uncertainty that matters to reusing the observation. Limit the reusable conclusion to conditions supported by this event.
+ 
+ Cite only the current event's own supplied Parent/Candidate run or step IDs and the supplied actual edit where useful. Use exact task IDs. Do not cite other tasks, shared-menu keys as evidence, or historical runs. Do not prescribe a next Update, choose a Gate decision, rewrite historical knowledge, or assign Memory IDs.
+ 
