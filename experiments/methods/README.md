@@ -1,5 +1,7 @@
 # 方法实验总索引
 
+[ALFWorld 自进化实验索引（v24 至 v24.10）](ALFWORLD.md) · [SkillAdam 的 ALFWorld 实验索引](skilladam/alfworld/README.md)
+
 按方法版本和原实验 ID 组织配置、冻结证据及精选结果。版本号不表示已完成正式实验，目录存在也不代表实验成功。
 
 当前结构为 `experiments/methods/<版本>/<实验ID>/{config,results,reports}`，只建立实际存在的材料子目录。完整运行产物已统一归入 `artifacts/methods/`，见[运行导航](RUNTIME.md)。
@@ -37,8 +39,17 @@
 | v23.3 | [实验材料与归档读取](v23_3/README.md) | 17 |
 | v23.4 | [实验材料、正式结果与归档读取](v23_4/README.md) | 28 |
 | v23.5 | [协议对照、核验修复与 ALFWorld 结果](v23_5/README.md) | 24 |
-| v24 | [RC1 候选、单轮 smoke 与独立重放](v24/README.md) | 4 |
+| v24 | [正式训练、首测、RC1、重放与准备配置](v24/README.md) | 6 |
+| v24.1 | [准备配置、官方模型训练、首测与复测](v24_1/README.md) | 2 |
 | v24.2 | [ALFWorld 正式训练、首测与复测](v24_2/v24_2_alfworld_20261106_195800/README.md) | 1 |
+| v24.3 | [正式训练、首测与 R02 快检](v24_3/README.md) | 3 |
+| v24.4 | [五次训练、首测进度与独立分析](v24_4/README.md) | 23 |
+| v24.5 | [正式训练、首测与 R05 分析](v24_5/README.md) | 2 |
+| v24.6 | [ALFWorld 训练与评测](v24_6/README.md) | 2 |
+| v24.7 | [ALFWorld 训练与评测](v24_7/README.md) | 2 |
+| v24.8 | [ALFWorld 训练与评测](v24_8/README.md) | 6 |
+| v24.9 | [ALFWorld 训练与评测](v24_9/README.md) | 3 |
+| v24.10 | [ALFWorld 训练与评测](v24_10/README.md) | 1 |
 
 ## 原始运行统一入口
 
