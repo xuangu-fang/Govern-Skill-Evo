@@ -27,7 +27,7 @@ directory; do not add raw JSON back to Git.
 
 ## Navigation
 
-[Method experiments v01–v21](methods/README.md) · [Benchmark experiments](benchmarks/README.md)
+[Method experiments v01–v21](methods/README.md) · [Benchmark experiments](benchmarks/README.md) · [ALFWorld 共用 Actor 与对齐基线](baselines/alfworld/alfworld_current_actor_20261025/README.md)
 
 ## Local runtime organization
 

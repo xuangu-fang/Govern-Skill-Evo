@@ -1,0 +1,165 @@
+--- a/skillopt/config.py
++++ b/skillopt/config.py
+@@ -133,6 +133,7 @@
+     "evaluation.sel_env_num": "sel_env_num",
+     "evaluation.test_env_num": "test_env_num",
+     "evaluation.eval_test": "eval_test",
++    "evaluation.eval_final_skill": "eval_final_skill",
+     "env.name": "env",
+     "env.skill_init": "skill_init",
+     "env.out_root": "out_root",
+--- a/skillopt/engine/trainer.py
++++ b/skillopt/engine/trainer.py
+@@ -2229,74 +2229,78 @@
+                     f, indent=2, ensure_ascii=False,
+                 )
+ 
+-            # Final skill (last skill in trajectory) on test set.
+-            # Distinct from best_skill: with use_gate=False every candidate is
+-            # force-accepted so the final skill is whatever the last step
+-            # produced; with use_gate=True it is the last accepted skill, which
+-            # may differ from the best-on-val skill. We always evaluate it so
+-            # every run reports baseline / best-on-val / final on test.
+-            # Guarded so a failure here never prevents summary.json from being
+-            # written (the orchestrator's post-hoc safety net fills it in).
+-            try:
+-                if skill_hash(current_skill) == skill_hash(best_skill):
+-                    # Final == best: reuse results, skip a redundant rollout.
+-                    final_test_hard, final_test_soft = test_hard, test_soft
+-                    final_test_dir = os.path.join(out_root, "test_eval_final")
+-                    os.makedirs(final_test_dir, exist_ok=True)
+-                    with open(os.path.join(final_test_dir, "summary.json"), "w") as f:
+-                        json.dump(
+-                            {
+-                                k: {
+-                                    "total": b["total"],
+-                                    "hard_acc": b["hard"] / max(b["total"], 1),
+-                                }
+-                                for k, b in best_buckets.items()
+-                            },
+-                            f, indent=2, ensure_ascii=False,
++            if cfg.get("eval_final_skill", True):
++                # Final skill (last skill in trajectory) on test set.
++                # Distinct from best_skill: with use_gate=False every candidate is
++                # force-accepted so the final skill is whatever the last step
++                # produced; with use_gate=True it is the last accepted skill, which
++                # may differ from the best-on-val skill. We always evaluate it so
++                # every run reports baseline / best-on-val / final on test.
++                # Guarded so a failure here never prevents summary.json from being
++                # written (the orchestrator's post-hoc safety net fills it in).
++                try:
++                    if skill_hash(current_skill) == skill_hash(best_skill):
++                        # Final == best: reuse results, skip a redundant rollout.
++                        final_test_hard, final_test_soft = test_hard, test_soft
++                        final_test_dir = os.path.join(out_root, "test_eval_final")
++                        os.makedirs(final_test_dir, exist_ok=True)
++                        with open(os.path.join(final_test_dir, "summary.json"), "w") as f:
++                            json.dump(
++                                {
++                                    k: {
++                                        "total": b["total"],
++                                        "hard_acc": b["hard"] / max(b["total"], 1),
++                                    }
++                                    for k, b in best_buckets.items()
++                                },
++                                f, indent=2, ensure_ascii=False,
++                            )
++                        print(
++                            "\n  [final skill == best skill] "
++                            f"final_test_hard={final_test_hard:.4f} (reused)"
+                         )
+-                    print(
+-                        "\n  [final skill == best skill] "
+-                        f"final_test_hard={final_test_hard:.4f} (reused)"
+-                    )
+-                else:
+-                    print(f"\n{'='*60}")
+-                    print("  FINAL SKILL TEST — evaluate last skill on Test set (valid_unseen)")
+-                    print(f"{'='*60}")
+-                    test_env3, test_n3 = _build_eval_env(
+-                        split="valid_unseen",
+-                        env_num=cfg["test_env_num"],
+-                        seed=seed,
+-                    )
+-                    print(f"  Test items: {test_n3}")
+-                    final_test_dir = os.path.join(out_root, "test_eval_final")
+-                    os.makedirs(final_test_dir, exist_ok=True)
+-                    final_test_results = adapter.rollout(test_env3, current_skill, final_test_dir)
+-                    final_test_hard, final_test_soft = compute_score(final_test_results)
+-                    final_buckets = _compute_task_type_buckets(final_test_results, task_types)
+-                    print("\n  === Final Skill Test Results ===")
+-                    for task_type in task_types + ["overall"]:
+-                        b = final_buckets.get(task_type, {"total": 0, "hard": 0})
+-                        t = max(b["total"], 1)
+-                        print(
+-                            f"    {task_type:<40s}: "
+-                            f"hard={b['hard']}/{b['total']}={b['hard']/t:.4f}"
++                    else:
++                        print(f"\n{'='*60}")
++                        print("  FINAL SKILL TEST — evaluate last skill on Test set (valid_unseen)")
++                        print(f"{'='*60}")
++                        test_env3, test_n3 = _build_eval_env(
++                            split="valid_unseen",
++                            env_num=cfg["test_env_num"],
++                            seed=seed,
+                         )
+-                    with open(os.path.join(final_test_dir, "summary.json"), "w") as f:
+-                        json.dump(
+-                            {
+-                                k: {
+-                                    "total": b["total"],
+-                                    "hard_acc": b["hard"] / max(b["total"], 1),
+-                                }
+-                                for k, b in final_buckets.items()
+-                            },
+-                            f, indent=2, ensure_ascii=False,
+-                        )
+-            except Exception as _e:  # noqa: BLE001
+-                final_test_hard = None
+-                final_test_soft = None
+-                print(f"\n  [final skill test FAILED: {_e!r}] "
+-                      "— will be filled by post-hoc eval")
++                        print(f"  Test items: {test_n3}")
++                        final_test_dir = os.path.join(out_root, "test_eval_final")
++                        os.makedirs(final_test_dir, exist_ok=True)
++                        final_test_results = adapter.rollout(test_env3, current_skill, final_test_dir)
++                        final_test_hard, final_test_soft = compute_score(final_test_results)
++                        final_buckets = _compute_task_type_buckets(final_test_results, task_types)
++                        print("\n  === Final Skill Test Results ===")
++                        for task_type in task_types + ["overall"]:
++                            b = final_buckets.get(task_type, {"total": 0, "hard": 0})
++                            t = max(b["total"], 1)
++                            print(
++                                f"    {task_type:<40s}: "
++                                f"hard={b['hard']}/{b['total']}={b['hard']/t:.4f}"
++                            )
++                        with open(os.path.join(final_test_dir, "summary.json"), "w") as f:
++                            json.dump(
++                                {
++                                    k: {
++                                        "total": b["total"],
++                                        "hard_acc": b["hard"] / max(b["total"], 1),
++                                    }
++                                    for k, b in final_buckets.items()
++                                },
++                                f, indent=2, ensure_ascii=False,
++                            )
++                except Exception as _e:  # noqa: BLE001
++                    final_test_hard = None
++                    final_test_soft = None
++                    print(f"\n  [final skill test FAILED: {_e!r}] "
++                          "— will be filled by post-hoc eval")
++
++            else:
++                print("\n  [final skill test] skipped by configuration")
+ 
+             # Comparison
+             delta_hard = (test_hard or 0) - (baseline_test_hard or 0)
+@@ -2356,6 +2360,7 @@
+             "baseline_test_soft": baseline_test_soft,
+             "test_hard": test_hard,
+             "test_soft": test_soft,
++            "final_test_skipped": bool(cfg["eval_test"] and not cfg.get("eval_final_skill", True)),
+             "final_test_hard": final_test_hard,
+             "final_test_soft": final_test_soft,
+             "test_delta_hard": (
