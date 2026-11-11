@@ -1,0 +1,134 @@
+--- old_launcher
++++ new_launcher
+@@ -1,5 +1,5 @@
+ #!/usr/bin/env python3
+-"""ALFWorld: shared Actor with official training workers, upstream optimizer retries.
++"""ALFWorld: official DeepSeek optimizer, unchanged October 29 Actor and method.
+ 
+ Prepare/check are offline. Training requires --start; Test is never automatic.
+ """
+@@ -16,7 +16,7 @@
+ import sys
+ 
+ ROOT = Path(__file__).resolve().parents[2]
+-SOURCE = ROOT / 'experiments/baselines/skilladam_current_actor_20261025'
++SOURCE = ROOT / 'experiments/baselines/skilladam_alfworld_native_retry_20261029_001'
+ POLICY = 'upstream_sdk2_native_patch3_v1'
+ sys.path[:0] = [str(ROOT / 'scripts/runs'), str(ROOT / 'external/SkillAdam'), str(ROOT)]
+ from alfworld_aligned_common import read, write, sha, require
+@@ -32,21 +32,18 @@
+ 
+ def desired_config(source, experiment):
+     cfg = deepcopy(source)
+-    cfg['optimizer_retry_policy'] = POLICY
+-    cfg['optimizer_transport'].pop('request_attempts')
+-    cfg['optimizer_transport']['sdk_max_retries'] = 2
++    cfg['optimizer_transport'].update(model='deepseek-flash',
++        base_url='https://api.deepseek.com', api_key_env='ALFWORLD_OPTIMIZER_KEY')
+     cfg['output_root'] = os.path.relpath(Path(experiment).resolve() / 'campaign', ROOT)
+     return cfg
+ 
+ 
+ def desired_actor(source):
+-    actor = deepcopy(source)
+-    actor['workers'] = 10
+-    return actor
++    return deepcopy(source)
+ 
+ 
+ def context_for(bridge, actor, cfg):
+-    return bridge.BackendContext('alfworld', 'skilladam', actor['model'],
++    return bridge.BackendContext('alfworld', 'skilladam', cfg['optimizer_transport']['model'],
+         cfg['optimizer_transport']['reasoning_effort'], actor['workers'], cfg['native']['seed'])
+ 
+ 
+@@ -98,7 +95,7 @@
+ 
+     return create_generation_transport(
+         BackendInit(Path(output), Path(output), {}, context_for(bridge, actor, cfg)),
+-        config=settings, environ={settings.api_key_env: api_key, settings.base_url_env: actor['base_url']},
++        config=settings, environ={settings.api_key_env: api_key, settings.base_url_env: t['base_url']},
+         client_factory=factory)
+ 
+ 
+@@ -128,7 +125,7 @@
+             self.active_directory = directory
+             if self.optimizer is None:
+                 self.optimizer = native_transport(bridge, self.actor, self.cfg, self.output,
+-                    lambda: self.active_directory, api_key=self.api_key or os.environ['OPENAI_API_KEY'],
++                    lambda: self.active_directory, api_key=self.api_key or os.environ[self.cfg['optimizer_transport']['api_key_env']],
+                     http_transport=self.http_transport)
+             write(directory / 'request_started.json', {'policy': POLICY})
+             self.new_generations += 1
+@@ -184,8 +181,11 @@
+             'Batch order changed')
+     require(all(b.training_case_ids == b.validation_case_ids for b in batches), 'Gate batch changed')
+     return {**original_report, 'optimizer_retry_policy': POLICY, 'sdk_max_retries': 2, 'patch_attempts': 3,
+-            'native_method_settings_unchanged': True, 'actor_config_byte_identical': False,
+-            'actor_changes': {'workers': {'before': 8, 'after': 10}}, 'workers': actor['workers'],
++            'native_method_settings_unchanged': True,
++            'actor_config_byte_identical': (experiment / 'actor.json').read_bytes() == (SOURCE / 'actor.json').read_bytes(),
++            'actor_changes': {}, 'workers': actor['workers'],
++            'optimizer_model': cfg['optimizer_transport']['model'],
++            'optimizer_base_url': cfg['optimizer_transport']['base_url'],
+             'campaign_present': (ROOT / cfg['output_root']).exists(), 'dataset_tasks_executed': 0}
+ 
+ 
+@@ -196,9 +196,10 @@
+     require(sys.executable == original['python'], 'Use the original SkillAdam Python environment')
+     bridge = bridge_module()
+     bridge.check()
+-    # Save a verifiable record of all historical results before making the new config.
++    # Retain historical result evidence; snapshot the source bundle without writing it.
+     old_output = ROOT / original['output_root']
+-    preserved = {str(p): sha(p) for p in old_output.rglob('*') if p.is_file()}
++    preserved = read(SOURCE / 'preserved_results.json')
++    source_files = {str(p): sha(p) for p in SOURCE.rglob('*') if p.is_file()}
+     for name in ('actor.json', 'initial_skill.md', 'optimization_items.json',
+                  'splits/train/items.json', 'splits/val/items.json', 'splits/test/items.json'):
+         dest = experiment / name
+@@ -209,6 +210,7 @@
+     write(experiment / 'skilladam.json', cfg)
+     write(experiment / 'source_config.json', original)
+     write(experiment / 'preserved_results.json', preserved)
++    write(experiment / 'source_files.json', source_files)
+     write(experiment / 'actor.json', desired_actor(read(SOURCE / 'actor.json')))
+     actor = read(experiment / 'actor.json')
+     runtime = json.loads(subprocess.check_output([actor['python'], '-c',
+@@ -219,11 +221,14 @@
+     (experiment / 'requirements.lock').write_text(''.join(f'{k}=={v}\n' for k, v in sorted(packages.items())))
+     write(experiment / 'alignment.json', {'source_experiment': str(SOURCE), 'source_results': str(old_output),
+         'optimizer_retry_policy': POLICY, 'native_method_settings_unchanged': cfg['native'] == original['native'],
+-        'sdk_max_retries': {'before': 0, 'after': 2}, 'custom_request_attempts': {'before': 3, 'after': None},
+-        'patch_attempts': {'before': 3, 'after': 3}, 'historical_manual_recovery_not_inherited': True,
+-        'actor_changes': {'workers': {'before': 8, 'after': 10}},
++        'optimizer_changes': {'model': {'before': original['optimizer_transport']['model'], 'after': 'deepseek-flash'},
++                              'base_url': {'before': actor['base_url'], 'after': 'https://api.deepseek.com'},
++                              'api_key_env': 'ALFWORLD_OPTIMIZER_KEY'},
++        'sdk_max_retries': 2, 'patch_attempts': 3, 'historical_manual_recovery_not_inherited': True,
++        'actor_changes': {}, 'actor_config_byte_identical': True,
+         'model_requests': 0, 'dataset_tasks_executed': 0})
+     files = {str(ROOT / p): h for p, h in read(SOURCE / 'manifest.json')['files'].items()}
++    files.update(source_files)
+     files[str(SOURCE / 'manifest.json')] = sha(SOURCE / 'manifest.json')
+     files[str(Path(__file__).resolve())] = sha(__file__)
+     files.update({str(p): sha(p) for p in experiment.rglob('*') if p.is_file()})
+@@ -241,6 +246,10 @@
+     bridge.EXPERIMENT = experiment
+     actor, cfg = read(experiment / 'actor.json'), read(experiment / 'skilladam.json')
+     output = ROOT / cfg['output_root']
++    # Configure the unchanged intranet Actor separately; never use its key for the official optimizer.
++    bridge.configure_runtime(actor)
++    require(os.environ.get(cfg['optimizer_transport']['api_key_env']),
++            'ALFWORLD_OPTIMIZER_KEY is missing (official optimizer only)')
+     with output.with_suffix('.lock').open('a') as lock:
+         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+         receipt = output.with_suffix('.launch.json')
+@@ -250,7 +259,6 @@
+         else:
+             require(not output.exists() and not receipt.exists(), 'Output exists; use explicit resume')
+             write(receipt, signature)
+-        bridge.configure_runtime(actor)
+         backend = backend_type(bridge)(actor, cfg, output)
+         runner = bridge.AlignedRunner(config=bridge.native_config(cfg), adapter=bridge.ALFWorldAdapter(experiment / 'splits'),
+             backend=backend, context=context_for(bridge, actor, cfg), output_dir=output)

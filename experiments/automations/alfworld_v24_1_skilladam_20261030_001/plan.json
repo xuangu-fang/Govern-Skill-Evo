@@ -1,0 +1,130 @@
+{
+  "schema": 1,
+  "status": "scheduled_not_started",
+  "workspace": "/Users/didi/Desktop/Govern-Skill-Evo",
+  "requested_at_utc": "2026-10-29T17:44:03Z",
+  "not_before_utc": "2026-10-29T20:44:03Z",
+  "not_before_shanghai": "2026-10-30T04:44:03+08:00",
+  "monitor_interval_minutes": 30,
+  "user_authorization": "User explicitly requested starting both ALFWorld training jobs after 3 hours, monitoring every 30 minutes, adding at most 3 requests once per eligible failed call, and starting final tests only after both trainings finish.",
+  "recovery_policy": {
+    "extra_physical_requests_per_failed_call": 3,
+    "maximum_grants_per_call": 1,
+    "eligible": [
+      "SkillAdam momentum_update failure",
+      "v24.1 self-evolution module request budget exhausted",
+      "either method Actor request budget exhausted"
+    ],
+    "other_failures": "Stop the affected job and report; do not extend budgets",
+    "preserve": "Original requests, responses, error feedback, trajectories, checkpoints, usage and all previous results",
+    "sdk_internal_retries_count_toward_extra_three": true,
+    "global_config_or_prompt_changes": false,
+    "continuation_only": true,
+    "no_manual_model_output_edits": true,
+    "no_restarting_completed_episodes": true,
+    "durable_ledger": "recovery_ledger.json"
+  },
+  "jobs": {
+    "v24_1": {
+      "python": "/Users/didi/miniforge3/envs/alfworld/bin/python",
+      "experiment": "experiments/methods/v24_1/alfworld_reviewed_no_review_workers10_official_deepseek_flash_20261030_001",
+      "training_output": "artifacts/methods/v24_1/alfworld_reviewed_no_review_workers10_official_deepseek_flash_20261030_001/S1",
+      "test_output": "artifacts/methods/v24_1/alfworld_reviewed_no_review_workers10_official_deepseek_flash_20261030_001/evaluation/final",
+      "train_command": [
+        "/Users/didi/miniforge3/envs/alfworld/bin/python",
+        "experiments/automations/alfworld_v24_1_skilladam_20261030_001/with_official_credentials.py",
+        "/Users/didi/miniforge3/envs/alfworld/bin/python",
+        "-m",
+        "src.skill_evolution.v24_1",
+        "run",
+        "--campaign",
+        "artifacts/methods/v24_1/alfworld_reviewed_no_review_workers10_official_deepseek_flash_20261030_001/S1",
+        "--config",
+        "experiments/methods/v24_1/alfworld_reviewed_no_review_workers10_official_deepseek_flash_20261030_001/config/campaign.json"
+      ],
+      "resume_command": [
+        "/Users/didi/miniforge3/envs/alfworld/bin/python",
+        "experiments/automations/alfworld_v24_1_skilladam_20261030_001/with_official_credentials.py",
+        "/Users/didi/miniforge3/envs/alfworld/bin/python",
+        "-m",
+        "src.skill_evolution.v24_1",
+        "resume",
+        "--campaign",
+        "artifacts/methods/v24_1/alfworld_reviewed_no_review_workers10_official_deepseek_flash_20261030_001/S1"
+      ],
+      "test_command": [
+        "/Users/didi/miniforge3/envs/alfworld/bin/python",
+        "experiments/automations/alfworld_v24_1_skilladam_20261030_001/with_official_credentials.py",
+        "/Users/didi/miniforge3/envs/alfworld/bin/python",
+        "-m",
+        "src.skill_evolution.v24_1.evaluation",
+        "run",
+        "--root",
+        "artifacts/methods/v24_1/alfworld_reviewed_no_review_workers10_official_deepseek_flash_20261030_001/evaluation/final",
+        "--experiment",
+        "experiments/methods/v24_1/alfworld_reviewed_no_review_workers10_official_deepseek_flash_20261030_001",
+        "--campaign",
+        "artifacts/methods/v24_1/alfworld_reviewed_no_review_workers10_official_deepseek_flash_20261030_001/S1"
+      ]
+    },
+    "skilladam": {
+      "python": "/Users/didi/miniforge3/envs/skilladam/bin/python",
+      "experiment": "experiments/baselines/skilladam_alfworld_official_actor_optimizer_deepseek_flash_20261030_001",
+      "training_output": "experiments/baselines/skilladam_alfworld_official_actor_optimizer_deepseek_flash_20261030_001/campaign",
+      "test_output": "experiments/baselines/skilladam_alfworld_official_actor_optimizer_deepseek_flash_20261030_001/evaluation/final",
+      "train_command": [
+        "/Users/didi/miniforge3/envs/skilladam/bin/python",
+        "experiments/automations/alfworld_v24_1_skilladam_20261030_001/with_official_credentials.py",
+        "/Users/didi/miniforge3/envs/skilladam/bin/python",
+        "scripts/runs/run_skilladam_alfworld_official_models.py",
+        "--experiment",
+        "experiments/baselines/skilladam_alfworld_official_actor_optimizer_deepseek_flash_20261030_001",
+        "--start"
+      ],
+      "resume_command": [
+        "/Users/didi/miniforge3/envs/skilladam/bin/python",
+        "experiments/automations/alfworld_v24_1_skilladam_20261030_001/with_official_credentials.py",
+        "/Users/didi/miniforge3/envs/skilladam/bin/python",
+        "scripts/runs/run_skilladam_alfworld_official_models.py",
+        "--experiment",
+        "experiments/baselines/skilladam_alfworld_official_actor_optimizer_deepseek_flash_20261030_001",
+        "--start",
+        "--resume"
+      ],
+      "test_command": [
+        "/Users/didi/miniforge3/envs/skilladam/bin/python",
+        "experiments/automations/alfworld_v24_1_skilladam_20261030_001/with_official_credentials.py",
+        "/Users/didi/miniforge3/envs/skilladam/bin/python",
+        "experiments/automations/alfworld_v24_1_skilladam_20261030_001/evaluate_skilladam.py",
+        "--start"
+      ]
+    }
+  },
+  "launch_policy": "Check not-before time and frozen inputs. Start each job once in a detached process, with separate logs and durable PID/command receipts. Never replay a command while its process or child Actor is still alive. Do not auto-restart failed processes without resolving the failed call and grant ledger.",
+  "completion_barrier": "Both training jobs must complete all six batches with final Skill verified. SkillAdam next_iteration=6 and pending_post_decision=null; V24.1 next_round=7 and final_parent validation passed. Process exit alone or existing final_skill file is not completion.",
+  "monitor_policy": "At each wakeup inspect fresh state and processes. Report meaningful changes, recovery grants, exhausted grants, errors requiring action, and final results. Stay quiet for unchanged or non-actionable state. After both final 134-task Tests complete, report results and stop this automation. If an affected job is terminally blocked, do not start Test; allow the other already-running job to finish and stop repeated retries.",
+  "frozen_inputs_sha256": {
+    "experiments/methods/v24_1/alfworld_reviewed_no_review_workers10_official_deepseek_flash_20261030_001/config/campaign.json": "33607f20c5531a7a99d0600b6e8a2efae494e56a2d02445da080700dc25c2ece",
+    "experiments/methods/v24_1/alfworld_reviewed_no_review_workers10_official_deepseek_flash_20261030_001/config/source_contract.json": "c7d6601bfb915ec9496514ab01ae3dc378fd6e359832e5a79e2e3ab1dbc145bc",
+    "experiments/methods/v24_1/alfworld_reviewed_no_review_workers10_official_deepseek_flash_20261030_001/manifest.sha256.json": "aa993ab91ea38adce269a7e6170c8dbd0d8cd371f676e48e8f8158b65dc507a9",
+    "experiments/baselines/skilladam_alfworld_official_actor_optimizer_deepseek_flash_20261030_001/skilladam.json": "73c9b723ba7eacdc0d405a6538482129f4f2a99cbc3a4a8c373999560bdafe1a",
+    "experiments/baselines/skilladam_alfworld_official_actor_optimizer_deepseek_flash_20261030_001/actor.json": "b34717e1fa7451bba8d982b71fcd55815d9b018ac6dff06939b25c16523e1cae",
+    "experiments/baselines/skilladam_alfworld_official_actor_optimizer_deepseek_flash_20261030_001/manifest.json": "3f0f182b55017c25b66f84e5cc74ac283390773249598a6ebddc4d6e7d0258ae",
+    "experiments/automations/alfworld_v24_1_skilladam_20261030_001/evaluate_skilladam.py": "60f7d9c726ecec0974a3ee6b4753480e44400e8345282fdc75a0ca8c30b161df",
+    "experiments/automations/alfworld_v24_1_skilladam_20261030_001/with_official_credentials.py": "0c6a3a803cbd87bda5d4cbdf5b8ecc0dc61960946e5972af2213f57b1a26d8c9",
+    "scripts/runs/run_skilladam_alfworld_official_models.py": "bfc56f408af314d860e0a27a01e19459cc47657849a4331e3373bf8d1ac6ca46"
+  },
+  "credential_source": {
+    "env_file": ".env",
+    "key_variable": "OPENAI_API_KEY",
+    "base_url_variable": "OPENAI_BASE_URL",
+    "same_as": "SheetBench V25 scheduled official_env",
+    "secret_values_saved": false
+  },
+  "official_model_revision": {
+    "authorized_change": "Actor and optimizer of both ALFWorld methods use official deepseek-flash and V25 credentials; all other parameters and schedule unchanged",
+    "model": "deepseek-flash",
+    "base_url": "https://api.deepseek.com",
+    "previous_plan": "revisions/before_official_models/plan.json"
+  }
+}
