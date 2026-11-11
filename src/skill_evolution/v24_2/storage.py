@@ -18,18 +18,25 @@ def same_contract(saved, current):
     """Allow the recorded layout-only revision when reading a pre-move campaign."""
     if saved == current:
         return True
-    files = saved.get('files', {})
-    old_prompts = 'docs/methods/v24_2/prompts/'
-    if not any(p.startswith(old_prompts) for p in files):
+    from src.skill_evolution.shared.experiment_paths import resolve_experiment_path
+
+    if not isinstance(saved.get('files'), dict) or not isinstance(current.get('files'), dict):
         return False
     root = Path(__file__).resolve().parents[3]
-    changes = read(root / 'experiments/methods/v24_2/layout-change.json')['source_revisions']
+    files = saved['files']
+    layouts = {}
+    versions = {Path(name).parts[2] for name in files if name.startswith('src/skill_evolution/v24_')}
+    for version in versions:
+        path = root / 'experiments/methods' / version / 'layout-change.json'
+        if path.is_file():
+            layouts.update(read(path)['source_revisions'])
     translated = {}
     for name, revision in files.items():
-        if name in changes and revision == changes[name]['before']:
-            revision = changes[name]['after']
-        if name.startswith(old_prompts):
-            name = 'src/skill_evolution/v24_2/prompts/' + name[len(old_prompts):]
+        change = layouts.get(name)
+        if change and (revision == change['before'] or revision in change.get('intermediate', [])):
+            revision = change['after']
+        if name.startswith('docs/methods/v24_') and '/prompts/' in name:
+            name = str(resolve_experiment_path(name).relative_to(root))
         if name in translated:
             return False
         translated[name] = revision

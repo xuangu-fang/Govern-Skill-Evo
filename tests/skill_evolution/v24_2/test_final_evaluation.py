@@ -1,8 +1,19 @@
 import pytest
 
+from scripts.runs.v24.read_archived_test import archive_path
 from scripts.runs.v24_2.run_v24_2_test import prepare_test
 from src.skill_evolution.v24_2 import campaign
 from src.skill_evolution.v24_2.storage import read, save, same_contract
+
+
+def test_read_archived_paths_from_another_checkout(tmp_path):
+    run = 'v24_2_alfworld_20261106_195800'
+    archive = campaign.ROOT / 'artifacts/methods/v24_2' / run
+    previous = tmp_path / 'original-checkout'
+    assert archive_path(previous / 'experiments/campaigns' / run) == archive
+    assert archive_path(previous / 'artifacts/methods/v24_2' / run) == archive
+    assert archive_path(archive) == archive
+    assert archive_path(tmp_path / 'unrelated.json') == tmp_path / 'unrelated.json'
 
 
 def test_layout_migration_keeps_contract_bound_to_training_inputs():
