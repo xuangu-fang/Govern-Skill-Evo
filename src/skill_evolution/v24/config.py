@@ -10,7 +10,11 @@ from .update_patch import CONTRACT_VERSION
 from src.skill_evolution.v24.unnumbered_patch import CONTRACT_VERSION as PATCH_CONTRACT
 
 
-def method_config():
+REVIEW_DISABLED = 'disabled_v1'
+
+
+def method_config(knowledge_review=KNOWLEDGE_REVIEW):
+    require(knowledge_review in (KNOWLEDGE_REVIEW, REVIEW_DISABLED), 'Unsupported knowledge review policy')
     return {
         'version': 'v24_campaign_v1',
         'grouping': 'v23',
@@ -25,15 +29,21 @@ def method_config():
         'replay_input_view': replay.KNOWLEDGE_INPUT_VIEW,
         'replay_prompt_version': replay.KNOWLEDGE_PROMPT_VERSION,
         'replay_boundary': replay.ADAPTER_VERSION,
-        'memory_publication': 'fact_screen_and_optional_repair_before_memory_commit',
+        'memory_publication': ('replay_validated_before_commit' if knowledge_review == REVIEW_DISABLED
+                               else 'fact_screen_and_optional_repair_before_memory_commit'),
         'semantic_resampling': False,
         'retry_policy': POLICY,
-        'knowledge_review': KNOWLEDGE_REVIEW,
+        'knowledge_review': knowledge_review,
     }
 
 
 def validate_method(value):
-    require(value == method_config(), 'Unsupported or missing V24 method freeze')
+    require(isinstance(value, dict), 'Unsupported or missing V24 method freeze')
+    require(value == method_config(value.get('knowledge_review')), 'Unsupported or missing V24 method freeze')
+
+
+def review_enabled(config):
+    return config['method']['knowledge_review'] == KNOWLEDGE_REVIEW
 
 
 def baseline_config(base, *, benchmark):

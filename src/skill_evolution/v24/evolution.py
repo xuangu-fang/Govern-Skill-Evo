@@ -16,8 +16,8 @@ from .benchmark import current as benchmark_current
 from contextvars import copy_context
 from src.skill_evolution.v24.contracts import memory, gate
 from . import grouping, diagnosis, preconditioner, editor, replay
-from . import knowledge_review
-from .config import method_config, validate_method
+from . import knowledge_review, verifier_retry
+from .config import method_config, validate_method, review_enabled, REVIEW_DISABLED
 from .memory_view import KNOWLEDGE_ONLY
 from src.skill_evolution.v24.facts import require
 from src.skill_evolution.v24.contracts.model_routing import model_for_endpoint
@@ -29,7 +29,7 @@ ROOT = Path(__file__).resolve().parents[3]
 
 
 def enabled_modules(config):
-    return {**MODULES, **(REVIEW_MODULES if config['method'].get('knowledge_review') else {})}
+    return {**MODULES, **(REVIEW_MODULES if review_enabled(config) else {})}
 
 
 def read(path):
@@ -207,7 +207,7 @@ def final_parent(campaign):
             require(result['outcome'] == 'no_change' and after['parent'] == previous['parent']
                     and after['active_memory'] == previous['active_memory'], 'No-change state differs')
         memory.load_memory(root/after['active_memory'], memory_contract=MEMORY_CONTRACT)
-        if config['method'].get('knowledge_review') and result['outcome'] in ('ACCEPT', 'RETAIN'):
+        if review_enabled(config) and result['outcome'] in ('ACCEPT', 'RETAIN'):
             bundle = read(rd/'pairs/input.json')
             selected = read(rd/'replay/result.json')
             candidate = replay.load_replay(rd/'replay'/selected['path'])['replay']
@@ -220,6 +220,16 @@ def final_parent(campaign):
                 rd/'knowledge_review', model=load_model, max_input_chars=config['max_input_chars'])
             committed = read(rd/'memory/archive'/f'{root.name}_R{number:02}.json')
             require(committed['result'] == checked, 'Memory differs from reviewed candidate')
+        elif result['outcome'] in ('ACCEPT', 'RETAIN'):
+            bundle = read(rd/'pairs/input.json')
+            selected = read(rd/'replay/result.json')
+            candidate = replay.load_replay(rd/'replay'/selected['path'], expected_bundle=bundle)['replay']
+            require(read(rd/'knowledge_review/result.json') == {
+                'policy': REVIEW_DISABLED, 'status': 'disabled', 'repair_applied': False},
+                'Disabled review record differs')
+            committed = read(rd/'memory/archive'/f'{root.name}_R{number:02}.json')
+            require(committed['result'] == candidate and committed['context'] == bundle,
+                    'Memory differs from validated Replay')
         previous = after
     require(previous == state, 'Final publication differs from official state')
     if state['parent'] is None:
@@ -230,9 +240,8 @@ def final_parent(campaign):
 
 
 def _check_contract(root):
-    require(not list((root/'recoveries').glob('*.json')) and not list((root/'amendments').rglob('*.json')),
-            'V24 baseline does not permit runtime amendments')
-    require(read(root/'contract.json') == frozen_contract(), 'Frozen source/Prompt changed; use a new Campaign')
+    require(verifier_retry.approved_contract(root) == frozen_contract(),
+            'Frozen source/Prompt changed; use a new Campaign')
 
 
 def _config(root):
@@ -467,10 +476,13 @@ def run_round(campaign, *, generate=None, actor_runner=actor_task, resume=False,
             input_view=config['method']['replay_input_view'], history_sources=history,
             prompt_version=config['method']['replay_prompt_version'], **opts))
         candidate = r['replay']
-        if config['method'].get('knowledge_review'):
+        if review_enabled(config):
             checkpoint('knowledge_review')
             candidate = knowledge_review.review(bundle, candidate, root/state['active_memory'],
                 rd/'knowledge_review', model=model, max_input_chars=config['max_input_chars'])
+        else:
+            save(rd/'knowledge_review/result.json', {
+                'policy': REVIEW_DISABLED, 'status': 'disabled', 'repair_applied': False})
         checkpoint('memory')
         _prepare_memory(root/state['active_memory'], rd/'memory')
         memory.commit_memory(rd/'memory', context_id=rid, context=bundle, result=candidate, memory_contract=MEMORY_CONTRACT)

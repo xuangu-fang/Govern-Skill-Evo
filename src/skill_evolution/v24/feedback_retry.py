@@ -161,7 +161,7 @@ def run_stage(root, rd, name, invoke, config, generate, resume):
             context = {'policy': feedback.POLICY, 'feedback_from': str(last.resolve())}
 
     # Directory slots persist across process restarts. Recovery uses no new slot.
-    request_limit = config['max_attempts']
+    request_limit = ev.verifier_retry.request_limit(root, rd, name, config['max_attempts'])
     for number in range(len(existing) + 1, request_limit + 1):
         path = attempts/f'{number:03}'
         called = False
