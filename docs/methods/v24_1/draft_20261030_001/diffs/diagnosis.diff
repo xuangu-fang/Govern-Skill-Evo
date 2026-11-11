@@ -1,0 +1,193 @@
+--- baseline/diagnosis.md
++++ prompts/diagnosis.md
+@@ -4,7 +4,10 @@
+ 
+ Based on the current Parent Skill, execution evidence, and Grouping results, produce one evidence-grounded initial update Plan for the entire batch.
+ 
+-Identify justified behavioral changes that can be implemented through the Skill. Historical edit–behavior response adjustment belongs to the later Preconditioner.
++Identify justified behavioral changes that can be implemented through the Skill.
++The Plan may contain multiple justified Updates; do not impose a fixed
++count or create Updates merely to cover every group or failed task. Historical
++edit–behavior response adjustment belongs to the later Preconditioner.
+ 
+ {{execution_context}}
+ 
+@@ -50,16 +53,20 @@
+ Distinguish a situation not covered by existing guidance from a failure within its
+ existing scope. For an already-covered situation, use the recorded evidence to
+ distinguish observable non-adherence, conditions the Actor could not assess, or
+-behavior that followed the guidance but did not resolve the problem. Do not force
+-a causal explanation when the evidence is insufficient.
++behavior that followed the guidance but did not resolve the problem. A plausible
++repair hypothesis may justify an Update before its cause or effectiveness is confirmed.
++Connect the observed discrepancy, relevant Parent guidance and proposed behavioral
++change; distinguish the observation from the explanation and material uncertainty.
++Consider competing explanations supported by the supplied evidence, not speculative
++lists. Missing facts block a direction only when they prevent a reasonably justified
++repair choice, not merely when they prevent certainty.
+ 
+ Do not repeat or strengthen an existing requirement merely because failure recurred.
+ If revision is warranted, make clear what supported clarification or behavioral
+ change is needed beyond the existing guidance.
+ 
+-The Actor has access only to information available under its execution protocol. Do not assume complete execution memory, a global visited-location set, persistent notes, or other state unless provided by that protocol.
+-
+-Use Grouping to organize comparable situations and important differences. Do not require one Update per group or produce a separate diagnosis report for every execution.
++Use Grouping to organize comparable situations and important differences, not to
++produce a separate diagnosis report for every execution.
+ 
+ ## 3. Construct Original Updates
+ 
+@@ -69,21 +76,20 @@
+ 
+ Each Update must be a complete, reusable behavioral requirement relative to the current Parent Skill.
+ 
+-Organize each Update around one coherent behavioral problem. Keep coupled triggers,
+-actions, prerequisites and preservation boundaries together. Separate unrelated
+-search strategies, global scheduling policies and completion criteria rather than
+-bundling them into one Update. Do not mechanically create one Update per sentence;
+-related requirements can remain multiline within one Update.
+-
+-Ensure that the trigger, action-selection criteria, exit conditions, and exceptions
+-of each Update can be assessed using information available to the Actor under its
+-execution protocol.
+-
+-Do not assume access to complete execution memory, a global visited-location set,
+-or other state not provided by the execution protocol. Completion and exit conditions
+-must be assessable from the information actually available. Absence from the visible
+-history is not proof that a location has never been visited or that an earlier action
+-has not occurred.
++Organize each Update around one coherent behavioral problem. Each clause should
++contribute to that repair, a necessary dependency or a relevant preservation boundary.
++Separate independent repairs while keeping coupled triggers, actions and prerequisites
++together. Do not add surrounding best practices or already-correct behavior merely to
++make an Update comprehensive, or split mechanically by sentence. Generalize through
++task requirements and behavioral relationships, such as a shared prerequisite or
++blocking condition; similar object names or a successful location do not establish a
++general search policy. No fixed number of cases is required for a justified proposal.
++
++Triggers, action-selection criteria, exit conditions and exceptions must be assessable
++using information available under the Actor's protocol. Do not assume complete execution
++memory, a global visited-location set, persistent notes or other unavailable state.
++Absence from the visible history does not prove that a location was never visited or
++an earlier action did not occur.
+ 
+ Make the applicable task phase clear. When an Update spans multiple phases, state
+ the relevant transitions and necessary preservation conditions. Do not extend search
+@@ -93,7 +99,8 @@
+ possible condition.
+ 
+ Express the behavioral strategy, relevant scope and strength, necessary dependencies,
+-and preservation requirements clearly in `text`.
++and preservation requirements clearly in `text`. Conditions stated only in `reason`
++or a Check do not constrain the instructions received by Editor.
+ 
+ Specify an observable condition and the behavioral choice that should replace the
+ problematic behavior. Goals such as "improve efficiency", "expand coverage", or
+@@ -108,21 +115,32 @@
+ destination, restarting search, or repeating completed work.
+ 
+ Tie each proposed corrective action to a specific observable discrepancy or unmet
+-prerequisite supported by the evidence. Preserve task requirements. Preserve valid
+-completed work unless correcting the identified problem requires revisiting that work.
+-
+-When the cause is unclear, use information already available to the Actor to check
+-the relevant uncertainty first. Propose an additional observation action only when
+-needed to resolve that uncertainty and supported by the execution protocol. Do not
+-require routine inventory or look actions.
++prerequisite supported by the evidence. Recovery continues from the changed environment
++state; it does not reset the task. Preserve required object properties, destinations
++and other task requirements in both the main strategy and any alternative. Preserve
++valid progress while allowing a justified return to an earlier step when resolving
++the identified problem requires it. Do not turn progress protection into a blanket
++prohibition on backtracking.
++
++Use available Actor information when it addresses the relevant uncertainty. An
++additional observation may be proposed when the protocol supports it and its expected
++information value justifies the action cost; it need not be proved indispensable.
++Do not add routine inventory or look actions without a reason tied to the problem.
+ 
+ An Editor should be able to implement the Update without reconstructing its intended strategy from the cited trajectories.
+ 
+ Do not encode task IDs, particular object locations, or instance-specific solutions into Skill rules. Do not invent capabilities or automatically strengthen rules because a task failed.
+ 
+-Use successful behavior to identify what should be preserved. Preserve such behavior through the Goal or relevant Update boundaries when appropriate, rather than automatically duplicating it as a new rule.
+-
+-Updates may address several groups, and several Updates may be related. Do not deliberately weaken the initial Plan to favor later Preconditioner adjustments.
++Recognize environment-reported success as success on that task instance. It can
++support feasibility and preservation of useful behavior, but does not establish that
++each preceding action was necessary or that the same order will transfer. Preserve
++valid behavior through the Goal or relevant Update boundaries rather than automatically
++restating it as a new rule.
++
++Before finalizing the Plan, resolve redundant requirements, conflicts under shared
++conditions and missing dependencies. Keep distinct justified repairs separate; do not
++omit one merely to reduce the Update count. Do not deliberately weaken the initial
++Plan or include unsupported additions on the assumption that Preconditioner will fix it.
+ 
+ Each Update's `basis` must cite valid references from the supplied Grouping and execution facts.
+ 
+@@ -163,24 +181,35 @@
+ 
+ Checks are questions for observing behavioral responses after execution, not instructions added to the Skill.
+ 
+-Include only useful questions about expected responses, counterexamples, or preservation of valid behavior.
+-
+-For recovery Updates, ask whether corrective behavior addresses the identified
+-discrepancy and preserves valid progress. Do not treat changing an object or
+-destination, restarting search, or performing an extra check as evidence of
+-improvement by itself.
+-
+-Checks may relate to multiple Updates, and `checks` may be empty. Do not mechanically turn every Update into a Check or require a coverage matrix.
++Distinguish whether the proposed behavior was adopted, whether its targeted problem
++changed, and whether important valid behavior was preserved. For a materially uncertain
++repair hypothesis, a useful Check should help support or challenge that explanation,
++including a relevant competing explanation when the supplied evidence suggests one.
++Adoption or overall Candidate improvement does not establish that every Update helped.
++
++For recovery Updates, examine whether the behavior resolves the identified blockage
++and preserves required progress. An available action, a successful local operation,
++fewer steps or an extra observation does not by itself establish task completion or
++improvement. Interpret each signal as evidence for what it actually establishes.
++
++Checks may cover several Updates and may be empty when there is no useful unresolved
++response to examine. Do not require one Check per clause or a coverage matrix.
+ 
+ Choose one decision:
+ 
+-- `revise`: Current evidence supports at least one justified, actionable Update. Return a non-null Plan.
+-- `no_change`: No new behavioral Update is warranted. Return `plan: null` and explain why.
+-- `need_evidence`: Essential information required to construct an actionable Plan is missing. Return `plan: null` and identify the missing information.
+-
+-Uncertainty about whether a future Candidate will succeed is not itself grounds for `need_evidence`.
+-
+-If one direction lacks sufficient evidence but other independent actionable Updates remain, propose the justified Updates. Do not omit necessary dependencies and present the remaining proposal as complete.
++- `revise`: Current evidence supports at least one justified, actionable Update,
++  including a reasonable repair hypothesis to examine through later execution.
++  Return a non-null Plan.
++- `no_change`: No justified actionable Update can be formed from the current evidence.
++  Return `plan: null` and explain why, including essential missing facts where relevant.
++  This means no reasonable update was formed this round, not that the Parent Skill
++  has been proved free of problems.
++
++Uncertainty about the root cause or future Candidate effectiveness is not by itself
++grounds for `no_change`. If missing facts block one direction but other independent,
++justified Updates remain, propose those Updates and briefly identify the unresolved
++direction in `reason`. Do not omit necessary dependencies and present an incomplete
++repair as complete.
+ 
+ Technical, parsing, or model-call failures are not semantic decisions.
+ 
+@@ -190,8 +219,10 @@
+ 
+ Return one valid JSON object in English, without Markdown or additional commentary:
+ 
+-- `decision`: `"revise"`, `"no_change"`, or `"need_evidence"`.
+-- `reason`: a brief explanation grounded in the current evidence.
++- `decision`: `"revise"` or `"no_change"`.
++- `reason`: a concise explanation linking the proposed Updates to observed problems
++  and relevant Parent guidance. Distinguish observations from material hypotheses and
++  uncertainties, and briefly explain important unresolved or excluded directions.
+ - `plan`: null or an object containing exactly `goal`, `updates`, and `checks`.
+ 
+ For `revise`, the Plan must contain at least one Update.
