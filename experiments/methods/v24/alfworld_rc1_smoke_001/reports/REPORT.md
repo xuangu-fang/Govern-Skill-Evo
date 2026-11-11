@@ -75,15 +75,15 @@ Repair 的真实调用或运行中进程中断恢复，不能把这些未发生�
 
 ## 保存材料
 
-- [当前阅读导航与尝试边界](README.md)
-- [机器可读汇总](summary.json)
-- [逐任务对照表](task_comparison.csv)
-- [真实运行目录](../../../../artifacts/methods/v24/alfworld_rc1_smoke_001/)
-- [实际运行配置副本](config/campaign.json)
-- [最终保留 Skill](results/final_skill.md)
-- [候选与实际 Diff](evidence/S1/rounds/R01/editor/attempts/001/actual.diff)
-- [Gate 与任务配对](evidence/S1/rounds/R01/gate/result.json)
-- [Memory 发布摘录](evidence/memory_publication.json) · [完整 Memory 原归档](../../../../artifacts/methods/v24/alfworld_rc1_smoke_001/S1/rounds/R01/memory/view.json)
+- [当前阅读导航与尝试边界](../README.md)
+- [机器可读汇总](../results/summary.json)
+- [逐任务对照表](../results/task_comparison.csv)
+- [真实运行目录](../../../../../artifacts/methods/v24/alfworld_rc1_smoke_001/)
+- [实际运行配置副本](../config/campaign.json)
+- [最终保留 Skill](../results/final_skill.md)
+- [候选与实际 Diff](../evidence/S1/rounds/R01/editor/attempts/001/actual.diff)
+- [Gate 与任务配对](../evidence/S1/rounds/R01/gate/result.json)
+- [Memory 发布摘录](../evidence/memory_publication.json) · [完整 Memory 原归档](../../../../../artifacts/methods/v24/alfworld_rc1_smoke_001/S1/rounds/R01/memory/view.json)
 
 2026-10-27 仅补充阅读副本和路径导航，未重跑实验或测试；本报告原有结果与统计保持不变。
 

@@ -1,6 +1,6 @@
 # V24 Preconditioner 历史经验与计划审查重放
 
-[V24 分析导航](../README.md) · [职责与引用边界](../../../../../docs/methods/v24/PRECONDITIONER_ROLE.md) · [分析结论](analysis.json) · [历史来源与调用参数](manifest.json) · [原完成记录](completion.json)
+[V24 分析导航](../analysis/README.md) · [职责与引用边界](../../../../docs/methods/v24/PRECONDITIONER_ROLE.md) · [分析结论](results/analysis.json) · [历史来源与调用参数](manifest.json) · [原完成记录](results/completion.json)
 
 本实验仅重放 Preconditioner，记录为 **三例、四次请求、三个合法输出**。没有运行 Actor、Editor、完整训练或最终 Test，也没有发布新的 Memory。两例使用 v23.5 历史输入，不能算作 v24 新完成的训练轮次。
 
@@ -18,21 +18,21 @@ R06 的 [001 响应](inherited_v23_5_R06/preconditioner/attempts/001/response.js
 
 ## 分析结论与 Prompt
 
-[实际发送的 Prompt](prompts/preconditioner_prompt.md)从原尝试逐字复制；四次保存的 Prompt 正文相同。本页只保留一份阅读副本，完整归档仍保留每次 Prompt。原源码快照位于归档中的 [contract.json](../../../../../artifacts/methods/v24/analysis/preconditioner_history_and_plan_v3_20261026_231243/contract.json)，不以当前工作区源码替代它。
+[实际发送的 Prompt](prompts/preconditioner_prompt.md)从原尝试逐字复制；四次保存的 Prompt 正文相同。本页只保留一份阅读副本，完整归档仍保留每次 Prompt。原源码快照位于归档中的 [contract.json](../../../../artifacts/methods/v24/analysis/preconditioner_history_and_plan_v3_20261026_231243/contract.json)，不以当前工作区源码替代它。
 
 结构校验通过不代表语义判断可靠。原分析指出：无 Memory 的 smoke 案例提出依据不足的菜单顺序搜索策略，仍有可见性和规则优先级问题；有 Memory 的两例体现了历史与当前计划审查的结合。旧对照还包含 Grouping 输入移除等差异，不能宣称是严格的 v2/v3 Prompt 因果对照，更不能据此断言 Actor 成功率提高。详细依据、请求用量和局限保留在原 `analysis.json`。
 
 ## 完整输入与原始运行位置
 
-完整归档位于 [artifacts/methods/v24/analysis/preconditioner_history_and_plan_v3_20261026_231243/](../../../../../artifacts/methods/v24/analysis/preconditioner_history_and_plan_v3_20261026_231243/)。
+完整归档位于 [artifacts/methods/v24/analysis/preconditioner_history_and_plan_v3_20261026_231243/](../../../../artifacts/methods/v24/analysis/preconditioner_history_and_plan_v3_20261026_231243/)。
 
 | 案例 | 完整配置与实际输入 |
 |---|---|
-| v24_smoke_R01 | [replay_config.json](../../../../../artifacts/methods/v24/analysis/preconditioner_history_and_plan_v3_20261026_231243/v24_smoke_R01/replay_config.json) · [expected_model_input.json](../../../../../artifacts/methods/v24/analysis/preconditioner_history_and_plan_v3_20261026_231243/v24_smoke_R01/expected_model_input.json) · [完整尝试](../../../../../artifacts/methods/v24/analysis/preconditioner_history_and_plan_v3_20261026_231243/v24_smoke_R01/preconditioner/attempts/) |
-| inherited_v23_5_R03 | [replay_config.json](../../../../../artifacts/methods/v24/analysis/preconditioner_history_and_plan_v3_20261026_231243/inherited_v23_5_R03/replay_config.json) · [expected_model_input.json](../../../../../artifacts/methods/v24/analysis/preconditioner_history_and_plan_v3_20261026_231243/inherited_v23_5_R03/expected_model_input.json) · [完整尝试](../../../../../artifacts/methods/v24/analysis/preconditioner_history_and_plan_v3_20261026_231243/inherited_v23_5_R03/preconditioner/attempts/) |
-| inherited_v23_5_R06 | [replay_config.json](../../../../../artifacts/methods/v24/analysis/preconditioner_history_and_plan_v3_20261026_231243/inherited_v23_5_R06/replay_config.json) · [expected_model_input.json](../../../../../artifacts/methods/v24/analysis/preconditioner_history_and_plan_v3_20261026_231243/inherited_v23_5_R06/expected_model_input.json) · [完整尝试](../../../../../artifacts/methods/v24/analysis/preconditioner_history_and_plan_v3_20261026_231243/inherited_v23_5_R06/preconditioner/attempts/) |
+| v24_smoke_R01 | [replay_config.json](../../../../artifacts/methods/v24/analysis/preconditioner_history_and_plan_v3_20261026_231243/v24_smoke_R01/replay_config.json) · [expected_model_input.json](../../../../artifacts/methods/v24/analysis/preconditioner_history_and_plan_v3_20261026_231243/v24_smoke_R01/expected_model_input.json) · [完整尝试](../../../../artifacts/methods/v24/analysis/preconditioner_history_and_plan_v3_20261026_231243/v24_smoke_R01/preconditioner/attempts/) |
+| inherited_v23_5_R03 | [replay_config.json](../../../../artifacts/methods/v24/analysis/preconditioner_history_and_plan_v3_20261026_231243/inherited_v23_5_R03/replay_config.json) · [expected_model_input.json](../../../../artifacts/methods/v24/analysis/preconditioner_history_and_plan_v3_20261026_231243/inherited_v23_5_R03/expected_model_input.json) · [完整尝试](../../../../artifacts/methods/v24/analysis/preconditioner_history_and_plan_v3_20261026_231243/inherited_v23_5_R03/preconditioner/attempts/) |
+| inherited_v23_5_R06 | [replay_config.json](../../../../artifacts/methods/v24/analysis/preconditioner_history_and_plan_v3_20261026_231243/inherited_v23_5_R06/replay_config.json) · [expected_model_input.json](../../../../artifacts/methods/v24/analysis/preconditioner_history_and_plan_v3_20261026_231243/inherited_v23_5_R06/expected_model_input.json) · [完整尝试](../../../../artifacts/methods/v24/analysis/preconditioner_history_and_plan_v3_20261026_231243/inherited_v23_5_R06/preconditioner/attempts/) |
 
-完整 input、model_input、messages、request、HTTP 原文和含完整 Memory 的 run.json 仅在归档保存；三份 replay_config 内含冻结环境材料，也归档保存。原 [运行日志](../../../../../artifacts/methods/v24/analysis/preconditioner_history_and_plan_v3_20261026_231243/run.log)和[历史入口源码](../../../../../artifacts/methods/v24/analysis/preconditioner_history_and_plan_v3_20261026_231243/run_replay.py)保留原文。归档包含本次整理前的全部 88 个原文件，便于完整读取，不依赖阅读副本补齐。
+完整 input、model_input、messages、request、HTTP 原文和含完整 Memory 的 run.json 仅在归档保存；三份 replay_config 内含冻结环境材料，也归档保存。原 [运行日志](../../../../artifacts/methods/v24/analysis/preconditioner_history_and_plan_v3_20261026_231243/run.log)和[历史入口源码](../../../../artifacts/methods/v24/analysis/preconditioner_history_and_plan_v3_20261026_231243/run_replay.py)保留原文。归档包含本次整理前的全部 88 个原文件，便于完整读取，不依赖阅读副本补齐。
 
 原 `manifest.json` 是历史实验来源记录，保留原文及当时记录的验证信息；它不是本次生成的迁移清单。本次没有重新计算其中的历史校验值，也没有重跑其记录的 121 项测试。
 

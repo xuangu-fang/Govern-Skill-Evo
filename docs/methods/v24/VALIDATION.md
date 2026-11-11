@@ -42,7 +42,7 @@ Verifier/Repair 输入同步减少这部分运行元数据，任务事实、原�
 在原项目中执行，输出目录须为新目录。离线对照需要保留原实验档案和旧版测试夹具。
 
 ```bash
-python scripts/runs/verify_v24_offline.py --output artifacts/methods/v24/offline_recheck
+python scripts/runs/v24/verify_v24_offline.py --output artifacts/methods/v24/offline_recheck
 ```
 
 离线通过不证明真实成功率不下降。后续小规模真实验证和同条件效果对照

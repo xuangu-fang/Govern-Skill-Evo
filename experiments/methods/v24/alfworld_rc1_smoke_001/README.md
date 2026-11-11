@@ -1,6 +1,6 @@
 # V24 RC1 单轮 smoke 材料
 
-[历史报告](REPORT.md) · [机器可读汇总](summary.json) · [逐任务对照](task_comparison.csv) · [RC1 候选导航](../candidates/README.md) · [完整原始归档](../../../../artifacts/methods/v24/alfworld_rc1_smoke_001/)
+[历史报告](reports/REPORT.md) · [机器可读汇总](results/summary.json) · [逐任务对照](results/task_comparison.csv) · [RC1 候选导航](../candidates/README.md) · [完整原始归档](../../../../artifacts/methods/v24/alfworld_rc1_smoke_001/)
 
 ## 实际结果与版本
 

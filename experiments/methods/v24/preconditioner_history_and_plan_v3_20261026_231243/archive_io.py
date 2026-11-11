@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 
 EXPERIMENT = Path(__file__).resolve().parent
-ROOT = EXPERIMENT.parents[4]
+ROOT = EXPERIMENT.parents[3]
 ARCHIVE = ROOT / 'artifacts/methods/v24/analysis' / EXPERIMENT.name
 
 
@@ -13,11 +13,10 @@ def resolve_path(path):
     if not path.is_absolute():
         path = ROOT / path
     path = path.resolve()
-    try:
-        relative = path.relative_to(EXPERIMENT)
-    except ValueError:
-        return path
-    return ARCHIVE / relative
+    for base in (EXPERIMENT, EXPERIMENT.parent / "analysis" / EXPERIMENT.name):
+        if path == base or base in path.parents:
+            return ARCHIVE / path.relative_to(base)
+    return path
 
 
 def read_json(path):

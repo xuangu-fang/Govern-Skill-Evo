@@ -1,7 +1,7 @@
 # V24 候选基线后的实验方案
 
 状态：第一阶段已按用户明确指令完成；第二阶段尚未启动。结果见
-[小规模验证报告](../../../experiments/methods/v24/alfworld_rc1_smoke_001/REPORT.md)。
+[小规模验证报告](../../../experiments/methods/v24/alfworld_rc1_smoke_001/reports/REPORT.md)。
 下文保留原方案；第二阶段仍需另行明确指令。
 
 ## 当前决策

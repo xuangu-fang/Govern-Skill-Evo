@@ -17,6 +17,6 @@
 - [v23.5 正式配置](../../v23_5/alfworld_verified_feedback_001/config/campaign.json)、[任务划分](../../v23_5/alfworld_verified_feedback_001/data/)、[预算](../../v23_5/alfworld_verified_feedback_001/config/budget.json)和[初始基线说明](../../v23_5/alfworld_verified_feedback_001/config/initial_baseline_reference.json)。
 - 原归档中的 [S1/config.json](../../../../artifacts/methods/v23_5/alfworld_verified_feedback_001/S1/config.json) 与 [S1/initial_config.json](../../../../artifacts/methods/v23_5/alfworld_verified_feedback_001/S1/initial_config.json)。
 
-这些来源未迁移或改写。RC1 的历史验收与后来的 [单轮 smoke 结果](../alfworld_rc1_smoke_001/REPORT.md)分开阅读；当前工作区另有 [Preconditioner 调整](../../../../docs/methods/v24/PRECONDITIONER_ROLE.md)，不能据 RC1 历史报告推断新 Prompt 的效果。
+这些来源未迁移或改写。RC1 的历史验收与后来的 [单轮 smoke 结果](../alfworld_rc1_smoke_001/reports/REPORT.md)分开阅读；当前工作区另有 [Preconditioner 调整](../../../../docs/methods/v24/PRECONDITIONER_ROLE.md)，不能据 RC1 历史报告推断新 Prompt 的效果。
 
 v25 继续从 RC1 的 [config/campaign.json](../candidates/v24_alfworld_verified_feedback_001_rc1/config/campaign.json)读取继承预算。配置和冻结 Prompt 保持原路径。2026-10-27 本批只整理导航与候选测试日志，没有运行实验或测试。

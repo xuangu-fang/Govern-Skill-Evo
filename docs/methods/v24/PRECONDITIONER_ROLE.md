@@ -73,6 +73,6 @@ Editor/Gate/重试和 Memory 发布机制不变。现有校验没有强制引用
 v2/v3 Prompt 的因果实验。原始归档和旧冻结版本保持不变，未启动新的完整训练。
 
 逐例依据、局限、请求用量及原始输出索引见
-[重放分析](../../../experiments/methods/v24/analysis/preconditioner_history_and_plan_v3_20261026_231243/analysis.json)及[材料导航与归档读取](../../../experiments/methods/v24/analysis/preconditioner_history_and_plan_v3_20261026_231243/README.md)。
+[重放分析](../../../experiments/methods/v24/preconditioner_history_and_plan_v3_20261026_231243/results/analysis.json)及[材料导航与归档读取](../../../experiments/methods/v24/preconditioner_history_and_plan_v3_20261026_231243/README.md)。
 2026-10-27 将完整输入、请求、Memory、日志和源码快照归入 `artifacts/methods/v24/analysis/`，
 保留三例四次请求的原记录；这次整理没有运行实验或测试，也没有重算历史校验值。

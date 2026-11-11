@@ -1,5 +1,12 @@
 # V24 ALFWorld 候选基线
 
+2026-10-29 新配置：`experiments/methods/v24/alfworld_history_and_plan_v3_no_review_workers10_20261029_001/config/campaign.json`。
+以已完成的 `alfworld_history_and_plan_v3_20261027_001` 为基础，训练并发改为 10，
+`knowledge_review=disabled_v1`；Replay 校验后直接提交 Memory，不调用 Verifier/Repair。
+仍保留结构、引用、Gate 和发布一致性检查。该配置未启动，旧实验配置、结果和授权记录保留。
+实现显式支持两种 review 策略，以便区分历史配置；历史实验不能直接用修改后的工作区源码恢复。
+以下 RC1 说明与旧流程记录保留为历史背景。
+
 工作区 Preconditioner 综合历史 Knowledge 与计划审查，保留历史经验的核心作用，允许无历史支持时纠正具体计划缺陷；模型输入不含 Grouping，
 保留 runs 和 command_sets。详见 [职责说明](../../../docs/methods/v24/PRECONDITIONER_ROLE.md)。
 旧 rc1 候选及实验冻结版本保持不变；以下原基线迁移说明描述旧候选。
@@ -32,6 +39,14 @@ Verifier/Repair 的输入同步简化这部分元数据。因此验收检查行�
 并单独列出这些预期差异，不宣称所有输入字节完全相同。
 
 ## 离线准备与验收
+
+当前工作区的主程序与 Actor 均可使用原 ALFWorld 环境的 Python 3.9.23：
+`/Users/didi/miniforge3/envs/alfworld/bin/python`。以下命令的 `python` 指该解释器；
+可先执行 `conda activate alfworld`，或使用上述绝对路径，不依赖系统默认 Python。
+2026-10-27 修复 benchmark 接口的两处可选返回类型注解后，在此环境重新执行
+完整离线验收，121 项全部通过，训练、评估和 Actor CLI 入口检查通过。
+修复不改变 Prompt、训练配置或 Actor 协议；旧 RC1 冻结源码保持原样。
+验收报告位于 `artifacts/methods/v24/offline_python39_20261027_001/report.json`。
 
 ```bash
 python -m src.skill_evolution.v24.evolution audit-baseline

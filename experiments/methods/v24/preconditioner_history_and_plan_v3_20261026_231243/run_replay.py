@@ -4,9 +4,9 @@ from copy import deepcopy
 import json
 from pathlib import Path
 import sys
-ROOT=Path(__file__).resolve().parents[5]
+ROOT=Path(__file__).resolve().parents[4]
 sys.path.insert(0,str(ROOT))
-from experiments.methods.v24.analysis.preconditioner_history_and_plan_v3_20261026_231243.archive_io import ARCHIVE, resolve_path
+from experiments.methods.v24.preconditioner_history_and_plan_v3_20261026_231243.archive_io import ARCHIVE, resolve_path
 from src.skill_evolution.v24 import evolution as ev, preconditioner as pc, output_feedback as fb
 from src.skill_evolution.v24.config import method_config
 from src.skill_evolution.v24.benchmark import using_benchmark
