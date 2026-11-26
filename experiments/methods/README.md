@@ -2,6 +2,8 @@
 
 [ALFWorld 自进化实验索引（v24 至 v24.11）](ALFWORLD.md) · [SkillAdam 的 ALFWorld 实验索引](skilladam/alfworld/README.md) · [SkillOpt 的 ALFWorld 实验索引](skillopt/alfworld/README.md) · [三种方法的实验对照](../../docs/benchmarks/alfworld/V24_11_COMPARISON.md)
 
+[OfficeQA 正式实验与离线评分核验](OFFICEQA.md)
+
 按方法版本和原实验 ID 组织配置、冻结证据及精选结果。版本号不表示已完成正式实验，目录存在也不代表实验成功。
 
 当前结构为 `experiments/methods/<版本>/<实验ID>/{config,results,reports}`，只建立实际存在的材料子目录。完整运行产物已统一归入 `artifacts/methods/`，见[运行导航](RUNTIME.md)。
@@ -60,6 +62,16 @@
 | v25.6 | [SpreadsheetBench 训练、11 次全量评测和两题专项](v25_6/README.md) | 1 |
 | v25.7 | [SpreadsheetBench 两次训练、准备档和 11 次全量评测](v25_7/README.md) | 3 |
 | v25.8 | [SpreadsheetBench 正式训练和 19 次评测](v25_8/README.md) | 1 |
+| v26 | [OfficeQA Pilot、正式训练与预算续跑](v26/README.md) | 5 |
+| v26.1 | [OfficeQA 正式训练、逐轮评测和 UID0111 补测](v26_1/v26_1_officeqa_train74_roles_20261105_202041/README.md) | 1 |
+| v26.2 | [OfficeQA 正式训练与两次部分评测](v26_2/v26_2_officeqa_train74_20261117_013308/README.md) | 1 |
+| v26.3 | [OfficeQA 配置与历史训练缺失登记](v26_3/README.md) | 1 |
+| v26.4 | [OfficeQA 暂停的训练，已提交至 R03](v26_4/README.md) | 1 |
+| v26.5 | [OfficeQA 正式训练与四次部分评测](v26_5/README.md) | 1 |
+| v26.6 | [OfficeQA 正式训练与两次部分评测](v26_6/README.md) | 1 |
+| v26.7 | [OfficeQA 正式训练、部分评测与补测尝试](v26_7/README.md) | 1 |
+| v26.8 | [OfficeQA 正式训练与部分评测](v26_8/README.md) | 1 |
+| v26.9 | [OfficeQA 正式训练与逐轮评测](v26_9/v26_9_officeqa_train74_20261118_180409/README.md) | 1 |
 
 [SpreadsheetBench SkillAdam 实验索引](skilladam/spreadsheetbench/README.md) · [SpreadsheetBench SkillOpt 实验索引](skillopt/spreadsheetbench/README.md) · [三种方法对照](../../docs/benchmarks/spreadsheetbench/V25_8_COMPARISON.md)
 
