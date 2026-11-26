@@ -12,4 +12,4 @@ python scripts/runs/v24_5/run_v24_5.py --validate-only \
   --evaluation "artifacts/methods/v24_5/${run}_test134"
 ```
 
-对上述已完成的归档，去掉 `--validate-only` 会逐题读回首测。指定新的训练和评测目录时，该入口会启动训练并执行 Test。运行当时的脚本、Prompt 快照和日志保存在[原始启动目录](../../../artifacts/methods/v24_5/v24_5_alfworld_20261107_220520/launch/)。
+将上述命令的 `--validate-only` 换成 `--read-archive` 可逐题核对首测，预期输出为 `Archived Test: 109/134`。省略这两个离线选项并指定新的训练和评测目录时，该入口会启动训练并执行 Test。运行当时的脚本、Prompt 快照和日志保存在[原始启动目录](../../../artifacts/methods/v24_5/v24_5_alfworld_20261107_220520/launch/)。

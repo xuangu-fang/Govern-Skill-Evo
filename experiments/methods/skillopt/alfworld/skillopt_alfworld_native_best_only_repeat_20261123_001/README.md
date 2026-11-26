@@ -12,3 +12,9 @@
 | alfworld_skillopt_repeat_20261123_001_R02_R03_test134/R02 | 117/134 | [受测 Skill](results/skills/skill_v0002.md) · [摘要](results/alfworld_skillopt_repeat_20261123_001_R02_R03_test134/R02/summary.json) · [本地逐题记录](../../../../../artifacts/methods/skillopt/alfworld/skillopt_alfworld_native_best_only_repeat_20261123_001/evaluations/alfworld_skillopt_repeat_20261123_001_R02_R03_test134/R02/results.jsonl) |
 | alfworld_skillopt_repeat_20261123_001_R02_R03_test134/R03_repeat1 | 120/134 | [受测 Skill](results/skills/skill_v0003.md) · [摘要](results/alfworld_skillopt_repeat_20261123_001_R02_R03_test134/R03_repeat1/summary.json) · [本地逐题记录](../../../../../artifacts/methods/skillopt/alfworld/skillopt_alfworld_native_best_only_repeat_20261123_001/evaluations/alfworld_skillopt_repeat_20261123_001_R02_R03_test134/R03_repeat1/results.jsonl) |
 | alfworld_skillopt_repeat_20261123_001_R02_R03_test134/R03_repeat2 | 121/134 | [受测 Skill](results/skills/skill_v0003.md) · [摘要](results/alfworld_skillopt_repeat_20261123_001_R02_R03_test134/R03_repeat2/summary.json) · [本地逐题记录](../../../../../artifacts/methods/skillopt/alfworld/skillopt_alfworld_native_best_only_repeat_20261123_001/evaluations/alfworld_skillopt_repeat_20261123_001_R02_R03_test134/R03_repeat2/results.jsonl) |
+
+在仓库根目录核对本次训练的冻结输入和数据划分：
+
+```sh
+/Users/didi/miniforge3/envs/skillopt/bin/python -B scripts/runs/run_skillopt_alfworld_native.py check --experiment experiments/methods/skillopt/alfworld/skillopt_alfworld_native_best_only_repeat_20261123_001
+```

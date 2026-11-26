@@ -164,6 +164,19 @@ def test_actor_threads_inherit_adapter_without_alfworld_record_assumptions(tmp_p
 
 
 def test_fresh_process_replays_real_round_with_old_imports_and_source_reads_forbidden(tmp_path):
+    # Prepare original fixture bytes outside the isolated child. Only R01 is replayed.
+    from src.skill_evolution.shared.offline_records import offline_records
+
+    fixture = tmp_path / 'fixture'
+    fixture.mkdir()
+    with offline_records('alfworld') as path:
+        (fixture / 'config.json').write_bytes(path(CAMPAIGN / 'config.json').read_bytes())
+        for source in path(CAMPAIGN / 'rounds/R01').rglob('*'):
+            if source.is_file():
+                target = fixture / source.relative_to(CAMPAIGN)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(source.read_bytes())
+
     # Unlike the paired tests, the child has no legacy fixture/harness loaded.
     code = r'''
 import sys, importlib.abc, json, socket, subprocess
@@ -184,7 +197,8 @@ sys.addaudithook(audit)
 from src.skill_evolution.v24 import evolution as ev, config
 from src.skill_evolution.v24.benchmark import using_benchmark
 from src.skill_evolution.v24.benchmarks.alfworld.adapter import ALFWorldAdapter
-base = root/'artifacts/methods/v23_5/alfworld_verified_feedback_001/S1'
+original_base = root/'artifacts/methods/v23_5/alfworld_verified_feedback_001/S1'
+base = output/'fixture'
 rd = base/'rounds/R01'
 read = ev.read
 adapter = ALFWorldAdapter()
@@ -195,7 +209,10 @@ with using_benchmark(adapter):
     # Metadata query only is disabled; no real interpreter/environment is started.
     value['actor_python'] = 'offline'
     pairs = read(rd/'pairs/input.json')['record_paths']
-    records = {side: {read(p)['task']['id']: p for p in paths} for side, paths in pairs.items()}
+    records = {}
+    for side, paths in pairs.items():
+        local = [base / Path(p).relative_to(original_base) for p in paths]
+        records[side] = {read(p)['task']['id']: str(p) for p in local}
     calls = []
     def actor(task, skill, dest, cfg):
         return records['candidate' if 'candidate_runs' in dest.parts else 'parent'][task]

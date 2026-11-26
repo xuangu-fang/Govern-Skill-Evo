@@ -5,7 +5,7 @@ import json
 
 from scripts.runs.alfworld.alfworld_aligned_common import read, require
 from src.skill_evolution.shared.experiment_paths import ROOT, resolve_experiment_path
-from ..archive import read_evaluation, read_training
+from ..archive import offline_alfworld, read_evaluation, read_training
 
 
 def checkpoint_evaluations(output, results, training, final_skill, items, actor):
@@ -39,11 +39,7 @@ def checkpoint_evaluations(output, results, training, final_skill, items, actor)
 
 
 def read_archive(run_id):
-    from scripts.runs.alfworld import alfworld_aligned_common
-    from src.adapters.alfworld import response_archive
-    from src.skill_evolution.shared.offline_records import offline_records
-
-    with offline_records('alfworld', alfworld_aligned_common, response_archive) as path:
+    with offline_alfworld() as path:
         return _read_archive(run_id, path(ROOT))
 
 

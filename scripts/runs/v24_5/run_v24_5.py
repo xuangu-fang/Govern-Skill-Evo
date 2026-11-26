@@ -1,5 +1,6 @@
 """Run the v24.5 ALFWorld prompts with the retained v24.4 campaign and Test."""
 import argparse
+from contextlib import nullcontext
 from datetime import datetime
 from pathlib import Path
 import subprocess
@@ -9,6 +10,8 @@ from time import sleep
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 from src.skill_evolution.shared.experiment_paths import resolve_experiment_path
+from src.skill_evolution.shared.offline_records import offline_records
+from src.skill_evolution.v24_2 import storage
 from src.skill_evolution.v24_2.storage import read, save
 from src.skill_evolution.v24_4 import campaign, stages
 
@@ -21,27 +24,32 @@ def main():
     parser.add_argument('--config', type=Path, required=True)
     parser.add_argument('--campaign', type=Path, required=True)
     parser.add_argument('--evaluation', type=Path, required=True)
-    parser.add_argument('--validate-only', action='store_true', help='check the published Test inputs offline')
+    offline = parser.add_mutually_exclusive_group()
+    offline.add_argument('--read-archive', action='store_true', help='verify all receipts of a completed Test')
+    offline.add_argument('--validate-only', action='store_true', help='check the published Test inputs offline')
     args = parser.parse_args()
     training = resolve_experiment_path(args.campaign.resolve())
     evaluation = resolve_experiment_path(args.evaluation.resolve())
     if evaluation.is_relative_to(training) or training.is_relative_to(evaluation):
         parser.error('Training and Test need separate directories')
-    config = read(resolve_experiment_path(args.config.resolve()))
-    if config.get('prompt_revision') != 'v24.5' or config.get('method') != campaign.VERSION:
-        parser.error('Expected the v24.5 training configuration')
-    if (training / 'config.json').exists() and config != read(training / 'config.json'):
-        parser.error('Campaign configuration differs')
-    prompts = {name: (PROMPTS / f'{name}.md').read_text()
-               for name in ('diagnosis', 'preconditioner', 'editor', 'replay')}
+    read_finished = args.read_archive or (evaluation / 'summary.json').exists()
+    context = offline_records('alfworld', storage) if args.validate_only or read_finished else nullcontext()
+    with context:
+        config = read(resolve_experiment_path(args.config.resolve()))
+        if config.get('prompt_revision') != 'v24.5' or config.get('method') != campaign.VERSION:
+            parser.error('Expected the v24.5 training configuration')
+        if (training / 'config.json').exists() and config != read(training / 'config.json'):
+            parser.error('Campaign configuration differs')
     command = [sys.executable, str(TEST), '--campaign', str(training), '--evaluation', str(evaluation)]
     if args.validate_only:
         subprocess.run(command + ['--validate-only'], check=True)
         return
-    if (evaluation / 'summary.json').exists():
-        subprocess.run(command + ['--resume'], check=True)
+    if read_finished:
+        subprocess.run(command + ['--read-archive'], check=True)
         return
 
+    prompts = {name: (PROMPTS / f'{name}.md').read_text()
+               for name in ('diagnosis', 'preconditioner', 'editor', 'replay')}
     launch = training / 'launch'
 
     def status(phase, **details):

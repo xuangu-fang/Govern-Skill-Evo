@@ -14,6 +14,7 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
+from src.skill_evolution.shared.offline_records import offline_records
 from src.skillopt_alfworld_native import project as p
 from src.skillopt_alfworld_native.actor import build_adapter, command, convert_record, run_episode, ActorInterrupted
 from src.skillopt_alfworld_native.transport import provider, usage_summary
@@ -63,6 +64,7 @@ class NativeTests(unittest.TestCase):
             self.assertEqual(cli.main(['run']), 0)
         self.assertEqual(campaign.stat().st_mtime_ns if campaign.exists() else None, modified_before)
 
+    @offline_records('alfworld', p)
     def test_pinned_source_and_only_evaluation_patch(self):
         source = p.read(p.DEFAULT / 'upstream_source.json')
         for rel, digest in source['original_files'].items():
@@ -230,16 +232,19 @@ class NativeTests(unittest.TestCase):
                     adapter.rollout(batch, 'skill', root / 'campaign' / output)
 
     def test_recorded_completed_actor_trajectory_reuses_without_requests(self):
-        from src.skillopt_alfworld_native.actor import validate_record
-        summary = p.read(p.ADAM_TEST / 'summary.json')
         # Locate the actual saved record rather than assume a summary schema.
         paths = list(p.ADAM_TEST.glob('**/trajectory.json'))
         self.assertTrue(paths)
-        record = p.read(paths[0])
         actor = p.read(p.DEFAULT / 'actor.json')
         with fixture() as root, patch('subprocess.run', side_effect=AssertionError('no resampling')):
             destination = root / 'episode' / paths[0].parent.name
-            shutil.copytree(paths[0].parent, destination)
+            with offline_records('alfworld') as evidence:
+                for source in paths[0].parent.rglob('*'):
+                    if source.is_file():
+                        target = destination / source.relative_to(paths[0].parent)
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        target.write_bytes(evidence(source).read_bytes())
+            record = p.read(destination / 'trajectory.json')
             skill_file = root / 'recorded_skill.md'
             skill_file.write_text(record['skill']['text'])
             actual, path = run_episode(actor, record['task'], destination.parent, skill_file)

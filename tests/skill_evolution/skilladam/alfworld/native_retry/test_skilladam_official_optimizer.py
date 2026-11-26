@@ -16,6 +16,7 @@ import httpx
 ROOT = Path(__file__).resolve().parents[5]
 sys.path.insert(0, str(ROOT))
 from scripts.runs.skilladam.alfworld.native_retry import run_skilladam_alfworld_official_optimizer as app
+from src.skill_evolution.skilladam.alfworld.archive import offline_alfworld
 from src.skill_evolution.shared.experiment_paths import resolve_experiment_path
 from skilladam.execution.contracts import GenerationRequest
 
@@ -149,6 +150,7 @@ class NativeRetryTests(unittest.TestCase):
         self.assertEqual(len(calls), 1)
         self.assertEqual(resumed.new_generations, 0)
 
+    @offline_alfworld()
     def test_all_69_historical_requests_change_only_model_and_url(self):
         seen = []
         def handler(req):
@@ -176,6 +178,7 @@ class NativeRetryTests(unittest.TestCase):
         self.assertEqual(len(seen), 69)
         self.assertEqual(stages, {'trajectory_compression': 57, 'iteration_patch': 6, 'momentum_update': 6})
 
+    @offline_alfworld()
     def test_completed_original_native_config_gate_context_and_actor_hooks_match(self):
         from skilladam.methods.skilladam import _profile_gate, _gate_signature
         saved = app.read(self.original_output / 'checkpoint.json')['run_signature']

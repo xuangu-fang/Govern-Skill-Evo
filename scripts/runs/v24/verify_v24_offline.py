@@ -30,7 +30,10 @@ def main():
     from src.skill_evolution.v24.benchmark import using_benchmark
     from src.skill_evolution.v24.benchmarks.alfworld.adapter import ALFWorldAdapter
     from src.skill_evolution.v24 import evolution
-    evidence, _ = baseline.audit()
+    from src.skill_evolution.shared.offline_records import offline_records
+
+    with offline_records('alfworld', baseline):
+        evidence, _ = baseline.audit()
     with using_benchmark(ALFWorldAdapter()):
         frozen = evolution.frozen_contract()
     # The tests use fake Actor runners and generators. Guard the real paths too.

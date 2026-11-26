@@ -12,3 +12,9 @@ R02 的第 0102 题使用第二次尝试的完成轨迹。[本地恢复记录](.
 | alfworld_skillopt_checkpoints_20261121/R01 | 111/134 | [受测 Skill](results/skills/skill_v0001.md) · [摘要](results/alfworld_skillopt_checkpoints_20261121/R01/summary.json) · [本地逐题记录](../../../../../artifacts/methods/skillopt/alfworld/skillopt_alfworld_native_best_only_20261030_001/evaluations/alfworld_skillopt_checkpoints_20261121/R01/results.jsonl) |
 | alfworld_skillopt_checkpoints_20261121/R02 | 113/134 | [受测 Skill](results/skills/skill_v0002.md) · [摘要](results/alfworld_skillopt_checkpoints_20261121/R02/summary.json) · [本地逐题记录](../../../../../artifacts/methods/skillopt/alfworld/skillopt_alfworld_native_best_only_20261030_001/evaluations/alfworld_skillopt_checkpoints_20261121/R02/results.jsonl) |
 | alfworld_skillopt_final_retest_20261122_133346/R04 | 118/134 | [受测 Skill](results/skills/skill_v0004.md) · [摘要](results/alfworld_skillopt_final_retest_20261122_133346/R04/summary.json) · [本地逐题记录](../../../../../artifacts/methods/skillopt/alfworld/skillopt_alfworld_native_best_only_20261030_001/evaluations/alfworld_skillopt_final_retest_20261122_133346/R04/results.jsonl) |
+
+在仓库根目录核对本次训练的冻结输入和数据划分：
+
+```sh
+/Users/didi/miniforge3/envs/skillopt/bin/python -B scripts/runs/run_skillopt_alfworld_native.py check --experiment experiments/methods/skillopt/alfworld/skillopt_alfworld_native_best_only_20261030_001
+```

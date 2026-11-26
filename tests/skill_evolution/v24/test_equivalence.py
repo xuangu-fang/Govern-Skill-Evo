@@ -28,6 +28,20 @@ def selected(rd, name):
     return rd/name/read(rd/name/'result.json')['path']
 
 
+@pytest.fixture
+def historical_records():
+    """Feed the unchanged versioned validators their original archived input bytes."""
+    from src.skill_evolution.shared.offline_records import offline_records
+
+    modules = [sys.modules[__name__], baseline, knowledge_review, memory]
+    for version in ('v23_5', 'v24'):
+        for stage in ('grouping', 'diagnosis', 'preconditioner', 'editor', 'replay', 'output_feedback'):
+            modules.append(import_module(f'src.skill_evolution.{version}.{stage}'))
+    with offline_records('alfworld', *modules):
+        yield
+
+
+@pytest.mark.usefixtures('historical_records')
 def test_baseline_and_resolved_profile(tmp_path):
     evidence, original = baseline.audit()
     prepared = baseline.prepare(tmp_path/'prepared')
@@ -65,6 +79,7 @@ else:
     subprocess.run([sys.executable, '-c', code], cwd=ROOT, check=True, capture_output=True, text=True)
 
 
+@pytest.mark.usefixtures('historical_records')
 def test_unchanged_prompt_bytes_and_actor_commands_equal():
     evidence, original = baseline.audit()
     frozen = read(CAMPAIGN/'contract.json')
@@ -88,6 +103,7 @@ def test_unchanged_prompt_bytes_and_actor_commands_equal():
 
 
 @pytest.mark.parametrize('round_name', ['R01', 'R02', 'R03'])
+@pytest.mark.usefixtures('historical_records')
 def test_recorded_round_inputs_messages_outputs_and_review_equal(round_name):
     rd = CAMPAIGN/'rounds'/round_name
     if not rd.exists():
@@ -294,6 +310,7 @@ def test_bad_archive_input_is_not_reported_as_model_output():
 
 
 @pytest.mark.parametrize('mutation', ['task', 'protocol', 'environment', 'initial_observation', 'implementation'])
+@pytest.mark.usefixtures('historical_records')
 def test_pair_mismatch_rejection_equal(mutation):
     from src.skill_evolution.v23.replay import verify_pair as legacy_pair
     from src.skill_evolution.v24.contracts.replay import verify_pair

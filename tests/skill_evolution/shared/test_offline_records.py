@@ -47,10 +47,11 @@ def evidence(tmp_path, monkeypatch):
 
 def test_frozen_reader_keeps_original_bytes_and_rejects_corruption(evidence):
     path, package, original = evidence
-    reader = SimpleNamespace(Path=Path)
+    reader = SimpleNamespace(Path=Path, ROOT=path.parent)
     reference = path.read_bytes()
     with offline.offline_records('alfworld', reader):
         assert reader.Path(path).read_bytes() == original
+        assert (reader.ROOT / path.name).read_bytes() == original
         assert path.read_bytes() == reference
         path.write_bytes(b'wrong pointer')
         with pytest.raises(ValueError, match='reference mismatch'):
@@ -61,6 +62,7 @@ def test_frozen_reader_keeps_original_bytes_and_rejects_corruption(evidence):
         with pytest.raises(ValueError, match='SHA-256 mismatch'):
             reader.Path(path).read_bytes()
     assert reader.Path is Path
+    assert type(reader.ROOT) is type(path)
 
 
 def test_verifier_requires_plain_original_for_tracked_path(evidence):

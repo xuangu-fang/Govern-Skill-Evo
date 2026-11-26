@@ -5,6 +5,14 @@ from scripts.runs.alfworld.alfworld_aligned_common import read, require, result_
 from src.skill_evolution.shared.experiment_paths import ROOT, resolve_experiment_path
 
 
+def offline_alfworld():
+    from scripts.runs.alfworld import alfworld_aligned_common
+    from src.adapters.alfworld import response_archive
+    from src.skill_evolution.shared.offline_records import offline_records
+
+    return offline_records('alfworld', alfworld_aligned_common, response_archive)
+
+
 def read_evaluation(root, training_run, items, actor, skill):
     inputs = read(root / 'inputs.json')
     report = read(root / 'summary.json')

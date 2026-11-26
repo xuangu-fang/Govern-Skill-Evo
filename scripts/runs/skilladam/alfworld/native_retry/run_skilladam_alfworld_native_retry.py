@@ -19,6 +19,7 @@ SOURCE = ROOT / 'experiments/methods/skilladam/alfworld/shared_actor/skilladam_c
 sys.path[:0] = [str(ROOT / 'scripts/runs'), str(ROOT)]
 from src.skill_evolution.skilladam.alfworld.shared_actor.paths import default_upstream, historical_input
 sys.path.insert(0, str(default_upstream()))
+from src.skill_evolution.skilladam.alfworld.archive import offline_alfworld
 from scripts.runs.alfworld.alfworld_aligned_common import read, write, sha, require
 from src.skill_evolution.shared.experiment_paths import resolve_experiment_path
 from src.skill_evolution.skilladam.alfworld.native_retry.backend import (
@@ -52,6 +53,7 @@ def desired_actor(source):
     return actor
 
 
+@offline_alfworld()
 def check(experiment):
     experiment = resolve_experiment_path(Path(experiment).resolve())
     manifest = read(experiment / 'manifest.json')

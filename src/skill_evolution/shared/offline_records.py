@@ -38,7 +38,7 @@ class EvidencePath(type(Path())):
 
 @contextmanager
 def offline_records(benchmark, *readers):
-    """Bind only the named legacy modules' Path constructors during an offline read.
+    """Bind the named legacy modules' Path constructors and repository roots for offline reads.
 
     Those modules are hashed into historical training contracts. Their validation
     code still sees the original paths, prompts, HTTP bodies and publication hashes.
@@ -55,4 +55,7 @@ def offline_records(benchmark, *readers):
         for module in readers:
             stack.callback(setattr, module, 'Path', module.Path)
             module.Path = EvidencePath
+            if isinstance(getattr(module, 'ROOT', None), Path):
+                stack.callback(setattr, module, 'ROOT', module.ROOT)
+                module.ROOT = EvidencePath(module.ROOT)
         yield EvidencePath

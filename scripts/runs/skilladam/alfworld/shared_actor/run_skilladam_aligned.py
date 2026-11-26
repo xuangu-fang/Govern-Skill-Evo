@@ -25,6 +25,7 @@ from skilladam.types import BenchmarkCase
 from skilladam.methods.skilladam import SkillAdamRunConfig, SkillAdamRunner
 from skilladam.usage import normalize_usage
 
+from src.skill_evolution.skilladam.alfworld.archive import offline_alfworld
 from scripts.runs.alfworld.alfworld_aligned_common import configure_runtime, read, require, sha, write
 from src.skill_evolution.skilladam.alfworld.shared_actor import backend
 from src.skill_evolution.skilladam.alfworld.shared_actor.backend import (
@@ -61,6 +62,7 @@ def cases_for(cfg):
         for key in cfg['native']['optimization_case_ids'])
 
 
+@offline_alfworld()
 def check():
     lock = read(EXPERIMENT / 'manifest.json')
     for relative, expected in lock['files'].items():

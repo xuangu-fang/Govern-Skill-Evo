@@ -75,7 +75,11 @@ def main(argv=None):
         run(root, resume=args.resume)
         result = {'status': 'complete', 'test_roles': ['best']}
     else:
-        result = check(root)
+        from src.skill_evolution.shared.offline_records import offline_records
+        from src.skillopt_alfworld_native import project
+
+        with offline_records('alfworld', project) as path:
+            result = check(path(root))
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
 

@@ -8,6 +8,7 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
 from src.skill_evolution.shared.experiment_paths import resolve_experiment_path
+from src.skill_evolution.shared.offline_records import offline_records
 
 
 def archive_path(value):
@@ -27,20 +28,24 @@ def read_test(directory):
     directory = resolve_experiment_path(directory)
     version, run_id = directory.relative_to(ROOT / 'artifacts/methods').parts
     if version == 'v24':
+        from src.skill_evolution.v24 import evolution
+        from src.skill_evolution.v24.benchmarks.alfworld.actor import response_archive
         from src.skill_evolution.v24.benchmark import using_benchmark
         from src.skill_evolution.v24.benchmarks.alfworld.adapter import ALFWorldAdapter
     elif version == 'v24_1':
+        from src.skill_evolution.v24_1 import evolution
+        from src.skill_evolution.v24_1.benchmarks.alfworld.actor import response_archive
         from src.skill_evolution.v24_1.benchmark import using_benchmark
         from src.skill_evolution.v24_1.benchmarks.alfworld.adapter import ALFWorldAdapter
     else:
         raise ValueError('Expected a v24 or v24.1 Test archive')
 
     adapter = ALFWorldAdapter()
-    with using_benchmark(adapter):
-        return read_records(directory, run_id, adapter)
+    with using_benchmark(adapter), offline_records('alfworld', evolution, response_archive) as path:
+        return read_records(path(directory), run_id, adapter, path)
 
 
-def read_records(directory, run_id, adapter):
+def read_records(directory, run_id, adapter, path_type=Path):
     def read(path):
         return json.loads(path.read_bytes())
 
@@ -51,7 +56,7 @@ def read_records(directory, run_id, adapter):
             or bundle['tasks'] != tasks or len(report['tasks']) != report['completed'] or len(tasks) != report['completed']):
         raise ValueError('Incomplete Test or different held-out split')
 
-    training = archive_path(bundle['campaign'])
+    training = path_type(archive_path(bundle['campaign']))
     state = read(training / 'state.json')
     skill = (training / state['parent']).read_bytes()
     if (state != bundle['campaign_state'] or skill != bundle['skill_text'].encode()

@@ -182,10 +182,15 @@ def main(*, version=campaign, description=__doc__, load_skill=published_skill, e
             result = read_archived_test(source, output, adapter, version, load_skill, relative_receipts)
             print(f"Archived Test: {result['success']}/{result['completed']}")
             return
-        bundle = prepare_test(source, adapter, version=version, load_skill=load_skill)
         if args.validate_only:
+            from src.skill_evolution.shared.offline_records import offline_records
+            from src.skill_evolution.v24_2 import storage
+
+            with offline_records('alfworld', storage) as path:
+                bundle = prepare_test(path(source), adapter, version=version, load_skill=load_skill)
             print(f"Validated {len(bundle['tasks'])} Test tasks for training HEAD {bundle['training_head']}")
             return
+        bundle = prepare_test(source, adapter, version=version, load_skill=load_skill)
         result = None
         if args.resume and (output / 'input.json').exists():
             result = completed_archive(output, bundle, relative_receipts=relative_receipts)
