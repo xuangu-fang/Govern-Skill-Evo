@@ -1,0 +1,118 @@
+# Spreadsheet Manipulation Skill (xlsx)
+
+## Overview
+This skill guides agents in manipulating Excel (.xlsx) spreadsheets using Python.
+
+**Primary libraries**: `openpyxl` (structure-preserving read/write), `pandas` (data transformation).
+Never use any other third-party libraries.
+
+---
+
+## Common Workflow
+
+1. **Explore** the input file: list sheets, inspect headers, check dimensions.
+2. **Write `solution.py`** with `INPUT_PATH` and `OUTPUT_PATH` defined at the top.
+3. **Execute** `python solution.py` and verify the output file was created.
+4. **Confirm** the target cells/range contain the expected values.
+
+---
+
+## Formula-Guided Calculations
+
+- When a target cell, or a neighboring cell in the same answer region/row, already contains a formula (for example SUMIF, SUMIFS, IF, or a lookup), read that formula before writing and use it as the structural specification of the calculation.
+- From each such formula, extract every criteria pair: the criteria-range column, the comparison value (a literal or a cell reference such as a warehouse cell, a code cell, a date cell, or a user cell), and the sum/result column. Do not extract only the date or only the first pair.
+- Reuse the structural column mapping across the cells you compute: which source columns are criteria and which column is summed. Resolve each cell-reference comparison value against the target cell's own row/column (for example, the row's date, warehouse, code, or user cell) instead of freezing the first formula's referenced value. When neighboring formulas use different per-column criteria, keep each column's own criterion.
+- When a header band lists several criteria values next to each other, pair each value with the adjacent column/code it belongs to and apply each target column's own criterion value. Do not apply a union of all listed values to every column unless the existing formula or the instruction requires it.
+- Use existing formulas only for structure. When the instruction says the existing calculation is wrong or asks for a different approach, keep the referenced columns/criteria cells only where they are consistent with the criteria and source columns described by the instruction or the table headers, and fix the logic (criteria combination, date-range filtering, blank handling) so the result satisfies the instruction. If the existing formula is of a different kind or its references do not match the instruction, derive the correct criteria/source columns from the instruction and table headers rather than copying the broken references.
+- Evaluate every source row against those criteria before writing: compare dates by calendar date and identifiers/text after trimming, and keep a criterion's special filter such as positive-only values where the instruction states it. Then write the resulting value to the target cell.
+- Deliver the requested cell type: if the instruction asks for a formula, write the formula text and also store the computed result as that cell's cached value (see below); if the instruction asks for values, write the value directly.
+
+### Cached Results for Requested Formulas
+
+- Writing a formula with `openpyxl` stores no cached result, so reading the saved file with `data_only=True` returns `None`. For every answer cell that must hold a formula, also store that formula's computed result as its cached value: a number as a number, text as text, or an Excel error result such as `#N/A` when the formula would produce that error for the cell. Never replace the requested formula text with a plain value.
+- Compute the cached result from the same source values the formula reads, so the formula and its cached result stay consistent.
+- When the change rewrites an existing formula so that its displayed result changes (for example adding a prefix to a text concatenation), obtain the new cached text from the rewrite: if the rewrite only adds or removes a fixed literal prefix/suffix and leaves the rest of the formula unchanged and the cell's prior evaluated result is available from the data_only copy, applying that same literal change to the prior result is an acceptable basis; otherwise evaluate the rewritten formula over the cells it references.
+- Resolve the formula's cell references, including absolute (`$A$1`) and relative forms, to their source values, and store the resulting string as the answer cell's cached value with text type so that reading the saved file with `data_only=True` returns the new text instead of `None`.
+- Do not skip storing the cached result because the input formula had no cached value or could not be evaluated from a prior result; a rewritten answer cell must never be left with only formula text and no readable value, and if the post-save readback does not return its intended text, raise an error instead of submitting the workbook.
+- After `wb.save(OUTPUT_PATH)`, reopen the saved file with `openpyxl.load_workbook(OUTPUT_PATH, data_only=True)` inside the same script and read every answer cell. Each one must return the intended result, not `None`.
+- If a checked answer cell does not read back the intended result, repair the saved xlsx directly: open `OUTPUT_PATH` as a zip archive and resolve the worksheet part through the workbook's own mapping instead of assuming a fixed part such as `xl/worksheets/sheet1.xml` — read the `<sheet name="..." r:id="..."/>` entries in `xl/workbook.xml`, map each `r:id` through `xl/_rels/workbook.xml.rels` to its `Target` (resolved relative to `xl/`), and use the part belonging to the answer sheet. Rewrite that cell's `<v>` value (and its type attribute: `t="e"` for error results, `t="str"` for text) inside the existing `<c>` element while keeping its `<f>` formula, rebuild the archive, and re-check by reopening the file with `data_only=True`.
+- Do not wrap this repair in a bare exception handler that hides the failure. If the cell's computed result is a non-empty value and it still reads back as `None` after the repair, raise an error instead of silently submitting a workbook whose answer cell has no cached result.
+
+---
+
+## Period-End Snapshot Counting
+
+- When the requested result is a snapshot at the end of a period (a header or phrasing names a specific end-of-period/as-of date, such as an `open by end of <Month> <Year>` column), decide each record's inclusion against that period-end date rather than against the start of the period.
+- Count a record only when its creation date is on or before the period's last day and its closing date is blank or strictly after that last day; do not count a record whose closing date falls inside the period.
+- If the instruction paraphrases the condition as "not closed before the first day of the period", still apply the period-end boundary for the closing date, because a record closed during the period is no longer open at its end.
+- Keep each target row's own grouping criterion (for example the department/bucket cell beside the count) and compare dates by calendar date after normalizing text-encoded date values.
+- When the answer cell is to hold a formula, write that formula with the same period-end boundary and store the count that formula yields as the cell's cached value, so the written formula and its readable value agree.
+
+---
+
+## Matching-Based Fills and Missing Records
+
+- When a fixed grid of target cells is filled by matching each target row/column pair against source records, leave a cell empty when its pair has no matching source record — do not write invented placeholder text such as `N/A`.
+- Write a literal placeholder only when the instruction explicitly requires that placeholder and the already-filled example rows in the same answer region also show it. If those example rows leave the missing combinations blank, or the instruction states the result may be an empty string, treat blank/empty string as the required output for unmatched cells.
+- Cells that do have a matching source record still receive that record's value, and cells outside the answer region stay unchanged.
+
+---
+
+## Merged Cells and Write Safety
+
+- Before assigning a value or style to a cell, determine whether it is a merged non-anchor cell by inspecting `ws.merged_cells.ranges` or testing `isinstance(ws.cell(row, col), MergedCell)`. Writing such a cell raises `AttributeError: 'MergedCell' object attribute 'value' is read-only` and aborts the whole script.
+- When an intended target cell lies inside a merged range, write the value/format to that range's top-left anchor and keep the merge intact. When looping over a whole answer region, write only to anchors and skip the other cells of each merged range.
+- Do not unmerge ranges, shift data, or abandon the remaining writes to work around this constraint, and leave cells outside the intended answer cells unchanged.
+
+---
+
+## Constrained Residual Balancing
+
+- When balancing positive or negative residuals by adjusting an ordered set of quantity columns (addition moves from the first column toward the last; subtraction moves from the last toward the first), determine each column's minimum and maximum limit before changing values: inspect data validation rules covering the target cells and explicit limit values stored in the sheet, such as labeled min/max rows or columns, or header/footnote cells. Do not assume a column is unlimited or floored at zero when the instruction states that limits exist.
+- For each adjustment, change the cell only by its remaining headroom: maximum minus current value for additions, or current value minus minimum for subtractions. Carry any unconsumed remainder to the next column in the stated direction. Leave quantity cells whose current value is zero unchanged, and write adjusted values back in their original cells without moving rows or columns.
+- When the instruction also says to set the residual column to zero, write `0` only in residual cells that currently hold a numeric residual. Leave blank residual cells and cells containing text (including limit labels, headers, and notes) unchanged. Do not treat a row as a quantity row when its quantity cells or residual cell contain such text labels.
+
+## Numeric Predicates from Effective Excel Values
+
+- When a decision depends on a numeric property of a source cell (for example, whether an amount is a whole number and therefore has no pennies), derive that property from the cell's effective Excel value. Read values through a separate `openpyxl.load_workbook(INPUT_PATH, data_only=True)` copy, including cells that contain formulas; do not use formula text. Keep that copy read-only: perform all writes and the save on the formula-preserving workbook so existing formulas and their cached results survive.
+- Normalize text-encoded numbers by removing currency symbols, thousands separators, and surrounding whitespace before applying the numeric condition.
+- Treat a truly empty numeric source cell as `0`, as Excel does. Text that cannot be parsed as a number still fails the whole-number condition.
+- Apply the decision only to the cells the instruction targets. Leave the source cells and all other cells unchanged.
+
+## Library Selection
+
+| Use case | Library |
+|----------|---------|
+| Preserve formulas, formatting, named ranges | `openpyxl` |
+| Bulk data transformation, aggregation, sorting | `pandas` → write back with `openpyxl` |
+| Simple cell read/write | `openpyxl` |
+
+**Warning**: `pandas.to_excel()` silently destroys existing formulas and named ranges.
+When writing back to a spreadsheet that contains formulas, always use `openpyxl.save()`.
+
+---
+
+## solution.py Template
+
+```python
+import openpyxl
+import pandas as pd
+
+INPUT_PATH  = "..."   # set to the actual input path
+OUTPUT_PATH = "..."   # set to the actual output path
+
+wb = openpyxl.load_workbook(INPUT_PATH)
+ws = wb.active  # or wb["SheetName"]
+
+# --- perform manipulation ---
+
+wb.save(OUTPUT_PATH)
+```
+
+---
+
+## Output Requirements
+
+- Save the result to `OUTPUT_PATH`.
+- Do not hardcode row counts or column letters — iterate over actual rows in the workbook.
+- Preserve sheets and cells not mentioned in the instruction.

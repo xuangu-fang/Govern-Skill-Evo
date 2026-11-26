@@ -1,0 +1,79 @@
+# Spreadsheet Manipulation Skill (xlsx)
+
+## Overview
+This skill guides agents in manipulating Excel (.xlsx) spreadsheets using Python.
+
+**Primary libraries**: `openpyxl` (structure-preserving read/write), `pandas` (data transformation).
+Never use any other third-party libraries.
+
+---
+
+## Common Workflow
+
+1. **Explore** the input file: list sheets, inspect headers, check dimensions.
+2. **Write `solution.py`** with `INPUT_PATH` and `OUTPUT_PATH` defined at the top.
+3. **Execute** `python solution.py` and verify the output file was created.
+4. **Confirm** the target cells/range contain the expected values.
+
+---
+
+## Period-End Counts
+
+When a count is described as of a period end, such as open by the end of a month, quarter, or year, evaluate the record at that end boundary: include it if its start date is on or before the period end and its close date is blank or after the period end. Do not count a record that closes during the period merely because it was open at the period start, unless a visible example or an explicit dataset definition in the workbook shows an ever-open-during-period measure. Apply the same boundary in the written formula and in its cached result.
+
+## Library Selection
+
+| Use case | Library |
+|----------|---------|
+| Preserve formulas, formatting, named ranges | `openpyxl` |
+| Bulk data transformation, aggregation, sorting | `pandas` → write back with `openpyxl` |
+| Simple cell read/write | `openpyxl` |
+
+**Warning**: `pandas.to_excel()` silently destroys existing formulas and named ranges.
+When writing back to a spreadsheet that contains formulas, always use `openpyxl.save()`.
+
+When a formula is required under no-recalculation/cached-value evaluation, writing the formula through openpyxl is not enough: after saving, ensure each formula cell has a readable cached value. If you inject cached values into worksheet XML, resolve the worksheet part from the workbook relationships and normalize its target before reading it: strip any leading slash, prepend the workbook-relative prefix only if the target does not already start with it, and verify the resolved name exists in the zip namelist; if it does not, match the worksheet part through the relationship target and namelist (for example by basename) rather than failing. Rewrite each target cell so it contains the requested formula and a numeric cached value, removing any stale value or string type flag and preserving the cell style, instead of blindly appending a second value element. After writing formulas into the designated answer range, populate and verify a cached value for every formula cell of that range in one pass, computing each result from the values readable without recalculation. Do not limit the cache step to the single cell predicted to be the 'last' or 'final' one, and do not skip it because the referenced source cell looks blank or because the cell lies outside your predicted result position. Include cells whose formula result is an empty/blank value so that they read back as the intended blank rather than remaining un-cached. After saving a workbook whose graded answer cells depend on formula results under no-recalculation/cached-value reading, reopen the saved file with `openpyxl.load_workbook(OUTPUT_PATH, data_only=True)` and inspect every cell of the designated answer range, not just a predicted first or last cell. Treat a `None` reading, and also any value that differs from the result you computed independently from the source rows, as a cache failure, and make the check an active branch that can actually flag and repair failures rather than a no-op guard. When the task requires formula text, keep every requested formula in place and repair the saved package by rewriting any failing target cell so it holds the requested formula together with a correct numeric cached value (removing stale values or string type flags and preserving the cell style), then reopen and re-verify the affected cells until each reads back the computed result; never substitute a bare value for a formula the task explicitly requires. When the task does not require a formula, writing the computed value directly is the reliable branch.
+
+---
+
+## Date-Derived Numbers
+
+When an instruction asks for a 'number' derived from a date or set of dates—such as a day-of-month, a month number, a year, or the day number of the final/last date—write that single numeric component as a plain static value (General format, not a date format) rather than writing the full Excel date serial or a date-formatted cell. Only write a full date or date-serial value when the request explicitly asks for the date itself. If the wording is ambiguous, use the stated output type (such as 'static number') together with any nearby headers or examples to decide which numeric component is wanted, and write that component directly.
+
+## Deleting vs Clearing
+
+Distinguish deletion from clearing. When the instruction says to delete rows or columns, remove them with the worksheet `delete_rows()`/`delete_cols()` methods so the remaining cells shift up/left and the grid reflows; when deleting several rows, iterate from the highest index downward so row indices stay valid. Reserve clearing cell values (setting them to `None`) for instructions that say to clear or blank contents while keeping row/column positions.
+
+## Cross-Sheet Keys
+
+Before using a compact dictionary keyed only by the columns mentioned in the prompt, verify that the key uniquely identifies source records. If the source can contain repeated keys—such as the same named combination on different dates or years—include the additional identifying columns available in both sheets, or explicitly detect and resolve duplicate keys. Do not let a later source row silently overwrite an earlier key and then apply that value to every matching destination row.
+
+## Unique Text Requests
+
+For 'unique text' or 'same text' requests across several columns, choose the non-repeated or non-placeholder value in each row rather than requiring the named columns to be literally equal. Use any populated example outputs to decide which columns participate and which value is the 'unique' one; write the selected value to the output cell, and leave the row blank when no unique value is present unless the instruction says otherwise.
+
+## solution.py Template
+
+```python
+import openpyxl
+import pandas as pd
+
+INPUT_PATH  = "..."   # set to the actual input path
+OUTPUT_PATH = "..."   # set to the actual output path
+
+wb = openpyxl.load_workbook(INPUT_PATH)
+ws = wb.active  # or wb["SheetName"]
+
+# --- perform manipulation ---
+
+wb.save(OUTPUT_PATH)
+```
+
+---
+
+## Output Requirements
+
+- Save the result to `OUTPUT_PATH`.
+- Do not hardcode row counts or column letters — iterate over actual rows in the workbook.
+- Preserve sheets and cells not mentioned in the instruction.
+- Apply the instruction's explicit final-output and ordering clauses literally and separately from any helper/grouping order. When the task designates which columns receive the result and which key(s)/column define the final sort (including direction), compute the order accordingly and write values only to those designated columns. Re-read the final ordering sentence and satisfy each clause (for example, helper-list priority for which rows come first versus a final ascending sort on a named column), rather than applying only the grouping rule and leaving the final sort unperformed.

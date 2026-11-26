@@ -1,0 +1,66 @@
+{
+  "parent": "# Spreadsheet Manipulation Skill (xlsx)\n\n## Overview\nThis skill guides agents in manipulating Excel (.xlsx) spreadsheets using Python.\n\n**Primary libraries**: `openpyxl` (structure-preserving read/write), `pandas` (data transformation).\nNever use any other third-party libraries.\n\n---\n\n## Common Workflow\n\nThe executor runs exactly one complete program per response; there is no interactive shell and no separate exploration step. Every response is exactly one `python` fenced block holding a complete program, with no prose before or after the fence, even when the immediate goal is only to inspect data.\n\n1. **Locate** everything inside the program itself: open the complete original workbook and find the needed sheets, rows and columns there.\n2. **Reference** the executor-bound `INPUT_PATH` and `OUTPUT_PATH` directly; never reassign or compute them.\n3. **Save** the result to `OUTPUT_PATH` as one openable `.xlsx`, then stop.\n\nA worksheet, row or value missing from the bounded preview is not absent; the preview shows only part of the workbook, so never treat the shown rows as the whole file.\n\n---\n\n## Inspection When the Preview Is Insufficient\n\nWhen the answer depends on workbook structure that cannot be inferred from the preview (for example the layout of a lookup grid, or which categorical variant is active), do not guess and do not print to stdout. Instead, inside a short program, deliberately raise an exception whose message carries a compact, scoped dump of only the relevant cells or sheets, then use the returned runtime error detail to write the final program that computes the answer and saves `OUTPUT_PATH`.\n\n- The raised exception's message is the only inspection channel: returned runtime feedback carries the error detail, while text merely printed to stdout is not returned.\n- Start the message with a short label, list the region you most need first, and omit regions already seen in earlier attempts.\n- Keep the whole message well under 3000 characters: only the first 3000 characters of a longer error detail are retained and the tail is lost.\n- Keep the inspection program itself short and bounded to that region: an over-long response can be truncated before any program runs and still consumes the shared request budget.\n\n## Library Selection\n\n| Use case | Library |\n|----------|---------|\n| Preserve formulas, formatting, named ranges | `openpyxl` |\n| Bulk data transformation, aggregation, sorting | `pandas` → write back with `openpyxl` |\n| Simple cell read/write | `openpyxl` |\n\n**Warning**: `pandas.to_excel()` silently destroys existing formulas and named ranges.\nWhen writing back to a spreadsheet that contains formulas, always use `openpyxl.save()`.\n\n---\n\n## Row Deletion and Clearing\n\n- When the instruction asks to delete rows — or to delete everything above or below a located marker row — physically remove those rows with `worksheet.delete_rows(first_row, count)` so the surviving rows shift up into their place. Do not merely set the affected cells' `.value` to `None`, which leaves blank-but-present rows.\n- When several rows are deleted, delete from the highest row index down to the lowest so earlier indices stay valid, and delete only the rows the instruction selects.\n- Leave the matched marker row, the rows below it, other columns, other worksheets and existing formatting in place unless the instruction says otherwise.\n- Blank cell values only when the instruction asks to clear contents, or when row positions must be preserved rather than rows removed.\n\n## Program Template\n\n`INPUT_PATH` and `OUTPUT_PATH` are bound by the executor. Reference them directly and never assign to them: a top-level self-referential binding such as `INPUT_PATH = INPUT_PATH` is rejected before execution. Any path constant written at the top must be a plain string literal.\n\n```python\nimport openpyxl\nimport pandas as pd\n\nwb = openpyxl.load_workbook(INPUT_PATH)\nws = wb.active  # or wb[\"SheetName\"]\n\n# --- perform manipulation ---\n\nwb.save(OUTPUT_PATH)\n```\n\n---\n\n## Output Requirements\n\n- Save the result to `OUTPUT_PATH`.\n- Do not hardcode row counts or column letters — iterate over actual rows in the workbook.\n- Preserve sheets and cells not mentioned in the instruction.\n",
+  "plan": {
+    "goal": "Extend the Skill so answer cells that must hold a formula still expose a correct saved value to data_only readers, so target-phrase conditional replacements use normalized (case/whitespace-insensitive, containment-aware) matching, and so cross-sheet key lookups normalize both key sides and handle unresolved keys instead of silently blanking the answer region. Preserve the existing successful behaviors: one self-contained program per response, inspection through deliberately raised exceptions, scoped edits that leave unrelated cells/sheets/formatting intact, and saving a single openable .xlsx to OUTPUT_PATH.",
+    "updates": [
+      {
+        "id": "u1",
+        "text": "- When the instruction requires a formula in an answer cell, treat the value the saved cell exposes, not the formula text alone, as what determines success, because grading reads saved values with data_only=True and no recalculation happens.\n- For every such cell, compute the intended result in Python from the original input and ensure the saved workbook exposes that result to a data_only reader, either by writing the computed literal value or by keeping the required formula and embedding its correct cached result in the saved XLSX.\n- When the intended result depends on source cells that are themselves formulas, read their cached values from a data_only=True load (cross-checking the formula view when needed) rather than treating formula text as the number, since computing only from the formula view can silently drop those inputs.\n- Inside the same program that produces OUTPUT_PATH, confirm by reopening the workbook with data_only=True that each required answer cell yields the intended value rather than None or a stale result, and correct it before treating the program as final.\n- Preserve the required formula where the task asks for a formula; do not delete it merely to store a value. If a correct cached result for a required formula cannot be embedded, ensure the data_only reader still sees the correct value (for example by storing the literal result) rather than leaving a formula whose cached value is missing or stale.\n",
+        "basis": [
+          "G3",
+          "P2:2",
+          "P2:outcome",
+          "P7:8",
+          "P11:2"
+        ]
+      },
+      {
+        "id": "u2",
+        "text": "- When a conditional replacement is driven by a target phrase in a column, compare the cell's normalized text (trimmed, case-folded, internal whitespace collapsed) against the normalized target as a substring, so the phrase still matches when it appears together with surrounding or extra text in the same cell.\n- Use strict whole-cell equality only when the instruction states that a cell must equal the target exactly or that only exact matches count.\n- Keep the match specific enough that cells lacking the full target phrase are left unchanged; do not broaden matching to short fragments that would create false positives in other rows.\n- Apply the replacement only to the matched cells and leave all other cells, columns, sheets and formatting untouched.\n",
+        "basis": [
+          "G1",
+          "P1:1",
+          "P1:outcome",
+          "P4:1",
+          "P4:outcome"
+        ]
+      },
+      {
+        "id": "u3",
+        "text": "- When resolving a value by matching a key column across sheets or ranges, normalize both sides before comparing (trim leading and trailing whitespace, unify case, treat internal whitespace consistently, and ignore punctuation differences such as apostrophes, periods and hyphens when inspection shows keys differ only by those marks) so keys differing only in spacing, case or such punctuation still match, while keeping the match specific enough to avoid merging genuinely different keys.\n- Because ordinary lookup semantics return the first matching row, when a key repeats resolve duplicates deterministically by first occurrence and apply that same choice to every answer cell.\n- After building the lookup, count how many answer rows resolve to no match; do not finalize with a substantial number of silently blanked answer cells. Reconsider the intended join key (for example another identifying column in the same reference sheet) or the normalization first, and when a key still has no match, write the task-appropriate value for a missing record rather than defaulting to blank (when the answer column is numeric, absent matches were expected as 0 in an observed lookup) unless the instruction or column semantics indicate that a blank is correct.\n- Do not conclude a key is absent from the bounded preview; determine existence from the complete workbook opened in the program.\n",
+        "basis": [
+          "G2",
+          "P5:1",
+          "P5:2",
+          "P5:outcome",
+          "P12:1",
+          "P12:2",
+          "P12:outcome"
+        ]
+      }
+    ],
+    "checks": [
+      {
+        "id": "c1",
+        "update_ids": [
+          "u1"
+        ],
+        "question": "For each required formula answer cell, does the saved workbook reopened with data_only=True expose the intended value (not None or a stale result), with formula-based source inputs read through their cached values, and is the required formula retained where the value was exposed via a formula?"
+      },
+      {
+        "id": "c2",
+        "update_ids": [
+          "u2"
+        ],
+        "question": "Does the program match the target phrase case-insensitively and as a substring of cells that also contain extra text, while leaving cells without the phrase unchanged?"
+      },
+      {
+        "id": "c3",
+        "update_ids": [
+          "u3"
+        ],
+        "question": "Are join keys normalized on both sides (case, whitespace, and punctuation such as apostrophes/periods) before matching, duplicates resolved deterministically by first occurrence, and unresolved answer cells resolved through an alternative key or a task-appropriate non-blank missing-record fill rather than left silently blank?"
+      }
+    ]
+  }
+}

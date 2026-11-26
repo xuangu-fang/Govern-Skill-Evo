@@ -1,0 +1,149 @@
+{
+  "notice": "Synthetic review input and illustrative expected output, not a model response or experiment result. This is a reduced two-task fixture, not a formal 15-task batch.",
+  "input": {
+    "context": {
+      "parent": "# Spreadsheet manipulation\n\n## Data rows\nProcess rows from row 2 through the row before max_row.\n\n## Preservation\nPreserve unrelated cells.\n",
+      "diff": "--- a/SKILL.md\n+++ b/SKILL.md\n@@ -1,7 +1,7 @@\n # Spreadsheet manipulation\n \n ## Data rows\n-Process rows from row 2 through the row before max_row.\n+Identify the header row from the task-required column labels in the input; process numeric data rows after that header through the last populated row, including it, while leaving explanatory and footer rows unchanged.\n \n ## Preservation\n Preserve unrelated cells.\n",
+      "execution_context": "## SpreadsheetBench Execution Context\n\nThis section describes the Actor's execution conditions. It is evidence for\nyour assigned optimization role, not an instruction to solve the current task\nor to request additional execution. Your module's own input contract still\ndetermines which records you may use.\n\nActor-visible information\nThe Actor receives a fixed system instruction, the complete current Skill,\nthe task instruction, task type, answer region and its worksheet information,\nand a bounded preview of the original input workbook. The Skill is fixed for\nthe entire task. The Actor does not receive Memory, another execution's code\nor results, a reference workbook, expected values, or evaluator feedback.\n\nThe preview includes worksheet names and dimensions, then up to the first\n5 rows and 20 columns per worksheet with cell\ncoordinates. Cell text is limited to 40 characters. After\nall worksheet previews are generated, a preview longer than\n100000 characters causes an explicit input-protocol error\nbefore any Actor request; it is not truncated to fit this limit. Formula text\nis shown, and row, column, and cell-text omissions are marked. Unshown cells\nare not absent cells. Access to the full\ninput file does not establish that the model saw its contents before acting.\n\nCapabilities and attempts\nThe Actor has no interactive shell, file browser, Python session, or workbook\ninspection tool. It returns one complete Python script in a python fenced\nblock. An external executor runs the script with INPUT_PATH and OUTPUT_PATH\nbound to the current attempt's paths. The supported libraries are\nPython standard library, openpyxl, pandas. The program can read the complete original input and\nwrite within its current attempt's output and temporary space. It cannot\naccess reference answers, previous attempts' files, other tasks, the network,\nor external command execution. A fresh attempt starts from the original input.\nThe executor does not repair the task algorithm.\n\nHistory and runtime feedback\nWithin a task, the model retains the original messages and every complete\nassistant response and returned runtime-feedback message. It has no\ncross-task conversation. There are at most 30 code attempts;\na complete malformed or truncated generation also consumes an attempt.\nTransport retries are counted separately, with at most\n6 total request attempts per generation, including\nthe first. Retries of an incomplete request keep the same messages. Remaining\ncode attempts are reported after each completed response when continuing.\n\nOnly response-format errors, program execution errors, and missing or\nunreadable output-file errors can be returned to the Actor. Error details\nretain only the first 3000 characters when longer\nthan that limit, with marked truncation. They contain actual runtime\ninformation, not evaluator findings\nor extra solution advice. Successful stdout does not open an exploration\nround. An exception deliberately used to inspect data is still a budgeted\nattempt. Stored logs are not necessarily feedback the Actor received.\n\nBudgets and stopping\nEach generation has an output limit of 16384 tokens.\nThe request timeout is 300 seconds, the program\ntimeout is 600 seconds, and the Actor task budget is\n600 seconds. The task clock starts when an execution\nslot is acquired and input preparation begins; it includes preparation,\nrequests, retry waiting, execution, and output checks. Queue waiting and\npost-submission scoring are outside this Actor budget. In-flight operations\nare bounded by remaining task time. These are upper limits, not guarantees\nof that much time for every attempt.\n\nThe first normally terminated program that produces an openable .xlsx at\nOUTPUT_PATH ends the Actor execution. Opening a workbook is not a correctness\ncheck. A missing target sheet or an incorrect answer discovered by grading\ncannot reopen the Actor. Exhausting code attempts or the Actor time budget\nwithout a valid submission is a task failure. API or execution-infrastructure\ninterruptions and scoring failures are recorded separately, not silently\nconverted into model failures or omitted from the batch. Complete history is\nnot silently shortened to fit a request.\n\nFormula and scoring conditions\nThe formula policy is No additional formula recalculation; grading reads saved cell values with data_only=True.. In the initial profile,\nthere is no automatic formula recalculation; grading reads saved cell values\nwith data_only=True. Writing a valid formula does not establish that a cached\nresult exists. The Actor is told this execution condition.\n\nScoring occurs only after submission. The main score, hard, is one only when\nall designated answer cells pass the shared comparison rules. The auxiliary\nper_cell_pass_rate is correct cells divided by graded cells for each task;\naggregate reports average these task-level rates. Neither score is runtime\nfeedback. Comparison is limited to the evaluator's supported value semantics;\nit does not establish that all formatting, formulas, or non-target cells are\ncorrect.\n\nFor optimization tasks, permitted post-execution evidence includes scores,\nexact cell counts, bounded mismatched coordinates, and missing-sheet names,\nsubject to your module's input contract. It excludes expected answer values.\nThe coordinate and missing-sheet lists are limited to 100\nand 100 entries respectively; marked truncation does\nnot change the exact counts. Never describe this later evidence as information\nthe Actor received. Do not propose a Skill step that waits for grader feedback.\nGeneralize executable rules from evidence; do not copy task answers into Skill\nor Knowledge. Test results are for final reporting, not optimization.\n\nPairing and evidence interpretation\nThe same Parent execution is reused for diagnosis, Gate, and Replay. Candidate\nexecutes independently from the original input under the same feedback and\nbudget conditions. It receives no Parent transcript or result. Gate accepts\nonly a strict increase in successful tasks over the complete paired batch;\nthe auxiliary metric does not break ties. A no_change branch does not create\nCandidate executions. A score change alone is not proof that one Skill edit\ncaused it. Code text is not a record of which runtime branches executed.\n\nActual Actor message templates\n<actor_system_prompt>\nYou are a Python programmer performing the spreadsheet task supplied by the user.\nReturn one complete, self-contained Python script inside a single ```python```\nfenced block, with no surrounding explanation. Read the original .xlsx workbook\nthrough INPUT_PATH and save the result to OUTPUT_PATH. These variables are bound\nby the executor; do not hardcode paths, rebind them, or request interactive input.\nUse only the Python standard library, openpyxl and pandas.\n\nYou have no interactive shell, file browser, Python session, workbook inspection\ntool or grader tool. The external executor runs your script. The program can read\nthe complete original input and write in its current output/temporary directory;\nit cannot access reference answers, other tasks, prior attempts' files, the network\nor external command execution. Do not print output for an extra exploration turn.\n\nThe preview is limited to the first 5 rows and\n20 columns of each worksheet. Each displayed cell is limited to\n40 characters. Unshown data may still exist in the file.\nYou retain the complete messages within this task, but each execution starts in\na fresh directory with the original input. Return a complete replacement script\nafter an error; no variables or files from previous attempts persist.\n\nThere are at most 30 code attempts, including malformed or\ntruncated responses. Each response allows at most 16384\ntokens. The task has a total Actor time budget of 600\nseconds, including preparation, requests, retry waiting, execution and output\nchecks. A program runs for at most 600 seconds and no\nlonger than the remaining task time. Exhausting either budget ends the attempt\nto solve this task; unused code rounds do not guarantee additional time.\n\nOnly response-format, program-execution, and missing or unreadable output-file\nerrors can be returned for correction, subject to the remaining budget. The first\nnormally terminated program producing an openable .xlsx at OUTPUT_PATH is the\nfinal submission. You cannot continue after that submission. Correctness is scored\nafterward; no scores, wrong-cell coordinates, expected values, or grading-based\ncorrection requests will be returned to you.\n\nNo additional formula recalculation is performed. Grading reads the output\nworkbook's saved cell values with data_only=True. For formula cells, this reads\nsaved cached results; writing a formula does not compute its cached result.\n\nThe Skill below supplies task-solving guidance within these execution conditions.\nIts references to exploring, executing, and checking refer to the generated program\nand external executor, not extra tools or access to reference answers. The fixed\nexecution conditions above remain in force throughout the task.\n\n## Skill\n\n[runtime field: skill]\n\n</actor_system_prompt>\n<actor_initial_template>\n# Task instruction\n[runtime field: instruction]\n\n# Task type\n[runtime field: instruction_type]\n\n# Answer region\n[runtime field: answer_region]\n\n# Input workbook preview\n[runtime field: workbook_preview]\n\n# Code budget\nmax_code_attempts=30\ncode_attempts_used=0\ncode_attempts_remaining=30\n\nReturn the complete Python script in one python fenced block. The executor supplies\nINPUT_PATH and OUTPUT_PATH. Use the original input and save the result to OUTPUT_PATH.\n\n</actor_initial_template>\n<actor_runtime_feedback_template>\n# Runtime feedback\ncategory: [runtime field: error_category]\nexit_status: [runtime field: exit_status]\n\n[runtime field: error_detail_prefix]\n\ndetail_truncated: [runtime field: detail_truncated]\ncode_attempts_used: [runtime field: code_attempts_used]\ncode_attempts_remaining: [runtime field: code_attempts_remaining]\n\nCorrect the reported format, execution or output-file error and return one complete\nPython script in a single python fenced block. The next execution starts from the\noriginal input in a fresh directory, without any previous attempt's files or state.\nThis message contains runtime information, not a correctness evaluation.\n\n</actor_runtime_feedback_template>\n\nThese templates describe what can be sent. The saved messages for a specific\nexecution determine what was actually sent. A post-execution record does not\nbecome Actor-visible merely because an optimization module can read it.\n",
+      "pairs": [
+        {
+          "parent": "P1",
+          "candidate": "Q1",
+          "task_id": "SYN_HEADER_001",
+          "parent_result": {
+            "status": "completed",
+            "code_attempts": 1,
+            "program_executions": 1,
+            "api_requests": 1,
+            "hard": 0,
+            "per_cell_pass_rate": 0.5
+          },
+          "candidate_result": {
+            "status": "completed",
+            "code_attempts": 1,
+            "program_executions": 1,
+            "api_requests": 1,
+            "hard": 1,
+            "per_cell_pass_rate": 1.0
+          }
+        },
+        {
+          "parent": "P2",
+          "candidate": "Q2",
+          "task_id": "SYN_HEADER_002",
+          "parent_result": {
+            "status": "completed",
+            "code_attempts": 1,
+            "program_executions": 1,
+            "api_requests": 1,
+            "hard": 1,
+            "per_cell_pass_rate": 1.0
+          },
+          "candidate_result": {
+            "status": "completed",
+            "code_attempts": 1,
+            "program_executions": 1,
+            "api_requests": 1,
+            "hard": 1,
+            "per_cell_pass_rate": 1.0
+          }
+        }
+      ]
+    },
+    "targets": [
+      {
+        "target": {
+          "entry_index": 0,
+          "knowledge_index": 0
+        },
+        "knowledge": {
+          "text": "The Parent Actor received grader feedback identifying Sheet1!C4 before generating its submitted program.",
+          "evidence": [
+            "diff",
+            "P1:1",
+            "P1:outcome"
+          ]
+        },
+        "issues": [
+          {
+            "statement": "The Parent Actor received grader feedback identifying Sheet1!C4 before generating its submitted program.",
+            "reason": "P1:1 shows the complete request without grader feedback and no subsequent feedback_to_actor. P1:outcome is post-submission. Attributing the later coordinate to the earlier generation misstates the available information.",
+            "evidence": [
+              "P1:1",
+              "P1:outcome"
+            ]
+          }
+        ]
+      }
+    ],
+    "source_records": {
+      "diff": {
+        "parent": "# Spreadsheet manipulation\n\n## Data rows\nProcess rows from row 2 through the row before max_row.\n\n## Preservation\nPreserve unrelated cells.\n",
+        "diff": "--- a/SKILL.md\n+++ b/SKILL.md\n@@ -1,7 +1,7 @@\n # Spreadsheet manipulation\n \n ## Data rows\n-Process rows from row 2 through the row before max_row.\n+Identify the header row from the task-required column labels in the input; process numeric data rows after that header through the last populated row, including it, while leaving explanatory and footer rows unchanged.\n \n ## Preservation\n Preserve unrelated cells.\n"
+      },
+      "P1:1": {
+        "ref": "P1:1",
+        "request_messages": [
+          {
+            "role": "system",
+            "content": "You are a Python programmer performing the spreadsheet task supplied by the user.\nReturn one complete, self-contained Python script inside a single ```python```\nfenced block, with no surrounding explanation. Read the original .xlsx workbook\nthrough INPUT_PATH and save the result to OUTPUT_PATH. These variables are bound\nby the executor; do not hardcode paths, rebind them, or request interactive input.\nUse only the Python standard library, openpyxl and pandas.\n\nYou have no interactive shell, file browser, Python session, workbook inspection\ntool or grader tool. The external executor runs your script. The program can read\nthe complete original input and write in its current output/temporary directory;\nit cannot access reference answers, other tasks, prior attempts' files, the network\nor external command execution. Do not print output for an extra exploration turn.\n\nThe preview is limited to the first 5 rows and\n20 columns of each worksheet. Each displayed cell is limited to\n40 characters. Unshown data may still exist in the file.\nYou retain the complete messages within this task, but each execution starts in\na fresh directory with the original input. Return a complete replacement script\nafter an error; no variables or files from previous attempts persist.\n\nThere are at most 30 code attempts, including malformed or\ntruncated responses. Each response allows at most 16384\ntokens. The task has a total Actor time budget of 600\nseconds, including preparation, requests, retry waiting, execution and output\nchecks. A program runs for at most 600 seconds and no\nlonger than the remaining task time. Exhausting either budget ends the attempt\nto solve this task; unused code rounds do not guarantee additional time.\n\nOnly response-format, program-execution, and missing or unreadable output-file\nerrors can be returned for correction, subject to the remaining budget. The first\nnormally terminated program producing an openable .xlsx at OUTPUT_PATH is the\nfinal submission. You cannot continue after that submission. Correctness is scored\nafterward; no scores, wrong-cell coordinates, expected values, or grading-based\ncorrection requests will be returned to you.\n\nNo additional formula recalculation is performed. Grading reads the output\nworkbook's saved cell values with data_only=True. For formula cells, this reads\nsaved cached results; writing a formula does not compute its cached result.\n\nThe Skill below supplies task-solving guidance within these execution conditions.\nIts references to exploring, executing, and checking refer to the generated program\nand external executor, not extra tools or access to reference answers. The fixed\nexecution conditions above remain in force throughout the task.\n\n## Skill\n\n# Spreadsheet manipulation\n\n## Data rows\nProcess rows from row 2 through the row before max_row.\n\n## Preservation\nPreserve unrelated cells.\n\n"
+          },
+          {
+            "role": "user",
+            "content": "# Task instruction\nIn Sheet1, multiply Qty by Price for each data row and write Total in C3:C4. Preserve other cells.\n\n# Task type\nCell-Level Manipulation\n\n# Answer region\nSheet1!C3:C4\n\n# Input workbook preview\n## Sheet: Sheet1 (dim=A1:C4, max_row=4, max_col=3)\nA1=Monthly sales | B1= | C1=\nA2=Qty | B2=Price | C2=Total\nA3=2 | B3=3 | C3=\nA4=4 | B4=5 | C4=\n\n\n# Code budget\nmax_code_attempts=30\ncode_attempts_used=0\ncode_attempts_remaining=30\n\nReturn the complete Python script in one python fenced block. The executor supplies\nINPUT_PATH and OUTPUT_PATH. Use the original input and save the result to OUTPUT_PATH.\n"
+          }
+        ],
+        "response": "```python\nimport openpyxl\nwb = openpyxl.load_workbook(INPUT_PATH)\nws = wb[\"Sheet1\"]\nfor r in range(2, ws.max_row):\n    a, b = ws.cell(r, 1).value, ws.cell(r, 2).value\n    if isinstance(a, (int, float)) and isinstance(b, (int, float)):\n        ws.cell(r, 3).value = a * b\nwb.save(OUTPUT_PATH)\n```",
+        "executed_code": "import openpyxl\nwb = openpyxl.load_workbook(INPUT_PATH)\nws = wb[\"Sheet1\"]\nfor r in range(2, ws.max_row):\n    a, b = ws.cell(r, 1).value, ws.cell(r, 2).value\n    if isinstance(a, (int, float)) and isinstance(b, (int, float)):\n        ws.cell(r, 3).value = a * b\nwb.save(OUTPUT_PATH)\n",
+        "executed": true,
+        "execution": {
+          "status": "success",
+          "exit_status": 0,
+          "stdout": "",
+          "stderr": "",
+          "output_openable": true
+        },
+        "feedback_to_actor": null
+      },
+      "P1:outcome": {
+        "ref": "P1:outcome",
+        "status": "completed",
+        "termination": "valid_workbook_submitted",
+        "submitted_attempt": "P1:1",
+        "score": {
+          "hard": 0,
+          "per_cell_pass_rate": 0.5,
+          "correct_cells": 1,
+          "total_cells": 2,
+          "mismatched_cells": [
+            "Sheet1!C4"
+          ],
+          "mismatched_cells_total": 1,
+          "missing_sheets": [],
+          "missing_sheets_total": 0
+        },
+        "code_attempts": 1,
+        "program_executions": 1,
+        "api_requests": 1
+      }
+    }
+  },
+  "illustrative_output": {
+    "changes": [
+      {
+        "target": {
+          "entry_index": 0,
+          "knowledge_index": 0
+        },
+        "knowledge": {
+          "text": "The Parent program submitted a valid workbook without receiving grader feedback. Its subsequent score identified Sheet1!C4 as incorrect; this coordinate was available for optimization analysis only, not for that Actor generation.",
+          "evidence": [
+            "diff",
+            "P1:1",
+            "P1:outcome"
+          ]
+        }
+      }
+    ]
+  }
+}

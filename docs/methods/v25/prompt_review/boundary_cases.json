@@ -1,0 +1,388 @@
+{
+  "notice": "Synthetic inputs and expected behavior for review; not measured model or runtime outcomes.",
+  "cases": [
+    {
+      "id": "C01",
+      "scenario": "Runtime error then valid workbook",
+      "given": {
+        "error": "KeyError",
+        "attempts_used": 1,
+        "remaining": 29
+      },
+      "expected": [
+        "return only runtime feedback",
+        "retain complete task history",
+        "retry from original input",
+        "stop on first valid output, then score"
+      ]
+    },
+    {
+      "id": "C02",
+      "scenario": "Valid workbook with wrong answer",
+      "given": {
+        "valid_output": true,
+        "hard": 0,
+        "remaining_attempts": 29
+      },
+      "expected": [
+        "Actor stopped before score",
+        "no additional Actor request",
+        "post-score available only to authorized optimizer modules"
+      ]
+    },
+    {
+      "id": "C03",
+      "scenario": "Formula without cached result",
+      "given": {
+        "formula": "=A1+B1",
+        "saved_cached_value": null,
+        "reference_value_is_nonempty": true
+      },
+      "expected": [
+        "no automatic recalculation",
+        "valid workbook ends Actor",
+        "saved empty value compared under scorer rules",
+        "no formula-cache correction sent to Actor"
+      ]
+    },
+    {
+      "id": "C04",
+      "scenario": "Formal-size tie with per-cell improvement",
+      "given": {
+        "paired_task_ids": [
+          "SYN_TIE_01",
+          "SYN_TIE_02",
+          "SYN_TIE_03",
+          "SYN_TIE_04",
+          "SYN_TIE_05",
+          "SYN_TIE_06",
+          "SYN_TIE_07",
+          "SYN_TIE_08",
+          "SYN_TIE_09",
+          "SYN_TIE_10",
+          "SYN_TIE_11",
+          "SYN_TIE_12",
+          "SYN_TIE_13",
+          "SYN_TIE_14",
+          "SYN_TIE_15"
+        ],
+        "parent_hard": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "candidate_hard": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "parent_per_cell": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          0.2,
+          0.2,
+          0.2,
+          0.2,
+          0.2
+        ],
+        "candidate_per_cell": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          0.8,
+          0.8,
+          0.8,
+          0.8,
+          0.8
+        ]
+      },
+      "expected": [
+        "15 complete pairs",
+        "RETAIN",
+        "Replay may learn from changed behavior",
+        "no Parent rerun"
+      ]
+    },
+    {
+      "id": "C05",
+      "scenario": "False attribution of score feedback",
+      "given": {
+        "example": "verifier_example.json"
+      },
+      "expected": [
+        "CONFLICT supported by actual request and explicit protocol",
+        "repair only authorized target",
+        "no second semantic verification"
+      ]
+    },
+    {
+      "id": "C06",
+      "scenario": "Qualified claim with missing branch trace",
+      "given": {
+        "text": "The code includes a conditional data-row check; the supplied record does not establish which branches ran.",
+        "branch_trace": null
+      },
+      "expected": [
+        "missing trace alone does not cause CONFLICT",
+        "SUPPORTED means no obvious important error, not universal proof"
+      ]
+    },
+    {
+      "id": "C07",
+      "scenario": "No justified Skill change",
+      "given": {
+        "diagnosis_output": {
+          "decision": "no_change",
+          "reason": "Current evidence warrants no new requirement.",
+          "plan": null
+        }
+      },
+      "expected": [
+        "no Candidate",
+        "no paired Gate",
+        "no Replay",
+        "preserve Parent and Memory"
+      ]
+    },
+    {
+      "id": "C08",
+      "scenario": "Preconditioner all KEEP",
+      "given": {
+        "example": "preconditioner_example.json"
+      },
+      "expected": [
+        "effective Plan remains",
+        "Editor still runs"
+      ]
+    },
+    {
+      "id": "C09",
+      "scenario": "All Updates withdrawn",
+      "given": {
+        "adjustments": [
+          {
+            "target": "u1",
+            "focus": [
+              "D"
+            ],
+            "change": "Withdraw the redundant update.",
+            "reason": "The supplied Parent and protocol already cover it.",
+            "to": []
+          }
+        ],
+        "checks": []
+      },
+      "expected": [
+        "no effective Plan",
+        "no Candidate",
+        "checks cannot reference withdrawn Update"
+      ]
+    },
+    {
+      "id": "C10",
+      "scenario": "Editor empty versus null patch",
+      "given": {
+        "empty": {
+          "patch": "",
+          "reason": "All effective Updates already satisfied."
+        },
+        "null": {
+          "patch": null,
+          "reason": "An essential Update requires an unavailable tool."
+        }
+      },
+      "expected": [
+        "empty: no_change",
+        "null: needs_revision and stop",
+        "neither retries until a preferred semantic decision"
+      ]
+    },
+    {
+      "id": "C11",
+      "scenario": "Pair identity mismatch",
+      "given": {
+        "parent_task": "SYN_A",
+        "candidate_task": "SYN_B",
+        "parent_ref": "P1",
+        "candidate_ref": "Q1"
+      },
+      "expected": [
+        "reject pair before Replay or Gate",
+        "numbering cannot establish counterpart"
+      ]
+    },
+    {
+      "id": "C12",
+      "scenario": "History with provenance only",
+      "given": {
+        "memory_evidence": [
+          "R01/diff",
+          "R01/P1:1",
+          "R01/Q1:1"
+        ]
+      },
+      "expected": [
+        "Preconditioner and Replay cannot read archived raw history",
+        "no implied R01/P1:2 citation",
+        "retain unchanged useful Knowledge when replacing entire entry"
+      ]
+    },
+    {
+      "id": "C13",
+      "scenario": "Preview length boundary",
+      "given": {
+        "lengths": [
+          100000,
+          100001
+        ]
+      },
+      "expected": [
+        "100000 passes length check",
+        "100001 input protocol error before Actor",
+        "no total-preview truncation"
+      ]
+    },
+    {
+      "id": "C14",
+      "scenario": "Error prefix and code budget",
+      "given": {
+        "error_length": 3500,
+        "attempts_used": 1,
+        "attempt_limit": 30
+      },
+      "expected": [
+        "only first 3000 detail characters",
+        "truncation marked",
+        "remaining 29",
+        "detail excludes post-score"
+      ]
+    },
+    {
+      "id": "C15",
+      "scenario": "Request retry and deadline",
+      "given": {
+        "total_request_attempts": 6,
+        "request_timeout": 300,
+        "program_timeout": 600,
+        "task_timeout": 600,
+        "remaining_seconds": 7
+      },
+      "expected": [
+        "API retry uses same messages and does not add code round",
+        "next request or program bounded by remaining 7 seconds",
+        "resume does not reset budget",
+        "service interruption distinct from ordinary program failure"
+      ]
+    },
+    {
+      "id": "C16",
+      "scenario": "Saved submission with scorer failure",
+      "given": {
+        "valid_submission": true,
+        "scorer_status": "error"
+      },
+      "expected": [
+        "retain submission",
+        "resume scoring only",
+        "no unknown score as zero",
+        "incomplete batch cannot Gate"
+      ]
+    },
+    {
+      "id": "C17",
+      "scenario": "Missing graded sheet in openable workbook",
+      "given": {
+        "openable": true,
+        "missing_target_sheet": true
+      },
+      "expected": [
+        "stop Actor at submission",
+        "scorer counts relevant cells wrong",
+        "no grader-derived missing-sheet feedback"
+      ]
+    },
+    {
+      "id": "C18",
+      "scenario": "Formatting failure",
+      "given": {
+        "executed": false,
+        "response": "No Python block",
+        "attempts_used": 1
+      },
+      "expected": [
+        "consumes code round",
+        "no program execution counted",
+        "format-only feedback if budget remains"
+      ]
+    },
+    {
+      "id": "C19",
+      "scenario": "Empty Replay and bounded repair",
+      "given": {
+        "replay_empty": {
+          "entries": []
+        },
+        "repair_deletes_last_item": true
+      },
+      "expected": [
+        "empty Replay is valid",
+        "deletion violating retained-entry schema fails validation",
+        "no filler knowledge",
+        "untargeted items unchanged"
+      ]
+    },
+    {
+      "id": "C20",
+      "scenario": "Train/Test and cross-side visibility",
+      "given": {
+        "optimization_size": 120,
+        "test_size": 280
+      },
+      "expected": [
+        "optimization Parent/Candidate no grade feedback",
+        "Candidate has no Parent transcript or files",
+        "Test scoring is report-only",
+        "Memory not directly injected into Actor"
+      ]
+    }
+  ]
+}

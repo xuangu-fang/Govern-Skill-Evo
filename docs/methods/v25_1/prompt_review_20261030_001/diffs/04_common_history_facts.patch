@@ -1,0 +1,125 @@
+--- before_history/preconditioner.md
++++ common/preconditioner.md
+@@ -34,10 +34,12 @@
+ not followed? Failure alone does not establish a Skill defect. An unexecuted Original
+ is a proposal, not an observed intervention.
+ 
+-Use recorded events in temporal order. Actor messages show decision-time visibility;
+-program errors and post-submission scores have different timing and permissions.
+-The Actor retains its full current-task messages, not other tasks or previous
+-attempts' files. Programs can read the original workbook, but the model does not
++Use recorded events in temporal order. Interpret message visibility and retention
++under the supplied execution context: request_messages in an execution-only view
++reconstruct formal history, not necessarily every message in the actual API request.
++Do not infer that omitted temporary corrections were never visible or remain in
++later requests. Program errors and post-submission scores have different timing
++and permissions. The Actor has no cross-task history or prior attempts' files. Programs can read the original workbook, but the model does not
+ therefore know unpreviewed values. No standard-answer feedback is available to
+ Parent, Candidate or Test Actors.
+ 
+--- before_history/diagnosis.md
++++ common/diagnosis.md
+@@ -24,10 +24,13 @@
+ 
+ Grouping organizes comparisons but is not authoritative factual evidence. When a Grouping description conflicts with the recorded execution, follow the actual events and their order.
+ 
+-Each run supplies an initial Actor input, ordered code attempts and a separate
+-post-execution outcome. Each attempt identifies its actual request, response,
+-executed code, execution status and feedback actually returned to the Actor.
+-Use request messages to establish decision-time visibility. Runtime errors are
++Each run supplies an initial Actor input, ordered attempts and a separate
++post-execution outcome under the supplied execution evidence view. Each included
++attempt identifies request_messages, response, executed code, execution status and
++feedback returned to the Actor. In an execution-only view, request_messages
++reconstruct formal history and may omit temporary format-correction context;
++they are not necessarily the complete actual API request. Use supplied messages
++within those visibility limits, without inferring that omitted context never existed. Runtime errors are
+ later observations; scores and mismatched coordinates are post-submission evidence,
+ not task-time correction. A readable full workbook is not a full model observation.
+ 
+@@ -76,7 +79,7 @@
+ If revision is warranted, make clear what supported clarification or behavioral
+ change is needed beyond the existing guidance.
+ 
+-The Actor retains complete message history within this task, but has no cross-task Memory or persistent files from prior attempts. Its generated program can read the full original input. Do not assume an interactive exploration tool or access to reference answers.
++The supplied execution context defines which messages persist within a task; not every API interaction enters later history. The Actor has no cross-task Memory or persistent files from prior attempts. Its generated program can read the full original input. Do not assume an interactive exploration tool or access to reference answers.
+ 
+ Use Grouping to organize comparisons, preserving differences in matching semantics,
+ identifier meaning, ordering, output placement, and deliverable requirements.
+--- before_history/grouping.md
++++ common/grouping.md
+@@ -17,20 +17,23 @@
+   ordered code attempts, runtime feedback, submission, post-execution scores and termination.
+ 
+ Each run has `ref`, `task_id`, `run_id`, `initial`, `attempts`, and `outcome`.
+-An attempt contains `ref`, the actual `request_messages` and `response`,
++An included attempt contains `ref`, `request_messages` and `response`,
+ `executed_code` (null if not executed), `executed`, `execution`, and
+ `feedback_to_actor` (null if none). An initial reference such as `P1:0`
+ identifies the initial model-visible task and preview, not the entire workbook.
+ `P1:1` identifies a code attempt, not a Python line or an environment action.
+ `P1:outcome` identifies the final submission, termination, counters and score view.
+ 
+-Use actual request messages to determine what the model knew before generation.
++Interpret message visibility using the supplied execution context. In an
++execution-only view, request_messages reconstruct formal history and may omit
++temporary format corrections from the actual API request. Missing context is
++not proof that it was never visible or that it persists into later requests.
+ A program can read the full input, but code text alone does not prove a branch ran.
+ Runtime results and feedback come after generation. Post-execution scores never
+ become Actor feedback. Missing records are unknown, not empty worksheets or values.
+ 
+-Each retry starts from the original input; the model retains its own full task
+-history but no prior attempt's files. Distinguish code attempts, executed programs,
++Each program execution starts from the original input without prior attempts'
++files; message retention follows the supplied execution context. Distinguish code attempts, executed programs,
+ and API request attempts. Repeated code remains behavioral evidence, and a format
+ failure with `executed=false` is not an executed program. Shared content does not
+ merge run identities. Use only supplied references and recorded events.
+--- before_history/replay.md
++++ common/replay.md
+@@ -25,9 +25,12 @@
+ 
+ Use only verified `pairs` for counterparts; never infer a pairing from order, numbering, or similar descriptions. Preserve task, worksheet and cell identities and full historical source prefixes. Parent and Candidate have independent timelines: matching attempt numbers do not imply matching model inputs or opportunities.
+ 
+-The appended Actor context defines what the Actor could know when generating code.
+-Replay can inspect complete current attempts and post-execution scoring, but Actor
+-history contains only that task's actual requests, responses and runtime feedback.
++The appended Actor context defines message retention and evidence-view limits.
++Replay can inspect supplied current attempts and post-execution scoring. In an
++execution-only view, request_messages reconstruct formal history; temporary format
++corrections and generation failures may be omitted even when they affected the
++actual request. Do not infer that absent context was never visible or that all
++API interactions persist into later Actor requests.
+ Historical raw previews, programs, Diffs and pairings are not supplied here. Missing
+ historical detail is unknown, not evidence that a condition was absent.
+ 
+--- before_history/execution_context.md
++++ common/execution_context.md
+@@ -37,6 +37,15 @@
+ {{context_history_description}}
+ {{context_attempt_budget_description}}
+ 
++For the execution_only_v1 profile used here, formal history consists of initial
++messages, executed program responses and returned execution feedback. Temporary
++format-correction context contains the latest invalid response and validation
++error; it is replaced on another format error and cleared after execution.
++The execution evidence view reconstructs formal history in request_messages and
++omits generation failures and temporary corrections. Only raw archived API messages
++establish the full request when those records are supplied. Do not assume access
++to raw archives outside the module input, or treat omitted context as never seen.
++
+ Only response-format errors, program execution errors, and missing or
+ unreadable output-file errors can be returned to the Actor. Error details
+ retain only the first {{runtime_error_detail_chars}} characters when longer
+@@ -56,8 +65,8 @@
+ cannot reopen the Actor. Exhausting {{actor_exhaustion_conditions}}
+ without a valid submission is a task failure. API or execution-infrastructure
+ interruptions and scoring failures are recorded separately, not silently
+-converted into model failures or omitted from the batch. Complete history is
+-not silently shortened to fit a request.
++converted into model failures or omitted from the batch. History retained by the configured protocol is not silently shortened to fit a
++request; protocol-defined removal of temporary format corrections is separate.
+ 
+ Formula and scoring conditions
+ The formula policy is {{formula_policy_description}}. In the initial profile,

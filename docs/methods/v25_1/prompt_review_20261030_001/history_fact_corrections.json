@@ -1,0 +1,48 @@
+{
+  "preconditioner.md": [
+    {
+      "old": "Use recorded events in temporal order. Actor messages show decision-time visibility;\nprogram errors and post-submission scores have different timing and permissions.\nThe Actor retains its full current-task messages, not other tasks or previous\nattempts' files.",
+      "new": "Use recorded events in temporal order. Interpret message visibility and retention\nunder the supplied execution context: request_messages in an execution-only view\nreconstruct formal history, not necessarily every message in the actual API request.\nDo not infer that omitted temporary corrections were never visible or remain in\nlater requests. Program errors and post-submission scores have different timing\nand permissions. The Actor has no cross-task history or prior attempts' files."
+    }
+  ],
+  "diagnosis.md": [
+    {
+      "old": "Each run supplies an initial Actor input, ordered code attempts and a separate\npost-execution outcome. Each attempt identifies its actual request, response,\nexecuted code, execution status and feedback actually returned to the Actor.\nUse request messages to establish decision-time visibility.",
+      "new": "Each run supplies an initial Actor input, ordered attempts and a separate\npost-execution outcome under the supplied execution evidence view. Each included\nattempt identifies request_messages, response, executed code, execution status and\nfeedback returned to the Actor. In an execution-only view, request_messages\nreconstruct formal history and may omit temporary format-correction context;\nthey are not necessarily the complete actual API request. Use supplied messages\nwithin those visibility limits, without inferring that omitted context never existed."
+    },
+    {
+      "old": "The Actor retains complete message history within this task, but has no cross-task Memory or persistent files from prior attempts.",
+      "new": "The supplied execution context defines which messages persist within a task; not every API interaction enters later history. The Actor has no cross-task Memory or persistent files from prior attempts."
+    }
+  ],
+  "grouping.md": [
+    {
+      "old": "An attempt contains `ref`, the actual `request_messages` and `response`,",
+      "new": "An included attempt contains `ref`, `request_messages` and `response`,"
+    },
+    {
+      "old": "Use actual request messages to determine what the model knew before generation.",
+      "new": "Interpret message visibility using the supplied execution context. In an\nexecution-only view, request_messages reconstruct formal history and may omit\ntemporary format corrections from the actual API request. Missing context is\nnot proof that it was never visible or that it persists into later requests."
+    },
+    {
+      "old": "Each retry starts from the original input; the model retains its own full task\nhistory but no prior attempt's files.",
+      "new": "Each program execution starts from the original input without prior attempts'\nfiles; message retention follows the supplied execution context."
+    }
+  ],
+  "replay.md": [
+    {
+      "old": "The appended Actor context defines what the Actor could know when generating code.\nReplay can inspect complete current attempts and post-execution scoring, but Actor\nhistory contains only that task's actual requests, responses and runtime feedback.",
+      "new": "The appended Actor context defines message retention and evidence-view limits.\nReplay can inspect supplied current attempts and post-execution scoring. In an\nexecution-only view, request_messages reconstruct formal history; temporary format\ncorrections and generation failures may be omitted even when they affected the\nactual request. Do not infer that absent context was never visible or that all\nAPI interactions persist into later Actor requests."
+    }
+  ],
+  "execution_context.md": [
+    {
+      "old": "{{context_history_description}}\n{{context_attempt_budget_description}}",
+      "new": "{{context_history_description}}\n{{context_attempt_budget_description}}\n\nFor the execution_only_v1 profile used here, formal history consists of initial\nmessages, executed program responses and returned execution feedback. Temporary\nformat-correction context contains the latest invalid response and validation\nerror; it is replaced on another format error and cleared after execution.\nThe execution evidence view reconstructs formal history in request_messages and\nomits generation failures and temporary corrections. Only raw archived API messages\nestablish the full request when those records are supplied. Do not assume access\nto raw archives outside the module input, or treat omitted context as never seen."
+    },
+    {
+      "old": "Complete history is\nnot silently shortened to fit a request.",
+      "new": "History retained by the configured protocol is not silently shortened to fit a\nrequest; protocol-defined removal of temporary format corrections is separate."
+    }
+  ]
+}

@@ -1,0 +1,77 @@
+--- v25.1/common/diagnosis.md
++++ v25.2/diagnosis.md
+@@ -4,11 +4,12 @@
+ 
+ Based on the current Parent Skill, execution evidence, and Grouping results, produce one evidence-grounded initial update Plan for the entire batch.
+ 
+-The Plan may contain multiple Updates addressing distinct behavioral problems.
+-Do not impose a fixed Update count or create Updates merely to cover every group
+-or failure. Each Update needs its own rationale, including any necessary dependency.
+-Identify changes that can reasonably be implemented through the Skill. Historical
+-edit–behavior response adjustment belongs to the later Preconditioner.
++Select at most two Updates for the entire batch. Prefer one when it addresses the
++most valuable supported improvement; two is a ceiling, not a target. Return
++no_change when no worthwhile Skill change is supported. Do not create Updates to
++cover every group or failure, or bundle independent repairs into one Update to
++fit the ceiling. Each Update must independently justify changing the Skill.
++Historical edit–behavior response adjustment belongs to the later Preconditioner.
+ 
+ {{execution_context}}
+ 
+@@ -97,9 +98,15 @@
+ Do not add surrounding workflow steps, related best practices, or already-correct
+ behaviors merely to make the Update comprehensive.
+ 
+-Separate independent repairs and keep necessary coupled requirements together.
+-Do not split mechanically by sentence or shorten an Update at the expense of
+-a complete repair.
++Select repairs by evidence connecting the proposed change to the observed problem,
++usefulness beyond the individual case, and expected benefit relative to added Actor
++instructions and execution work. A second Update needs its own grounds; support for
++one repair cannot justify an unsupported companion. Recurrence can strengthen a proposal,
++but a single case may expose a transferable defect. Defer lower-priority repairs.
++Keep necessary coupled requirements together without bundling independent repairs.
++Prefer revising or replacing the relevant rule over adding another layer of checks
++or exceptions. Keep the behavioral instruction concise; put explanation in reason
++and evidence references in basis. Do not shorten away essential conditions or task requirements.
+ 
+ Triggers, behavior selection criteria, exit conditions, and exceptions must be
+ observable in task messages or checkable by the generated program using the
+@@ -159,11 +166,13 @@
+ working behavior through the Goal or necessary Update boundaries rather than
+ automatically restating it as new requirements.
+ 
+-Before finalizing the Plan, check Updates for overlap, conflicts under shared
+-conditions, and dependencies. Merge redundant requirements, resolve conflicts,
+-and make necessary dependencies explicit; keep distinct justified repairs separate.
+-Do not omit a justified repair solely to reduce the Update count or include an
+-unsupported addition on the assumption that a later module will justify it.
++Before finalizing the Plan, check each selected Update for a distinct behavioral
++benefit beyond Parent and the base protocol. Remove redundant clauses and unsupported
++companion requirements within a repair; resolve conflicts and preserve necessary
++dependencies. Assess a separately justified second Update on its own merits.
++Keep at most two independently justified repairs. Leave other repairs out of Goal
++and Checks as well; do not use them to carry instructions omitted from Updates.
++Do not rely on a later module to justify an unsupported addition.
+ 
+ Each Update's `basis` must cite valid references from the supplied Grouping and execution facts.
+ 
+@@ -229,12 +238,12 @@
+ 
+ Choose one decision:
+ 
+-- `revise`: Current evidence supports at least one actionable Update, including
+-  a plausible repair hypothesis to examine through subsequent execution. Return
+-  a non-null Plan.
+-- `no_change`: No justified actionable Update can be formed from the current
+-  evidence. Return `plan: null` and explain why, including any essential missing
+-  facts that prevent a reasonably justified repair choice.
++- `revise`: At least one selected actionable Update has worthwhile incremental
++  value supported by current evidence, including a plausible repair hypothesis
++  to examine through subsequent execution. Return a non-null Plan.
++- `no_change`: No worthwhile supported Update remains after selection. Return
++  `plan: null` and explain the relevant lack of benefit, redundancy, added burden,
++  or essential missing facts that prevent a reasonably justified repair choice.
+ 
+ Uncertainty about the root cause or future Candidate effectiveness is not, by
+ itself, grounds for `no_change`.
