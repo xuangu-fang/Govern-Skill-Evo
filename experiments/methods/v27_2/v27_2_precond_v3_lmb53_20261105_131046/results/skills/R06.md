@@ -1,0 +1,30 @@
+# Live Mathematical MCQ Heuristics
+
+## Option Comparison
+- Compare all options before committing. The correct choice is often the strongest statement justified by the question, while nearby distractors are weaker, overstrong, or miss an equality case.
+- Track exact quantifiers such as "there exists", "for every", "if and only if", and "exactly when".
+
+## Scope and Strength Alignment
+- Before judging strength, align the exact object, exponent, domain, and quantifier over admissible inputs across options, and determine the direction of each restriction. Restricting the input class (such as frequency support, a compact subinterval, or a subdomain) normally weakens a universal estimate, while isolating a smaller quantity (for example, one directional derivative instead of the full gradient) normally strengthens the assertion about that quantity and may therefore be overstrong.
+- When one option isolates a component or one derivative and another uses the full gradient, do not automatically prefer the isolated component as sharper; compare the exponent and check whether the stated equation or hypotheses visibly single out that component before treating the component-only assertion as the maximal provable conclusion. In particular, a divergence statement for a smaller component is stronger than the same divergence statement for the full gradient and should not replace it without support that the component alone must diverge.
+- For nested domains and relative capacities, use monotonicity and check which version of the displayed inequality is stronger. Replacing an ambient capacity by a capacity relative to a smaller subdomain can change the admissible class and can make a lower-bound inequality stronger and potentially unsupported; keep the capacity or domain actually warranted by the stated comparison rather than merely choosing the more permissive-sounding version.
+- For operator or variation problems, a conditional frequency-localized or subinterval estimate is not the strongest statement about the entire stated Schwartz class or full parameter range when an unconditional global conclusion is among the options; compare scope before comparing numerical sharpness.
+- Preserve stated local versus global hypotheses, parameter ranges, exponents, and regularity levels: a global bound is overstrong for a local question, and a local or support-restricted estimate is narrower for a global question.
+
+## Theorem-Level Precision
+- Check whether an option weakens the conclusion by dropping a characterization, equality clause, or full equivalence.
+- Check whether an option overstates the theorem by upgrading regularity, removing scale restrictions, or changing an existential statement into a universal one.
+- When the question asks which statement is equivalent to a displayed definition or property, compare the exact quantifier order and dependency in each option with that definition, not merely whether the option is a necessary consequence. Treat "for every o for every R" as different from "for every o there exists R" and from "there exists R for every o", and do not accept a consequence that changes the order as a complete equivalence. If no precise option restores the full quantifier pattern while the meta-option explicitly says a stronger result can be proved, choose the meta-option; if a precise option does state the full equivalence with all hypotheses preserved, prefer that precise option over the meta-option.
+
+## Maximality and Meta-Options
+- When the question asks for the strongest provable statement, a maximality claim, or an equivalence claim, and an option says that another option is correct but a stronger result can be proven, treat that option as a substantive maximality claim rather than an empty placeholder. Compare it explicitly with the most complete precise option before committing.
+- Prefer that meta-option when the precise options are each intermediate or weakened variants that visibly omit a strengthening available in the alternatives, such as a sharper exponent or uniform constant, a strict or full monotonicity conclusion, an all-index or full-equivalence clause, a wider group or family, or an additional structural conclusion, and no precise option is shown by the stated hypotheses to contain the maximal combination.
+- Do not select a precise option merely because it is longer, more familiar, uses more notation, or directly addresses the topic. Do not select the meta-option when a precise option already states the strongest condition requested under the stated hypotheses and the stronger-result claim is unsupported by the visible contrasts.
+- Preserve all stated hypotheses, domains, quantifier scope, and the requested conclusion. If the meta-option would require assuming an unmentioned stronger theorem while a precise option is exactly maximal, choose the precise option.
+
+## Hypotheses
+- Verify the hypotheses and domain carefully. Distractors often keep the theorem shape but alter the required assumptions.
+- Pay close attention to equality cases, extremal conditions, and whether a result applies to the full family or only a restricted subfamily.
+
+## Final Answer
+- Output the final answer as a single uppercase option label inside the required answer element, with no other text or nested elements.

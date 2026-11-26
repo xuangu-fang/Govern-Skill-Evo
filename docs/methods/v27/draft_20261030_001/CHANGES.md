@@ -1,0 +1,28 @@
+# v27 Prompt review_01 修订说明
+
+2026-10-30。本轮仅修订设计文档，未创建 v27 运行实现、未更改数据划分、环境或凭据，也未调用模型或启动实验。当前规范从 [README](README.md) 进入；[修订前快照](review_01/before/README.md)和[差异索引](review_01/DIFFS.md)仅用于追溯。
+
+## 五处意见的处理
+
+| 审查点 | 修订后的规则 | 对应文档与验收 |
+|---|---|---|
+| 1. Replay 遗漏 entry 证据组合硬约束 | 每个输出 entry 的 Knowledge.evidence 有序去重并集，至少含一个实际 Diff 和一个执行来源。不能跨 entry 凑齐；不新增 entry-level evidence，不要求每个 Knowledge 都有两类来源。并集不替代逐项语义支持 | [Replay](prompts/replay.md)、[契约](CONTRACTS.md)；R08/R09/R10/R13 |
+| 2. 历史 Knowledge 被迫引用当前 diff | 当前编辑主张引用当前 diff；保留的历史主张保留精确历史引用，可完全不含当前引用。授权历史 Diff 可满足 entry 组合约束；当前与历史的联合比较分别使用相应来源 | Replay、契约；R11/R12 |
+| 3. Editor 缺完整基础协议及真实运行条件 | 五份 system Prompt 内嵌去掉 Skill 插入的精确 SkillAdam LMB 协议，以及本方案固定模型、预算和技术重试条件。Editor 明确只接收 parent/plan，无执行正文；basis 不授予读取权限 | [协议快照](context/actor_base_protocol.md)、[运行条件](context/actor_runtime.md)、[Editor](prompts/editor.md)、其余四份 Prompt；A05/A06/E11/ED08 |
+| 4. KEEP 只判断主方向，未覆盖完整 Update 与重要反例 | KEEP 针对整项条件、行为、优先级、例外、退出与能力保留边界；局部问题在同一 target 中 patch。reason 具体回应相关反例，最后共同检查保留和修改后的 Updates。替换原泛化 KEEP 示例为有明确假设的例子 | [Preconditioner](prompts/preconditioner.md)、契约；P13/P14/P16 |
+| 5. 穷尽检查策略被绝对禁止 | 不默认强制穷尽证明所有选项；问题、相关经验（如有）、能力及预算支持时，可有范围地采用。仍禁止仅按措辞强弱选答案或添加不可用工具 | Preconditioner、契约；P15 |
+
+## 保持不变的边界
+
+- Grouping 分组、Diagnosis 提案、Preconditioner 调整原提案、Editor 实施有效计划、Replay 学习编辑与响应关系，五个模块的主要职责不变。
+- 五个输出 schema、模块 user JSON 投影、显式引用命名空间、原 Update ID/basis 继承、unnumbered diff 和整 entry 替换语义均不变。没有增加分析字段、Knowledge ID 或 entry-level evidence。
+- Preconditioner 的全 KEEP 仍进入 Editor；合法全撤回仍编译 no_change。Editor 空字符串/null/有效 patch 含义不变。语义不确定不触发重采样。
+- 最新下载内容快照、53 优化／124 Test、六批次、SkillOpt 原生 initial.md、content-only 证据、Gate 与原子发布规则、首版关闭 Verifier/Repair 均不变。
+
+Replay 的 entry 组合规则是补回既有 Memory 契约，不是新增机制。Preconditioner 的完整判断与反例要求不等于逐句证明，不新增机器可自动证明自然语言正确性的承诺。LMB 数学策略的条件、强度和预算判断依据本 benchmark 设计。
+
+## 同步与检查
+
+[迁移清单](MIGRATION.md)、[数据与证据契约](CONTRACTS.md)、[离线验收清单](OFFLINE_ACCEPTANCE.md)及 README 已同步。五份 Prompt 文本身份从 v1 更新为 v2；来源文件身份保持原记录。新快照、草稿及差异记录的哈希在 [source_manifest.json](source_manifest.json) 中记录。
+
+本轮只运行文档检查：JSON 示例可解析、字段形状核对、链接与围栏完整性、完整基础协议及运行条件在五份 Prompt 中一致、原来源及修订前快照哈希不变。结果见 [document_checks.json](document_checks.json)。离线验收清单新增 14 个场景，共 107 个；这些是未来实现后的计划，尚未执行。引用是否真正支持自然语言主张、KEEP 是否合理等仍需独立语义评审，不能由文档检查替代。

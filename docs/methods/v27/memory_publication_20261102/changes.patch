@@ -1,0 +1,626 @@
+--- before/src/skill_evolution/v27/contracts/memory.py
++++ src/skill_evolution/v27/contracts/memory.py
+@@ -143,12 +143,13 @@
+     return stored
+ 
+ 
+-def _archive(root, state, *, memory_contract=LEGACY_CONTRACT):
+-    _check_contract(memory_contract)
++def _archive(root, state, *, memory_contract=LEGACY_CONTRACT, read_commit=None):
++    _check_contract(memory_contract)
++    read_commit = _read if read_commit is None else read_commit
+     entries, contexts, active = {}, {}, []
+     for cid in state['commits']:
+         require(re.fullmatch(r'[A-Za-z0-9_-]+', cid), 'Invalid context ID')
+-        commit = _read(root / 'archive' / f'{cid}.json')
++        commit = read_commit(root / 'archive' / f'{cid}.json')
+         version = commit.get('memory_contract', LEGACY_CONTRACT)
+         _check_contract(version)
+         require(memory_contract == MULTI_KNOWLEDGE_CONTRACT or version == LEGACY_CONTRACT,
+@@ -187,6 +188,10 @@
+ 
+ def load_memory(directory, *, memory_contract=LEGACY_CONTRACT):
+     """One atomic index snapshot; opt-in new readers normalize validated old commits."""
++    from ..memory_operation import current
++    session = current(memory_contract)
++    if session is not None:
++        return session.load(directory)
+     root = Path(directory)
+     state = _state(root)
+     archive, contexts = _archive(root, state, memory_contract=memory_contract)
+@@ -206,12 +211,19 @@
+     validate_payload(context['payload'], memory_contract=memory_contract)
+     require(isinstance(context.get('execution_context'), dict) and bool(context['execution_context']), 'Missing context')
+     validate_entries(result, context['payload'], memory_contract=memory_contract)
+-    root = Path(directory)
++    from ..memory_operation import current
++    session = current(memory_contract)
++    root = Path(directory).resolve()
+     (root / 'archive').mkdir(parents=True, exist_ok=True)
+     with (root / '.lock').open('a') as lock:
+         fcntl.flock(lock, fcntl.LOCK_EX)
+-        state = _state(root)
+-        entries, _ = _archive(root, state, memory_contract=memory_contract)
++        if session is None:
++            state = _state(root)
++            entries, contexts = _archive(root, state, memory_contract=memory_contract)
++        else:
++            session.load(root)
++            state, entries, contexts, view = session.snapshots[root]
++            session.verify()
+         path = root / 'archive' / f'{context_id}.json'
+         if context_id in state['commits']:
+             old = _read(path)
+@@ -220,7 +232,9 @@
+             return deepcopy(old)
+         pending = {p.stem for p in (root / 'archive').glob('*.json')} - set(state['commits'])
+         require(pending <= {context_id}, 'Recover the pending Memory commit first')
+-        require(context['payload']['memory'] == load_memory(root, memory_contract=memory_contract),
++        if session is None:
++            view = _view(entries, contexts, state['active_ids'], memory_contract)
++        require(context['payload']['memory'] == view,
+                 'Active snapshot changed before commit')
+         next_id = max([int(mid[1:]) for mid in entries] or [0]) + 1
+         new_entries = []
+@@ -233,9 +247,19 @@
+                   'before_active_ids': state['active_ids'], 'after_active_ids': active, 'entries': new_entries}
+         if memory_contract == MULTI_KNOWLEDGE_CONTRACT:
+             commit['memory_contract'] = memory_contract
++        new_state = {'active_ids': active, 'commits': state['commits'] + [context_id]}
++        if session is not None:
++            new_archive = {**entries, **{e['id']: _normalize_entry(e, memory_contract)
++                           if memory_contract == MULTI_KNOWLEDGE_CONTRACT else deepcopy(e) for e in new_entries}}
++            new_contexts = {**contexts, context_id: commit['context']}
++            new_view = _view(new_archive, new_contexts, active, memory_contract)
++            session.verify()
++        require(_state(root) == state, 'Active snapshot changed before commit')
+         if path.exists():
+             require(_read(path) == commit, 'Interrupted commit differs from recovery request')
+         else:
+             write_record(path, commit)
+-        write_record(root / 'active.json', {'active_ids': active, 'commits': state['commits'] + [context_id]})
+-        return commit
++        write_record(root / 'active.json', new_state)
++        if session is not None:
++            session.committed(root, new_state, new_archive, new_contexts, new_view, path, commit)
++        return deepcopy(commit)
+--- before/src/skill_evolution/v27/evolution.py
++++ src/skill_evolution/v27/evolution.py
+@@ -16,7 +16,7 @@
+ from .facts import require
+ from .contracts import memory
+ from .config import validate_config, REVIEW_DISABLED
+-from . import modules, knowledge_repair
++from . import modules, knowledge_repair, memory_operation
+ from .stages import Stopped, read, save, freeze, freeze_text, now, run_stage
+ from .benchmarks.lmb import evidence, prompting
+ from .monitoring import cost_summary, status
+@@ -118,10 +118,11 @@
+     return records  # Preserve completion order; pairs later use task identity.
+ 
+ 
+-def _prepare_memory(source, dest):
++def _prepare_memory(source, dest, *, session):
+     memory.load_memory(source, memory_contract=MEMORY_CONTRACT)
+     base = read(source / 'active.json')
+     freeze(dest / 'base.json', {'source': str(source), 'state': base})
++    session.watch_file(dest / 'base.json')
+     (dest / 'archive').mkdir(exist_ok=True)
+     for cid in base['commits']:
+         old, new = source / 'archive' / f'{cid}.json', dest / 'archive' / f'{cid}.json'
+@@ -130,7 +131,7 @@
+             try: os.link(old, new)
+             except OSError: shutil.copyfile(old, new)
+     if not (dest / 'active.json').exists(): save(dest / 'active.json', base)
+-    memory.load_memory(dest, memory_contract=MEMORY_CONTRACT)
++    session.adopt(source, dest)
+ 
+ 
+ def _execute_round(root, config, state, *, generate, resume, hook=None, read_only=False):
+@@ -161,19 +162,22 @@
+                          retry_delay_seconds=config.get('retry_delay_seconds', 0))
+ 
+     def publish(selected, mem, outcome):
+-        after = {'next_round': number+1, 'parent': selected, 'active_memory': mem}
+-        memory.load_memory(_relative(root, mem), memory_contract=MEMORY_CONTRACT)
+-        if selected is not None: require(bool(_relative(root, selected).read_text().strip()), 'Empty next Parent')
+-        result = {'status': 'completed', 'outcome': outcome, 'before': state, 'after': after}
+-        freeze(rd / 'result.json', result, read_only=read_only)
+-        if not read_only:
+-            checkpoint('before_publish')
+-            _check_contract(root)
+-            freeze(root / 'runtime.json', current().runtime_snapshot(config), read_only=True)
+-            require(read(root / 'state.json') == state, 'Official state changed during round')
+-            save(root / 'state.json', after)
+-            if hook: hook('after_publish')
+-        return result
++        with memory_operation.operation(MEMORY_CONTRACT) as session:
++            after = {'next_round': number+1, 'parent': selected, 'active_memory': mem}
++            memory.load_memory(_relative(root, mem), memory_contract=MEMORY_CONTRACT)
++            if selected is not None: require(bool(_relative(root, selected).read_text().strip()), 'Empty next Parent')
++            result = {'status': 'completed', 'outcome': outcome, 'before': state, 'after': after}
++            freeze(rd / 'result.json', result, read_only=read_only)
++            session.watch_file(rd / 'result.json')
++            if not read_only:
++                checkpoint('before_publish')
++                _check_contract(root)
++                freeze(root / 'runtime.json', current().runtime_snapshot(config), read_only=True)
++                require(read(root / 'state.json') == state, 'Official state changed during round')
++                session.verify()
++                save(root / 'state.json', after)
++                if hook: hook('after_publish')
++            return result
+ 
+     try:
+         checkpoint('parent_runs')
+@@ -223,19 +227,21 @@
+             review_result.update(policy=REVIEW_DISABLED, status='disabled', conflicts=None)
+         freeze(rd / 'knowledge_review/result.json', review_result, read_only=read_only)
+         checkpoint('memory')
+-        dest = rd / 'memory'
+-        if read_only:
+-            commit = read(dest / 'archive' / f'{rid}.json')
+-            require(commit['result'] == result and commit['context'] == bundle, 'Published Memory differs from reviewed result')
+-            base = read(memory_root / 'active.json')
+-            require(read(dest / 'active.json')['commits'] == base['commits'] + [rid], 'Memory commit chain differs')
+-        else:
+-            _prepare_memory(memory_root, dest)
+-            memory.commit_memory(dest, context_id=rid, context=bundle, result=result, memory_contract=MEMORY_CONTRACT)
+-        freeze(dest / 'view.json', memory.load_memory(dest, memory_contract=MEMORY_CONTRACT), read_only=read_only)
+-        checkpoint('memory_prepared')
+-        selected = str((editor_path / 'candidate.md').relative_to(root)) if gate['result']['decision'] == 'ACCEPT' else state['parent']
+-        return publish(selected, str(dest.relative_to(root)), gate['result']['decision'])
++        with memory_operation.operation(MEMORY_CONTRACT) as session:
++            dest = rd / 'memory'
++            if read_only:
++                commit = read(dest / 'archive' / f'{rid}.json')
++                require(commit['result'] == result and commit['context'] == bundle, 'Published Memory differs from reviewed result')
++                base = read(memory_root / 'active.json')
++                require(read(dest / 'active.json')['commits'] == base['commits'] + [rid], 'Memory commit chain differs')
++            else:
++                _prepare_memory(memory_root, dest, session=session)
++                memory.commit_memory(dest, context_id=rid, context=bundle, result=result, memory_contract=MEMORY_CONTRACT)
++            freeze(dest / 'view.json', memory.load_memory(dest, memory_contract=MEMORY_CONTRACT), read_only=read_only)
++            session.watch_file(dest / 'view.json')
++            checkpoint('memory_prepared')
++            selected = str((editor_path / 'candidate.md').relative_to(root)) if gate['result']['decision'] == 'ACCEPT' else state['parent']
++            return publish(selected, str(dest.relative_to(root)), gate['result']['decision'])
+     except (Exception, KeyboardInterrupt) as exc:
+         if not read_only:
+             stop = {'round': number, 'stage': phase, 'kind': 'semantic' if str(exc).startswith('semantic:') else 'technical',
+--- /dev/null
++++ src/skill_evolution/v27/memory_operation.py
+@@ -0,0 +1,114 @@
++"""Validated Memory history reused only within one controlled publication.
++
++Locally adapted from v28/v29. File bytes and Active state are rechecked, not
++trusted across calls. LMB evidence is self-contained; no Actor cache is needed.
++"""
++from contextlib import contextmanager
++from contextvars import ContextVar
++from copy import deepcopy
++import json
++from pathlib import Path
++
++from .benchmark import current as benchmark_current
++from .contracts import memory
++from .facts import require
++
++_ACTIVE = ContextVar('v27_memory_operation', default=None)
++
++
++def current(memory_contract):
++    session = _ACTIVE.get()
++    return session if (session is not None and session.adapter is benchmark_current()
++                       and session.contract == memory_contract) else None
++
++
++class MemoryOperation:
++    def __init__(self, memory_contract):
++        self.adapter, self.contract = benchmark_current(), memory_contract
++        self.snapshots, self.files, self.trees = {}, {}, {}
++
++    @staticmethod
++    def members(root):
++        # Atomic-write .tmp files are not published commits.
++        return tuple(sorted(root.glob('*.json')))
++
++    def watch_file(self, path):
++        path = Path(path).resolve()
++        if path not in self.files:
++            self.files[path] = path.read_bytes()
++
++    def read_commit(self, path):
++        self.watch_file(path)
++        return json.loads(self.files[Path(path).resolve()])
++
++    def watch_archive(self, root):
++        if root not in self.trees:
++            self.trees[root] = self.members(root)
++            for path in self.trees[root]:
++                self.watch_file(path)
++
++    def load(self, directory):
++        root = Path(directory).resolve()
++        if root not in self.snapshots:
++            self.watch_archive(root / 'archive')
++            state = memory._state(root)
++            entries, contexts = memory._archive(root, state, memory_contract=self.contract,
++                                                read_commit=self.read_commit)
++            view = memory._view(entries, contexts, state['active_ids'], self.contract)
++            self.snapshots[root] = (deepcopy(state), entries, contexts, view)
++        state, _, _, view = self.snapshots[root]
++        require(memory._state(root) == state, 'Active snapshot changed during Memory operation')
++        return deepcopy(view)
++
++    def adopt(self, source, dest):
++        """Reuse an exact copied prefix; an already advanced target loads cold."""
++        source, dest = Path(source).resolve(), Path(dest).resolve()
++        snapshot = self.snapshots[source]
++        if memory._state(dest) != snapshot[0]:
++            return self.load(dest)
++        self.watch_archive(dest / 'archive')
++        for cid in snapshot[0]['commits']:
++            old, new = source / 'archive' / f'{cid}.json', dest / 'archive' / f'{cid}.json'
++            require(new.resolve() in self.files and self.files[new.resolve()] == self.files[old.resolve()],
++                    'Prepared Memory archive differs')
++        self.snapshots[dest] = deepcopy(snapshot)
++        return deepcopy(snapshot[3])
++
++    def written(self, path, value):
++        """Accept only the exact receipt just written by this operation."""
++        path = Path(path).resolve()
++        data = path.read_bytes()
++        require(json.loads(data) == value, 'Written Memory receipt differs')
++        self.files[path] = data
++
++    def committed(self, root, state, entries, contexts, view, path, commit):
++        self.written(path, commit)
++        archive = root / 'archive'
++        self.trees[archive] = tuple(sorted(set(self.trees[archive]) | {path}))
++        self.written(root / 'active.json', state)
++        self.snapshots[root] = (deepcopy(state), entries, contexts, deepcopy(view))
++
++    def verify(self):
++        require(benchmark_current() is self.adapter, 'Memory benchmark binding changed')
++        for root, members in self.trees.items():
++            require(self.members(root) == members, 'Memory archive membership changed')
++        for path, data in self.files.items():
++            require(path.read_bytes() == data, f'Memory dependency changed: {path}')
++        for root, (state, _, _, _) in self.snapshots.items():
++            require(memory._state(root) == state, 'Active snapshot changed during Memory operation')
++
++
++@contextmanager
++def operation(memory_contract):
++    memory._check_contract(memory_contract)
++    existing = current(memory_contract)
++    if existing is not None:
++        yield existing
++        return
++    session = MemoryOperation(memory_contract)
++    token = _ACTIVE.set(session)
++    try:
++        yield session
++        session.verify()
++    finally:
++        _ACTIVE.reset(token)
+--- /dev/null
++++ tests/skill_evolution/v27/test_memory_publication.py
+@@ -0,0 +1,226 @@
++"""Single-publication reuse without weakening cold or interrupted recovery."""
++from copy import deepcopy
++from pathlib import Path
++from unittest.mock import patch
++
++from . import test_offline as original
++from .support import config, replay
++from src.skill_evolution.v27 import evolution, memory_operation, stages
++from src.skill_evolution.v27.benchmark import using_benchmark
++from src.skill_evolution.v27.benchmarks.lmb import evidence
++from src.skill_evolution.v27.benchmarks.lmb.adapter import LMBAdapter
++from src.skill_evolution.v27.contracts import memory
++
++CONTRACT = memory.MULTI_KNOWLEDGE_CONTRACT
++
++
++class MemoryPublicationTests(original.Base):
++    bind_data = original.CampaignTests.bind_data
++    generator = original.CampaignTests.generator
++
++    def load(self, directory):
++        return memory.load_memory(directory, memory_contract=CONTRACT)
++
++    def commit(self, directory, cid, bundle, result=None):
++        return memory.commit_memory(directory, context_id=cid, context=bundle,
++                                    result=replay() if result is None else result, memory_contract=CONTRACT)
++
++    def bundle(self, active):
++        _, bundle = self.edited()
++        bundle['payload']['memory'] = deepcopy(active)
++        evidence.validate_bundle(bundle)
++        return bundle
++
++    def prepared(self):
++        source = self.root/'source'
++        self.commit(source, 'R1', self.bundle(memory.empty_memory()))
++        return source, self.bundle(self.load(source))
++
++    def test_standalone_commit_scans_history_once(self):
++        directory, bundle = self.prepared()
++        with patch.object(memory, '_archive', wraps=memory._archive) as archive:
++            self.commit(directory, 'R2', bundle)
++        self.assertEqual(archive.call_count, 1)
++        self.assertEqual(stages.read(directory/'active.json')['commits'], ['R1', 'R2'])
++
++    def test_preparation_commit_and_repeated_views_share_one_history_scan(self):
++        source, bundle = self.prepared(); dest = self.root/'dest'
++        with patch.object(memory, '_archive', wraps=memory._archive) as archive:
++            with memory_operation.operation(CONTRACT) as session:
++                evolution._prepare_memory(source, dest, session=session)
++                actual = self.commit(dest, 'R2', bundle)
++                expected = self.load(dest)
++                detached = self.load(dest); detached['entries'].clear(); detached['sources'].clear()
++                actual['context']['payload']['memory']['entries'].clear()
++                self.assertEqual(self.load(dest), expected)
++                session.verify()
++            self.assertEqual(archive.call_count, 1)
++        self.assertEqual(self.load(dest), expected)
++        self.assertIsNone(memory_operation.current(CONTRACT))
++
++    def test_cold_load_and_adapter_change_never_share_previous_trust(self):
++        directory, _ = self.prepared()
++        for _ in range(2):
++            with patch.object(memory, '_archive', wraps=memory._archive) as archive:
++                self.load(directory)
++            self.assertEqual(archive.call_count, 1)
++        with memory_operation.operation(CONTRACT) as session:
++            self.load(directory)
++            with using_benchmark(LMBAdapter()), patch.object(memory, '_archive', wraps=memory._archive) as archive:
++                self.assertIsNone(memory_operation.current(CONTRACT))
++                self.load(directory)
++                self.assertEqual(archive.call_count, 1)
++            with memory_operation.operation(CONTRACT) as nested:
++                self.assertIs(nested, session)
++        path = directory/'archive/R1.json'
++        changed = stages.read(path); changed['after_active_ids'] = []
++        stages.save(path, changed)
++        with self.assertRaises(ValueError): self.load(directory)
++
++    def test_scoped_and_cold_commits_have_identical_bytes_and_revisions(self):
++        reference, scoped = self.root/'reference', self.root/'scoped'
++        active = memory.empty_memory()
++        for index in range(1, 4):
++            bundle = self.bundle(active)
++            result = replay() if index < 3 else {'entries': []}
++            if index == 2: result['entries'][0]['revises'] = ['M1']
++            cid = f'R{index}'
++            expected = self.commit(reference, cid, bundle, result)
++            with memory_operation.operation(CONTRACT):
++                self.assertEqual(self.commit(scoped, cid, bundle, result), expected)
++                active = self.load(scoped)
++                self.assertEqual(self.commit(scoped, cid, bundle, result), expected)
++            for name in ('active.json', f'archive/{cid}.json'):
++                self.assertEqual((reference/name).read_bytes(), (scoped/name).read_bytes())
++            self.assertEqual(active, self.load(reference))
++        self.assertEqual([entry['id'] for entry in active['entries']], ['M2'])
++
++    def test_changed_memory_dependencies_rejected_before_commit(self):
++        directory, bundle = self.prepared()
++        commit_path, active_path = directory/'archive/R1.json', directory/'active.json'
++        before = {path: path.read_bytes() for path in (commit_path, active_path)}
++        view = memory._view
++        for target in ('commit', 'active', 'membership'):
++            with self.subTest(target=target):
++                def changed_view(entries, contexts, active, contract):
++                    result = view(entries, contexts, active, contract)
++                    if 'R2' in contexts:
++                        if target == 'commit': commit_path.write_bytes(before[commit_path] + b' ')
++                        elif target == 'active': stages.save(active_path, {'commits': [], 'active_ids': []})
++                        else: stages.save(directory/'archive/foreign.json', {})
++                    return result
++                try:
++                    with self.assertRaises(ValueError), memory_operation.operation(CONTRACT):
++                        self.load(directory)
++                        with patch.object(memory, '_view', changed_view): self.commit(directory, 'R2', bundle)
++                    self.assertFalse((directory/'archive/R2.json').exists())
++                    self.assertIsNone(memory_operation.current(CONTRACT))
++                finally:
++                    for path, data in before.items(): path.write_bytes(data)
++                    (directory/'archive/foreign.json').unlink(missing_ok=True)
++
++    def test_active_snapshot_must_match_replay_even_with_cache(self):
++        directory, _ = self.prepared()
++        with self.assertRaisesRegex(ValueError, 'Active snapshot changed before commit'), memory_operation.operation(CONTRACT):
++            self.load(directory)
++            self.commit(directory, 'R2', self.bundle(memory.empty_memory()))
++        self.assertFalse((directory/'archive/R2.json').exists())
++
++    def test_cache_exit_checks_bytes_and_clears_after_interrupt(self):
++        directory, _ = self.prepared(); path = directory/'archive/R1.json'
++        before = path.read_bytes()
++        with self.assertRaises(ValueError), memory_operation.operation(CONTRACT):
++            self.load(directory)
++            path.write_bytes(before + b' ')
++        self.assertIsNone(memory_operation.current(CONTRACT))
++        path.write_bytes(before)
++        with self.assertRaises(KeyboardInterrupt), memory_operation.operation(CONTRACT):
++            self.load(directory)
++            raise KeyboardInterrupt()
++        self.assertIsNone(memory_operation.current(CONTRACT))
++        self.load(directory)
++
++    def test_pending_commit_temp_and_mismatch_recovery(self):
++        bundle = self.bundle(memory.empty_memory())
++        expected = self.commit(self.root/'reference', 'R1', bundle)
++        for mode in ('pending', 'temp', 'bad_pending', 'foreign_pending'):
++            with self.subTest(mode=mode):
++                directory = self.root/mode; (directory/'archive').mkdir(parents=True)
++                if mode == 'temp': (directory/'archive/R1.tmp').write_text('partial')
++                else:
++                    value = deepcopy(expected)
++                    if mode == 'bad_pending': value['after_active_ids'] = ['M999']
++                    stages.save(directory/'archive'/('foreign.json' if mode == 'foreign_pending' else 'R1.json'), value)
++                if mode in ('bad_pending', 'foreign_pending'):
++                    with self.assertRaises(ValueError), memory_operation.operation(CONTRACT):
++                        self.commit(directory, 'R1', bundle)
++                    self.assertFalse((directory/'active.json').exists())
++                else:
++                    with memory_operation.operation(CONTRACT):
++                        self.assertEqual(self.commit(directory, 'R1', bundle), expected)
++                self.assertIsNone(memory_operation.current(CONTRACT))
++
++    def test_interrupt_at_each_write_recovers_without_duplicate_commit(self):
++        bundle = self.bundle(memory.empty_memory())
++        write = memory.write_record
++        for name in ('R1.json', 'active.json'):
++            directory = self.root/name
++            def interrupted(path, value):
++                write(path, value)
++                if path.name == name: raise KeyboardInterrupt()
++            with self.assertRaises(KeyboardInterrupt), memory_operation.operation(CONTRACT), patch.object(memory, 'write_record', interrupted):
++                self.commit(directory, 'R1', bundle)
++            self.assertIsNone(memory_operation.current(CONTRACT))
++            with memory_operation.operation(CONTRACT):
++                self.commit(directory, 'R1', bundle)
++                self.assertEqual(len(self.load(directory)['entries']), 1)
++            self.assertEqual(stages.read(directory/'active.json')['commits'], ['R1'])
++
++    def test_already_advanced_prepared_directory_is_revalidated_cold(self):
++        source, bundle = self.prepared(); dest = self.root/'dest'
++        with memory_operation.operation(CONTRACT) as session:
++            evolution._prepare_memory(source, dest, session=session)
++            expected = self.commit(dest, 'R2', bundle)
++        with patch.object(memory, '_archive', wraps=memory._archive) as archive:
++            with memory_operation.operation(CONTRACT) as session:
++                evolution._prepare_memory(source, dest, session=session)
++                self.assertEqual(self.commit(dest, 'R2', bundle), expected)
++            self.assertEqual(archive.call_count, 2)  # source plus advanced destination
++
++    def test_real_publication_boundary_scans_once_and_resume_is_read_only(self):
++        _, transport, adapter = self.bind_data(count=2)
++        generator, calls = self.generator(); root = self.root/'campaign'
++        with using_benchmark(adapter), patch.object(memory, '_archive', wraps=memory._archive) as archive:
++            counts = []
++            def hook(stage):
++                if stage == 'memory': archive.reset_mock()
++                if stage == 'after_publish': counts.append(archive.call_count)
++            evolution.run_campaign(root, config=config(adapter, [[uid] for uid in adapter.dataset.rows]),
++                                   generate=generator, hook=hook)
++            self.assertEqual(counts, [1, 1])
++            before = (transport.calls, len(calls))
++            evolution.run_campaign(root, resume=True, generate=None)
++            self.assertEqual((transport.calls, len(calls)), before)
++
++    def test_tampering_before_publication_does_not_advance_official_state(self):
++        for target in ('commit', 'active', 'view', 'base'):
++            with self.subTest(target=target):
++                _, transport, adapter = self.bind_data(count=1)
++                generator, calls = self.generator(); root = self.root/target
++                changed = []
++                def hook(stage):
++                    if stage != 'before_publish': return
++                    dest = root/'rounds/R01/memory'
++                    path = dest/'archive'/f'{root.name}_R01.json' if target == 'commit' else dest/f'{target}.json'
++                    changed.append((path, path.read_bytes()))
++                    path.write_bytes(path.read_bytes() + b' ' if target != 'active' else b'{"active_ids":[],"commits":[]}')
++                with using_benchmark(adapter):
++                    with self.assertRaises(ValueError):
++                        evolution.run_campaign(root, config=config(adapter), generate=generator, hook=hook)
++                    self.assertEqual(stages.read(root/'state.json')['next_round'], 1)
++                    self.assertIsNone(memory_operation.current(CONTRACT))
++                    for path, data in changed: path.write_bytes(data)
++                    before = (transport.calls, len(calls))
++                    evolution.run_campaign(root, resume=True, generate=None)
++                    self.assertEqual(stages.read(root/'state.json')['next_round'], 2)
++                    self.assertEqual((transport.calls, len(calls)), before)
+--- /dev/null
++++ scripts/verification/verify_v27_memory_reuse.py
+@@ -0,0 +1,87 @@
++"""Offline before/after traversal counts and durable-byte comparison."""
++from contextlib import ExitStack
++from copy import deepcopy
++import json
++from pathlib import Path
++import shutil
++import socket
++import sys
++from types import ModuleType
++from unittest.mock import patch
++
++ROOT = Path(__file__).resolve().parents[2]
++sys.path[:0] = [str(ROOT), str(ROOT/'external/SkillAdam')]
++REPORT = ROOT/'docs/methods/v27/memory_publication_20261102'
++
++
++def before_module(name):
++    relative = f'src/skill_evolution/v27/{name}.py'
++    module = ModuleType('src.skill_evolution.v27.' + name.replace('/', '.'))
++    module.__package__ = module.__name__.rsplit('.', 1)[0]
++    exec(compile((REPORT/'before'/relative).read_text(), relative, 'exec'), module.__dict__)
++    return module
++
++
++def main():
++    connections = []
++    def blocked(*args, **kwargs):
++        connections.append('blocked')
++        raise AssertionError('Offline synthetic comparison only')
++    with ExitStack() as stack:
++        for attr in ('connect', 'connect_ex'):
++            stack.enter_context(patch.object(socket.socket, attr, blocked))
++        stack.enter_context(patch('socket.create_connection', blocked))
++        stack.enter_context(patch('subprocess.Popen', blocked))
++        stack.enter_context(patch('dotenv.dotenv_values', blocked))
++        from tests.skill_evolution.v27.test_memory_publication import MemoryPublicationTests, CONTRACT
++        from src.skill_evolution.v27 import evolution, memory_operation
++        from src.skill_evolution.v27.contracts import memory
++        old = before_module('contracts/memory')
++        old_evolution = before_module('evolution'); old_evolution.memory = old
++        fixture = MemoryPublicationTests(); fixture.setUp()
++        try:
++            source = fixture.root/'source'; active = memory.empty_memory()
++            for i in range(1, 4):
++                fixture.commit(source, f'R{i}', fixture.bundle(active))
++                active = fixture.load(source)
++            bundle = fixture.bundle(active)
++            result = {'entries': []}
++            counts, views, commits = {}, {}, {}
++            for version, contract in (('before', old), ('after', memory)):
++                target = fixture.root/version
++                with patch.object(contract, '_archive', wraps=contract._archive) as archive:
++                    if version == 'before':
++                        old_evolution._prepare_memory(source, target)
++                        commits[version] = contract.commit_memory(target, context_id='R4', context=bundle,
++                                                                  result=result, memory_contract=CONTRACT)
++                        views[version] = contract.load_memory(target, memory_contract=CONTRACT)
++                        assert contract.load_memory(target, memory_contract=CONTRACT) == views[version]
++                    else:
++                        with memory_operation.operation(CONTRACT) as session:
++                            evolution._prepare_memory(source, target, session=session)
++                            commits[version] = fixture.commit(target, 'R4', bundle, result)
++                            views[version] = fixture.load(target)
++                            assert fixture.load(target) == views[version]
++                            session.verify()
++                    counts[version] = archive.call_count
++                cold = fixture.root/(version+'_cold'); shutil.copytree(source, cold)
++                with patch.object(contract, '_archive', wraps=contract._archive) as archive:
++                    contract.commit_memory(cold, context_id='R4', context=deepcopy(bundle),
++                                           result=result, memory_contract=CONTRACT)
++                counts[version+'_standalone'] = archive.call_count
++            assert views['before'] == views['after'] and commits['before'] == commits['after']
++            for name in ('active.json', 'archive/R4.json'):
++                assert (fixture.root/'before'/name).read_bytes() == (fixture.root/'after'/name).read_bytes()
++            assert counts == {'before': 6, 'before_standalone': 2, 'after': 1, 'after_standalone': 1}
++        finally:
++            fixture.tearDown()
++    report = {'status': 'passed', 'seed_commits': 3, 'history_traversals': counts,
++              'views_and_commits_equal': True, 'durable_bytes_equal': True,
++              'network_attempts': len(connections), 'real_model_requests': 0,
++              'note': 'Synthetic publication-only counters; no wall-time speedup or API-cost estimate.'}
++    (REPORT/'traversal_comparison.json').write_text(json.dumps(report, indent=2)+'\n')
++    print(json.dumps(report, indent=2))
++
++
++if __name__ == '__main__':
++    main()

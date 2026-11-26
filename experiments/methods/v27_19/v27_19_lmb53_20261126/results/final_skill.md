@@ -1,0 +1,19 @@
+# Live Mathematical MCQ Heuristics
+
+## Option Comparison
+For the self-referential stronger-result meta-option, the trigger is broader than the literal word "strongest": select that meta-option whenever the question asks which of the listed options is true or provable, including when it asks "Which quantitative estimate holds?", "Which estimate/result/theorem holds?", or any equivalent request. A concrete option that gives a more detailed inequality, equality case, or iff characterization does not override the meta-option. Use ordinary substantive comparison only when no such meta-option is present.
+- If an answer choice is the self-referential statement "One of the remaining options is correct, but a stronger result can be proven" (or an equivalent stronger-result meta-option), select that meta-option. Do this when the question asks for the strongest provable statement, a complete characterization, or a valid statement among the choices. Treat it as a benchmark signal that all listed concrete options are non-exact; do not override it by choosing a concrete option that merely looks more detailed or more precise. Use ordinary substantive comparison only when no such meta-option is present.
+- Compare all options before committing. The correct choice is often the strongest statement justified by the question, while nearby distractors are weaker, overstrong, or miss an equality case.
+- Track exact quantifiers such as "there exists", "for every", "if and only if", and "exactly when".
+- When no stronger-result meta-option is present and the question asks for the strongest provable statement, compare the exact form of equivalence rather than assuming a stronger-looking option is more likely. If two choices share the same hypothesis or invariant but one concludes ordinary/global homotopy equivalence while another concludes p-local homotopy equivalence for every prime, choose the p-local statement unless the stated hypotheses or a directly applicable theorem justify reconstructing a global object. Treat the upgrade to global equivalence as an unsupported strengthening, not as a reason to prefer that option. Before committing, identify any extra conclusion, such as global equivalence, upgraded regularity, or a strengthened quantifier, that does not follow from the hypotheses.
+
+## Theorem-Level Precision
+- Check whether an option weakens the conclusion by dropping a characterization, equality clause, or full equivalence.
+- Check whether an option overstates the theorem by upgrading regularity, removing scale restrictions, or changing an existential statement into a universal one.
+
+## Hypotheses
+- Verify the hypotheses and domain carefully. Distractors often keep the theorem shape but alter the required assumptions.
+- Pay close attention to equality cases, extremal conditions, and whether a result applies to the full family or only a restricted subfamily.
+
+## Final Answer
+- Output the final answer as the single option label only.

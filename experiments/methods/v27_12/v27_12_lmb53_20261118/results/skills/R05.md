@@ -1,0 +1,17 @@
+# Live Mathematical MCQ Heuristics
+
+## Option Comparison
+- Compare all options before committing. The correct choice is often the strongest statement justified by the question, while nearby distractors are weaker, overstrong, or miss an equality case. Before committing to a concrete choice, check whether a choice is a meta-statement saying that another listed choice is correct while a stronger result can be proved. Treat that meta-statement as a substantive mathematical answer, not as an evasive non-answer: it can be true even when a concrete listed statement is also true, because the stronger theorem need not appear among the choices. When the choices include such a stronger-result meta-statement and the question asks which statement holds, is valid, is strongest, is complete, or is equivalent, treat that meta-statement as the default submission. Before accepting a concrete alternative, require an explicit reason from the question that the concrete option already states the full strongest result with all needed hypotheses, converse, equality, or exhaustiveness clauses. A concrete option that is merely true, plausible, or the most precise listed is not enough to reject the stronger-result meta-choice. Do not apply this default when the meta-choice merely concedes that a weaker statement holds.
+- Track exact quantifiers such as "there exists", "for every", "if and only if", and "exactly when".
+
+## Theorem-Level Precision
+- Check whether an option weakens the conclusion by dropping a characterization, equality clause, or full equivalence.
+- In a strongest-statement comparison, when options differ by the object to which the conclusion applies—such as a full vector quantity versus one coordinate, a stabilized invariant versus its ordinary counterpart, or a decorated object versus its underlying object—do not treat those versions as interchangeable or choose the more elaborate qualifier automatically. Identify from the definitions, hypotheses, and known theorem which object the conclusion actually concerns, and submit the option whose scope matches that object. A claim about a component, ordinary counterpart, or decorated analogue is not a substitute for the corresponding full, stabilized, or underlying-object claim unless the question establishes that equivalence.
+- Check whether an option overstates the theorem by upgrading regularity, removing scale restrictions, or changing an existential statement into a universal one.
+
+## Hypotheses
+- Verify the hypotheses and domain carefully. Distractors often keep the theorem shape but alter the required assumptions.
+- Pay close attention to equality cases, extremal conditions, and whether a result applies to the full family or only a restricted subfamily.
+
+## Final Answer
+- Output the final answer as the single option label only.

@@ -1,0 +1,40 @@
+--- before/CONTRACTS.md
++++ after/CONTRACTS.md
+@@ -15,6 +15,8 @@
+ ## Actor 与请求归档
+ 
+ Actor 固定 SkillAdam LMB base prompt，Skill 插入方式和消息顺序冻结；初始 Skill 为 SkillOpt 原生 initial.md，Memory 初始为空。Actor 不读取 Memory、来源参考材料、其他任务或评分。
++
++[基础协议快照](context/actor_base_protocol.md) 是冻结 SkillAdam `rollout.py` 中 `VENDOR_PROMPT.format(skill_section="")` 的精确文本，不含 Skill；[执行条件快照](context/actor_runtime.md) 记录本方案的模型、预算和重试条件。五份 system Prompt 均内嵌相同协议和执行条件，作为分析材料，不作为优化模块的任务指令。未来实际 Actor 配置及协议必须与这些快照一致；变更时需同步更新并重新冻结 Prompt 身份。快照不会添加 user JSON 字段，也不替代实际 Parent。
+ 
+ 仅一轮生成，无工具。模型 deepseek-flash，thinking enabled、effort medium、temperature 1.0；max_tokens 16384；请求 300 秒、连接 10 秒。优化 workers 上限 20、Test 16。固定选项排列不保证模型采样确定。
+ 
+@@ -62,6 +64,8 @@
+ | Editor | `parent/plan` | plan 为 Effective Plan，Update 保留 id/text/basis；basis 仅来源标识，不授权查阅证据；无 runs/Memory/adjustment reasons |
+ | Replay | `parent/diff/plan/runs/pairs/memory` | 全部有效配对；plan 的 Update 仅 id/text，去除 basis；Goal/Checks 保留；不传 Gate 决策作解释依据 |
+ 
++Editor 的固定 system 上下文提供完整基础协议及运行约束，user 仍严格只有 parent/plan。它可以据此判断某项要求是否已由 Parent 或协议满足，但不接收 ordinary content、runs、outcome、Memory 或 adjustment reasons，也不得从 basis 解引用取得它们。其他四个模块同样只能使用各自投影允许的执行数据；固定上下文不扩大权限。
++
+ Knowledge Only `memory={format:"memory_knowledge_only_v1",entries:[{id,knowledge:[{text,evidence}]}]}`。空 entries=[]。历史原始 Parent/diff/run/配对不进入输入；sources 在内部档案维护，不进入此投影。未来可选审查模块只读取被授权的许可来源视图，不能展开原始响应。
+ 
+ pair 字段为 `parent/candidate/task_id/parent_result/candidate_result`；result 字段为 `status/model_rounds/tool_calls/api_requests/em/f1`。先由程序验证 task_id、输入题干、选项映射、运行参数、scorer、Parent/Candidate Skill 身份及唯一 run_id，再构造 pair。Q 按 task_id 与 P 配对，不能用数组位置猜。Parent 的 system Skill 与 Candidate 可不同，user 输入必须相同。
+@@ -84,11 +88,19 @@
+ 
+ checks=null 继承原列表；[]=清空；数组=完整替换。Checks 不能引用撤回项；全部撤回要求解析后的 Checks=[]。全 KEEP 继续 Editor；合法全撤回编译成 no_change。ready/no_change 是程序内部状态，模型不能输出 decision/reason 顶层字段或 need_evidence。
+ 
++KEEP 是对整个 Original Update 原样保留的判断，包括触发条件、行为、优先级、例外、退出条件、依赖和能力保留边界。主方向合理不能自动证明附加条件合理；局部需要修正时，在同一个 adjustment 中 patch 该部分并保留有支持的要求。reason 必须具体回应重要的相关历史反例，说明条件差异、既有边界或联合干预无法分离效应等实际理由；不能仅用“证据不足”跳过反例。此要求不增加字段、不要求逐句审计或先证明策略有效。最终应共同检查保留和修改后的 Updates，避免矛盾仍留在 KEEP 项。
++
++LMB 中不默认强制穷尽证明或检查所有选项，但也不绝对禁止此策略。当前问题、相关经验（如有）、Actor 能力和预算支持时，允许有明确范围的检查要求；需说明适用条件与代价。不得仅凭选项措辞强弱选答案，也不得添加不存在的工具。这是领域判断原则，不新增程序拒绝所有全选项检查的规则。
++
+ Preconditioner/Editor patch 均沿用 `unnumbered_diff_v1`：精确 `--- a/SKILL.md`、`+++ b/SKILL.md`，每个 hunk 的头严格为 `@@`，正文空间/减号/加号标记；唯一连续匹配、按冻结源位置递增、不重叠、精确换行，无 fuzzy/重排/修复/全文回退。缺失末尾 LF 使用标准 `\ No newline at end of file`，JSON 中转义反斜杠。Preconditioner 的 SKILL.md 是目标 Update 字符串的虚拟文件名。Editor null Parent 使用 `--- /dev/null`；首版实际 Parent 非空。
+ 
+ Editor patch="" 表示全部已满足；null 表示无法忠实实施，停止；空白字符串不是空 patch。合法候选必须实际改变 Parent 且不变成空白。程序生成 actual_diff，不用模型自述代替。
+ 
+ Replay entries=[] 为合法无 Knowledge 更新；每个输出 entry 有 revises 数组及非空 knowledge；每个 Knowledge 的 text 非空、evidence 非空无重复。revises=[] 新建；否则完整替换所列活动 entry，目标不能重复使用。未列入 revises 的活动 entry 保留。没有 Knowledge ID、entry-level evidence、删除/增量操作或隐式旧 Knowledge 继承。发布空 entries 也沿用既有 commit 记账，不新增特殊学习分支。
++
++每个输出 MemoryEntry 内所有 Knowledge.evidence 的有序去重并集，必须同时包含至少一个实际 Diff 来源和至少一个执行来源。Diff 可以是当前 `diff` 或授权的 `<context_id>/diff`；执行来源可以是授权的当前或历史 run/input/round/outcome。该约束按 entry 分别验证，不能跨 entry 凑齐；这是沿用 Memory 契约的结构约束，不新增 entry-level evidence，也不要求每条 Knowledge 都同时包含两类来源。
++
++上述并集只用于来源收集和结构校验，不共享语义支持。每条 Knowledge 的陈述仍由自身 evidence 支持：当前编辑主张引用当前 diff，当前配对分数变化引用相关当前 P/Q outcome，当前内容或输入主张引用对应轮次或输入。保留的历史主张使用已提供 Knowledge 中精确、带上下文前缀的历史来源，可以只有历史 evidence，不强制追加当前 diff/P/Q；历史 Diff 同样能满足 entry 的 Diff 要求。跨当前与历史的比较需分别有适合各部分主张的来源，不能用相似编号的当前执行替代历史执行，也不能为通过结构校验虚构或硬贴无关引用。
+ 
+ ## 评分与状态
+ 

@@ -1,0 +1,74 @@
+"""Replay the frozen R06 Diagnosis input, followed by Preconditioner and Editor."""
+import argparse
+from contextlib import ExitStack
+import json
+from pathlib import Path
+import sys
+from unittest.mock import patch
+
+HERE = Path(__file__).resolve().parent
+ROOT = HERE.parents[2]
+sys.path[:0] = [str(ROOT), str(ROOT / "external/SkillAdam")]
+
+from scripts.runs.run_v27_2_campaign import (
+    ActorAdapter, CampaignAdapter, HTTPGenerator, load_dataset, read_credentials,
+)
+from src.skill_evolution.v27_2 import config, diagnosis, editor, preconditioner, prompts, stages
+
+SOURCE = ROOT / "experiments/campaigns/v27_2_diag_v3_precond_v3_lmb53_20261105_210532/rounds/R06"
+FIRST = HERE.with_name("v27_3_r06_preconditioner_v3_20261113")
+PROMPTS = ROOT / "docs/methods/v27_3/proposals/prompts"
+
+
+def read(path):
+    return json.loads(path.read_bytes())
+
+
+def run(verify_only):
+    adapter = CampaignAdapter(ActorAdapter(load_dataset(ROOT / "data/livemathematicianbench/prepared_v1")))
+    with adapter.using(), ExitStack() as overrides:
+        cfg = config.validate_config(read(config.DEFAULT_CONFIG), executable=True)
+        adapter.register_archive(SOURCE / "parent_runs")
+        overrides.enter_context(patch.object(prompts, "DIRECTORY", PROMPTS))
+        for module, version in ((diagnosis, 2), (preconditioner, 3), (editor, 1)):
+            name = module.__name__.split(".")[-1]
+            overrides.enter_context(patch.object(module, "PROMPT_VERSION", f"v27_3_lmb_{name}_v{version}"))
+        generate = None if verify_only else HTTPGenerator(read_credentials(ROOT / ".env", cfg)["OPENAI_API_KEY"])
+        saved = read(SOURCE / "diagnosis/input.json")
+        memory = read(SOURCE / "preconditioner/input.json")["memory"]
+        assert memory == read(FIRST / "preconditioner/input.json")["memory"]
+        for stage in ("diagnosis", "preconditioner", "editor"):
+            if stage == "diagnosis":
+                call = diagnosis.diagnosis_call(saved)
+                assert call.input == saved
+                assert call.messages[1:] == read(SOURCE / stage / "base_messages.json")[1:]
+            elif stage == "preconditioner":
+                if saved["diagnosis"]["decision"] == "no_change":
+                    print("Diagnosis selected no_change; Parent retained.", flush=True)
+                    break
+                call = preconditioner.preconditioner_call(saved, memory)
+            else:
+                if saved["effective_plan"] is None:
+                    print("All updates withdrawn; Parent retained.", flush=True)
+                    break
+                call = editor.editor_call(saved)
+            if stage != "diagnosis":
+                assert call.messages[0] == read(FIRST / stage / "base_messages.json")[0]
+            assert json.loads(call.messages[1]["content"])["parent"] == (SOURCE / "parent.md").read_text()
+            assert call.messages[0]["content"] == (PROMPTS / f"{stage}.md").read_text()
+            identity = read(SOURCE / stage / "identity.json")
+            keys = ("max_attempts", "max_input_chars", "max_message_utf8_bytes", "retry_delay_seconds")
+            assert all(cfg[k] == identity[k] for k in keys)
+            assert cfg["module_calls"][stage] == identity["call_config"]
+            dest = HERE / stage
+            attempt, saved = stages.run_stage(
+                dest, call, call_config=identity["call_config"], **{k: identity[k] for k in keys},
+                generate=generate, resume=dest.exists(), read_only=verify_only,
+            )
+            print(stage, attempt, flush=True)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--verify-only", action="store_true")
+    run(parser.parse_args().verify_only)
