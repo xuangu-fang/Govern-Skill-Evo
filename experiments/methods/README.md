@@ -51,7 +51,17 @@
 | v24.9 | [ALFWorld 训练与评测](v24_9/README.md) | 3 |
 | v24.10 | [ALFWorld 训练与评测](v24_10/README.md) | 1 |
 | v24.11 | [两次训练记录，正式运行含九次评测](v24_11/README.md) | 2 |
+| v25 | [SpreadsheetBench 原版训练、尝试、对照与专项材料](v25/README.md) | 10 |
+| v25.1 | [SpreadsheetBench 正式训练和首测](v25_1/README.md) | 1 |
+| v25.2 | [SpreadsheetBench 正式训练和首测](v25_2/README.md) | 1 |
+| v25.3 | [SpreadsheetBench 正式训练和取消的预约](v25_3/README.md) | 2 |
+| v25.4 | [SpreadsheetBench 正式训练、复测和专项](v25_4/README.md) | 1 |
+| v25.5 | [SpreadsheetBench 正式训练及两条准备记录](v25_5/README.md) | 3 |
+| v25.6 | [SpreadsheetBench 训练、11 次全量评测和两题专项](v25_6/README.md) | 1 |
+| v25.7 | [SpreadsheetBench 两次训练、准备档和 11 次全量评测](v25_7/README.md) | 3 |
 | v25.8 | [SpreadsheetBench 正式训练和 19 次评测](v25_8/README.md) | 1 |
+
+[SpreadsheetBench SkillAdam 实验索引](skilladam/spreadsheetbench/README.md) · [SpreadsheetBench SkillOpt 实验索引](skillopt/spreadsheetbench/README.md) · [三种方法对照](../../docs/benchmarks/spreadsheetbench/V25_8_COMPARISON.md)
 
 ## 原始运行统一入口
 
