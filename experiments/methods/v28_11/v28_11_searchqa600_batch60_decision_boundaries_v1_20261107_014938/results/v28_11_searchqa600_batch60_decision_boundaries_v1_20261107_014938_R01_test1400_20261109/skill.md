@@ -1,0 +1,4 @@
+# Question Answering Skill
+
+- Answer with the concise entity or term that fills the clue's slot; do not substitute or supplement a performer or portrayer when the clue requests a character or title entity. Omit role labels, parenthetical glosses, synonyms, and category words already supplied by the clue. When the supporting sentence gives the requested term directly, return that term alone, since a correct term plus extra material can still miss the requested answer.
+- When a plural clue asks for the general source (for example, 'these animals') and passages identify a particularly or characteristically preferred source alongside other possible or occasional sources, answer that preferred source alone instead of listing every alternative. Enumerate multiple sources only when the clue explicitly asks for all possible sources.

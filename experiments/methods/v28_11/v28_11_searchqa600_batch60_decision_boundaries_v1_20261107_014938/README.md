@@ -1,0 +1,25 @@
+# v28_11_searchqa600_batch60_decision_boundaries_v1_20261107_014938
+
+训练十轮，每轮 60 题。R10 为最终保留 Skill。逐轮测试覆盖 R01、R04 和 R08，R10 另有两份短版消融。
+
+[冻结训练配置](config/config.json) · [完成回执](reports/training_summary.json) · [训练状态](reports/state.json) · [初始 Skill](config/initial_skill.md) · [最终 Skill](results/final_skill.md) · [最终训练检查点](../../../campaigns/v28_11_searchqa600_batch60_decision_boundaries_v1_20261107_014938/rounds/R10/selected.md) · [原始训练](../../../campaigns/v28_11_searchqa600_batch60_decision_boundaries_v1_20261107_014938) · [运行入口](../../../../scripts/runs/run_v28_11_campaign.py)
+
+## Test1400
+
+全部使用 DeepSeek Flash。每条评测沿用原评测 ID。
+
+| 评测 | EM 题数 | Token F1 | 证据 |
+| --- | ---: | ---: | --- |
+| R01 保留 Skill | 1,147/1,400 | 89.63% | [受测 Skill](results/v28_11_searchqa600_batch60_decision_boundaries_v1_20261107_014938_R01_test1400_20261109/skill.md) · [摘要](results/v28_11_searchqa600_batch60_decision_boundaries_v1_20261107_014938_R01_test1400_20261109/summary.json) · [原始评测计划](../../../evaluations/v28_11_searchqa600_batch60_decision_boundaries_v1_20261107_014938_R01_test1400_20261109/evaluation.json) · [原始逐题回执](../../../evaluations/v28_11_searchqa600_batch60_decision_boundaries_v1_20261107_014938_R01_test1400_20261109/runs/records.json) |
+| R04 保留 Skill | 1,172/1,400 | 90.74% | [受测 Skill](results/v28_11_searchqa600_batch60_decision_boundaries_v1_20261107_014938_R04_test1400_20261109/skill.md) · [摘要](results/v28_11_searchqa600_batch60_decision_boundaries_v1_20261107_014938_R04_test1400_20261109/summary.json) · [原始评测计划](../../../evaluations/v28_11_searchqa600_batch60_decision_boundaries_v1_20261107_014938_R04_test1400_20261109/evaluation.json) · [原始逐题回执](../../../evaluations/v28_11_searchqa600_batch60_decision_boundaries_v1_20261107_014938_R04_test1400_20261109/runs/records.json) |
+| R08 保留 Skill | 1,163/1,400 | 90.52% | [受测 Skill](results/v28_11_searchqa600_batch60_decision_boundaries_v1_20261107_014938_R08_test1400_20261109/skill.md) · [摘要](results/v28_11_searchqa600_batch60_decision_boundaries_v1_20261107_014938_R08_test1400_20261109/summary.json) · [原始评测计划](../../../evaluations/v28_11_searchqa600_batch60_decision_boundaries_v1_20261107_014938_R08_test1400_20261109/evaluation.json) · [原始逐题回执](../../../evaluations/v28_11_searchqa600_batch60_decision_boundaries_v1_20261107_014938_R08_test1400_20261109/runs/records.json) |
+| 最终 Skill 首测 | 1,179/1,400 | 91.11% | [受测 Skill](results/v28_11_searchqa600_batch60_decision_boundaries_v1_20261107_014938_test1400/skill.md) · [摘要](results/v28_11_searchqa600_batch60_decision_boundaries_v1_20261107_014938_test1400/summary.json) · [原始评测计划](../../../evaluations/v28_11_searchqa600_batch60_decision_boundaries_v1_20261107_014938_test1400/evaluation.json) · [原始逐题回执](../../../evaluations/v28_11_searchqa600_batch60_decision_boundaries_v1_20261107_014938_test1400/runs/records.json) |
+| 最终 Skill 第 1 次复测 | 1,172/1,400 | 90.95% | [受测 Skill](results/v28_11_searchqa600_batch60_decision_boundaries_v1_20261107_014938_test1400_retest_20261107_025608/skill.md) · [摘要](results/v28_11_searchqa600_batch60_decision_boundaries_v1_20261107_014938_test1400_retest_20261107_025608/summary.json) · [原始评测计划](../../../evaluations/v28_11_searchqa600_batch60_decision_boundaries_v1_20261107_014938_test1400_retest_20261107_025608/evaluation.json) · [原始逐题回执](../../../evaluations/v28_11_searchqa600_batch60_decision_boundaries_v1_20261107_014938_test1400_retest_20261107_025608/runs/records.json) |
+| R10 短版 B | 1,182/1,400 | 91.48% | [受测 Skill](results/v28_11_searchqa600_batch60_decision_boundaries_v1_20261107_014938_R10_short_form_B_test1400_20261109/skill.md) · [摘要](results/v28_11_searchqa600_batch60_decision_boundaries_v1_20261107_014938_R10_short_form_B_test1400_20261109/summary.json) · [原始评测计划](../../../evaluations/v28_11_searchqa600_batch60_decision_boundaries_v1_20261107_014938_R10_short_form_B_test1400_20261109/evaluation.json) · [原始逐题回执](../../../evaluations/v28_11_searchqa600_batch60_decision_boundaries_v1_20261107_014938_R10_short_form_B_test1400_20261109/runs/records.json) |
+| R10 短版 C | 1,182/1,400 | 91.33% | [受测 Skill](results/v28_11_searchqa600_batch60_decision_boundaries_v1_20261107_014938_R10_short_form_C_test1400_20261109/skill.md) · [摘要](results/v28_11_searchqa600_batch60_decision_boundaries_v1_20261107_014938_R10_short_form_C_test1400_20261109/summary.json) · [原始评测计划](../../../evaluations/v28_11_searchqa600_batch60_decision_boundaries_v1_20261107_014938_R10_short_form_C_test1400_20261109/evaluation.json) · [原始逐题回执](../../../evaluations/v28_11_searchqa600_batch60_decision_boundaries_v1_20261107_014938_R10_short_form_C_test1400_20261109/runs/records.json) |
+
+短版 B 和 C 的 EM 均为 1,182/1,400，两份受测文本和 Token F1 各有独立记录。[A/B 原分析](../../../analysis/v28_11_r10_short_form_ab_20261109/comparison.md) · [B/C 原分析](../../../analysis/v28_11_r10_short_form_bc_20261109/comparison.md)
+
+主对照 SkillAdam 的冻结配置引用本次训练的原配置与同一分批。[SkillAdam 冻结配置](../../skilladam/searchqa/v28_11_aligned/v28_11_aligned_batch60_20261116_123000/config/frozen.json)
+
+[历史验收清单](../../../benchmarks/searchqa/v28_11-v28_15.json) · [SearchQA 实验索引](../../SEARCHQA.md)

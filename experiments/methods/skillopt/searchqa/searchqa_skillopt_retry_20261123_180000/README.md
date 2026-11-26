@@ -1,0 +1,27 @@
+# searchqa_skillopt_retry_20261123_180000
+
+11 月 23 日重试版从共用初始 Skill 启动，完成四个 epoch。每个 epoch 400 道训练题，Selection 使用独立的 200 题。最终 Skill 由 Epoch 4 的慢更新生成。
+
+[冻结训练配置](config/run.json) · [完成回执](reports/selection.json) · [初始 Skill](config/initial_skill.md) · [最终 Skill](results/best_skill.md) · [原始训练](../../../../baselines/searchqa_skillopt_retry_20261123_180000) · [历史启动记录](../../../../launches/searchqa_skillopt_retry_20261123_180000/started.json) · [运行入口](../../../../../scripts/runs/skillopt/searchqa/run.py)
+
+## Test1400
+
+全部评测使用 DeepSeek Flash。主图采用一列标明逐轮、逐步取值及用于最终中位数的复测。
+
+| 评测 | EM 题数 | 主图采用 | 证据 |
+| --- | ---: | --- | --- |
+| 最终 Skill 首测 | 1,182/1,400 | 最终中位数 | [受测 Skill](results/test/skill.md) · [摘要](results/test/report.json) · [原始评测计划](../../../../baselines/searchqa_skillopt_retry_20261123_180000/test/plan.json) · [原始逐题日志](../../../../baselines/searchqa_skillopt_retry_20261123_180000/test/batch/records.json) |
+| 最终 Skill 第 1 次复测 | 1,185/1,400 | 最终中位数 | [受测 Skill](results/searchqa_skillopt_retry_best_retest_20261123_223214/skill.md) · [摘要](results/searchqa_skillopt_retry_best_retest_20261123_223214/report.json) · [原始评测计划](../../../../evaluations/searchqa_skillopt_retry_best_retest_20261123_223214/plan.json) · [原始逐题日志](../../../../evaluations/searchqa_skillopt_retry_best_retest_20261123_223214/batch/records.json) |
+| 最终 Skill 第 2 次复测 | 1,195/1,400 |  | [受测 Skill](results/searchqa_skillopt_retry_best_retest_20261123_223706/skill.md) · [摘要](results/searchqa_skillopt_retry_best_retest_20261123_223706/report.json) · [原始评测计划](../../../../evaluations/searchqa_skillopt_retry_best_retest_20261123_223706/plan.json) · [原始逐题日志](../../../../evaluations/searchqa_skillopt_retry_best_retest_20261123_223706/batch/records.json) |
+| 最终 Skill 第 3 次复测 | 1,188/1,400 | 最终中位数 | [受测 Skill](results/searchqa_skillopt_retry_best_retest_20261124_120141/skill.md) · [摘要](results/searchqa_skillopt_retry_best_retest_20261124_120141/report.json) · [原始评测计划](../../../../evaluations/searchqa_skillopt_retry_best_retest_20261124_120141/plan.json) · [原始逐题日志](../../../../evaluations/searchqa_skillopt_retry_best_retest_20261124_120141/batch/records.json) |
+| Step 1 | 1,155/1,400 | Step 1 | [受测 Skill](results/searchqa_skillopt_retry_step_tests_20261123_230118/step_0001/skill.md) · [摘要](results/searchqa_skillopt_retry_step_tests_20261123_230118/step_0001/report.json) · [原始评测计划](../../../../evaluations/searchqa_skillopt_retry_step_tests_20261123_230118/step_0001/plan.json) · [原始逐题日志](../../../../evaluations/searchqa_skillopt_retry_step_tests_20261123_230118/step_0001/batch/records.json) |
+| Step 2 | 1,171/1,400 | Step 2 | [受测 Skill](results/searchqa_skillopt_retry_step_retests_20261124_120633/step_0002/skill.md) · [摘要](results/searchqa_skillopt_retry_step_retests_20261124_120633/step_0002/report.json) · [原始评测计划](../../../../evaluations/searchqa_skillopt_retry_step_retests_20261124_120633/step_0002/plan.json) · [原始逐题日志](../../../../evaluations/searchqa_skillopt_retry_step_retests_20261124_120633/step_0002/batch/records.json) |
+| Step 10 | 1,172/1,400 | Step 10 | [受测 Skill](results/searchqa_skillopt_retry_step_retests_20261124_120633/step_0010/skill.md) · [摘要](results/searchqa_skillopt_retry_step_retests_20261124_120633/step_0010/report.json) · [原始评测计划](../../../../evaluations/searchqa_skillopt_retry_step_retests_20261124_120633/step_0010/plan.json) · [原始逐题日志](../../../../evaluations/searchqa_skillopt_retry_step_retests_20261124_120633/step_0010/batch/records.json) |
+| Step 29 | 1,169/1,400 | Step 29 | [受测 Skill](results/searchqa_skillopt_retry_step_retests_20261124_120633/step_0029/skill.md) · [摘要](results/searchqa_skillopt_retry_step_retests_20261124_120633/step_0029/report.json) · [原始评测计划](../../../../evaluations/searchqa_skillopt_retry_step_retests_20261124_120633/step_0029/plan.json) · [原始逐题日志](../../../../evaluations/searchqa_skillopt_retry_step_retests_20261124_120633/step_0029/batch/records.json) |
+| Step 2 首测 | 1,168/1,400 |  | [受测 Skill](results/searchqa_skillopt_retry_step_tests_20261123_230118/step_0002/skill.md) · [摘要](results/searchqa_skillopt_retry_step_tests_20261123_230118/step_0002/report.json) · [原始评测计划](../../../../evaluations/searchqa_skillopt_retry_step_tests_20261123_230118/step_0002/plan.json) · [原始逐题日志](../../../../evaluations/searchqa_skillopt_retry_step_tests_20261123_230118/step_0002/batch/records.json) |
+| Step 10 首测 | 1,167/1,400 |  | [受测 Skill](results/searchqa_skillopt_retry_step_tests_20261123_230118/step_0010/skill.md) · [摘要](results/searchqa_skillopt_retry_step_tests_20261123_230118/step_0010/report.json) · [原始评测计划](../../../../evaluations/searchqa_skillopt_retry_step_tests_20261123_230118/step_0010/plan.json) · [原始逐题日志](../../../../evaluations/searchqa_skillopt_retry_step_tests_20261123_230118/step_0010/batch/records.json) |
+| Step 29 首测 | 1,172/1,400 |  | [受测 Skill](results/searchqa_skillopt_retry_step_tests_20261123_230118/step_0029/skill.md) · [摘要](results/searchqa_skillopt_retry_step_tests_20261123_230118/step_0029/report.json) · [原始评测计划](../../../../evaluations/searchqa_skillopt_retry_step_tests_20261123_230118/step_0029/plan.json) · [原始逐题日志](../../../../evaluations/searchqa_skillopt_retry_step_tests_20261123_230118/step_0029/batch/records.json) |
+
+Step 10 的评测使用该步写入的候选文本。第 2、3 个 epoch 的慢更新沿用各自当前的保留 Skill。Epoch 4 的慢更新通过 Selection 后发布最终 Skill。
+
+[原始路径、SHA-256 和核验清单](../../../../benchmarks/searchqa/main-comparison.json) · [SearchQA 主对照索引](../../../SEARCHQA.md)

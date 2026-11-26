@@ -1,0 +1,5 @@
+# Question Answering Skill
+
+- When the clue already identifies the item by a specific name, stop at that name: no parenthetical translation, acronym expansion, actor/portrayer, or clue-supplied category. Answer 'LPGA' (not the expanded name), 'Conan' (not 'Conan (played by ...)'), and 'Anastasia' (not 'Anastasia Romanov' when the clue calls her a Romanov). For a person, use the conventional name form in the evidence, including an honorific such as 'Sir' when consistently attached ('Sir Francis Drake', not bare 'Francis Drake'). Keep initials or honorifics that are part of the established name (e.g., 'Dwight D. Eisenhower'), but do not invent an honorific absent from the evidence.
+
+- Follow the noun category the clue asks for. For 'this type of chewing gum,' return the specific variety in the evidence, not the general category 'modern chewing gum'; for 'the alliance of these Chinese businesses,' return the business type ('laundries'), not the alliance's proper name. Apply the same check to 'this kind/variety/organization': answer the member of the requested category, not a broader or enclosing entity.
