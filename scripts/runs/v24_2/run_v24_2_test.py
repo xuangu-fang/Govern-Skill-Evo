@@ -137,6 +137,16 @@ def checkpoint_bundle(root, output, bundle, checkpoint):
 
 def read_archived_test(root, output, adapter, version, load_skill, relative_receipts):
     """Read a finished Test using its historical final, checkpoint or ablation Skill."""
+    from src.skill_evolution.shared.offline_records import offline_records
+    from src.skill_evolution.v24_1 import verifier_retry
+    from src.skill_evolution.v24_1.benchmarks.alfworld.actor import response_archive
+    from src.skill_evolution.v24_2 import storage
+
+    with offline_records('alfworld', storage, evaluation.ev, verifier_retry, response_archive) as path:
+        return _read_archived_test(path(root), path(output), adapter, version, load_skill, relative_receipts)
+
+
+def _read_archived_test(root, output, adapter, version, load_skill, relative_receipts):
     loader = published_history if load_skill is published_skill else load_skill
     bundle = prepare_test(root, adapter, version=version, load_skill=loader)
     saved = read(output / 'input.json')

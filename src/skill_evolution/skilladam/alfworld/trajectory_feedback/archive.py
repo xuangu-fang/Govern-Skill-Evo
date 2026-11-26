@@ -39,10 +39,19 @@ def checkpoint_evaluations(output, results, training, final_skill, items, actor)
 
 
 def read_archive(run_id):
-    experiments = ROOT / 'experiments/methods/skilladam/alfworld/trajectory_feedback'
+    from scripts.runs.alfworld import alfworld_aligned_common
+    from src.adapters.alfworld import response_archive
+    from src.skill_evolution.shared.offline_records import offline_records
+
+    with offline_records('alfworld', alfworld_aligned_common, response_archive) as path:
+        return _read_archive(run_id, path(ROOT))
+
+
+def _read_archive(run_id, repository):
+    experiments = repository / 'experiments/methods/skilladam/alfworld/trajectory_feedback'
     reference = read(experiments / run_id / 'config/baseline_reference.json')
-    output = ROOT / reference['training_archive']
-    config = (ROOT / reference['baseline_config']).parent
+    output = repository / reference['training_archive']
+    config = (repository / reference['baseline_config']).parent
     require(output.name == reference['run_id'] == run_id, 'Feedback training ID differs')
     training, skill = read_training(output, config)
     first_batch_skill = output / 'shared_actor/iter_000/training_rollout_0/actor_skill.md'
