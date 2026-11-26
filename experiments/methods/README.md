@@ -1,6 +1,6 @@
 # 方法实验总索引
 
-[ALFWorld 自进化实验索引（v24 至 v24.10）](ALFWORLD.md) · [SkillAdam 的 ALFWorld 实验索引](skilladam/alfworld/README.md)
+[ALFWorld 自进化实验索引（v24 至 v24.11）](ALFWORLD.md) · [SkillAdam 的 ALFWorld 实验索引](skilladam/alfworld/README.md) · [原生 SkillOpt 基线](../../docs/methods/skillopt/ALFWORLD_NATIVE.md) · [三种方法的实验对照](../../docs/benchmarks/alfworld/V24_11_COMPARISON.md)
 
 按方法版本和原实验 ID 组织配置、冻结证据及精选结果。版本号不表示已完成正式实验，目录存在也不代表实验成功。
 
@@ -50,6 +50,7 @@
 | v24.8 | [ALFWorld 训练与评测](v24_8/README.md) | 6 |
 | v24.9 | [ALFWorld 训练与评测](v24_9/README.md) | 3 |
 | v24.10 | [ALFWorld 训练与评测](v24_10/README.md) | 1 |
+| v24.11 | [两次训练记录，正式运行含九次评测](v24_11/README.md) | 2 |
 
 ## 原始运行统一入口
 

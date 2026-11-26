@@ -1,6 +1,6 @@
 # ALFWorld 自进化实验索引
 
-覆盖 v24 至 v24.10。表中每次完整 Test 均含 134 题，数字为成功题数。消融使用的 Skill 与对应训练的导出文本分别归档。
+覆盖 v24 至 v24.11。表中每次完整 Test 均含 134 题，数字为成功题数。消融使用的 Skill 与对应训练的导出文本分别归档。
 
 | 版本与实验材料 | 训练与归属 | Test |
 |---|---|---|
@@ -15,6 +15,9 @@
 | [v24.8](v24_8/README.md) | 正式训练与五组离线检查分别归档。 | 首测 115 |
 | [v24.9](v24_9/README.md) | general 与 general_withdraw 各自完成六轮，分别保留实际使用的 Preconditioner。 | general 首测 114；general_withdraw 首测 119，复测 121 |
 | [v24.10](v24_10/README.md) | 一份正式训练对应首测和复测。 | 首测 119，复测 121 |
+| [v24.11](v24_11/README.md) | 较早一次记录到 R02。正式运行完成六轮，另有 R02、R04 各两次评测。 | R06 首测 127，复测 125、125、127、124 |
+
+[与 SkillAdam、SkillOpt 的逐轮及跨 Actor 对照](../../docs/benchmarks/alfworld/V24_11_COMPARISON.md)
 
 ## 从摘要定位原始记录
 
