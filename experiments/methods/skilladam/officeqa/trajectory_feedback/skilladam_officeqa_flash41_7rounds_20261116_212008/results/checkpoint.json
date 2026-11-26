@@ -1,0 +1,1535 @@
+{
+  "consecutive_failures": 2,
+  "current_skill": "---\nname: treasury-bulletin-qa\ndescription: Retrieve, align, and compute answers from local Treasury Bulletin text files.\nwhen_to_use:\n  - The question points at Treasury Bulletin tables, financing operations, trust funds, budget receipts or outlays, money in circulation, or bond yields.\n  - The answer requires locating one row or column, a chart series, or a multi-month value series before computing.\n---\n\n## Workflow\n\n1. **Resolve the document set before searching.** A grep against a guessed or unresolved filename is rejected and burns turns from a limited budget. Start with a broad glob over the text-file tree, then grep only the paths the glob actually returned, and reuse the resolved path verbatim for every later search and read. Candidate tools: glob, grep.\n\n2. **Narrow to the right table.** Search on table titles or numbers and on the exact entity-plus-measure phrases from the question. Before reading a long span, confirm the section basis (fiscal vs calendar year), the unit (thousands, millions, billions), and whether this issue even covers the requested period; if not, move to the neighboring issue, because a given month's figures are often printed in a later bulletin than the one you first guess. Candidate tools: grep, read.\n\n3. **Lock the row and column role.** Multi-row headers and adjacent columns frequently hold different transaction or measurement roles (offered vs tenders received vs tenders accepted; competitive vs noncompetitive; receipts vs outlays; gross vs net). Read the header block and the footnotes together with the data row. When a footnote defines a column as already including the components the question names, or already excluding the ones it excludes, that column value is the operand — do not re-sum or re-adjust the sub-items. Candidate tools: read, grep.\n\n4. **Assemble the complete operand set.** For questions spanning many months, enumerate the expected observations (start month through end month inclusive) and confirm the extracted count matches before computing. In tables that interleave monthly rows with calendar-year or fiscal-year total rows, take only the monthly rows. Record which bulletin issue each value came from, since the same month can be restated across vintages. Candidate tools: read, grep.\n\n5. **Settle the convention, then compute.** Decide the method the question asks for before touching the numbers — geometric mean via the log-average (or product then nth root), population vs sample dispersion, simple vs compound growth, regression against a numeric period, ratio vs percentage-point difference — and write the choice down. The word \"population\" in the question fixes the dispersion denominator at n; when the question says only \"standard deviation\" or \"coefficient of variation\" over a set of observed periods, use the sample convention (n−1). An elasticity divides by the midpoint change in its substantive driver variable, not by the change in the time index. A shared deflator or unit conversion applied equally to numerator and denominator cancels inside a ratio. Then convert to the requested unit and carry full precision until the final rounding. After computing, sanity-check the magnitude: an elasticity, growth rate, or share far outside its plausible range means a misread operand or denominator, so re-read the row rather than redoing the arithmetic. Candidate tools: read (to re-verify the operand lines).\n\n6. **Chart and exhibit questions.** A chart's series is usually restated in a table elsewhere in the same bulletin. Search for the series by name, by the exhibit title, and by characteristic axis values before trying to read a plotted line from parsed text. Count peaks, crossings, or exceedances only from points you actually extracted; if the parsed text yields no usable series, report that the chart data could not be extracted rather than answering a guessed number. Candidate tools: grep, read.\n\n7. **Format the answer from the checked value.** If the question specifies a literal encoding or transform for the response — month×100 + year, a bracketed list of named components, a probability quoted in percentage points — substitute the verified operands into that formula exactly and re-solve it once before writing; a natural-looking concatenation of the same numbers, or your own preferred framing, is not the requested form. Then emit only the requested value, at the requested precision, sign, unit convention, and date style — nothing else. Candidate tools: none (final formatting).\n\n## Error Avoidance\n\n- Never grep a filename you have not confirmed exists. Recursive patterns and narrow name filters often return nothing even when the files are present; fall back to a plain top-level wildcard, then reuse the exact resolved paths for every subsequent search and read.\n- Never mix calendar-year or fiscal-year total rows into a monthly series; verify the extracted count equals the inclusive month span.\n- Never substitute an adjacent column, or a sum of sub-components, for the column the question names; confirm the header role and footnotes first.\n- Never answer a chart question with a count, peak, comparison, or any derived value you did not compute from extracted points. Noticing that a series exists only as a plotted chart is not evidence; if no table restates that series with matching definitions, state that the chart data could not be extracted rather than emitting a plausible-looking number.\n- Never append unit words, percent signs, currency symbols, or period-type qualifiers to the answer unless the question asks for them; round only the final value.\n",
+  "iterations": [
+    {
+      "accepted": true,
+      "baseline": {
+        "case_metrics": {
+          "UID0002": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0007": {
+            "em": 0.0,
+            "f1": 0.0
+          },
+          "UID0014": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0017": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0018": {
+            "em": 0.0,
+            "f1": 0.0
+          },
+          "UID0019": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0026": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0028": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0030": {
+            "em": 0.0,
+            "f1": 0.0
+          },
+          "UID0031": {
+            "em": 0.0,
+            "f1": 0.0
+          },
+          "UID0033": {
+            "em": 1.0,
+            "f1": 1.0
+          }
+        },
+        "metadata": {},
+        "metrics": {
+          "em": 0.6363636363636364,
+          "f1": 0.6363636363636364
+        },
+        "primary": 0.6363636363636364,
+        "sample_count": 11
+      },
+      "candidate": {
+        "case_metrics": {
+          "UID0002": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0007": {
+            "em": 0.0,
+            "f1": 0.0
+          },
+          "UID0014": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0017": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0018": {
+            "em": 0.0,
+            "f1": 0.0
+          },
+          "UID0019": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0026": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0028": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0030": {
+            "em": 0.0,
+            "f1": 0.0
+          },
+          "UID0031": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0033": {
+            "em": 1.0,
+            "f1": 1.0
+          }
+        },
+        "metadata": {},
+        "metrics": {
+          "em": 0.7272727272727273,
+          "f1": 0.7272727272727273
+        },
+        "primary": 0.7272727272727273,
+        "sample_count": 11
+      },
+      "edit_budget": 4,
+      "iteration": 0,
+      "patch_attempts": 1,
+      "patch_mode": "strict",
+      "reason": "em_gain=+0.091 | f1_gain=+0.091 (thresholds: em_gain>=+0.08 or f1_gain>=+0.05; em_drop<0.08 and f1_drop<0.05)",
+      "sigma_sq": 0.09090909090909091,
+      "training_case_ids": [
+        "UID0002",
+        "UID0007",
+        "UID0014",
+        "UID0017",
+        "UID0018",
+        "UID0019",
+        "UID0026",
+        "UID0028",
+        "UID0030",
+        "UID0031",
+        "UID0033"
+      ],
+      "v_ema_after": 0.009090909090909089,
+      "validation_case_ids": [
+        "UID0002",
+        "UID0007",
+        "UID0014",
+        "UID0017",
+        "UID0018",
+        "UID0019",
+        "UID0026",
+        "UID0028",
+        "UID0030",
+        "UID0031",
+        "UID0033"
+      ]
+    },
+    {
+      "accepted": false,
+      "baseline": {
+        "case_metrics": {
+          "UID0034": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0044": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0046": {
+            "em": 0.0,
+            "f1": 0.0
+          },
+          "UID0049": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0056": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0063": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0065": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0073": {
+            "em": 0.0,
+            "f1": 0.0
+          },
+          "UID0079": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0083": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0085": {
+            "em": 1.0,
+            "f1": 1.0
+          }
+        },
+        "metadata": {},
+        "metrics": {
+          "em": 0.8181818181818182,
+          "f1": 0.8181818181818182
+        },
+        "primary": 0.8181818181818182,
+        "sample_count": 11
+      },
+      "candidate": {
+        "case_metrics": {
+          "UID0034": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0044": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0046": {
+            "em": 0.0,
+            "f1": 0.0
+          },
+          "UID0049": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0056": {
+            "em": 0.0,
+            "f1": 0.0
+          },
+          "UID0063": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0065": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0073": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0079": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0083": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0085": {
+            "em": 1.0,
+            "f1": 1.0
+          }
+        },
+        "metadata": {},
+        "metrics": {
+          "em": 0.8181818181818182,
+          "f1": 0.8181818181818182
+        },
+        "primary": 0.8181818181818182,
+        "sample_count": 11
+      },
+      "edit_budget": 3,
+      "iteration": 1,
+      "patch_attempts": 1,
+      "patch_mode": "strict",
+      "reason": "em_gain=+0.000 | f1_gain=+0.000 (thresholds: em_gain>=+0.08 or f1_gain>=+0.05; em_drop<0.08 and f1_drop<0.05)",
+      "sigma_sq": 0.2,
+      "training_case_ids": [
+        "UID0034",
+        "UID0044",
+        "UID0046",
+        "UID0049",
+        "UID0056",
+        "UID0063",
+        "UID0065",
+        "UID0073",
+        "UID0079",
+        "UID0083",
+        "UID0085"
+      ],
+      "v_ema_after": 0.028181818181818176,
+      "validation_case_ids": [
+        "UID0034",
+        "UID0044",
+        "UID0046",
+        "UID0049",
+        "UID0056",
+        "UID0063",
+        "UID0065",
+        "UID0073",
+        "UID0079",
+        "UID0083",
+        "UID0085"
+      ]
+    },
+    {
+      "accepted": true,
+      "baseline": {
+        "case_metrics": {
+          "UID0087": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0092": {
+            "em": 0.0,
+            "f1": 0.0
+          },
+          "UID0098": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0101": {
+            "em": 0.0,
+            "f1": 0.6666666666666666
+          },
+          "UID0110": {
+            "em": 0.0,
+            "f1": 0.0
+          },
+          "UID0115": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0122": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0123": {
+            "em": 0.0,
+            "f1": 0.0
+          },
+          "UID0133": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0141": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0144": {
+            "em": 1.0,
+            "f1": 1.0
+          }
+        },
+        "metadata": {},
+        "metrics": {
+          "em": 0.6363636363636364,
+          "f1": 0.696969696969697
+        },
+        "primary": 0.6363636363636364,
+        "sample_count": 11
+      },
+      "candidate": {
+        "case_metrics": {
+          "UID0087": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0092": {
+            "em": 0.0,
+            "f1": 0.0
+          },
+          "UID0098": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0101": {
+            "em": 0.0,
+            "f1": 0.6666666666666666
+          },
+          "UID0110": {
+            "em": 0.0,
+            "f1": 0.0
+          },
+          "UID0115": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0122": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0123": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0133": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0141": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0144": {
+            "em": 1.0,
+            "f1": 1.0
+          }
+        },
+        "metadata": {},
+        "metrics": {
+          "em": 0.7272727272727273,
+          "f1": 0.7878787878787878
+        },
+        "primary": 0.7272727272727273,
+        "sample_count": 11
+      },
+      "edit_budget": 2,
+      "iteration": 2,
+      "patch_attempts": 1,
+      "patch_mode": "strict",
+      "reason": "em_gain=+0.091 | f1_gain=+0.091 (thresholds: em_gain>=+0.08 or f1_gain>=+0.05; em_drop<0.08 and f1_drop<0.05)",
+      "sigma_sq": 0.09090909090909091,
+      "training_case_ids": [
+        "UID0087",
+        "UID0092",
+        "UID0098",
+        "UID0101",
+        "UID0110",
+        "UID0115",
+        "UID0122",
+        "UID0123",
+        "UID0133",
+        "UID0141",
+        "UID0144"
+      ],
+      "v_ema_after": 0.034454545454545446,
+      "validation_case_ids": [
+        "UID0087",
+        "UID0092",
+        "UID0098",
+        "UID0101",
+        "UID0110",
+        "UID0115",
+        "UID0122",
+        "UID0123",
+        "UID0133",
+        "UID0141",
+        "UID0144"
+      ]
+    },
+    {
+      "accepted": false,
+      "baseline": {
+        "case_metrics": {
+          "UID0145": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0150": {
+            "em": 0.0,
+            "f1": 0.0
+          },
+          "UID0151": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0162": {
+            "em": 0.0,
+            "f1": 0.0
+          },
+          "UID0163": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0165": {
+            "em": 0.0,
+            "f1": 0.0
+          },
+          "UID0166": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0169": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0189": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0195": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0202": {
+            "em": 1.0,
+            "f1": 1.0
+          }
+        },
+        "metadata": {},
+        "metrics": {
+          "em": 0.7272727272727273,
+          "f1": 0.7272727272727273
+        },
+        "primary": 0.7272727272727273,
+        "sample_count": 11
+      },
+      "candidate": {
+        "case_metrics": {
+          "UID0145": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0150": {
+            "em": 0.0,
+            "f1": 0.0
+          },
+          "UID0151": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0162": {
+            "em": 0.0,
+            "f1": 0.0
+          },
+          "UID0163": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0165": {
+            "em": 0.0,
+            "f1": 0.0
+          },
+          "UID0166": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0169": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0189": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0195": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0202": {
+            "em": 1.0,
+            "f1": 1.0
+          }
+        },
+        "metadata": {},
+        "metrics": {
+          "em": 0.7272727272727273,
+          "f1": 0.7272727272727273
+        },
+        "primary": 0.7272727272727273,
+        "sample_count": 11
+      },
+      "edit_budget": 1,
+      "iteration": 3,
+      "patch_attempts": 1,
+      "patch_mode": "strict",
+      "reason": "em_gain=+0.000 | f1_gain=+0.000 (thresholds: em_gain>=+0.08 or f1_gain>=+0.05; em_drop<0.08 and f1_drop<0.05)",
+      "sigma_sq": 0.0,
+      "training_case_ids": [
+        "UID0145",
+        "UID0150",
+        "UID0151",
+        "UID0162",
+        "UID0163",
+        "UID0165",
+        "UID0166",
+        "UID0169",
+        "UID0189",
+        "UID0195",
+        "UID0202"
+      ],
+      "v_ema_after": 0.031009090909090903,
+      "validation_case_ids": [
+        "UID0145",
+        "UID0150",
+        "UID0151",
+        "UID0162",
+        "UID0163",
+        "UID0165",
+        "UID0166",
+        "UID0169",
+        "UID0189",
+        "UID0195",
+        "UID0202"
+      ]
+    },
+    {
+      "accepted": true,
+      "baseline": {
+        "case_metrics": {
+          "UID0001": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0027": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0039": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0041": {
+            "em": 0.0,
+            "f1": 0.0
+          },
+          "UID0212": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0222": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0228": {
+            "em": 0.0,
+            "f1": 0.6666666666666666
+          },
+          "UID0229": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0238": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0241": {
+            "em": 1.0,
+            "f1": 1.0
+          }
+        },
+        "metadata": {},
+        "metrics": {
+          "em": 0.8,
+          "f1": 0.8666666666666666
+        },
+        "primary": 0.8,
+        "sample_count": 10
+      },
+      "candidate": {
+        "case_metrics": {
+          "UID0001": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0027": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0039": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0041": {
+            "em": 0.0,
+            "f1": 0.0
+          },
+          "UID0212": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0222": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0228": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0229": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0238": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0241": {
+            "em": 1.0,
+            "f1": 1.0
+          }
+        },
+        "metadata": {},
+        "metrics": {
+          "em": 0.9,
+          "f1": 0.9
+        },
+        "primary": 0.9,
+        "sample_count": 10
+      },
+      "edit_budget": 2,
+      "iteration": 4,
+      "patch_attempts": 1,
+      "patch_mode": "strict",
+      "reason": "em_gain=+0.100 | f1_gain=+0.033 (thresholds: em_gain>=+0.08 or f1_gain>=+0.05; em_drop<0.08 and f1_drop<0.05)",
+      "sigma_sq": 0.1,
+      "training_case_ids": [
+        "UID0212",
+        "UID0222",
+        "UID0228",
+        "UID0229",
+        "UID0238",
+        "UID0241",
+        "UID0001",
+        "UID0027",
+        "UID0039",
+        "UID0041"
+      ],
+      "v_ema_after": 0.03790818181818181,
+      "validation_case_ids": [
+        "UID0212",
+        "UID0222",
+        "UID0228",
+        "UID0229",
+        "UID0238",
+        "UID0241",
+        "UID0001",
+        "UID0027",
+        "UID0039",
+        "UID0041"
+      ]
+    },
+    {
+      "accepted": false,
+      "baseline": {
+        "case_metrics": {
+          "UID0052": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0070": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0072": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0086": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0091": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0109": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0142": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0154": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0159": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0161": {
+            "em": 1.0,
+            "f1": 1.0
+          }
+        },
+        "metadata": {},
+        "metrics": {
+          "em": 1.0,
+          "f1": 1.0
+        },
+        "primary": 1.0,
+        "sample_count": 10
+      },
+      "candidate": {
+        "case_metrics": {
+          "UID0052": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0070": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0072": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0086": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0091": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0109": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0142": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0154": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0159": {
+            "em": 0.0,
+            "f1": 0.0
+          },
+          "UID0161": {
+            "em": 1.0,
+            "f1": 1.0
+          }
+        },
+        "metadata": {},
+        "metrics": {
+          "em": 0.9,
+          "f1": 0.9
+        },
+        "primary": 0.9,
+        "sample_count": 10
+      },
+      "edit_budget": 1,
+      "iteration": 5,
+      "patch_attempts": 1,
+      "patch_mode": "strict",
+      "reason": "em_gain=-0.100 | f1_gain=-0.100 (thresholds: em_gain>=+0.08 or f1_gain>=+0.05; em_drop<0.08 and f1_drop<0.05)",
+      "sigma_sq": 0.1,
+      "training_case_ids": [
+        "UID0052",
+        "UID0070",
+        "UID0072",
+        "UID0086",
+        "UID0091",
+        "UID0109",
+        "UID0142",
+        "UID0154",
+        "UID0159",
+        "UID0161"
+      ],
+      "v_ema_after": 0.044117363636363635,
+      "validation_case_ids": [
+        "UID0052",
+        "UID0070",
+        "UID0072",
+        "UID0086",
+        "UID0091",
+        "UID0109",
+        "UID0142",
+        "UID0154",
+        "UID0159",
+        "UID0161"
+      ]
+    },
+    {
+      "accepted": false,
+      "baseline": {
+        "case_metrics": {
+          "UID0170": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0190": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0213": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0217": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0220": {
+            "em": 0.0,
+            "f1": 0.0
+          },
+          "UID0233": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0234": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0235": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0239": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0240": {
+            "em": 0.0,
+            "f1": 0.0
+          }
+        },
+        "metadata": {},
+        "metrics": {
+          "em": 0.8,
+          "f1": 0.8
+        },
+        "primary": 0.8,
+        "sample_count": 10
+      },
+      "candidate": {
+        "case_metrics": {
+          "UID0170": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0190": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0213": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0217": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0220": {
+            "em": 0.0,
+            "f1": 0.0
+          },
+          "UID0233": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0234": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0235": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0239": {
+            "em": 1.0,
+            "f1": 1.0
+          },
+          "UID0240": {
+            "em": 0.0,
+            "f1": 0.0
+          }
+        },
+        "metadata": {},
+        "metrics": {
+          "em": 0.8,
+          "f1": 0.8
+        },
+        "primary": 0.8,
+        "sample_count": 10
+      },
+      "edit_budget": 1,
+      "iteration": 6,
+      "patch_attempts": 1,
+      "patch_mode": "strict",
+      "reason": "em_gain=+0.000 | f1_gain=+0.000 (thresholds: em_gain>=+0.08 or f1_gain>=+0.05; em_drop<0.08 and f1_drop<0.05)",
+      "sigma_sq": 0.0,
+      "training_case_ids": [
+        "UID0170",
+        "UID0190",
+        "UID0213",
+        "UID0217",
+        "UID0220",
+        "UID0233",
+        "UID0234",
+        "UID0235",
+        "UID0239",
+        "UID0240"
+      ],
+      "v_ema_after": 0.03970562727272727,
+      "validation_case_ids": [
+        "UID0170",
+        "UID0190",
+        "UID0213",
+        "UID0217",
+        "UID0220",
+        "UID0233",
+        "UID0234",
+        "UID0235",
+        "UID0239",
+        "UID0240"
+      ]
+    }
+  ],
+  "momentum": {
+    "current_iteration": 6,
+    "problems": {
+      "chart-answered-without-extracted-series": {
+        "attempts": [
+          {
+            "approach": "Tightens the chart Error Avoidance rule: recognizing a series only as a plotted chart is not evidence, and any derived value not computed from extracted points must be withheld in favor of stating the chart data could not be extracted.",
+            "gate_accepted": true,
+            "iteration": 2,
+            "problem_addressed": true
+          }
+        ],
+        "description": "After determining a needed series exists only as a plotted chart, the agent emits a fabricated numeric answer instead of extracting points or stating the chart data could not be extracted.",
+        "disobedience_events": [
+          {
+            "iteration": 2,
+            "violations": [
+              "Trajectory [5]: recognized the 'Growth of Real GDP' series as 'a chart, not readable text' after ~10 greps, extracted zero quarterly operands, and still emitted the fabricated answer `[2013, 2.53]` instead of reporting the chart data could not be extracted."
+            ]
+          }
+        ],
+        "evidence": "Trajectory [5]: after ~10 greps the agent noted the 'Growth of Real GDP' series was \"a chart, not readable text\"; it never extracted any 2013–2019 quarterly operands yet answered `[2013, 2.53]` with no grounded evidence (EM=0, F1=0.00).",
+        "examples_state_evidence": "The chart Error Avoidance bullet (\"Never answer a chart question with a count, peak, comparison, or any derived value you did not compute from extracted points...\") is abstract prose with no concrete (correct, incorrect) example pairs attached.",
+        "examples_state_iteration": 6,
+        "failure_type": "evidence_miss",
+        "failure_type_history": [
+          {
+            "iteration": 0,
+            "source": "momentum_self",
+            "type": "evidence_miss"
+          }
+        ],
+        "failure_type_source": "momentum_self",
+        "has_concrete_examples_added": false,
+        "inherited_from_iteration": false,
+        "label": "chart-answered-without-extracted-series",
+        "resolve_evidence": "",
+        "status": "open"
+      },
+      "combined-multi-term-grep-misses": {
+        "attempts": [],
+        "description": "A grep combining two terms into one alternation pattern silently returned nothing and wasted a turn; a single-term grep then located the rows immediately.",
+        "disobedience_events": [],
+        "evidence": "Trajectory [2]/UID0222: greps for \"2001 - Mar.\" and \"Mar |Series I\" both returned no matches (table formatting), then the single-term grep \"Series I\" immediately located the Series I savings-bond rows in both bulletins.",
+        "examples_state_evidence": "",
+        "examples_state_iteration": -1,
+        "failure_type": "retrieval_miss",
+        "failure_type_history": [
+          {
+            "iteration": 1,
+            "source": "momentum_self",
+            "type": "retrieval_miss"
+          }
+        ],
+        "failure_type_source": "momentum_self",
+        "has_concrete_examples_added": false,
+        "inherited_from_iteration": false,
+        "label": "combined-multi-term-grep-misses",
+        "resolve_evidence": "",
+        "status": "open"
+      },
+      "dispersion-convention-population-vs-sample": {
+        "attempts": [
+          {
+            "approach": "Revises Workflow step 5 to arbitrate dispersion: explicit \"population\" fixes denominator at n; an unqualified \"standard deviation\"/\"coefficient of variation\" over observed periods uses sample n−1.",
+            "gate_accepted": true,
+            "iteration": 2,
+            "problem_addressed": true
+          }
+        ],
+        "description": "For an unqualified \"standard deviation\" over observed periods the agent divides squared deviations by n (population) instead of n−1 (sample), producing a wrong final value.",
+        "disobedience_events": [],
+        "evidence": "Trajectory [2]: extracted all eight IFS-1 total-reserve-asset values for 1983–1990 correctly, then divided by n=8 and answered 16,843.1712; the sample denominator n−1=7 was required (gold convention), so EM=0 despite clean retrieval and correct column selection.",
+        "examples_state_evidence": "Workflow step 5's dispersion clause (\"The word 'population' ... fixes the dispersion denominator at n; ... use the sample convention (n−1)\") is a bare rule with no concrete numeric example pair attached.",
+        "examples_state_iteration": 6,
+        "failure_type": "calculation_error",
+        "failure_type_history": [
+          {
+            "iteration": 2,
+            "source": "momentum_self",
+            "type": "calculation_error"
+          }
+        ],
+        "failure_type_source": "momentum_self",
+        "has_concrete_examples_added": false,
+        "inherited_from_iteration": false,
+        "label": "dispersion-convention-population-vs-sample",
+        "resolve_evidence": "",
+        "status": "open"
+      },
+      "duration-computed-as-continuous-return": {
+        "attempts": [],
+        "description": "For an implied \"Macaulay-style duration\" from two prices one period apart under continuous compounding, the agent computes the one-period continuous return ln(P1/P0) instead of the duration transform.",
+        "disobedience_events": [],
+        "evidence": "Trajectory 10 (UID0240): extracted correct FY1953=4187 and FY1954=6207 operating balances, then computed ln(6207/4187)=0.3937 and reported it; judged incorrect as a duration despite correct operands.",
+        "examples_state_evidence": "",
+        "examples_state_iteration": -1,
+        "failure_type": "calculation_error",
+        "failure_type_history": [
+          {
+            "iteration": 6,
+            "source": "momentum_self",
+            "type": "calculation_error"
+          }
+        ],
+        "failure_type_source": "momentum_self",
+        "has_concrete_examples_added": false,
+        "inherited_from_iteration": false,
+        "label": "duration-computed-as-continuous-return",
+        "resolve_evidence": "",
+        "status": "open"
+      },
+      "elasticity-divided-by-time-index": {
+        "attempts": [
+          {
+            "approach": "Revises Workflow step 5 to state an elasticity divides by the midpoint change in its substantive driver variable (not the time index) and to add a magnitude sanity check that flags implausible elasticities before answering.",
+            "gate_accepted": true,
+            "iteration": 2,
+            "problem_addressed": true
+          }
+        ],
+        "description": "Agent computes an arc elasticity by dividing the midpoint percent change in the value by the midpoint percent change in the year index rather than in the substantive driver variable, yielding an implausible magnitude it reports anyway.",
+        "disobedience_events": [],
+        "evidence": "Trajectory [4]: CAGR ≈ −0.150 and decay factor ≈ 0.850 were correct, but arc elasticity was computed as midpoint % change in outlays over midpoint % change in the year index, giving −288.719 and reported unchecked (EM=0, F1=0.667).",
+        "examples_state_evidence": "Workflow step 5's elasticity clause (\"An elasticity divides by the midpoint change in its substantive driver variable, not by the change in the time index\") has no concrete worked example pair attached.",
+        "examples_state_iteration": 6,
+        "failure_type": "calculation_error",
+        "failure_type_history": [
+          {
+            "iteration": 2,
+            "source": "momentum_self",
+            "type": "calculation_error"
+          }
+        ],
+        "failure_type_source": "momentum_self",
+        "has_concrete_examples_added": false,
+        "inherited_from_iteration": false,
+        "label": "elasticity-divided-by-time-index",
+        "resolve_evidence": "",
+        "status": "open"
+      },
+      "group-caption-sum-omits-line-item": {
+        "attempts": [
+          {
+            "approach": "Revises Workflow step 3 to add a group-caption rule: when the question names a group caption, read the entire block under it and either use the group's own total row or sum every line inside it, including minor captions (receivables, accrued items) that a quick scan skips.",
+            "gate_accepted": false,
+            "iteration": 5,
+            "problem_addressed": true
+          }
+        ],
+        "description": "Agent sums a named group caption using only the prominent line items and omits minor sub-lines, understating the numerator and the resulting share.",
+        "disobedience_events": [],
+        "evidence": "Trajectory [9] (UID0159): under the \"Foreign exchange and securities\" caption of ESF-1 it summed only European Euro + Japanese yen = 16,090,012 and divided by total assets 40,931,821 = 39.31%, omitting the \"Accounts receivable\" line that also sits under that caption; including it yields ≈39.67% (correct).",
+        "examples_state_evidence": "",
+        "examples_state_iteration": -1,
+        "failure_type": "operand_error",
+        "failure_type_history": [
+          {
+            "iteration": 5,
+            "source": "iteration",
+            "type": "operand_error"
+          }
+        ],
+        "failure_type_source": "iteration",
+        "has_concrete_examples_added": false,
+        "inherited_from_iteration": true,
+        "label": "group-caption-sum-omits-line-item",
+        "resolve_evidence": "",
+        "status": "open"
+      },
+      "historical-series-never-located-narrative-loop": {
+        "attempts": [],
+        "description": "When searches kept returning narrative prose with only a few recent values, the agent re-queried the same passage and never re-targeted the numbered statistical table holding the full historical series, exhausting turns with no answer.",
+        "disobedience_events": [],
+        "evidence": "Trajectory [5] (UID0056): found a narrative giving 1987=2.9%, 1989/1990=4.6%, 6.7% long-term average, then grep'd \"Household Saving\", \"After-Tax Income\", \"Source:\", decade years, \"Flow of Funds\", \"Chart\" — all returning the same prose or unrelated notes — and emitted no final peak-year answer.",
+        "examples_state_evidence": "",
+        "examples_state_iteration": -1,
+        "failure_type": "evidence_miss",
+        "failure_type_history": [
+          {
+            "iteration": 1,
+            "source": "momentum_self",
+            "type": "evidence_miss"
+          }
+        ],
+        "failure_type_source": "momentum_self",
+        "has_concrete_examples_added": false,
+        "inherited_from_iteration": false,
+        "label": "historical-series-never-located-narrative-loop",
+        "resolve_evidence": "",
+        "status": "open"
+      },
+      "multimonth-series-operand-set-miscomputed": {
+        "attempts": [],
+        "description": "For long multi-month geometric-mean questions the agent located the correct tables but assembled or computed the operand set wrongly (month range, vintage, or precision), producing a fully wrong final value.",
+        "disobedience_events": [],
+        "evidence": "Trajectory [2] (UID0007): found Table 6 monthly budget-expenditure rows for Mar1942–Oct1948 but final value wrong (EM=0,F1=0), mismatch at value/rounding not retrieval; Trajectory [5] (UID0018): assembled the Judiciary column from four bulletins' FFO-3 tables (39 values) yet answered 80.289 with EM=0 — failure is operand-set assembly/precision, not table location.",
+        "examples_state_evidence": "",
+        "examples_state_iteration": -1,
+        "failure_type": "operand_error",
+        "failure_type_history": [
+          {
+            "iteration": 0,
+            "source": "momentum_self",
+            "type": "operand_error"
+          }
+        ],
+        "failure_type_source": "momentum_self",
+        "has_concrete_examples_added": false,
+        "inherited_from_iteration": false,
+        "label": "multimonth-series-operand-set-miscomputed",
+        "resolve_evidence": "Trajectory [4] (UID0049): formed 8 y/y log growth rates from 9 annual values, applied population std dev / CV → 1.56 exact. Trajectory [8]/[10] (UID0073/UID0083): assembled the correct 12 monthly net-outlay rows while excluding total/current-month/cumulative columns → correct std dev. Trajectory [9] (UID0079): assembled 10 FY2010–FY2019 observations from 5 bulletins, avoiding general-funds/management/trust-funds columns → 11.73%. All correct operand-set assembly.",
+        "status": "resolved"
+      },
+      "percent-difference-denominator-convention": {
+        "attempts": [
+          {
+            "approach": "Extends Workflow step 5 with \"percent change vs percent difference\": a directional percent change divides the gap by the starting value, while a symmetric \"percent difference between A and B\" with no stated baseline divides by the average (midpoint) of the two values.",
+            "gate_accepted": false,
+            "iteration": 6,
+            "problem_addressed": true
+          }
+        ],
+        "description": "For a symmetric \"percent difference between A and B\" with no stated baseline, the agent divides the gap by one endpoint (the starting/earlier value) instead of by the average of the two values, producing a wrong final value.",
+        "disobedience_events": [],
+        "evidence": "Trajectory 5 (UID0220): extracted correct operands 528 (Feb 1938) and 693 (Jan 1939) from the total-expenditures column, then computed 165/528 = 31.3 and reported it; the judge ruled it wrong (midpoint form 165/((528+693)/2) = 27.0 is the expected convention).",
+        "examples_state_evidence": "",
+        "examples_state_iteration": -1,
+        "failure_type": "calculation_error",
+        "failure_type_history": [
+          {
+            "iteration": 6,
+            "source": "momentum_self",
+            "type": "calculation_error"
+          }
+        ],
+        "failure_type_source": "momentum_self",
+        "has_concrete_examples_added": false,
+        "inherited_from_iteration": false,
+        "label": "percent-difference-denominator-convention",
+        "resolve_evidence": "",
+        "status": "open"
+      },
+      "question-specified-encoding-not-applied": {
+        "attempts": [],
+        "description": "When the question gives a literal output encoding (month×100 + year), the agent concatenated the two numbers into \"111969\" instead of substituting into the formula (11×100+1969=3069), losing an otherwise-correct answer.",
+        "disobedience_events": [],
+        "evidence": "Trajectory [8]/UID0027: retrieval and evidence were correct (located June 1970 Table AY-1 monthly series, correctly picked November 1969 with the largest Aa-minus-Treasury spread ~2.42pt), but the answer required \"month×100 + year\"; agent output \"111969\" (concatenation) rather than 3069.",
+        "examples_state_evidence": "",
+        "examples_state_iteration": -1,
+        "failure_type": "answer_format",
+        "failure_type_history": [
+          {
+            "iteration": 4,
+            "source": "momentum_self",
+            "type": "answer_format"
+          }
+        ],
+        "failure_type_source": "momentum_self",
+        "has_concrete_examples_added": false,
+        "inherited_from_iteration": false,
+        "label": "question-specified-encoding-not-applied",
+        "resolve_evidence": "",
+        "status": "open"
+      },
+      "required-operand-missing-answer-emitted": {
+        "attempts": [
+          {
+            "approach": "Revised Workflow step 4 to require listing every input the question needs (including auxiliary ones such as an exchange rate or deflator), confirming each was extracted from retrieved text, and naming the missing operand instead of emitting a formatted number built on the rest.",
+            "gate_accepted": false,
+            "iteration": 3,
+            "problem_addressed": true
+          }
+        ],
+        "description": "Agent emits a fully formatted numeric answer even though a required operand was never extracted from retrieved text (an exchange rate, or the entire underlying data series).",
+        "disobedience_events": [],
+        "evidence": "Trajectory [3]/UID0228: grep for \"rupee\"/\"India\" found no exchange rate, yet the agent emitted an INR answer computed with a not-retrieved 4.76 rate. Trajectory [10]/UID0041: Table FD-10 (the REA holdings series) was never opened and no operand extracted, yet the agent emitted \"0.012\".",
+        "examples_state_evidence": "",
+        "examples_state_iteration": -1,
+        "failure_type": "operand_error",
+        "failure_type_history": [
+          {
+            "iteration": 3,
+            "source": "momentum_self",
+            "type": "operand_error"
+          }
+        ],
+        "failure_type_source": "momentum_self",
+        "has_concrete_examples_added": false,
+        "inherited_from_iteration": false,
+        "label": "required-operand-missing-answer-emitted",
+        "resolve_evidence": "",
+        "status": "open"
+      },
+      "span-across-issues-only-one-mined": {
+        "attempts": [
+          {
+            "approach": "Revised Workflow step 4 to open every candidate issue the glob returned when the span crosses bulletins, noting that a year-end value for an earlier year is usually printed in the following year's issue rather than the one it describes.",
+            "gate_accepted": false,
+            "iteration": 3,
+            "problem_addressed": true
+          }
+        ],
+        "description": "When required year-end values span several bulletin issues, the agent mines only one issue and misses values printed in a neighboring/following issue.",
+        "disobedience_events": [],
+        "evidence": "Trajectory [4] (UID0162): with the 2011, 2012, and 2013 bulletins in hand, worked only the 2013 issue, read only the Dec 31 2012 ESF-1 total assets, never opened the 2011/2012 issues for the 2010 and 2011 year-end totals, and produced an unsupported L = -0.0164.",
+        "examples_state_evidence": "",
+        "examples_state_iteration": -1,
+        "failure_type": "retrieval_miss",
+        "failure_type_history": [
+          {
+            "iteration": 3,
+            "source": "momentum_self",
+            "type": "retrieval_miss"
+          }
+        ],
+        "failure_type_source": "momentum_self",
+        "has_concrete_examples_added": false,
+        "inherited_from_iteration": false,
+        "label": "span-across-issues-only-one-mined",
+        "resolve_evidence": "Batch shows multi-issue spans handled correctly: Trajectory [5] mined FY1939 from the Dec 1940 issue (the following-year issue) and FY1941 from the Dec 1941 issue; Trajectory [6] mined FY2011-2015 and FY2016-2020 across both bulletins; Trajectory [8] split the Feb1977-Jan1979 threshold span across both ownership surveys. No issue was dropped, producing correct answers.",
+        "status": "resolved"
+      },
+      "unrequested-period-qualifier-added": {
+        "attempts": [],
+        "description": "Agent prefixes an unrequested \"Fiscal year\" qualifier onto an otherwise bare year, degrading an acceptable value to partial/non-match credit.",
+        "disobedience_events": [],
+        "evidence": "Trajectory [10] (UID0031): final answer \"Fiscal year 1990\" added the unrequested period-type qualifier, dropping EM to 0 (F1=0.5) despite a plausible year.",
+        "examples_state_evidence": "",
+        "examples_state_iteration": -1,
+        "failure_type": "answer_format",
+        "failure_type_history": [
+          {
+            "iteration": 0,
+            "source": "momentum_self",
+            "type": "answer_format"
+          }
+        ],
+        "failure_type_source": "momentum_self",
+        "has_concrete_examples_added": false,
+        "inherited_from_iteration": false,
+        "label": "unrequested-period-qualifier-added",
+        "resolve_evidence": "",
+        "status": "open"
+      },
+      "unresolved-path-grep-wastes-turns": {
+        "attempts": [],
+        "description": "Agent opens with bare-basename/relative-path greps or narrow prefixed globs that are rejected or return nothing, burning turns before falling back to a broad top-level wildcard, despite Workflow step 1 requiring a broad glob first.",
+        "disobedience_events": [
+          {
+            "iteration": 2,
+            "violations": [
+              "Trajectory [1]: globbed a guessed December 2013 bulletin filename first, then a wildcard glob surfaced the file.",
+              "Trajectory [2]: tried narrow treasury-file globs (no matches) before broadening to a wildcard.",
+              "Trajectory [3]: `**/*treasury_bulletin*.txt` and `**/*.txt` both returned nothing before `glob('*')` located the files.",
+              "Trajectory [4]: year- and pattern-specific globs failed before a catch-all glob found the two bulletins.",
+              "Trajectory [6]: `**/*.txt` returned nothing before `*.txt` located the three February bulletins.",
+              "Trajectory [11]: treasury-pattern globs returned no matches before a broad wildcard surfaced the two files."
+            ]
+          }
+        ],
+        "evidence": "Trajectory 4 (UID0217): greps on basename path rejected \"path not allowed\" then recursive glob found nothing before glob \"*\" worked; Trajectory 6 (UID0233): relative-filename greps failed as disallowed paths; Trajectory 9 (UID0239): relative-path greps failed; Trajectory 10 (UID0240): read/grep on bare filename rejected then extra variant globs returned no matches; Trajectory 5 (UID0220): exact-filename glob returned nothing before glob \"*\".",
+        "examples_state_evidence": "Workflow step 1 (\"Start with a broad glob over the text-file tree, then grep only the paths the glob actually returned...\") and Error Avoidance rule 1 (\"Never grep a filename you have not confirmed exists; run a broad glob first...\") carry no concrete (correct, incorrect) glob-path example pairs attached as sub-bullets or inline pairings.",
+        "examples_state_iteration": 2,
+        "failure_type": "retrieval_miss",
+        "failure_type_history": [
+          {
+            "iteration": 0,
+            "source": "momentum_self",
+            "type": "retrieval_miss"
+          }
+        ],
+        "failure_type_source": "momentum_self",
+        "has_concrete_examples_added": false,
+        "inherited_from_iteration": false,
+        "label": "unresolved-path-grep-wastes-turns",
+        "resolve_evidence": "",
+        "status": "open"
+      }
+    },
+    "schema_version": 1
+  },
+  "next_iteration": 7,
+  "pending_post_decision": null,
+  "run_signature": {
+    "edit_budget": {
+      "base": 4,
+      "beta": 0.9,
+      "metric_key": "em",
+      "minimum": 1,
+      "v_max": 0.05
+    },
+    "gate": {
+      "benchmark": "officeqa",
+      "configuration": {
+        "max_em_drop": 0.08,
+        "max_f1_drop": 0.05,
+        "min_em_gain": 0.08,
+        "min_f1_gain": 0.05
+      },
+      "gate_class": "OfficeQAAcceptanceGate",
+      "profile": "main-result",
+      "scope": null
+    },
+    "max_consecutive_failures": 99,
+    "min_iterations": 5,
+    "momentum_enabled": true,
+    "patch_attempts": 3,
+    "post_decision": {
+      "backend_context": {
+        "benchmark": "officeqa",
+        "method": "skilladam",
+        "model": "deepseek-v4.1-flash",
+        "reasoning_effort": "medium",
+        "seed": 42,
+        "workers": 4
+      },
+      "initial_skill_sha256": "9d377d1c2906981be23fef1ce93e349f2b63f8f49a40d9368f191d95987b20ab",
+      "kind": "skilladam-momentum",
+      "run_config": {
+        "benchmark": "officeqa",
+        "feedback_loop": {
+          "edit_budget": {
+            "base": 4,
+            "beta": 0.9,
+            "metric_key": "em",
+            "minimum": 1,
+            "v_max": 0.05
+          },
+          "max_consecutive_failures": 99,
+          "max_iterations": 7,
+          "min_iterations": 5,
+          "patch_attempts": 3
+        },
+        "gate_profile": "main-result",
+        "include_partial_final_batch": true,
+        "optimization_case_ids": [
+          "UID0002",
+          "UID0007",
+          "UID0014",
+          "UID0017",
+          "UID0018",
+          "UID0019",
+          "UID0026",
+          "UID0028",
+          "UID0030",
+          "UID0031",
+          "UID0033",
+          "UID0034",
+          "UID0044",
+          "UID0046",
+          "UID0049",
+          "UID0056",
+          "UID0063",
+          "UID0065",
+          "UID0073",
+          "UID0079",
+          "UID0083",
+          "UID0085",
+          "UID0087",
+          "UID0092",
+          "UID0098",
+          "UID0101",
+          "UID0110",
+          "UID0115",
+          "UID0122",
+          "UID0123",
+          "UID0133",
+          "UID0141",
+          "UID0144",
+          "UID0145",
+          "UID0150",
+          "UID0151",
+          "UID0162",
+          "UID0163",
+          "UID0165",
+          "UID0166",
+          "UID0169",
+          "UID0189",
+          "UID0195",
+          "UID0202",
+          "UID0212",
+          "UID0222",
+          "UID0228",
+          "UID0229",
+          "UID0238",
+          "UID0241",
+          "UID0001",
+          "UID0027",
+          "UID0039",
+          "UID0041",
+          "UID0052",
+          "UID0070",
+          "UID0072",
+          "UID0086",
+          "UID0091",
+          "UID0109",
+          "UID0142",
+          "UID0154",
+          "UID0159",
+          "UID0161",
+          "UID0170",
+          "UID0190",
+          "UID0213",
+          "UID0217",
+          "UID0220",
+          "UID0233",
+          "UID0234",
+          "UID0235",
+          "UID0239",
+          "UID0240"
+        ],
+        "optimizer_context_limit": 110000,
+        "optimizer_history_turns": null,
+        "prompt_profile": "officeqa-main-result",
+        "sampling_strategy": "sequential",
+        "scope": null,
+        "seed": 42,
+        "shuffle_optimization_pool": false,
+        "split": "train",
+        "stage0_attempts": 2,
+        "stage0_case_ids": [],
+        "stage0_size": 10,
+        "train_size": 10,
+        "trajectory_compression": "llm",
+        "validation_mode": "same_batch",
+        "validation_size": 10,
+        "validation_split": "train"
+      },
+      "trajectory_input": "officeqa_actor_user_and_tool_text_v2",
+      "version": 1
+    }
+  },
+  "schema_version": 1,
+  "skill_ever_accepted": true,
+  "terminal_stop_reason": "",
+  "v_ema": 0.03970562727272727
+}
