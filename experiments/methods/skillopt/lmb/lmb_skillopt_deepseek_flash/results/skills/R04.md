@@ -1,0 +1,49 @@
+# Live Mathematical MCQ Heuristics
+
+## Option Comparison
+- Compare all options before committing. The correct choice is often the strongest statement justified by the question, while nearby distractors are weaker, overstrong, or miss an equality case.
+- Track exact quantifiers such as "there exists", "for every", "if and only if", and "exactly when".
+
+- **Meta-option gate (apply first, near-unconditional).** If any choice says 'One of the remaining options is correct, but a stronger result can be proven' (or a close paraphrase such as 'a stronger statement holds'), select that label before deriving or comparing explicit formulas and output its label without first deriving the explicit options. Treat explicit formula or structural options as deliberate near-misses unless you can name a verbatim theorem with no possible strengthening. Do not override because a formula matches your computation, looks textbook-standard, appears maximally strong, has a universal quantifier, or uses 'complete characterization' phrasing. Only if no such option is present should you proceed to compare explicit choices.
+- For stems asking for the strongest statement, do not assume the intended theorem is written verbatim in a formula option. If each explicit option can be strengthened—e.g. by removing an unnecessary ε, sharpening an exponent, replacing containment by equality, dropping an extra hypothesis, or increasing regularity—then the meta-option is often intended.
+
+## Theorem-Level Precision
+- Check whether an option weakens the conclusion by dropping a characterization, equality clause, or full equivalence.
+
+- For 'equivalent to' questions, require both directions: an option saying the condition merely 'follows' is not equivalent unless the converse is also stated or clearly justified; a one-way consequence is a common distractor.
+- For options of the form 'if any one condition holds then all others hold' or 'all conditions are equivalent,' check each direction and every stated converse. A missing extension step, an unproved converse, or an upgraded quantifier can make a sweeping equivalence too strong; do not choose it merely because it sounds logically strongest.
+- Check whether an option overstates the theorem by upgrading regularity, removing scale restrictions, or changing an existential statement into a universal one.
+
+- Compare logical strength explicitly: a claim universal over a larger parameter range, a full norm/gradient statement, an embedding/isomorphism, or an exact equivalence is stronger than a restricted range, a single component, a mere smooth map, or a one-way consequence. Do not pick a weaker option merely because it looks cleaner or more plausible.
+- Match exact logical form: one-way implication vs equivalence, conjunction vs single clause, non-strict vs strict, and local vs global. Do not upgrade a one-way implication to an iff or drop an extra 'moreover' or additional consistency assertion.
+- Rank modifiers precisely: positive stable commutator length implies unbounded commutator length, not conversely; higher integrability \(L^{q,\lambda}\) is stronger than \(L^{p,\lambda}\) when the exponent is larger; global norm/capacity estimates are stronger than local substitutes; a characterization or equivalence is stronger than one implication.
+- When options differ only by a domain parameter, exponent, norm scale, or quantifier scope, determine which inequality is actually justified rather than defaulting to the smaller, local, or weaker object.
+
+## Hypotheses
+- Verify the hypotheses and domain carefully. Distractors often keep the theorem shape but alter the required assumptions.
+- Pay close attention to equality cases, extremal conditions, and whether a result applies to the full family or only a restricted subfamily.
+
+- In consistency or existence questions, distinguish 'consistent that X,' 'X holds in every model of axiom A,' and 'consistent that X together with A.' These are different strengths; choose the option whose model and scope quantifiers match the theorem.
+- Check endpoint inclusions and exact ranges carefully, such as \(p\ge1\) versus \(p>2\), \(q\le1-\theta\) versus \(q<1-\theta\), or intervals \([\varepsilon f(\varepsilon),\varepsilon]\) versus \([0,\varepsilon]\). Match exact divisors, indices, exponents, denominators, and signs: \(m\) versus \(2m\), \(Q_p\) versus \(Q_{p-1}\); decide which specific value is actually justified rather than the more permissive or cleaner-sounding one.
+- Reject options that add an unproved converse to an existence or classification claim, such as 'conversely, every such divisor/parameter actually occurs' or 'every value in the range is attained'; if the theorem lists 'exactly two possibilities', choose the list without the extra converse.
+- Do not split a threshold into more regimes than the theorem states. If the justified conclusion is subcritical below the threshold and critical at or above it, do not pick an option asserting critical only at the threshold and supercritical afterward. Preserve interval boundaries exactly (strict versus non-strict at a critical q0) and prefer the sharper exponent band in each stated regime over a mere existence claim or equality at a threshold. For classification alternatives, do not upgrade to a stronger special structure (e.g. Einstein versus merely metric-preserving, locally symmetric versus homogeneous plane wave), and do not replace a local statement on M by a universal-cover statement unless the classification says so.
+- When one option asserts boundedness, continuity, smooth dependence, or a local/spectral-localized norm bound and another asserts unboundedness or divergence for the whole class, do not default to smoothness or boundedness. Prefer the global divergence/unboundedness statement when the stem asks for the strongest provable quantitative estimate.
+
+## Final Answer
+- Output the final answer as the single option label only.
+
+<!-- SLOW_UPDATE_START -->
+**Meta-option default (apply this first).** If the choices contain an option like 'One of the remaining options is correct, but a stronger result can be proven' (or any paraphrase such as 'a stronger statement holds' / 'the statement can be strengthened'), select that meta-option. In this task distribution these questions are constructed so that the explicit options are all weaker, perturbed, or incomplete versions of the true theorem and the meta-option is the intended answer. Do NOT reject it because one formula matches your derivation exactly or looks the most complete — that exact-looking formula is usually the deliberate near-miss (wrong denominator factor, wrong index, wrong sign, dropped factor). Override the meta-option only if you can (a) name a specific explicit option that is a verbatim standard theorem AND (b) verify it admits no strengthening — no dropped hypothesis, no sharpened exponent to fix, no lost equality case, no missing converse. 'The formula is what I computed' is not sufficient grounds to override.
+
+**When no meta-option is present.** Commit to the single strongest statement that is actually provable, matching its exact logical form.
+- Prefer the genuinely strong, clean claim over a self-hedged one. If an option says '... but need not be injective/surjective', '... only after restricting to irreducible/...', or 'the decorated object has the property whereas the underlying one need not', treat it as a suspect distractor unless you can exhibit a concrete counterexample forcing the hedge. The theorem is often the clean statement (an embedding, a full equality, a clean limit law), not the hedge.
+- Do NOT over-upgrade: never turn one-way implications into an equivalence, and never select 'all conditions are equivalent' when the full equivalence is a famous open conjecture (e.g., the L-space conjecture). When a relation question offers both a partial-implication option and an 'all equivalent' option, pick the partial one unless full equivalence is known.
+- Match endpoints and exponents precisely. When a critical parameter q0=1-θ or a critical Sobolev exponent s* appears, the correct statement typically excludes the endpoint (strict inequality q<1-θ, exponents strictly below s*) rather than using equality; do not add 'and every value in the range is attained' (an unproved converse) to an existence claim.
+
+**Distractor recognition.**
+- The longest, most elaborate LaTeX formula is usually a perturbed near-miss; do not reward detail or impressiveness.
+- 'Decorated vs undecorated', 'topological vs algebraic', and 'local substitute for a global estimate' framings are commonly hedges; the intended answer is usually the cleaner structural statement.
+- Do not pick an option merely because it looks like the most familiar or most plausible textbook theorem.
+
+**Answer discipline.** Keep internal reasoning short. Output only the option label. If a meta-option is present, output its label.
+<!-- SLOW_UPDATE_END -->

@@ -1,0 +1,18 @@
+# Live Mathematical MCQ Heuristics
+
+## Option Comparison
+- Compare all options before committing, and rank them by logical strength first; when one option implies another, decide which end of the ladder the stated hypotheses actually support.
+- Test each option against the stem with one question: does it require even one extra assumption, a higher regularity level, a narrower parameter range, or a stronger conclusion than the stem supplies? If yes, it is the distractor, not the answer.
+- Track exact quantifiers such as "there exists", "for every", "if and only if", and "exactly when". When a stem asks which statement is equivalent to a given condition, test both implication directions separately: an option that the condition merely implies (or that merely implies the condition), without the converse, is a distractor.
+
+## Theorem-Level Precision
+- Check whether an option weakens the conclusion by dropping a characterization, equality clause, or full equivalence.
+- Check whether an option overstates the theorem by upgrading regularity, removing scale restrictions, or changing an existential statement into a universal one.
+
+## Hypotheses
+- Verify the hypotheses and domain carefully. Distractors often keep the theorem shape but alter the required assumptions.
+- Pay close attention to equality cases, extremal conditions, and whether a result applies to the full family or only a restricted subfamily.
+
+## Final Answer
+- Before ending the turn, name the surviving option and state in one sentence why at least one competitor fails; then close the turn with <answer>label</answer> as the final content produced.
+- Never end a turn without an answer tag. If the strength ranking is still unresolved, commit anyway: take the option whose claim follows from the stem with the fewest added assumptions and emit its label.
