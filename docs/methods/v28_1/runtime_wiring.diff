@@ -1,0 +1,607 @@
+--- before/src/skill_evolution/v28/benchmarks/searchqa/actor.py
++++ after/src/skill_evolution/v28/benchmarks/searchqa/actor.py
+@@ -86,7 +86,7 @@
+     return raw
+ 
+ 
+-def validate_slot(slot, messages, config, number, *, allow_prepared=False):
++def validate_slot(slot, messages, config, number, *, allow_prepared=False, verify_hashes=True):
+     started = (slot/'request_started.json').exists()
+     if started or (slot/'request.json').exists():
+         freeze(slot/'request.json', request_record(messages, config), read_only=True)
+@@ -100,11 +100,14 @@
+             and isinstance(marker['at'], str), 'Actor request marker differs')
+     if (slot/'error.json').exists():
+         error = read(slot/'error.json')
+-        p.fields(error, ('retryable','error','status','archive','checksum'), 'Actor failure')
+-        require(error['checksum'] == p.digest({k:v for k,v in error.items() if k!='checksum'}),
+-                'Actor failure receipt changed')
++        fields = ('retryable', 'error', 'status', 'archive', 'checksum') if verify_hashes else ('retryable', 'error', 'status')
++        p.fields(error, fields, 'Actor failure')
++        if verify_hashes:
++            require(error['checksum'] == p.digest({k:v for k,v in error.items() if k!='checksum'}),
++                    'Actor failure receipt changed')
+         require(type(error['retryable']) is bool and isinstance(error['error'], str), 'Invalid Actor failure')
+-        require(error['archive'] == archive_hashes(slot), 'Failed Actor archive changed')
++        if verify_hashes:
++            require(error['archive'] == archive_hashes(slot), 'Failed Actor archive changed')
+         expected_status = 'unknown' if 'outcome unknown' in error['error'] else 'failed'
+         require(error['status'] == expected_status, 'Actor failure status differs')
+         if (slot/'response.json').exists() or (slot/'http_status.json').exists():
+@@ -121,7 +124,7 @@
+         except RequestFailure: pass
+ 
+ 
+-def validate_pending(case, skill, directory, config):
++def validate_pending(case, skill, directory, config, *, verify_hashes=True):
+     """Read-only preflight of unfinished journals, before any batch worker starts."""
+     p.validate_case(case);p.background(config)
+     directory = Path(directory)
+@@ -136,7 +139,7 @@
+     require(len(slots) <= 6 and [q.name for q in slots] == [f'{i:03}' for i in range(1,len(slots)+1)],
+             'Invalid Actor slots')
+     for i, slot in enumerate(slots, 1):
+-        validate_slot(slot, messages, config, i, allow_prepared=i==len(slots))
++        validate_slot(slot, messages, config, i, allow_prepared=i==len(slots), verify_hashes=verify_hashes)
+         if i < len(slots):
+             require((slot/'error.json').is_file() and read(slot/'error.json')['retryable'] is True,
+                     'Invalid prior Actor failure')
+@@ -166,7 +169,7 @@
+         except ValueError:raise RequestFailure('Malformed API JSON') from None
+ 
+ 
+-def read_completed(case,skill,directory,config):
++def read_completed(case,skill,directory,config, *, verify_hashes=True):
+     """Revalidate a completed journal, with no writes, recovery or transport calls."""
+     p.validate_case(case)
+     directory=Path(directory);messages=p.messages(case.payload,skill)
+@@ -183,7 +186,7 @@
+     require([q.name for q in paths]==[f'{i:03}' for i in range(1,count+1)], 'Completed Actor request slots differ')
+     usages=[]
+     for n,slot in enumerate(paths,1):
+-        validate_slot(slot,messages,config,n)
++        validate_slot(slot,messages,config,n,verify_hashes=verify_hashes)
+         if n<count:
+             require((slot/'error.json').is_file() and read(slot/'error.json')['retryable'] is True,
+                     'Invalid prior Actor failure')
+@@ -200,7 +203,7 @@
+     return committed
+ 
+ 
+-def _execute(case,skill,directory,transport):
++def _execute(case,skill,directory,transport, *, verify_hashes=True):
+     """Retry truncation/technical failures in six shared slots; score only stop."""
+     p.validate_case(case)
+     directory=Path(directory);messages=p.messages(case.payload,skill);config=transport.metadata()
+@@ -210,11 +213,11 @@
+     # A trajectory is also a completion marker. Losing result/response files
+     # must not turn an already scored task into an unknown request to retry.
+     if (directory/'result.json').exists() or (directory/'trajectory.json').exists():
+-        return read_completed(case,skill,directory,config)
++        return read_completed(case,skill,directory,config,verify_hashes=verify_hashes)
+     if directory.exists() and any(q.name != '.execution.lock' for q in directory.iterdir()):
+         require((directory/'signature.json').is_file(), 'Missing Actor signature for existing journal')
+     freeze(directory/'signature.json',signature)
+-    validate_pending(case,skill,directory,config)
++    validate_pending(case,skill,directory,config,verify_hashes=verify_hashes)
+     attempts=directory/'attempts';attempts.mkdir(exist_ok=True)
+     paths=sorted(path for path in attempts.iterdir() if path.is_dir())
+     require([p.name for p in paths]==[f'{i:03}' for i in range(1,len(paths)+1)] and len(paths)<=6,'Invalid Actor slots')
+@@ -238,7 +241,7 @@
+                 save(slot/'request_started.json',{'at':now(),'attempt':n})
+                 raw=transport(deepcopy(messages),slot)
+                 save(slot/'response.json',raw) # Raw hidden fields remain only in this audit directory.
+-            validate_slot(slot,messages,config,n)
++            validate_slot(slot,messages,config,n,verify_hashes=verify_hashes)
+             content,termination=parse_response(raw)
+             usages.append(usage_view(raw));answer,metrics=score(content,case.reference)
+             result={'skill':skill,'actor':config,'initial_messages':messages,'content':content,'termination':termination,
+@@ -248,16 +251,18 @@
+         except RequestFailure as error:
+             usages.append(usage_view(raw))
+             receipt={'retryable':error.retryable,'error':str(error),
+-                     'status':'unknown' if 'outcome unknown' in str(error) else 'failed',
+-                     'archive':archive_hashes(slot)}
+-            save(slot/'error.json',{**receipt,'checksum':p.digest(receipt)})
++                     'status':'unknown' if 'outcome unknown' in str(error) else 'failed'}
++            if verify_hashes:
++                receipt['archive'] = archive_hashes(slot)
++                receipt['checksum'] = p.digest(receipt)
++            save(slot/'error.json',receipt)
+             if not error.retryable:raise
+             if n<6:time.sleep(config['retry_delay_seconds']*n)
+     raise RequestFailure('Actor total request budget exhausted; resume does not reset it',retryable=False)
+ 
+ 
+-def execute(case, skill, directory, transport):
++def execute(case, skill, directory, transport, *, verify_hashes=True):
+     """One exclusive task journal; batch recovery also preflights all siblings."""
+     p.validate_case(case); p.background(transport.metadata()); p.implementation_identity()
+     with locked(directory):
+-        return _execute(case, skill, directory, transport)
++        return _execute(case, skill, directory, transport, verify_hashes=verify_hashes)
+--- before/src/skill_evolution/v28/benchmarks/searchqa/adapter.py
++++ after/src/skill_evolution/v28/benchmarks/searchqa/adapter.py
+@@ -3,16 +3,21 @@
+ from copy import deepcopy
+ from pathlib import Path
+ import uuid
++from urllib.parse import quote
+ 
+ from ...storage import freeze, read, save
+-from ... import validation
++from ... import validation, profiles
+ from . import actor, protocol as p, scoring
+ 
+ 
+ class SearchQAActorAdapter:
+-    def __init__(self, dataset, transport=None, *, workers=15, test_workers=15):
++    def __init__(self, dataset, transport=None, *, workers=15, test_workers=15, profile=profiles.V28):
+         p.require(type(workers) is int and workers == 15 and
+                   type(test_workers) is int and test_workers == 15, 'Frozen v28 worker limits are 15/15')
++        self.profile = profiles.check(profile)
++        self.verify_hashes = self.profile == profiles.V28
++        p.require(self.verify_hashes == getattr(dataset, "verify_hashes", True),
++                  "Dataset verification policy differs from method profile")
+         self.dataset, self.transport = dataset, transport
+         self.workers, self.test_workers = workers, test_workers
+         self._data = deepcopy(dataset.snapshot())
+@@ -43,7 +48,12 @@
+         p.require(all(c.case_id == task and c.metadata['split'] == config['split'] for task, c in zip(tasks, cases)), 'Task ID/split mismatch')
+         return cases
+ 
++    def task_key(self, task_id):
++        return p.digest(task_id) if self.verify_hashes else "task-" + quote(task_id, safe="")
++
+     def _source_identity(self, case):
++        if not self.verify_hashes:
++            return {"method_profile": self.profile, "scorer": p.SCORER_PROFILE, "gate": p.GATE_PROFILE}
+         return {'case_sha256': p.digest({'id': case.case_id, 'payload': case.payload,
+                                         'reference': case.reference, 'metadata': case.metadata}),
+                 'dataset_sha256': p.digest(self._data), 'protocol_sha256': p.digest(self._protocol),
+@@ -83,21 +93,23 @@
+             # Audit every completion AND pending journal before constructing any
+             # workers, including when the pending task precedes a corrupt one.
+             for case in cases:
+-                folder = root / 'actor' / p.digest(case.case_id)
++                folder = root / 'actor' / self.task_key(case.case_id)
+                 if (folder / 'trajectory.json').exists():
+                     self._check_record_journal(read(folder / 'trajectory.json'), case.case_id, skill, config, root, batch)
+                 elif (folder / 'result.json').exists():
+-                    actor.read_completed(case, skill, folder, self._actor)
++                    actor.read_completed(case, skill, folder, self._actor, verify_hashes=self.verify_hashes)
+                 else:
+-                    actor.validate_pending(case, skill, folder, self._actor)
++                    actor.validate_pending(case, skill, folder, self._actor, verify_hashes=self.verify_hashes)
+ 
+             def run(case):
+-                folder = root / 'actor' / p.digest(case.case_id)
+-                execution = actor.execute(case, skill, folder, self.transport)
+-                record = {'schema': p.RECORD_VERSION, 'run_id': batch['batch_id'] + ':' + p.digest(case.case_id),
++                folder = root / 'actor' / self.task_key(case.case_id)
++                execution = actor.execute(case, skill, folder, self.transport, verify_hashes=self.verify_hashes)
++                record = {'schema': p.RECORD_VERSION, 'run_id': batch['batch_id'] + ':' + self.task_key(case.case_id),
+                           'task_id': case.case_id, 'task': p.public_task(case), 'execution': execution,
+                           'provenance': {'batch_id': batch['batch_id'], 'role': config['role'],
+-                                         **self._source_identity(case), 'record_sha256': p.digest(execution)}}
++                                         **self._source_identity(case)}}
++                if self.verify_hashes:
++                    record['provenance']['record_sha256'] = p.digest(execution)
+                 self.check_record(record, case.case_id, skill, config)
+                 freeze(folder / 'trajectory.json', record)
+                 return record
+@@ -116,12 +128,14 @@
+                   and p.equal(record['task'], p.public_task(case)), 'Canonical task/schema differs')
+         execution, provenance = record['execution'], record['provenance']
+         source = self._source_identity(case)
+-        p.fields(provenance, ('batch_id', 'role', *source, 'record_sha256'), 'Provenance')
++        extra = ('record_sha256',) if self.verify_hashes else ()
++        p.fields(provenance, ('batch_id', 'role', *source, *extra), 'Provenance')
+         p.nonempty_text(provenance['batch_id'], 'Batch ID')
+-        p.require(record['run_id'] == provenance['batch_id'] + ':' + p.digest(task_id), 'Run identity differs')
++        p.require(record['run_id'] == provenance['batch_id'] + ':' + self.task_key(task_id), 'Run identity differs')
+         p.require(provenance['role'] == config['role'] and
+                   all(provenance[k] == v for k, v in source.items()), 'Source identity or role differs')
+-        p.require(provenance['record_sha256'] == p.digest(execution), 'Execution checksum differs')
++        if self.verify_hashes:
++            p.require(provenance['record_sha256'] == p.digest(execution), 'Execution checksum differs')
+         p.fields(execution, ('skill', 'actor', 'initial_messages', 'content', 'termination',
+                              'answer', 'metrics', 'api_requests', 'usage_records'), 'Execution')
+         p.require(execution['skill'] == expected_skill and p.equal(execution['actor'], self._actor), 'Actor or Skill differs')
+@@ -177,8 +191,9 @@
+         # all 1,400 Test task identities for every individual completed journal.
+         self.check_record(record, task_id, expected_skill, config)
+         p.require(record['provenance']['batch_id'] == batch['batch_id'], 'Archived batch ID differs')
+-        folder = root / 'actor' / p.digest(task_id)
+-        completed = actor.read_completed(self.dataset.case(task_id), expected_skill, folder, self._actor)
++        folder = root / 'actor' / self.task_key(task_id)
++        completed = actor.read_completed(self.dataset.case(task_id), expected_skill, folder, self._actor,
++                                         verify_hashes=self.verify_hashes)
+         p.require(p.equal(completed, record['execution']) and
+                   p.equal(read(folder / 'trajectory.json'), record), 'Trajectory differs from Actor archive')
+         return record
+--- before/src/skill_evolution/v28/benchmarks/searchqa/dataset.py
++++ after/src/skill_evolution/v28/benchmarks/searchqa/dataset.py
+@@ -10,18 +10,21 @@
+ 
+ class SearchQADataset:
+     optimization_pool = 'v28_searchqa_train600_v1'
+-    def __init__(self, root=None, *, batch_size=15):
++    def __init__(self, root=None, *, batch_size=15, verify_hashes=True):
+         from pathlib import Path
+         self.root = Path(root or p.ROOT / 'data/searchqa').resolve()
+         p.actor_config(batch_size)  # Only the two reviewed schedules are supported.
+         self.batch_size = batch_size
++        p.require(type(verify_hashes) is bool, 'Invalid data verification policy')
++        self.verify_hashes = verify_hashes
+         lock_path = self.root / 'v28_dataset.lock.json'
+         view_path = self.root / 'v28_train600_v1/manifest.json'
+-        p.require(p.file_digest(lock_path) == LOCK_SHA256, 'Dataset lock drift')
+-        p.require(p.file_digest(view_path) == VIEW_SHA256, 'Optimization view drift')
++        if self.verify_hashes:
++            p.require(p.file_digest(lock_path) == LOCK_SHA256, 'Dataset lock drift')
++            p.require(p.file_digest(view_path) == VIEW_SHA256, 'Optimization view drift')
+         lock, view = read(lock_path), read(view_path)
+-        self._hashes = {**lock['sha256'], 'v28_dataset.lock.json': LOCK_SHA256,
+-                        'v28_train600_v1/manifest.json': VIEW_SHA256}
++        self._hashes = ({**lock['sha256'], 'v28_dataset.lock.json': LOCK_SHA256,
++                         'v28_train600_v1/manifest.json': VIEW_SHA256} if self.verify_hashes else {})
+         self._verify_files()
+         self.rows, source_ids = {}, {}
+         for split, entry in lock['splits'].items():
+@@ -40,14 +43,18 @@
+                   and [i for b in self.batches for i in b] == self.splits['train'], 'Batch schedule drift')
+         if batch_size == 30:
+             self.batches = [self.batches[i] + self.batches[i + 1] for i in range(0, 40, 2)]
+-        self._identity = {'dataset_id': lock['dataset_id'], 'source_revision': lock['source_revision'],
+-                          'lock_sha256': LOCK_SHA256, 'view_sha256': VIEW_SHA256}
+-        self._rows_digest = p.digest(self.rows)
+-        self._view_digest = p.digest({'splits': self.splits, 'batches': self.batches})
++        self._identity = {'dataset_id': lock['dataset_id']}
++        if self.verify_hashes:
++            self._identity.update(source_revision=lock['source_revision'],
++                                  lock_sha256=LOCK_SHA256, view_sha256=VIEW_SHA256)
++            self._rows_digest = p.digest(self.rows)
++            self._view_digest = p.digest({'splits': self.splits, 'batches': self.batches})
+         for task_id in self.rows:
+             p.validate_case(self.case(task_id))
+ 
+     def _verify_files(self):
++        if not self.verify_hashes:
++            return
+         for relative, checksum in self._hashes.items():
+             p.require(p.file_digest(self.root / relative) == checksum, f'Dataset file drift: {relative}')
+ 
+@@ -59,6 +66,9 @@
+                       'split': 'test' if row['source_split'] == 'test' else 'train'})
+ 
+     def snapshot(self):
++        if not self.verify_hashes:
++            return {**self._identity, 'root': str(self.root), 'batch_size': self.batch_size,
++                    'splits': deepcopy(self.splits), 'batches': deepcopy(self.batches)}
+         self._verify_files()
+         p.require(p.digest(self.rows) == self._rows_digest and
+                   p.digest({'splits': self.splits, 'batches': self.batches}) == self._view_digest, 'Bound dataset changed')
+--- before/src/skill_evolution/v28/benchmarks/searchqa/evidence.py
++++ after/src/skill_evolution/v28/benchmarks/searchqa/evidence.py
+@@ -111,7 +111,8 @@
+     require(parent['run_id'] != candidate['run_id'], 'Pair reuses execution identity')
+     require(p.equal(parent['task'], candidate['task']), 'Pair task differs')
+     require(p.equal(parent['execution']['actor'], candidate['execution']['actor']), 'Pair Actor conditions differ')
+-    for key in ('case_sha256', 'dataset_sha256', 'protocol_sha256', 'task_context_sha256', 'scorer', 'gate'):
++    # Envelopes above already validate the profile-specific provenance fields.
++    for key in parent['provenance'].keys() - {'batch_id', 'role', 'record_sha256'}:
+         require(p.equal(parent['provenance'][key], candidate['provenance'][key]), f'Pair {key} differs')
+     require(p.equal(parent['execution']['initial_messages'][1:], candidate['execution']['initial_messages'][1:]), 'Paired task messages differ')
+ 
+--- before/src/skill_evolution/v28/benchmarks/searchqa/prompting.py
++++ after/src/skill_evolution/v28/benchmarks/searchqa/prompting.py
+@@ -15,7 +15,7 @@
+ 
+ def render(module,background,*,prompt_version=None):
+     require(module in PROMPT_VERSIONS,'Unreviewed method module is disabled')
+-    require(prompt_version in (None,PROMPT_VERSIONS[module]),'Unknown Prompt version')
++    require(prompt_version in (None,current().prompt_versions[module]),'Unknown Prompt version')
+     p.execution_context(background)
+     s=current().resource(f'{module}.md').read_text()
+     # Change only the runtime budget description; preserve the method instructions.
+@@ -27,7 +27,12 @@
+ 
+ def prompt_identity(module):
+     require(module in PROMPT_VERSIONS,'Unreviewed module')
+-    return {'prompt_version':PROMPT_VERSIONS[module],'facts_version':p.FACTS_VERSION,
++    # Standalone callers retain v28; bound method calls carry their own profile.
++    try:
++        versions = current().prompt_versions
++    except RuntimeError:
++        versions = PROMPT_VERSIONS
++    return {'prompt_version':versions[module],'facts_version':p.FACTS_VERSION,
+             'input_view':replay_input_view.INPUT_VIEW if module == 'replay' else p.MODEL_INPUT_VIEW}
+ 
+ def _messages(module,payload,background):
+--- before/src/skill_evolution/v28/campaign.py
++++ after/src/skill_evolution/v28/campaign.py
+@@ -25,15 +25,16 @@
+             tasks, skill_file, directory, config = args
+             skill = None if skill_file is None else Path(skill_file).read_bytes().decode('utf-8')
+             for task in tasks:
+-                actor.read_completed(self.dataset.case(task), skill, Path(directory)/'actor'/p.digest(task),
+-                                     self.actor_adapter._actor)
++                actor.read_completed(self.dataset.case(task), skill,
++                                     Path(directory)/'actor'/self.actor_adapter.task_key(task),
++                                     self.actor_adapter._actor, verify_hashes=self.actor_adapter.verify_hashes)
+             actor_config = self.actor_adapter._actor
+             class ArchiveOnly:
+                 def metadata(self):
+                     return p.background(actor_config)
+                 def __call__(self, *args):
+                     raise RuntimeError('Archive-only recovery cannot issue Actor requests')
+-            return SearchQAActorAdapter(self.dataset, ArchiveOnly()).actor_batch(*args, **kwargs)
++            return SearchQAActorAdapter(self.dataset, ArchiveOnly(), profile=self.profile).actor_batch(*args, **kwargs)
+         return self.actor_adapter.actor_batch(*args, **kwargs)
+ 
+     def build_gate(self, *args, **kwargs):
+@@ -49,7 +50,11 @@
+                  p.ROOT / 'external/SkillAdam/skilladam/benchmarks/searchqa')
+         paths = {path for root in roots for path in root.rglob('*')
+                  if path.is_file() and path.suffix in ('.py', '.json', '.md')}
+-        return {str(path.relative_to(p.ROOT)): path.read_text() for path in sorted(paths)}
++        snapshot = {str(path.relative_to(p.ROOT)): path.read_text() for path in sorted(paths)}
++        for name in self.prompt_versions:
++            path = self.resource(f'{name}.md')
++            snapshot[str(path.relative_to(p.ROOT))] = path.read_text()
++        return snapshot
+ 
+     def runtime_snapshot(self, config):
+         self._bound()
+--- before/src/skill_evolution/v28/cli.py
++++ after/src/skill_evolution/v28/cli.py
+@@ -7,6 +7,7 @@
+ 
+ 
+ def main(argv=None):
++    from . import profiles
+     parser = argparse.ArgumentParser(description='v28 SearchQA; explicit execution only')
+     parser.add_argument('--data-root')
+     sub = parser.add_subparsers(dest='command', required=True)
+@@ -14,6 +15,7 @@
+     configure.add_argument('--initial-skill', required=True)
+     configure.add_argument('--output', required=True)
+     configure.add_argument('--batch-size', type=int, choices=(15, 30), default=15)
++    configure.add_argument('--profile', choices=profiles.SUPPORTED, default=profiles.V28)
+     configure.add_argument('--context-window-tokens', type=int)
+     validate = sub.add_parser('validate', help='Validate configuration with no credentials or requests')
+     validate.add_argument('--config', required=True)
+@@ -51,12 +53,19 @@
+     if selected is None and args.command == 'audit':
+         selected = read(Path(args.directory) / 'config.json')
+     batch_size = len(selected['batches'][0]) if selected else getattr(args, 'batch_size', 15)
+-    if selected is None and args.command == 'report':
+-        archived_actor = read(Path(args.directory) / 'plan.json')['actor']
++    profile = selected['method']['version'] if selected else getattr(args, 'profile', profiles.V28)
++    if selected is None and (args.command == 'report' or
++                             args.command == 'evaluate' and args.resume):
++        archived_plan = read(Path(args.directory) / 'plan.json')
++        archived_actor = archived_plan['actor']
++        profile = archived_plan.get('method_profile', profiles.V28)
+         p.background(archived_actor)
+         batch_size = 30 if archived_actor['max_tokens'] == 32768 else 15
+-    dataset = SearchQADataset(args.data_root, batch_size=batch_size)
+-    actor = SearchQAActorAdapter(dataset, ChatTransport(key, metadata=p.actor_config(batch_size)) if live else None)
++    profiles.check(profile)
++    dataset_options = {'verify_hashes': False} if profile == profiles.V28_1 else {}
++    dataset = SearchQADataset(args.data_root, batch_size=batch_size, **dataset_options)
++    actor = SearchQAActorAdapter(dataset, ChatTransport(key, metadata=p.actor_config(batch_size)) if live else None,
++                                 profile=profile)
+     adapter = CampaignAdapter(actor)
+     with adapter.using():
+         if selected is not None:
+--- before/src/skill_evolution/v28/config.py
++++ after/src/skill_evolution/v28/config.py
+@@ -9,6 +9,7 @@
+ from src.skill_evolution.v27.memory_view import KNOWLEDGE_ONLY
+ from src.skill_evolution.v27.transport import validate_call
+ from .output_feedback import POLICY
++from . import profiles
+ from .benchmarks.searchqa import protocol as p, prompting, replay_input_view
+ from .benchmarks.searchqa.dataset import SearchQADataset
+ 
+@@ -23,8 +24,8 @@
+     return 16384 if name in ('grouping', 'editor') else 32768
+ 
+ 
+-def method_config():
+-    return {'version': 'v28_campaign_v1', 'prompts': dict(prompting.PROMPT_VERSIONS),
++def method_config(profile=profiles.V28):
++    return {'version': profiles.check(profile), 'prompts': profiles.prompt_versions(profile),
+             'preconditioner_contract': CONTRACT_VERSION, 'patch_contract': PATCH_CONTRACT,
+             'memory_contract': memory.MULTI_KNOWLEDGE_CONTRACT, 'memory_view': KNOWLEDGE_ONLY,
+             'replay_input_view': replay_input_view.INPUT_VIEW, 'model_input_view': p.MODEL_INPUT_VIEW,
+@@ -37,13 +38,16 @@
+                      'batches', 'initial_skill', 'max_attempts', 'continue_no_change', 'max_input_chars',
+                      'max_message_utf8_bytes', 'module_calls', 'retry_delay_seconds'), 'Campaign configuration')
+     adapter = current(); adapter._bound()
+-    p.require(p.equal(config['method'], method_config()), 'Unsupported v28 method freeze')
++    p.require(p.equal(config['method'], method_config(adapter.profile)), 'Unsupported SearchQA method profile')
+     p.require(config['benchmark'] == adapter.identity and config['gate_metric'] == p.GATE_PROFILE,
+               'Benchmark/Gate identity differs')
+     p.require(p.equal(config['actor'], adapter.actor_adapter._actor), 'Actor configuration differs')
+     p.require(config['optimization_splits'] == ['train'], 'Only merged training pool may optimize')
+     dataset = adapter.dataset
+     batch_size = getattr(dataset, 'batch_size', 15)
++    if adapter.profile == profiles.V28_1:
++        p.require(batch_size == 30 and not adapter.actor_adapter.verify_hashes,
++                  'v28.1 requires batch30 and plain archives')
+     p.require(config['optimization_pool'] == getattr(dataset, 'optimization_pool', None), 'Optimization pool differs')
+     batches = config['batches']
+     p.require(isinstance(batches, list) and batches and all(isinstance(b, list) and b for b in batches), 'Missing batches')
+@@ -90,7 +94,7 @@
+     if context_window_tokens is not None:
+         for value in calls.values():
+             value['context_window_tokens'] = context_window_tokens
+-    return {'method': method_config(), 'benchmark': adapter.identity, 'actor': deepcopy(adapter.actor_adapter._actor),
++    return {'method': method_config(adapter.profile), 'benchmark': adapter.identity, 'actor': deepcopy(adapter.actor_adapter._actor),
+             'gate_metric': p.GATE_PROFILE, 'optimization_splits': ['train'],
+             'optimization_pool': getattr(adapter.dataset, 'optimization_pool', None),
+             'batches': deepcopy(adapter.dataset.batches), 'initial_skill': deepcopy(initial_skill),
+--- before/src/skill_evolution/v28/evaluation.py
++++ after/src/skill_evolution/v28/evaluation.py
+@@ -5,6 +5,7 @@
+ from .benchmarks.searchqa import protocol as p, scoring
+ from .benchmarks.searchqa.actor import locked
+ from .benchmarks.searchqa.dataset import SearchQADataset
++from . import profiles
+ 
+ VERSION = 'v28_searchqa_test_v1'
+ ROLE = {'split': 'test', 'role': 'evaluation'}
+@@ -21,10 +22,13 @@
+ 
+ 
+ def _plan(adapter, skill):
+-    return {'version': VERSION, 'tasks': _tasks(adapter), 'role': ROLE,
++    plan = {'version': VERSION, 'tasks': _tasks(adapter), 'role': ROLE,
+             'skill': {'mode': 'none' if skill is None else 'fixed', 'text': skill},
+             'protocol': p.implementation_identity(), 'data': adapter.dataset.snapshot(),
+             'actor': adapter._actor, 'workers': adapter.test_workers}
++    if adapter.profile == profiles.V28_1:
++        plan['method_profile'] = adapter.profile
++    return plan
+ 
+ 
+ def _verify(root, adapter):
+@@ -41,7 +45,7 @@
+     root = Path(directory).resolve(); plan = _verify(root, adapter)
+     records = []
+     for task in plan['tasks']:
+-        path = root / 'batch/actor' / p.digest(task) / 'trajectory.json'
++        path = root / 'batch/actor' / adapter.task_key(task) / 'trajectory.json'
+         if path.exists():
+             record = read(path)
+             adapter.check_record_archive(record, task, plan['skill']['text'], ROLE, root / 'batch')
+@@ -54,10 +58,15 @@
+     result = {'version': VERSION, 'status': 'complete' if full else 'incomplete',
+               'total': len(plan['tasks']), 'completed': len(done),
+               'pending_ids': [t for t in plan['tasks'] if t not in done],
+-              'optimization_updates': False, 'skill_sha256': p.digest(plan['skill']['text']),
++              'optimization_updates': False,
+               'summary': scoring.summarize_scores(scores, plan['tasks']) if full else None,
+               'actor_requests': sum(r['execution']['api_requests'] for r in records),
+               'cases': scores}
++    if adapter.verify_hashes:
++        result['skill_sha256'] = p.digest(plan['skill']['text'])
++    else:
++        result.update(method_profile=adapter.profile,
++                      skill_file='skill.md' if plan['skill']['mode'] == 'fixed' else None)
+     save(root / 'report.json', result)
+     return result
+ 
+--- before/src/skill_evolution/v28/evolution.py
++++ after/src/skill_evolution/v28/evolution.py
+@@ -92,8 +92,8 @@
+ 
+ 
+ def _completed_actor_journal(folder, tasks):
+-    from .benchmarks.searchqa.protocol import digest
+-    return all((folder/'actor'/digest(task)/'result.json').is_file() for task in tasks)
++    task_key = current().actor_adapter.task_key
++    return all((folder/'actor'/task_key(task)/'result.json').is_file() for task in tasks)
+ 
+ 
+ def _actors(root, rd, side, tasks, skill_file, *, resume, read_only, generate):
+--- before/src/skill_evolution/v28/method.py
++++ after/src/skill_evolution/v28/method.py
+@@ -14,7 +14,7 @@
+ from src.skill_evolution.v27.contracts import memory
+ from .storage import read
+ from .benchmarks.searchqa import protocol as p, facts, evidence, prompting
+-from . import replay, validation, memory_operation
++from . import replay, validation, memory_operation, profiles
+ 
+ 
+ class SearchQAMethod:
+@@ -24,6 +24,8 @@
+ 
+     def __init__(self, actor_adapter, *, archives):
+         self.actor_adapter = actor_adapter
++        self.profile = actor_adapter.profile
++        self.prompt_versions = profiles.prompt_versions(self.profile)
+         self.dataset = actor_adapter.dataset
+         self._records = {}
+         self._directories = {}
+@@ -111,6 +113,9 @@
+         return facts.validate_run(source['run'])
+ 
+     def resource(self, key):
++        if self.profile == profiles.V28_1 and key in {f'{name}.md' for name in self.prompt_versions}:
++            folder = 'prompts' if key in ('diagnosis.md', 'preconditioner.md') else 'baseline/prompts'
++            return profiles.REVIEWED / folder / key
+         return prompting.resource_path(key)
+ 
+     def commit_memory(self, directory, *, context_id, context, result):
+--- before/src/skill_evolution/v28/profiles.py
++++ after/src/skill_evolution/v28/profiles.py
+@@ -0,0 +1,24 @@
++"""Explicit campaign variants; v28.1 reuses the v28 execution chain."""
++from pathlib import Path
++
++V28 = 'v28_campaign_v1'
++V28_1 = 'v28_1_campaign_v1'
++SUPPORTED = (V28, V28_1)
++REVIEWED = Path(__file__).resolve().parents[3] / 'docs/methods/v28_1'
++
++
++def check(profile):
++    if profile not in SUPPORTED:
++        raise ValueError('Unsupported SearchQA method profile')
++    return profile
++
++
++def prompt_versions(profile):
++    check(profile)
++    versions = {name: f'v28_searchqa_{name}_v1'
++                for name in ('grouping', 'diagnosis', 'preconditioner', 'editor', 'replay')}
++    versions['replay'] = 'v28_searchqa_replay_v3'
++    if profile == V28_1:
++        versions.update(diagnosis='v28_1_searchqa_diagnosis_v1',
++                        preconditioner='v28_1_searchqa_preconditioner_v1')
++    return versions
+--- before/src/skill_evolution/v28/validation.py
++++ after/src/skill_evolution/v28/validation.py
+@@ -1,6 +1,6 @@
+ """Operation-local evidence validation; never a persistent trust cache.
+ 
+-Only completed archives may be watched. Content hashes and directory membership
++Only completed archives may be watched. Content and directory membership
+ are rechecked before the caller receives a successful result. Metadata supplements
+ content checks (including replacement/restore); it never establishes trust alone.
+ """
+@@ -23,8 +23,7 @@
+         self.files, self.trees = {}, {}
+         self.identities, self.templates, self.batches, self.records = {}, {}, {}, {}
+ 
+-    @staticmethod
+-    def _file(path):
++    def _file(self, path):
+         before = path.stat()
+         content = path.read_bytes()
+         after = path.stat()
+@@ -32,7 +31,9 @@
+             return (s.st_dev, s.st_ino, s.st_size, s.st_mtime_ns, s.st_ctime_ns)
+         if identity(before) != identity(after):
+             raise ValueError(f'Validation dependency changed while reading: {path}')
+-        return (identity(after), hashlib.sha256(content).hexdigest()), content
++        # v28.1 compares the archive bytes directly; no checksum gate.
++        value = hashlib.sha256(content).hexdigest() if getattr(self.adapter, 'verify_hashes', True) else content
++        return (identity(after), value), content
+ 
+     def watch_file(self, path):
+         path = Path(path).absolute()
+@@ -83,7 +84,7 @@
+         return
+     state = ValidationOperation(adapter)
+     dataset_root = getattr(adapter.dataset, 'root', None)
+-    if dataset_root is not None:
++    if dataset_root is not None and getattr(adapter, 'verify_hashes', True):
+         state.watch_tree(dataset_root)
+     token = _ACTIVE.set(state)
+     try:

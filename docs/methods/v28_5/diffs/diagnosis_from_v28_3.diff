@@ -1,0 +1,58 @@
+--- baseline/prompts/diagnosis_v28_3.md
++++ prompts/diagnosis.md
+@@ -1,6 +1,6 @@
+ # Diagnosis
+ 
+-Produce one evidence-grounded Original Plan for the current batch of Parent executions. Identify behavioral improvements that can reasonably be implemented through the Skill while preserving valid capabilities. Historical edit-response adjustment belongs to Preconditioner. Do not read historical Memory or impose a fixed Update count.
++Produce one evidence-grounded Original Plan from the current batch of Parent executions. Propose concrete behavioral corrections and their current evidential boundaries. Relevant Parent guidance provides execution context; integration with the whole Parent and historical edit-response adjustment belong to Preconditioner. Do not read historical Memory or impose a fixed Update count.
+ 
+ ## SearchQA execution and evidence boundary
+ 
+@@ -20,7 +20,7 @@
+ 
+ ## Lossless execution input view
+ 
+-The input view is v28_3_shared_execution_text_v1. shared_initial has exactly format (execution_shared_initial_v1) and messages. Each messages entry stores one complete original system message, including its actual execution Skill and any message metadata. In runs[].initial.messages, {"shared_message":"system_1"} stands for that exact message at that exact position; resolve the reference in this request's shared_initial.messages. User messages remain inline. Different system messages have different references. Sharing is local to this call, not across stages or rounds.
++The input view is v28_5_shared_execution_text_v1. shared_initial has exactly format (execution_shared_initial_v1) and messages. Each messages entry stores one complete original system message, including its actual execution Skill and any message metadata. In runs[].initial.messages, {"shared_message":"system_1"} stands for that exact message at that exact position; resolve the reference in this request's shared_initial.messages. User messages remain inline. Different system messages have different references. Sharing is local to this call, not across stages or rounds.
+ 
+ The duplicate attempts[0].request_messages is omitted only after exact equality with initial.messages has been verified. It is precisely the initial message list after resolving shared references, with the same roles, text, metadata and order. outcome.answer.raw_content is omitted only after exact equality with attempts[0].assistant.content has been verified; read that full ordinary response instead. All other execution fields remain present. No response or system text is summarized, truncated, normalized or reconstructed from Parent. Top-level parent remains the complete Parent Skill, independently of the shared system message. Complete original facts remain in the archive.
+ 
+@@ -54,7 +54,7 @@
+ 
+ Distinguish discrepancies in entity or relation selection, answer boundaries and reference forms for the selected referent. These are analytical distinctions, not mandatory categories or established internal causes; more than one explanation may remain plausible. An entity or relation mismatch concerns which object answers the clue; a boundary mismatch concerns subtype, granularity or extra content; a reference-form difference concerns names, spellings or wording for the same referent. When excess or missing answer content is supported by the supplied question, context, response and references, address what constitutes a complete answer while preserving the appropriate entity and relation. Prefer the smallest sufficient answer unit, not the shortest string or the entire passage containing it. Preserve qualifiers, units, name components and ranges when needed to answer the question. A reference mismatch alone does not establish an entity or relation error or a general preference for a shorter name or abbreviation.
+ 
+-For each proposed Update, inspect the relevant Parent/base guidance, headings and scope, and identify the concrete decision the change would alter: what the Actor selects, excludes, compares, preserves or returns, and under which observable condition. A narrower task label, stronger wording or another request to "check carefully" is not by itself a behavioral increment. If existing guidance already addresses the discrepancy, consider whether its trigger, decision procedure, priority or interaction with another instruction needs revision. Existing coverage does not prove adequacy, and another failure does not by itself justify repetition. Explain the decisive increment concisely in reason; do not add output fields.
++For each proposed Update, identify what the Actor should select, exclude, compare, preserve or return differently, and under which observable condition. Use relevant Parent/base guidance as execution context: failure does not establish missing guidance, and existing coverage does not prove adequacy. Identify an apparent conflict when the current evidence supports it, without claiming that it caused the response. Do not perform a comprehensive Parent audit or settle all integration details. A narrower task label, stronger wording or another request to "check carefully" is not by itself a behavioral increment. Explain the decisive grounds and uncertainty concisely in reason; do not add output fields.
+ 
+ ## Construct complete, scoped Updates
+ 
+@@ -66,11 +66,11 @@
+ 
+ Preserve requested entity, relation, temporal and answer-granularity requirements. Do not replace a requested answer with an explanation, a list of guesses or a weaker deliverable. Answer completeness does not mean maximum length. Keep formatting rules scoped to the intended part of the response. The base protocol asks for step-by-step thinking and a concise final answer element; keep answer-element restrictions scoped to that element. A difference in names, units, date format or wording may explain a string-score mismatch, but does not by itself justify a universal naming or normalization rule. Account for SearchQA normalization before attributing a mismatch to articles or punctuation.
+ 
+-Goal states the intended improvement and necessary preservation boundaries without making an untested strategy immutable. Every Update carries its material trigger, action, strength, exceptions, dependencies and preservation conditions. Distinguish permission, preference and obligation. Do not encode task IDs, instance answers or question-to-answer lookup keys, nor turn a reference-only spelling into a universal rule.
++Goal states the intended improvement and necessary preservation boundaries without making an untested strategy immutable. Keep each Original complete as a behavioral proposal: state the intended change, its material task-visible conditions, strength, necessary behavioral dependencies, and preservation boundaries supported by current evidence. It need not be a complete Skill-editing plan; Preconditioner determines necessary treatment of existing guidance. Distinguish permission, preference and obligation. Do not encode task IDs, instance answers or question-to-answer lookup keys, nor turn a reference-only spelling into a universal rule.
+ 
+ Use text as one string. Prefer one complete, independently assessable behavioral requirement per line, optionally with '- ' list markers and a final LF. Keep each trigger and its action together; no per-line IDs or new schemas. This is generation guidance, not permission to rewrite historical strings.
+ 
+-Resolve overlap, conflicts and prerequisites across proposed Updates. Prefer revising relevant Parent guidance over appending a parallel rule when the intended behavior can be expressed without losing valid conditions. State the required revision or consolidation and preservation boundaries in Update text, without drafting the Editor's patch or requiring unrelated cleanup. Do not rely on a later module to justify an unsupported addition. A reasonable proposal can remain unproven; identify uncertainty without weakening a necessary requirement or demanding prior causal proof.
++Resolve contradictions and prerequisites among your own proposed behaviors, and keep necessary dependencies together. Do not copy unrelated Parent rules or precautionary lists into an Update merely to assert that they remain unchanged. Leave Parent-wide duplication, precedence and old-rule integration to Preconditioner, but do not leave the proposed behavior vague or rely on a later module to justify an unsupported addition. A reasonable proposal can remain unproven; identify uncertainty without demanding prior causal proof.
+ 
+ ## Evidence
+ 
+@@ -78,13 +78,13 @@
+ 
+ Preconditioner receives complete runs selected through direct references in the Plan. Do not use historical references or Preconditioner's namespaced prose markers in place of structured basis IDs.
+ 
+-No separate Checks are produced. Put every implementation condition, exception, priority, dependency and preservation boundary in the Update text itself, not only in reason. Include the direct references for any material success or counterexample in basis. Diagnose the entire current Parent batch, including successes; the downstream restriction to EM-transition pairs does not restrict Diagnosis input. Do not demand a new Actor explanation or an extra execution to justify a proposal.
++No separate Checks are produced. Put the material conditions, strength, exceptions, behavioral dependencies and preservation boundaries of the proposed correction in Update text, not only in reason. Include direct references for the successes or counterexamples that support these boundaries in basis, so Preconditioner receives the relevant complete executions. Diagnose the entire current Parent batch, including successes; the downstream restriction to EM-transition pairs does not restrict Diagnosis input. Do not demand a new Actor explanation or an extra execution to justify a proposal.
+ 
+ ## Decisions and exact output
+ 
+ Return one JSON object in English with exactly decision, reason, plan.
+ - decision is revise or no_change, with no need_evidence alternative.
+-- reason is nonempty and explains the justified direction, relevant Parent guidance and important uncertainty. Avoid a per-task report.
++- reason is nonempty and explains the decisive current evidence, proposed behavioral correction and important uncertainty. Mention relevant Parent guidance when it informs that judgment. Avoid a per-task report.
+ - revise requires plan with exactly goal and updates. goal is nonempty; updates is nonempty.
+ - Each Update has exactly id, text, basis. IDs are unique and do not collide with evidence IDs; text is nonempty.
+ - no_change requires plan=null. It means no reasonably justified update was formed, not that the Skill is flawless.

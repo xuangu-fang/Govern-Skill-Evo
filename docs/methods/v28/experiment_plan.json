@@ -1,0 +1,220 @@
+{
+  "schema": "v28_searchqa_experiment_design_v1",
+  "status": "configuration_complete_offline_validated_not_started",
+  "created_at": "2026-11-01T10:28:51.761551+00:00",
+  "environment": "SearchQA",
+  "dataset": {
+    "lock": "data/searchqa/v28_dataset.lock.json",
+    "lock_sha256": "41b8b1268f5d7d5c4259f685e74bba4f5a415ccdea7814e42782f8c50c7a09a7",
+    "optimization_view": "data/searchqa/v28_train600_v1/manifest.json",
+    "optimization_view_sha256": "397810ae16545aa600ec770fb8d6d23f90e959c11044590dae1e710a86519a5c",
+    "optimization_count": 600,
+    "test_count": 1400,
+    "validation_merged": true
+  },
+  "schedule": {
+    "batch_size": 15,
+    "epochs": 1,
+    "rounds": 40,
+    "sampling_strategy": "sequential",
+    "shuffle": false,
+    "order": "train_manifest_then_val_manifest",
+    "actor_workers": 15,
+    "test_workers": 15,
+    "gate_cases": "same_as_current_training_batch",
+    "optimizer_stages_parallel": false,
+    "no_change": "retain_parent_and_continue",
+    "source": "SkillAdam SearchQA batch size, epoch and sequential sampling; train/test workers overridden to 15/15 by user on 2026-11-01; v28 retains its own method control flow"
+  },
+  "actor": {
+    "transport": "direct_http",
+    "endpoint": "https://api.deepseek.com/chat/completions",
+    "model": "deepseek-flash",
+    "max_tokens": 49152,
+    "temperature": 1.0,
+    "reasoning_effort": "medium",
+    "thinking": {
+      "type": "enabled"
+    },
+    "timeout_seconds": 300,
+    "connect_timeout_seconds": 10,
+    "request_attempts_total": 6,
+    "sdk_retries": 0,
+    "retry_delay_seconds": 1.0,
+    "retry_policy": "technical_and_length_shared_six_v1"
+  },
+  "actor_protocol": {
+    "source": "SkillAdam searchqa build_messages(method=skilladam)",
+    "turns": 1,
+    "tools": [],
+    "context": "full original string; no truncation or normalization",
+    "skill_injection": "SkillAdam system template skill_section",
+    "answer": "last complete answer element; otherwise last nonempty line",
+    "answer_feedback_to_actor": false,
+    "prompt_profile": "v28_searchqa_actor_answer_element_words_v1",
+    "implementation": "src/skill_evolution/v28/benchmarks/searchqa/protocol.py"
+  },
+  "scoring": {
+    "status": "actor_and_archive_verified_gate_integrated_offline_validated",
+    "implementation_source": "external/SkillAdam/skilladam/benchmarks/searchqa/evaluation.py",
+    "primary": "exact_match",
+    "auxiliary": "best_token_f1",
+    "success": "em == 1",
+    "gate": "ACCEPT iff candidate_success > parent_success; otherwise RETAIN",
+    "f1_affects_gate": false,
+    "skilladam_native_threshold_gate_inherited": false,
+    "profile": "v28_searchqa_skilladam_scoring_v1",
+    "implementation": "src/skill_evolution/v28/benchmarks/searchqa/scoring.py",
+    "gate_profile": "v28_searchqa_em_strict_increase_v1",
+    "gate_confirmation": "User reconfirmed EM success count strictly increases; F1 recorded only, 2026-11-01"
+  },
+  "recovery": {
+    "source": "v27 current Actor and method module recovery",
+    "actor_total_attempts": 6,
+    "length": "archive then retry identical request within shared six-attempt budget",
+    "normal_stop": "score once; do not retry based on answer correctness or formatting",
+    "exhaustion": "incomplete; no zero-score substitution; resume does not reset budget",
+    "archive_corruption": "stop before new requests",
+    "module_max_attempts": 6,
+    "module_retry_delay_seconds": 2.0,
+    "module_feedback": "previous output plus validation error; per v27 contract",
+    "implementation": "src/skill_evolution/v28/benchmarks/searchqa/actor.py",
+    "batch_and_gate_implementation": "src/skill_evolution/v28/benchmarks/searchqa/adapter.py",
+    "status": "actor_batch_and_gate_offline_validated_campaign_recovery_pending"
+  },
+  "module_calls_reference": {
+    "grouping": {
+      "endpoint": "https://api.deepseek.com/chat/completions",
+      "model": "deepseek-flash",
+      "max_tokens": 16384,
+      "timeout_seconds": 300,
+      "temperature": 1.0,
+      "reasoning_effort": "medium",
+      "thinking": {
+        "type": "enabled"
+      }
+    },
+    "diagnosis": {
+      "endpoint": "https://api.deepseek.com/chat/completions",
+      "model": "deepseek-flash",
+      "max_tokens": 32768,
+      "timeout_seconds": 300,
+      "temperature": 1.0,
+      "reasoning_effort": "medium",
+      "thinking": {
+        "type": "enabled"
+      }
+    },
+    "preconditioner": {
+      "endpoint": "https://api.deepseek.com/chat/completions",
+      "model": "deepseek-flash",
+      "max_tokens": 32768,
+      "timeout_seconds": 300,
+      "temperature": 1.0,
+      "reasoning_effort": "medium",
+      "thinking": {
+        "type": "enabled"
+      }
+    },
+    "editor": {
+      "endpoint": "https://api.deepseek.com/chat/completions",
+      "model": "deepseek-flash",
+      "max_tokens": 16384,
+      "timeout_seconds": 300,
+      "temperature": 1.0,
+      "reasoning_effort": "medium",
+      "thinking": {
+        "type": "enabled"
+      }
+    },
+    "replay": {
+      "endpoint": "https://api.deepseek.com/chat/completions",
+      "model": "deepseek-flash",
+      "max_tokens": 32768,
+      "timeout_seconds": 300,
+      "temperature": 1.0,
+      "reasoning_effort": "medium",
+      "thinking": {
+        "type": "enabled"
+      }
+    }
+  },
+  "initial_skill": {
+    "status": "selected_frozen",
+    "path": "experiments/configs/v28_searchqa_initial_skill.md",
+    "provenance": "experiments/configs/v28_searchqa_initial_skill.provenance.json",
+    "source_repository": "https://github.com/microsoft/SkillOpt",
+    "source_commit": "7da46ae693ee0329b80225c0128a37d65db10e9e",
+    "source_path": "skillopt/envs/searchqa/skills/initial.md",
+    "sha256": "d3ed21de4a5216da7c3cd63acc2330dc78227524753c9d29573e6692f48d6709",
+    "verbatim": true,
+    "stage0": false,
+    "validation_report": "artifacts/verification/v28_initial_skill_20261101/validation.json",
+    "configuration_sha256": "0c563078ceb408887f2df8fbf06fe06317265ad354c67a5f8839f6ece487d5a6"
+  },
+  "implementation_pending": [],
+  "sources_sha256": {
+    "external/SkillAdam/skilladam/experiments/main_results.json": "6f77df9ca5b6794181e34276548ba44438878a4cca9ac61cdc1460b8f2ef7683",
+    "external/SkillAdam/skilladam/data/profiles/searchqa_main_results.json": "d79f6f4d8d1ad5cb879cc262902edaa7c74727f8a20d365fd15a149e539f3010",
+    "external/SkillAdam/skilladam/benchmarks/searchqa/rollout.py": "6b6662e8712d84294ce52b36422d5b371240bd958c35027e441c9bba8fd47321",
+    "external/SkillAdam/skilladam/benchmarks/searchqa/evaluation.py": "c442d44c5167013d0f0a44915a3d8ae44863fcded43700713c4c0e2a17957472",
+    "external/SkillAdam/skilladam/benchmarks/searchqa/manifest.py": "17002e40be5ee6b510004b46600ef8b3360d17ee15d882f009d4726038f4fd60",
+    "external/SkillAdam/skilladam/methods/skilladam.py": "c66e472e3ea8af0c3c2e675bb29c1102ed7f4b4ab30fa1709682593e4838a2a4",
+    "src/skill_evolution/v27/benchmarks/lmb/protocol.py": "44c15d2e0c9852274c7adfff7ed07e37ef25d3f35fb074b20d121ca47877d3e9",
+    "src/skill_evolution/v27/benchmarks/lmb/actor.py": "d9fb2341ad7cf2a1ffd15d73322f566ec7ad085516c174e3f6f78c27eb5d1630",
+    "src/skill_evolution/v27/transport.py": "f58a306ead30349f5e90b496dfc2d3b962fa1fe27bd0857b2ae03601c5c508df",
+    "experiments/configs/v27_lmb53_epoch1_deepseek_flash.json": "518cbc81d1754171a9849d3929b2b9909f9a8d41b736fcb7839b63895edb0be9",
+    "benchmarks/searchqa/reference/evaluator.py": "b69136fa727fedeede7ab257144f4dc937877bd1792f13c5c596d566df66fbd3"
+  },
+  "skilladam_commit": "b6c9640f7a9e0d5e3a500c25bc4e6369eeca78f1",
+  "component_validation": {
+    "report": "artifacts/verification/v28_actor_scoring_20261101/validation.json",
+    "scope": "Prompt, native parsing/scoring, v27 envelope validation and pure score comparison; not full Actor/campaign recovery",
+    "training_started": false,
+    "model_requests": 0
+  },
+  "runtime_validation": {
+    "report": "artifacts/verification/v28_actor_runtime_20261101/validation.json",
+    "scope": "Synthetic Actor six-attempt retry, archive recovery, complete Gate identity and original response validation; no full campaign or live model acceptance",
+    "training_started": false,
+    "model_requests": 0
+  },
+  "five_module_design": {
+    "status": "installed_offline_validated",
+    "path": "docs/methods/v28/five_module_draft_20261101/DESIGN.md",
+    "method_baseline": "v27",
+    "v25_2_additions_inherited": false,
+    "planned_ablations": [],
+    "implementation": "src/skill_evolution/v28/README.md",
+    "update_count_limit": null
+  },
+  "five_module_validation": {
+    "report": "artifacts/verification/v28_method_20261101/validation.json",
+    "scope": "Five module prompts/projections/output contracts, Replay and Memory commit/recovery, plus Actor/scoring/Gate regression; not campaign or live model acceptance",
+    "training_started": false,
+    "model_requests": 0,
+    "tests_run": 63,
+    "status": "passed"
+  },
+  "campaign_validation": {
+    "status": "passed",
+    "report": "artifacts/verification/v28_campaign_20261101/validation.json",
+    "scope": "Synthetic full campaign dispatch, 40x15 schedule, method six-attempt retry/recovery and validation feedback, atomic publication, independent Test and component regression",
+    "training_started": false,
+    "model_requests": 0,
+    "tests_run": 89,
+    "network_or_process_attempts": 0,
+    "dataset_and_v27_source_unchanged": true
+  },
+  "campaign_configuration": "experiments/configs/v28_searchqa_train600_epoch1_deepseek_flash.json",
+  "input_capacity_policy": {
+    "baseline": "v27",
+    "context_window_tokens": "not_set",
+    "max_input_chars": 4000000,
+    "max_message_utf8_bytes": 6000000,
+    "provider_token_capacity_validation_required": false,
+    "provider_token_capacity_verified": false,
+    "decision": "User explicitly chose the same optional-token-window policy as v27; retain character/UTF-8 guards and full untruncated input."
+  },
+  "configuration_validation": "artifacts/verification/v28_configuration_complete_20261101/validation.json"
+}

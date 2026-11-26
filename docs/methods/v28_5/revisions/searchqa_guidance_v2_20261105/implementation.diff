@@ -1,0 +1,642 @@
+--- before/docs/methods/v28_5/EXPERIMENT_PLAN.md
++++ after/docs/methods/v28_5/EXPERIMENT_PLAN.md
+@@ -1,4 +1,10 @@
+ # v28.5 固定实验边界与后续验证设计
++
++## 当前边界（2026-11-05）
++
++SearchQA 领域指导 Prompt v2 已接入，当前仅授权冻结、接入与离线验证，**未授权启动实验**。当前默认 batch60 配置只升级 Diagnosis／Preconditioner／Replay 的 Prompt 标识，原数据顺序、10×60、60/15 并发、Actor 32,768 和方法模块 65,536 预算均保持。
++
++[当前修订记录](revisions/searchqa_guidance_v2_20261105/README.md) 中提供离线验证入口。未来若启动实验，需要独立新目录、相同初始 Skill 和空 Memory；不得将旧 Prompt v1 检查点重标记后继续。下文为历史实验设计与当时授权，不能用作当前自动启动指令。batch30／batch50 旧配置保留为历史文件，不随本次修订更新。
+ 
+ 当前方案：600 题按原顺序分为 10×60，训练并发 60，测试并发 15，Editor max_tokens=65,536。配置为 [v28_5_searchqa_train600_batch60.json](../../../experiments/configs/v28_5_searchqa_train600_batch60.json)。按用户要求，刚短暂启动的 batch50 实验已终止并删除；新配置检查后从头训练，再运行 Test 和比较。更早实验保持暂停。
+ 
+--- before/docs/methods/v28_5/IMPLEMENTATION.md
++++ after/docs/methods/v28_5/IMPLEMENTATION.md
+@@ -1,4 +1,12 @@
+ # v28.5 独立实现与必要检查
++
++## 当前接入：SearchQA 领域指导 Prompt v2（2026-11-05）
++
++当前实现与结果以 [Prompt v2 修订记录](revisions/searchqa_guidance_v2_20261105/README.md) 为准。新离线入口为 `scripts/verification/verify_v28_5_prompt_v2.py`，覆盖当前 batch60 配置、审阅稿逐字绑定、Parent＋Memory 核心正文、源代码仅版本常量变化，以及旧 Prompt 检查点拒绝恢复。原 `verify_v28_5_campaign.py` 与旧报告保留为初次实现的历史材料，其 batch30／旧 Prompt 假设不适用于当前版本。
++
++本次未调用真实模型，未启动训练、Test、supervisor 或自动化。下面的启动、暂停、完成、参数调整和原复现命令均为历史记录；不构成恢复实验的指令。
++
++## 历史实现记录
+ 
+ 2026-11-04：已基于 v28.3 完成独立运行实现和必要离线检查，直接绑定已定稿的四份 Prompt，包括 Preconditioner 关于指令强度与优先级的最后一句微调。实现阶段未运行真实训练或 Test。随后用户授权完整实验，22:09 已启动训练，Test 与比较等待训练完成；见 [运行状态](../../../experiments/automations/v28_5_searchqa600_batch30_20261104_220800/status.json)。未增加独立 Prompt 验收场景或固定输入模型对照。
+ 
+--- before/docs/methods/v28_5/PROMPT_REVIEW.md
++++ after/docs/methods/v28_5/PROMPT_REVIEW.md
+@@ -1,4 +1,10 @@
+ # v28.5 Prompt 修改与静态审阅
++
++## 当前修订审阅（2026-11-05）
++
++当前正式目录已接入 [SearchQA 领域指导审阅稿](proposals/searchqa_guidance_20261105/README.md)，包括用户最终认可的“规范形式＋最小充分答案单元，仅删除真正冗余内容”措辞。Diagnosis 与 Preconditioner 的共享领域段一致；Editor 未改；Replay 仅调整答案变化解释的一段。新增分类不是输出字段或 Gate 条件。
++
++[本次接入与离线检查](revisions/searchqa_guidance_v2_20261105/README.md) / [逐字 Prompt 差异](proposals/searchqa_guidance_20261105/diffs/all.diff)。以下是 Prompt v1 的历史审阅材料，原历史快照与结论不改写。
+ 
+ 审阅日期：2026-11-04。范围为四份完整 Prompt 与冻结 v28.3 的文本差异、接口兼容和职责一致性。审阅方式为本次逐段自查与本地静态核对；**不是独立模型评审，未调用模型。** 具体机器检查结果见 [design_validation.json](design_validation.json)。
+ 
+--- before/docs/methods/v28_5/README.md
++++ after/docs/methods/v28_5/README.md
+@@ -1,4 +1,17 @@
+ # SearchQA v28.5：结合 Parent 与 Memory 的更新预条件调整
++
++## 当前版本：SearchQA 领域指导 Prompt v2（2026-11-05）
++
++已按审阅稿接入 Diagnosis、Preconditioner、Replay 的 `v2` Prompt；Editor 仍为 `v1`。Parent＋Memory 的 D/S/C 预条件机制、输出合同、Gate、Memory、Actor 与当前 10×60 配置参数保持不变。当前授权范围为冻结、接入和离线验证，**不启动训练、Test 或自动化**。
++
++- [当前修订记录与验证结果](revisions/searchqa_guidance_v2_20261105/README.md)
++- [旧版冻结清单](revisions/searchqa_guidance_v2_20261105/baseline_manifest.json)
++- [已采纳的完整方案与来源](proposals/searchqa_guidance_20261105/README.md)
++- [当前正式 Prompt](prompts/diagnosis.md)：Diagnosis / [Preconditioner](prompts/preconditioner.md) / [Editor](prompts/editor.md) / [Replay](prompts/replay.md)
++
++下文的 1150/1400 等成绩、完成状态和实验路径均属于历史 Prompt v1，不能作为当前 Prompt v2 的成绩。旧版配置和检查点不与当前修订混用。原实验快照保留，本次不恢复旧运行。
++
++## 历史 Prompt v1 设计与实验记录
+ 
+ 状态：实验 `v28_5_searchqa600_batch60_workers60_editor64k_20261104_232720` 于 2026-11-05 00:37:03 完成训练、1,400 题 Test 和比较。Test 正确 1,150 题（EM 82.1429%，F1 90.3023%），最终 Skill 14,151 字符；v28.3 为 1,187 题与 29,703 字符。逐题比较退步 57 题、改善 20 题。自动跟进已删除，无新实验计划。
+ 
+--- before/docs/methods/v28_5/prompts/diagnosis.md
++++ after/docs/methods/v28_5/prompts/diagnosis.md
+@@ -46,27 +46,46 @@
+ 
+ ## Examine current evidence
+ 
+-Compare common decision problems and important differences across current-batch executions. Use relevant and available successes, failures and counterexamples to form evidence-grounded Updates and determine their applicability conditions and preservation boundaries. A single execution can also support a reasonable proposal. Put direct execution references supporting these judgments in the corresponding Update basis. Not every execution needs to produce an Update.
++Input contains exactly parent, runs and shared_initial. Compare question requirements, relevant context, complete ordinary output, extracted answer, reference agreement and relevant Parent/base guidance across the current batch. Use successes, failures and counterexamples to identify common decision problems and meaningful differences. Not every execution needs an Update.
+ 
+-Input contains exactly parent, runs and shared_initial. Compare question requirements, relevant context, complete ordinary output, extracted answer, reference agreement and existing Parent/base guidance. The complete question and context passages are visible to this module. Distinguish missing guidance, existing guidance whose adherence is unobserved, visible behavior that did not resolve the problem, capability limits and insufficient evidence. Failure alone does not prove a Skill defect; success or high F1 does not establish compliance with every instruction.
++## SearchQA domain guidance
+ 
+-For each proposed change, connect a visible task requirement, an observed response/result discrepancy and the behavior intended to address it. Separate the discrepancy from its hypothesized cause. Short-answer-only runs can support a testable hypothesis from input/output distinctions without proving a passage-selection, entity-resolution or reasoning mechanism. Do not fabricate that mechanism; uncertainty alone does not invalidate a reasonable experiment.
++Use the following distinctions to interpret the evidence supplied to this module. They are analytical vocabulary, not new output fields, a per-task classification report, or proof of an internal cause. Use the relevant terms in reason when helpful; retain uncertainty when the observations do not distinguish explanations. The vocabulary does not expand this module's role or evidence access.
+ 
+-Distinguish discrepancies in entity or relation selection, answer boundaries and reference forms for the selected referent. These are analytical distinctions, not mandatory categories or established internal causes; more than one explanation may remain plausible. An entity or relation mismatch concerns which object answers the clue; a boundary mismatch concerns subtype, granularity or extra content; a reference-form difference concerns names, spellings or wording for the same referent. When excess or missing answer content is supported by the supplied question, context, response and references, address what constitutes a complete answer while preserving the appropriate entity and relation. Prefer the smallest sufficient answer unit, not the shortest string or the entire passage containing it. Preserve qualifiers, units, name components and ranges when needed to answer the question. A reference mismatch alone does not establish an entity or relation error or a general preference for a shorter name or abbreviation.
++### Failure patterns
+ 
+-For each proposed Update, identify what the Actor should select, exclude, compare, preserve or return differently, and under which observable condition. Use relevant Parent/base guidance as execution context: failure does not establish missing guidance, and existing coverage does not prove adequacy. Identify an apparent conflict when the current evidence supports it, without claiming that it caused the response. Do not perform a comprehensive Parent audit or settle all integration details. A narrower task label, stronger wording or another request to "check carefully" is not by itself a behavioral increment. Explain the decisive grounds and uncertainty concisely in reason; do not add output fields.
++- **rule_missing**: No relevant guidance covers the observed decision problem. Consider a scoped addition for the transferable gap, not a rule that reproduces one reference answer.
++- **rule_wrong**: Existing guidance directs behavior inconsistent with the task. Consider revising or removing the misleading requirement rather than adding a competing rule. Distinguish an observable conflict from proof that the Actor followed it.
++- **rule_ignored**: Relevant guidance exists, but the visible response does not satisfy it. Consider making its trigger or action concrete instead of adding an equivalent rule. A short answer alone does not establish which internal instruction was followed or why it was missed.
++- **answer_format**: The evidence supports the same underlying entity or fact, but the submitted answer form differs: unnecessary expansion, singular/plural, common versus full name, spelling, diacritics, abbreviation, punctuation or tokenization. Check the actual normalization before treating a surface difference as a scoring difference; capitalization and many punctuation differences are already ignored. Do not infer a wrong entity solely from EM=0.
++- **other**: Ambiguous evidence, capability limits, possible sampling variability or reference/scoring limitations may leave no supported Skill correction. Do not force a rule or declare noise merely because the cause is unclear.
++
++### Successful patterns worth preserving or transferring
++
++- **applied_rule**: Visible behavior is consistent with relevant guidance. Preserve the useful behavior; do not infer internal rule use from success alone or duplicate an already adequate instruction.
++- **disambiguation**: Resolve the requested answer type in a Jeopardy-style “this X” clue, subject/object or inverse relationships, the encompassing entity versus an example, or a historical versus current name. Transfer the decision relationship and its observable conditions, not the particular answer.
++- **concise_normalization**: Select the conventional answer form supported by the question and context. Prefer the smallest sufficient answer unit; shorten only by removing genuinely redundant content. Preserve required name components, feature/company designators, units, ranges, meaningful spelling and grammatical number. Brevity does not authorize dropping information needed to identify the requested referent; neither a full name nor a shorter form is always preferable.
++- **other**: A correct answer may reflect background knowledge, an answer stated directly in the passages or an uncertain choice. Success alone does not warrant a new rule; identify a transferable behavior before proposing one.
++
++Prefer recurring decision patterns over collections of case-specific exceptions. Multiple supporting cases strengthen transfer, but a single clear case may still justify a scoped proposal under the existing method. Reference answers diagnose current discrepancies; they do not establish a universal naming preference. All applicability conditions must be available to the Actor from the question, context or its own response. Do not copy this vocabulary, scoring terms or illustrative answers into the deployed Skill as boilerplate.
++
++### Illustration: answer expansion versus missing guidance
++
++Illustration only, adapted from the SearchQA optimizer example; these are not executions in this batch and cannot be cited as evidence or copied into Updates. Suppose abbreviation questions expect “Central Processing Unit” and “Universal Serial Bus”, while responses append the abbreviation and an explanatory clause; a “Read-Only Memory” response has no such additions. If Parent already excludes appended explanations, the repeated issue is answer-form control despite existing coverage, not automatically a missing abstract rule. Propose a concrete trigger/action clarification only if the supplied current evidence supports it, and leave integration with Parent and historical response assessment to Preconditioner. Preserve wording that belongs to the requested expansion. Do not add a second equivalent prohibition or a lookup list of these answers. Actual proposals require this batch's basis references; the existing ban on encoding instance answers remains in force.
++
++For each proposed change, connect the visible task requirement, the observed response/result discrepancy and the intended behavioral correction. Identify what the Actor should select, exclude, compare, preserve or return differently and under which observable condition. Separate observed behavior from its hypothesized cause; short-answer-only runs can support a testable proposal without revealing intermediate reasoning. Put direct supporting and preservation-boundary references in basis. Use relevant Parent guidance as execution context; leave comprehensive Parent integration and historical response assessment to Preconditioner. A label or another request to "check carefully" is not itself a correction. Explain the decisive grounds and uncertainty concisely in reason without a per-task classification report or new fields.
+ 
+ ## Construct complete, scoped Updates
+ 
+-Construct a focused intervention rather than a repair list for every failed run. Prefer changes with a clear behavioral increment, directly supported discrepancies, plausible transfer conditions and manageable preservation risks. Consider both near-match and wrong-answer failures; score magnitude alone does not determine priority. Generalize through task-visible decision relationships rather than merely substituting a broad task label for a case name.
++Construct a focused intervention with a clear behavioral increment and manageable preservation risks. Generalize the supported decision relationship and its conditions, rather than collecting case-specific repairs. Consider both answer-form near-misses and wrong-entity or relation failures; score magnitude alone does not determine priority.
+ 
+ updates contains one or more independently justified, actionable behavioral changes. When repairs are independent, prefer a coherent direction over bundling unrelated hypotheses merely to cover more failures. This is a preference, not a requirement to isolate the causal effect of each clause. Multiple Updates are appropriate when their individual grounds and their reason for being tested together are clear. Keep necessary dependencies together; impose no fixed Update count and do not split mechanically by sentence.
+ 
+-Applicability must depend on the Actor-visible question/context or its own response, never a gold answer, grade or hidden optimizer state. Do not prescribe online lookup, scorer-assisted correction or tools. The question, supplied passages or the Actor's stated rationale can motivate a strategy; passage presence does not establish Actor use or prove that counting matching passages, preferring one source or returning a longer answer is generally correct. A condition on passage content can be checked against the supplied context; an unobserved internal action must not be presented as an observed fact. Make a proposed procedure conditional and justify its actual burden.
++Use only Actor-visible conditions described above, never a gold answer, grade or hidden optimizer state. Do not prescribe online lookup, scorer-assisted correction or tools. Make any proposed procedure conditional and justify its burden within the one-round task; passage presence does not prove that the Actor used it.
+ 
+-Preserve requested entity, relation, temporal and answer-granularity requirements. Do not replace a requested answer with an explanation, a list of guesses or a weaker deliverable. Answer completeness does not mean maximum length. Keep formatting rules scoped to the intended part of the response. The base protocol asks for step-by-step thinking and a concise final answer element; keep answer-element restrictions scoped to that element. A difference in names, units, date format or wording may explain a string-score mismatch, but does not by itself justify a universal naming or normalization rule. Account for SearchQA normalization before attributing a mismatch to articles or punctuation.
++Preserve the requested entity, relation, time and answer granularity. Apply concise-normalization guidance only within the answer element; do not replace the requested answer with an explanation or a list of guesses. The base protocol still permits ordinary text outside that element. Necessary qualifiers and name components must survive any answer-form correction.
+ 
+-Goal states the intended improvement and necessary preservation boundaries without making an untested strategy immutable. Keep each Original complete as a behavioral proposal: state the intended change, its material task-visible conditions, strength, necessary behavioral dependencies, and preservation boundaries supported by current evidence. It need not be a complete Skill-editing plan; Preconditioner determines necessary treatment of existing guidance. Distinguish permission, preference and obligation. Do not encode task IDs, instance answers or question-to-answer lookup keys, nor turn a reference-only spelling into a universal rule.
++Goal states the intended improvement and necessary preservation boundaries without making an untested strategy immutable. Keep each Original complete as a behavioral proposal: state the intended change, its material task-visible conditions, strength, necessary behavioral dependencies, and preservation boundaries supported by current evidence. It need not be a complete Skill-editing plan; Preconditioner determines necessary treatment of existing guidance. Distinguish permission, preference and obligation. Do not encode task IDs, instance answers or question-to-answer lookup keys.
+ 
+ Use text as one string. Prefer one complete, independently assessable behavioral requirement per line, optionally with '- ' list markers and a final LF. Keep each trigger and its action together; no per-line IDs or new schemas. This is generation guidance, not permission to rewrite historical strings.
+ 
+--- before/docs/methods/v28_5/prompts/preconditioner.md
++++ after/docs/methods/v28_5/prompts/preconditioner.md
+@@ -43,6 +43,31 @@
+ </actor_base_protocol>
+ 
+ The frozen Actor uses deepseek-flash with thinking enabled, reasoning_effort=medium and temperature=1.0. It has one model round, no tools and a per-request output limit of 32,768 tokens, including any provider-accounted reasoning tokens. Request timeout is 300 seconds and connection timeout is 10 seconds. Technical failures and length termination share at most six total request attempts, including the first, with no hidden SDK retries. A length response is archived and retried with identical messages and output budget, even if it contains a parseable answer. Only a stop response is scored. Exhausting all six attempts stops the task without a score; resume never resets this budget. Wrong answers and format noncompliance in a stop response do not trigger corrective generation. These are execution constraints, not new Skill instructions or output fields. Independent reasoning_content is unavailable to the method modules regardless of its token usage.
++
++## SearchQA domain guidance
++
++Use the following distinctions to interpret the evidence supplied to this module. They are analytical vocabulary, not new output fields, a per-task classification report, or proof of an internal cause. Use the relevant terms in reason when helpful; retain uncertainty when the observations do not distinguish explanations. The vocabulary does not expand this module's role or evidence access.
++
++### Failure patterns
++
++- **rule_missing**: No relevant guidance covers the observed decision problem. Consider a scoped addition for the transferable gap, not a rule that reproduces one reference answer.
++- **rule_wrong**: Existing guidance directs behavior inconsistent with the task. Consider revising or removing the misleading requirement rather than adding a competing rule. Distinguish an observable conflict from proof that the Actor followed it.
++- **rule_ignored**: Relevant guidance exists, but the visible response does not satisfy it. Consider making its trigger or action concrete instead of adding an equivalent rule. A short answer alone does not establish which internal instruction was followed or why it was missed.
++- **answer_format**: The evidence supports the same underlying entity or fact, but the submitted answer form differs: unnecessary expansion, singular/plural, common versus full name, spelling, diacritics, abbreviation, punctuation or tokenization. Check the actual normalization before treating a surface difference as a scoring difference; capitalization and many punctuation differences are already ignored. Do not infer a wrong entity solely from EM=0.
++- **other**: Ambiguous evidence, capability limits, possible sampling variability or reference/scoring limitations may leave no supported Skill correction. Do not force a rule or declare noise merely because the cause is unclear.
++
++### Successful patterns worth preserving or transferring
++
++- **applied_rule**: Visible behavior is consistent with relevant guidance. Preserve the useful behavior; do not infer internal rule use from success alone or duplicate an already adequate instruction.
++- **disambiguation**: Resolve the requested answer type in a Jeopardy-style “this X” clue, subject/object or inverse relationships, the encompassing entity versus an example, or a historical versus current name. Transfer the decision relationship and its observable conditions, not the particular answer.
++- **concise_normalization**: Select the conventional answer form supported by the question and context. Prefer the smallest sufficient answer unit; shorten only by removing genuinely redundant content. Preserve required name components, feature/company designators, units, ranges, meaningful spelling and grammatical number. Brevity does not authorize dropping information needed to identify the requested referent; neither a full name nor a shorter form is always preferable.
++- **other**: A correct answer may reflect background knowledge, an answer stated directly in the passages or an uncertain choice. Success alone does not warrant a new rule; identify a transferable behavior before proposing one.
++
++Prefer recurring decision patterns over collections of case-specific exceptions. Multiple supporting cases strengthen transfer, but a single clear case may still justify a scoped proposal under the existing method. Reference answers diagnose current discrepancies; they do not establish a universal naming preference. All applicability conditions must be available to the Actor from the question, context or its own response. Do not copy this vocabulary, scoring terms or illustrative answers into the deployed Skill as boilerplate.
++
++## Apply domain guidance through Parent and Memory
++
++Use the domain distinctions only to interpret each frozen Original and its supplied evidence. Parent determines whether the relevant behavior is absent, already covered, misleading or in conflict with other guidance. Relevant Memory informs how comparable interventions changed observed behavior under their reported conditions. A shared type label is not evidence that two cases share the same mechanism or that a historical effect transfers. A reference-form gain does not by itself justify extending a naming preference to other conditions. Make the existing integrated D/S/C judgment; no type predetermines KEEP, REPLACE or WITHDRAW. Do not diagnose unrelated cases, add a classification field, reclassify stored Memory, or require a historical match when none is relevant. Every necessary behavioral condition and coordination change still belongs in effective text because Editor does not receive reason.
+ 
+ ## Historical Memory by round
+ 
+--- before/docs/methods/v28_5/prompts/replay.md
++++ after/docs/methods/v28_5/prompts/replay.md
+@@ -50,7 +50,7 @@
+ 
+ ## Relate each EM transition to actual behavior
+ 
+-For every supplied task, compare the actual Parent and Candidate ordinary response, extracted answer, task requirement and EM transition before explaining it. Preserve which side produced which answer and whether EM changed from 0 to 1 or 1 to 0. Identify all observable differences material to the explanation, including entity selection, added or removed content, word form and spacing when relevant. Do not report only the difference that best matches the Update. F1 describes normalized token overlap; it does not establish semantic correctness, passage grounding or instruction adherence.
++For every supplied task, compare the actual Parent and Candidate ordinary response, extracted answer, task requirement and EM transition before explaining it. Preserve which side produced which answer and whether EM changed from 0 to 1 or 1 to 0. Distinguish a change in the selected entity, relation or answer type from an answer_format change for the same referent, such as added or removed modifiers, name expansion, number, spelling, abbreviation or tokenization. Establish that distinction from the supplied question/context and answers, not EM/F1 alone. Record every observable change material to the explanation, including simultaneous entity and form changes; do not report only the feature that best matches the Update. A more concise or reference-matching answer does not by itself establish better entity reasoning, passage use or rule adherence. Describe the concrete changes in Knowledge text; no type label is required and no classification field is added.
+ 
+ Read each relevant Update's condition, action, strength and preservation boundary, its mapped patch, and the full actual diff in Parent context. Separate the observed answer change, its connection to an implemented Update, and the explanation of the score transition. When several answer features changed together, state which change the Update addresses and which additional changes limit explaining the entire transition by that behavior alone. Matching topics, intended scope, a changed score or the existence of a patch is insufficient by itself. Do not broaden conditions after observing a result to create support for retention.
+ 
+--- before/docs/methods/v28_5/source_map.json
++++ after/docs/methods/v28_5/source_map.json
+@@ -1,6 +1,6 @@
+ {
+-  "status": "training_test_comparison_completed",
+-  "date": "2026-11-04",
++  "status": "prompt_v2_offline_verified_no_experiment",
++  "date": "2026-11-05",
+   "timezone": "Asia/Shanghai",
+   "baseline": "v28.3",
+   "frozen_sources": [
+@@ -54,17 +54,17 @@
+     }
+   ],
+   "implementation_started": true,
+-  "model_calls": null,
+-  "training_or_test_started": true,
++  "model_calls": 0,
++  "training_or_test_started": false,
+   "planned_identity": {
+     "method": "v28_5_campaign_v1",
+     "stage": "v28_5_stages_v1",
+     "runtime": "v28_5_light_runtime_v1",
+     "prompts": {
+-      "diagnosis": "v28_5_searchqa_diagnosis_v1",
+-      "preconditioner": "v28_5_searchqa_preconditioner_v1",
++      "diagnosis": "v28_5_searchqa_diagnosis_v2",
++      "preconditioner": "v28_5_searchqa_preconditioner_v2",
+       "editor": "v28_5_searchqa_editor_v1",
+-      "replay": "v28_5_searchqa_replay_v1"
++      "replay": "v28_5_searchqa_replay_v2"
+     },
+     "contracts": {
+       "diagnosis": "v28_5_diagnosis_direct_evidence_v1",
+@@ -78,18 +78,22 @@
+     "replay_input_view": "v28_5_em_transitions_shared_initial_v1",
+     "memory_view": "v28_5_rounds_effective_updates_v1"
+   },
+-  "binding_status": "implemented; independent identity with unchanged schemas and algorithms",
++  "binding_status": "Prompt v2 bound for Diagnosis, Preconditioner and Replay; Editor v1; method/stage/contracts/runtime unchanged.",
+   "prompt_files": {
+     "diagnosis": {
+       "file": "prompts/diagnosis.md",
+-      "diff": "diffs/diagnosis_from_v28_3.diff"
++      "diff": "diffs/diagnosis_from_v28_3.diff",
++      "current_revision": "searchqa_guidance_v2_20261105",
++      "current_diff": "proposals/searchqa_guidance_20261105/diffs/diagnosis.diff"
+     },
+     "preconditioner": {
+       "file": "prompts/preconditioner.md",
+       "diff": "diffs/preconditioner_from_v28_3.diff",
+       "revision": "evidence_consistency_20261104",
+       "revision_diff": "diffs/preconditioner_evidence_consistency.diff",
+-      "revision_validation": "evidence_revision_validation.json"
++      "revision_validation": "evidence_revision_validation.json",
++      "current_revision": "searchqa_guidance_v2_20261105",
++      "current_diff": "proposals/searchqa_guidance_20261105/diffs/preconditioner.diff"
+     },
+     "editor": {
+       "file": "prompts/editor.md",
+@@ -104,13 +108,15 @@
+       "diff": "diffs/replay_from_v28_3.diff",
+       "revision": "evidence_consistency_20261104",
+       "revision_diff": "diffs/replay_evidence_consistency.diff",
+-      "revision_validation": "evidence_revision_validation.json"
++      "revision_validation": "evidence_revision_validation.json",
++      "current_revision": "searchqa_guidance_v2_20261105",
++      "current_diff": "proposals/searchqa_guidance_20261105/diffs/replay.diff"
+     }
+   },
+   "runtime_config": "experiments/configs/v28_5_searchqa_train600_batch60.json",
+   "scope": "v28.3-derived runtime and v28.5 prompts; 10x60 schedule, Train/Test workers 60/15 and Editor max_tokens=65536.",
+   "historical_review_evidence_is_not_prompt_examples": true,
+-  "execution_plan": "Training, Test and comparison completed 2026-11-05 00:37:03 Asia/Shanghai. Heartbeat deleted; no new run scheduled.",
++  "execution_plan": "Current revision: offline implementation only; no training, Test or automation authorized. experiment and previous_experiments below are historical Prompt v1 records.",
+   "notes": [
+     "Historical source documents are preserved byte-for-byte, including their status and relative links; those links retain original-source context.",
+     "Static validation does not establish model compliance, performance, causal efficacy or novelty."
+@@ -128,7 +134,7 @@
+       "real_model_calls": 0
+     }
+   },
+-  "model_calls_status": "Completed authorized training and Test. Failure analysis uses existing archives only.",
++  "model_calls_status": "Current Prompt v2: zero real model calls and no training/Test. Completed experiment fields describe historical Prompt v1.",
+   "experiment": {
+     "campaign": "/Users/didi/Desktop/Govern-Skill-Evo/experiments/campaigns/v28_5_searchqa600_batch60_workers60_editor64k_20261104_232720",
+     "evaluation": "/Users/didi/Desktop/Govern-Skill-Evo/experiments/evaluations/v28_5_searchqa600_batch60_workers60_editor64k_20261104_232720_test1400",
+@@ -178,5 +184,25 @@
+     "campaign_and_automation_deleted": true,
+     "evaluation_and_comparison_not_created": true
+   },
+-  "failure_analysis": "/Users/didi/Desktop/Govern-Skill-Evo/experiments/analysis/v28_5_searchqa600_batch60_workers60_editor64k_20261104_232720_failure_analysis/analysis.json"
++  "failure_analysis": "/Users/didi/Desktop/Govern-Skill-Evo/experiments/analysis/v28_5_searchqa600_batch60_workers60_editor64k_20261104_232720_failure_analysis/analysis.json",
++  "current_revision": {
++    "id": "searchqa_guidance_v2_20261105",
++    "approved_proposal": "proposals/searchqa_guidance_20261105",
++    "baseline_manifest": "revisions/searchqa_guidance_v2_20261105/baseline_manifest.json",
++    "status": "offline_verified_no_experiment",
++    "method_mechanism_changed": false,
++    "model_calls": 0,
++    "training_started": false,
++    "test_started": false,
++    "automations_started": false,
++    "editor_prompt_version": "v28_5_searchqa_editor_v1",
++    "verification": "artifacts/verification/v28_5_prompt_v2_20261105/validation.json",
++    "tests": {
++      "run": 260,
++      "failures": 0,
++      "errors": 0,
++      "skipped": 0
++    },
++    "release_manifest": "revisions/searchqa_guidance_v2_20261105/release_manifest.json"
++  }
+ }
+--- before/experiments/configs/v28_5_searchqa_train600_batch60.json
++++ after/experiments/configs/v28_5_searchqa_train600_batch60.json
+@@ -3,10 +3,10 @@
+     "version": "v28_5_campaign_v1",
+     "stage_contract": "v28_5_stages_v1",
+     "prompts": {
+-      "diagnosis": "v28_5_searchqa_diagnosis_v1",
+-      "preconditioner": "v28_5_searchqa_preconditioner_v1",
++      "diagnosis": "v28_5_searchqa_diagnosis_v2",
++      "preconditioner": "v28_5_searchqa_preconditioner_v2",
+       "editor": "v28_5_searchqa_editor_v1",
+-      "replay": "v28_5_searchqa_replay_v1"
++      "replay": "v28_5_searchqa_replay_v2"
+     },
+     "contracts": {
+       "diagnosis": "v28_5_diagnosis_direct_evidence_v1",
+--- before/src/skill_evolution/v28_5/README.md
++++ after/src/skill_evolution/v28_5/README.md
+@@ -1,9 +1,13 @@
+ # SearchQA v28.5
+ 
+-基于 v28.3 独立派生的运行实现，直接读取已定稿的 [四份 Prompt](../../../docs/methods/v28_5/README.md)。除版本身份、导入路径和 Prompt 路径外，运行代码与 v28.3 保持一致；不扩展 Memory、不改 Gate 或实验参数。
++当前为 SearchQA 领域指导 Prompt v2：Diagnosis、Preconditioner、Replay 使用独立的 v2 标识；Editor 保持 v1。三个运行模块仅修改 `PROMPT_VERSION` 常量，方法／stage／runtime／contract 身份与算法均未改变。
+ 
+-Preconditioner 继续接收完整 Parent、Original Plan、Plan 引用的完整当前执行和历史 Memory。Editor 接收 Effective Plan；Replay 继续只处理 EM 翻转。改进来自已定稿的 Prompt，程序不增加规则压缩、额外评审或模型验收阶段。
++Preconditioner 继续接收完整 Parent、冻结 Original Plan、引用的当前执行和历史 Memory，按 Direction／Scope／Coordination 决定 KEEP／REPLACE／WITHDRAW。Editor 负责忠实实施；Replay 仍仅处理 EM 翻转。新领域分类不增加输入输出字段或 Memory 状态。
+ 
+-入口：[run_v28_5_campaign.py](../../../scripts/runs/run_v28_5_campaign.py)。配置：[v28_5_searchqa_train600_batch30.json](../../../experiments/configs/v28_5_searchqa_train600_batch30.json)。实现状态与离线检查见 [IMPLEMENTATION.md](../../../docs/methods/v28_5/IMPLEMENTATION.md)。
++- [正式 Prompt 与当前状态](../../../docs/methods/v28_5/README.md)
++- [修订、冻结与离线验证](../../../docs/methods/v28_5/revisions/searchqa_guidance_v2_20261105/README.md)
++- [默认 batch60 配置](../../../experiments/configs/v28_5_searchqa_train600_batch60.json)
++- [显式运行入口](../../../scripts/runs/run_v28_5_campaign.py)
++- [当前离线检查入口](../../../scripts/verification/verify_v28_5_prompt_v2.py)
+ 
+-train/test 是独立显式命令；训练 CLI 完成不会自行启动 Test。用户随后授权完整实验，已由独立 supervisor 串联训练、最终 Test 和比较；当前进度见 [实现说明](../../../docs/methods/v28_5/IMPLEMENTATION.md)。
++当前未启动训练、Test 或自动化。历史 Prompt v1 的配置与检查点不能在新 Prompt 下恢复；历史归档及旧版源文件快照保留。旧 batch30／batch50 配置不随本次修订更新。
+--- before/src/skill_evolution/v28_5/diagnosis.py
++++ after/src/skill_evolution/v28_5/diagnosis.py
+@@ -15,7 +15,7 @@
+ from . import execution_input_view as view, facts
+ from src.skill_evolution.v28_5.execution_references import references
+ 
+-PROMPT_VERSION = 'v28_5_searchqa_diagnosis_v1'
++PROMPT_VERSION = 'v28_5_searchqa_diagnosis_v2'
+ INPUT_VIEW = view.INPUT_VIEW
+ CONTRACT_VERSION = 'v28_5_diagnosis_direct_evidence_v1'
+ PROMPT_PATH = protocol.ROOT / 'docs/methods/v28_5/prompts' / 'diagnosis.md'
+--- before/src/skill_evolution/v28_5/preconditioner.py
++++ after/src/skill_evolution/v28_5/preconditioner.py
+@@ -22,7 +22,7 @@
+ from src.skill_evolution.v28_5.explicit_references import parse as parse_references
+ from src.skill_evolution.v28_5.execution_references import references
+ 
+-PROMPT_VERSION = 'v28_5_searchqa_preconditioner_v1'
++PROMPT_VERSION = 'v28_5_searchqa_preconditioner_v2'
+ INPUT_VIEW = view.INPUT_VIEW
+ CONTRACT_VERSION = 'v28_5_preconditioner_direct_evidence_v1'
+ PROMPT_PATH = protocol.ROOT / 'docs/methods/v28_5/prompts' / 'preconditioner.md'
+--- before/src/skill_evolution/v28_5/replay.py
++++ after/src/skill_evolution/v28_5/replay.py
+@@ -20,7 +20,7 @@
+ from .explicit_references import parse as parse_references
+ from .execution_references import references
+ 
+-PROMPT_VERSION = 'v28_5_searchqa_replay_v1'
++PROMPT_VERSION = 'v28_5_searchqa_replay_v2'
+ CONTRACT_VERSION = 'v28_5_replay_transition_knowledge_v1'
+ PROMPT_PATH = protocol.ROOT / 'docs/methods/v28_5/prompts' / 'replay.md'
+ 
+--- before/tests/skill_evolution/v28_5/test_acceptance.py
++++ after/tests/skill_evolution/v28_5/test_acceptance.py
+@@ -22,7 +22,14 @@
+         data = SearchQADataset(batch_size=60, verify_hashes=False)
+         config = ev.read(settings.DEFAULT_CONFIG)
+         baseline = ev.read(p.ROOT / 'docs/methods/v28_5/baseline/v28_3_config.json')
++        self.assertEqual(config['method']['prompts'], {
++            'diagnosis': 'v28_5_searchqa_diagnosis_v2',
++            'preconditioner': 'v28_5_searchqa_preconditioner_v2',
++            'editor': 'v28_5_searchqa_editor_v1',
++            'replay': 'v28_5_searchqa_replay_v2'})
+         normalized = json.loads(json.dumps(config).replace('v28_5', 'v28_3'))
++        # Domain-guidance revision changes prompt identities, not contracts.
++        normalized['method']['prompts'] = baseline['method']['prompts']
+         self.assertEqual([t for b in config['batches'] for t in b],
+                          [t for b in baseline['batches'] for t in b])
+         normalized['batches'] = baseline['batches']
+--- before/tests/skill_evolution/v28_5/test_binding.py
++++ after/tests/skill_evolution/v28_5/test_binding.py
+@@ -38,6 +38,8 @@
+         self.assertEqual(config.MODEL_MODULES, ('diagnosis', 'preconditioner', 'editor', 'replay'))
+         for name, text in config.render_prompts().items():
+             self.assertEqual(text, (ROOT / f'docs/methods/v28_5/prompts/{name}.md').read_text())
++            self.assertEqual(text, (ROOT / 'docs/methods/v28_5/proposals/searchqa_guidance_20261105'
++                                    / f'prompts/{name}.md').read_text())
+         for name in config.MODEL_MODULES:
+             self.assertNotEqual(config.render_prompts()[name], (ROOT / f'docs/methods/v28_3/prompts/{name}.md').read_text())
+         self.assertEqual({k: v['max_tokens'] for k, v in config.module_calls().items()},
+@@ -81,6 +83,37 @@
+         with adapter.using(): self.reject(old_ev.run_campaign, new, resume=True)
+         self.assertEqual(snapshot(new), before)
+ 
++    def test_old_prompt_versions_rejected_before_actor_or_generator(self):
++        for name in ('diagnosis', 'preconditioner', 'replay'):
++            old_version = f'v28_5_searchqa_{name}_v1'
++            bad = deepcopy(self.config)
++            bad['method']['prompts'][name] = old_version
++            self.reject(config.validate_config, bad)
++            self.reject(config.MODULES[name].render_prompt, self.config['actor'],
++                        prompt_version=old_version)
++        self.assertEqual(self.actor.seen, [])
++
++    def test_prompt_v1_checkpoint_cannot_resume_under_v2(self):
++        root = self.root / 'old_prompt_revision'
++        ev.initialize(root, self.config)
++        old_config = deepcopy(self.config)
++        for name in ('diagnosis', 'preconditioner', 'replay'):
++            old_config['method']['prompts'][name] = f'v28_5_searchqa_{name}_v1'
++        for filename in ('config.json', 'initial_config.json'):
++            ev.save(root / filename, old_config)
++        implementation = ev.read(root / 'implementation.json')
++        implementation['method'] = old_config['method']
++        baseline = ROOT / 'docs/methods/v28_5/proposals/searchqa_guidance_20261105/baseline/prompts'
++        implementation['prompts'] = {name: (baseline / f'{name}.md').read_text()
++                                     for name in config.MODEL_MODULES}
++        ev.save(root / 'implementation.json', implementation)
++        before = snapshot(root)
++        generate = Generator()
++        self.reject(ev.run_campaign, root, generate=generate, resume=True)
++        self.assertEqual(snapshot(root), before)
++        self.assertEqual(generate.calls, [])
++        self.assertEqual(self.actor.seen, [])
++
+     def test_completed_export_and_test_readiness_do_not_open_old_actor_sources(self):
+         root = self.complete(); before = snapshot(root); adapter = fresh(self.data)
+         with adapter.using(), patch.object(adapter.actor_adapter, 'read_batch', side_effect=AssertionError('Old Actor batch')), \
+--- /dev/null
++++ after/scripts/verification/verify_v28_5_prompt_v2.py
+@@ -0,0 +1,160 @@
++"""Offline Prompt v2 binding/regression checks; no provider calls or experiments."""
++import argparse
++from contextlib import ExitStack, redirect_stdout
++from copy import deepcopy
++import hashlib
++import json
++from pathlib import Path
++import socket
++import sys
++import tempfile
++import traceback
++import unittest
++from unittest.mock import patch
++
++ROOT = Path(__file__).resolve().parents[2]
++sys.path[:0] = [str(ROOT), str(ROOT / 'external/SkillAdam')]
++REVISION = ROOT / 'docs/methods/v28_5/revisions/searchqa_guidance_v2_20261105'
++PROPOSAL = ROOT / 'docs/methods/v28_5/proposals/searchqa_guidance_20261105'
++CHANGED_MODULES = ('diagnosis', 'preconditioner', 'replay')
++
++
++def digest(path):
++    return hashlib.sha256(path.read_bytes()).hexdigest()
++
++
++def verify_binding():
++    from scripts.runs import run_v28_5_campaign as cli
++    from src.skill_evolution.v28.benchmarks.searchqa.dataset import SearchQADataset
++    from src.skill_evolution.v28_5 import config
++    from src.skill_evolution.v28_5.actor_io import ActorAdapter
++    from src.skill_evolution.v28_5.campaign import CampaignAdapter, RUNTIME_VERSION
++
++    frozen = json.loads((REVISION / 'baseline_manifest.json').read_text())
++    for item in frozen['files']:
++        assert digest(REVISION / item['snapshot']) == item['sha256'], item['path']
++    assert digest(PROPOSAL / 'source_map.json') == frozen['approved_proposal_manifest_sha256']
++    proposal = json.loads((PROPOSAL / 'source_map.json').read_text())
++    for item in proposal['proposal_artifacts']:
++        assert digest(PROPOSAL / item['path']) == item['sha256'], item['path']
++    for item in frozen['historical_archive_identity_files']:
++        assert digest(ROOT / item['path']) == item['sha256'], item['path']
++
++    sources = sorted((ROOT / 'src/skill_evolution/v28_5').glob('*.py'))
++    for path in sources:
++        before = (REVISION / 'baseline' / path.relative_to(ROOT)).read_text()
++        expected = before
++        if path.stem in CHANGED_MODULES:
++            old = f"PROMPT_VERSION = 'v28_5_searchqa_{path.stem}_v1'"
++            assert before.count(old) == 1
++            expected = before.replace(old, old.replace('_v1', '_v2'))
++        assert path.read_text() == expected, path
++    cli_path = ROOT / 'scripts/runs/run_v28_5_campaign.py'
++    assert cli_path.read_bytes() == (REVISION / 'baseline' / cli_path.relative_to(ROOT)).read_bytes()
++
++    actual = json.loads(config.DEFAULT_CONFIG.read_text())
++    old_config = json.loads((REVISION / 'baseline' / config.DEFAULT_CONFIG.relative_to(ROOT)).read_text())
++    expected = deepcopy(old_config)
++    for name in CHANGED_MODULES:
++        expected['method']['prompts'][name] = f'v28_5_searchqa_{name}_v2'
++    assert actual == expected, 'Only three prompt identities may change in the active configuration'
++    data = SearchQADataset(batch_size=60, verify_hashes=False)
++    actor = ActorAdapter(data)
++    with CampaignAdapter(actor).using():
++        config.validate_config(actual, executable=True)
++        prompts = config.render_prompts()
++    assert (actor.workers, actor.test_workers) == (60, 15)
++    assert [len(batch) for batch in actual['batches']] == [60] * 10
++    for name, text in prompts.items():
++        assert text == (PROPOSAL / f'prompts/{name}.md').read_text(), name
++    before_pc = (PROPOSAL / 'baseline/prompts/preconditioner.md').read_text()
++    marker = '## Historical Memory by round\n'
++    assert prompts['preconditioner'].split(marker)[1] == before_pc.split(marker)[1]
++    assert prompts['editor'] == (PROPOSAL / 'baseline/prompts/editor.md').read_text()
++    shared = (PROPOSAL / 'design/searchqa_guidance.md').read_text().strip()
++    assert all(shared in prompts[name] for name in ('diagnosis', 'preconditioner'))
++    planned = json.loads((ROOT / 'docs/methods/v28_5/source_map.json').read_text())['planned_identity']
++    assert planned['runtime'] == RUNTIME_VERSION
++    assert planned['method'] == config.METHOD_VERSION
++    assert planned['stage'] == config.STAGE_VERSION
++    for key in ('prompts', 'contracts', 'memory_view', 'replay_input_view'):
++        assert planned[key] == actual['method'][key], key
++    assert set(actual['method']['execution_input_views'].values()) == {planned['execution_input_view']}
++
++    # Historical configs, contracts and the original verification script stay frozen.
++    allowed = {f'docs/methods/v28_5/prompts/{name}.md' for name in CHANGED_MODULES}
++    allowed |= {f'src/skill_evolution/v28_5/{name}.py' for name in CHANGED_MODULES}
++    allowed |= {str(config.DEFAULT_CONFIG.relative_to(ROOT)),
++                'tests/skill_evolution/v28_5/test_acceptance.py',
++                'tests/skill_evolution/v28_5/test_binding.py',
++                'src/skill_evolution/v28_5/README.md'}
++    allowed |= {f'docs/methods/v28_5/{name}' for name in
++                ('README.md', 'IMPLEMENTATION.md', 'PROMPT_REVIEW.md', 'EXPERIMENT_PLAN.md', 'source_map.json')}
++    for item in frozen['files']:
++        if item['path'] not in allowed:
++            assert digest(ROOT / item['path']) == item['sha256'], item['path']
++    with tempfile.TemporaryDirectory(prefix='v28_5_prompt_v2_') as temporary:
++        campaign = Path(temporary) / 'not_created'
++        with patch.object(cli, 'read_credentials', side_effect=AssertionError('No credentials')), \
++             patch.object(cli, 'run_training', side_effect=AssertionError('No real training')), \
++             patch.object(cli, 'run_test', side_effect=AssertionError('No real Test')):
++            cli.main(['train', str(campaign), '--config', str(config.DEFAULT_CONFIG), '--validate-only'])
++        assert not campaign.exists()
++    return {'prompt_versions': config.prompt_versions(), 'method': config.METHOD_VERSION,
++            'runtime': RUNTIME_VERSION, 'runtime_source_files_compared': len(sources),
++            'only_prompt_version_constants_changed_in_runtime_sources': True,
++            'parent_memory_preconditioner_body_unchanged': True,
++            'approved_prompts_bound_verbatim': list(prompts),
++            'configuration_only_prompt_identities_changed': True,
++            'historical_archive_identity_files_unchanged': len(frozen['historical_archive_identity_files']),
++            'batch_sizes': list(map(len, actual['batches'])), 'test_count': len(data.splits['test']),
++            'train_workers': actor.workers, 'test_workers': actor.test_workers,
++            'module_max_tokens': {name: call['max_tokens'] for name, call in actual['module_calls'].items()},
++            'preflight': 'passed_without_credentials_or_campaign_creation'}
++
++
++def main(argv=None):
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument('--output', required=True)
++    args = parser.parse_args(argv)
++    output = Path(args.output).resolve()
++    output.mkdir(parents=True, exist_ok=True)
++    blocked, counts, checks, error = [], {}, {}, None
++
++    def deny(*args, **kwargs):
++        blocked.append('network_or_process')
++        raise AssertionError('Network/process calls forbidden during offline verification')
++
++    with ExitStack() as stack:
++        stack.enter_context(patch.object(socket.socket, 'connect', deny))
++        stack.enter_context(patch.object(socket.socket, 'connect_ex', deny))
++        stack.enter_context(patch('socket.create_connection', deny))
++        stack.enter_context(patch('subprocess.Popen', deny))
++        with (output / 'unittest.log').open('w') as log, redirect_stdout(log):
++            suite = unittest.TestSuite()
++            for version in ('v28_3', 'v28_5'):
++                part = unittest.defaultTestLoader.discover(
++                    str(ROOT / 'tests/skill_evolution' / version), top_level_dir=str(ROOT))
++                counts[version] = part.countTestCases()
++                suite.addTests(part)
++            result = unittest.TextTestRunner(stream=log, verbosity=2).run(suite)
++            try:
++                checks = verify_binding()
++            except Exception as exc:
++                error = f'{type(exc).__name__}: {exc}'
++                traceback.print_exc(file=log)
++    passed = result.wasSuccessful() and not result.skipped and not blocked and error is None
++    report = {'status': 'passed' if passed else 'failed', 'revision': 'searchqa_guidance_v2_20261105',
++              'test_counts': counts, 'tests_run': result.testsRun, 'failures': len(result.failures),
++              'errors': len(result.errors), 'skipped': len(result.skipped), 'checks': checks,
++              'check_error': error, 'blocked_network_or_process_attempts': blocked,
++              'real_model_calls': 0, 'real_training_or_test_started': False,
++              'python_executable': sys.executable,
++              'scope': 'Authored synthetic regression tests and read-only configuration preflight; no model behavior evaluation.'}
++    (output / 'validation.json').write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n')
++    print(json.dumps(report, ensure_ascii=False, indent=2))
++    return 0 if passed else 1
++
++
++if __name__ == '__main__':
++    sys.exit(main())
+--- /dev/null
++++ after/docs/methods/v28_5/revisions/searchqa_guidance_v2_20261105/README.md
+@@ -0,0 +1,63 @@
++# v28.5 SearchQA 领域指导 Prompt v2 接入记录
++
++日期：2026-11-05。状态：**已冻结旧版、接入审阅稿并通过离线验证；没有启动实验。**
++
++## 1. 当前绑定
++
++| 模块 | 当前 Prompt 标识 | 接入结果 |
++|---|---|---|
++| Diagnosis | `v28_5_searchqa_diagnosis_v2` | 与最终审阅稿逐字一致 |
++| Preconditioner | `v28_5_searchqa_preconditioner_v2` | 与最终审阅稿逐字一致，保留 Parent＋Memory 的 D/S/C 预条件机制 |
++| Editor | `v28_5_searchqa_editor_v1` | 正文、标识及代码均未改 |
++| Replay | `v28_5_searchqa_replay_v2` | 与最终审阅稿逐字一致，仅调整答案变化解释段 |
++
++正式正文：[Diagnosis](../../prompts/diagnosis.md) / [Preconditioner](../../prompts/preconditioner.md) / [Editor](../../prompts/editor.md) / [Replay](../../prompts/replay.md)。采用了审阅确认的 `conventional answer form` 与 `smallest sufficient answer unit`，仅删除真正冗余内容；未采用以 `shortest unambiguous` 为主导目标的初稿措辞。
++
++方法仍为 `v28_5_campaign_v1`，stage 为 `v28_5_stages_v1`，runtime 为 `v28_5_light_runtime_v1`。contract、输入视图、Memory、Gate 均保留原身份与算法。方法源文件的唯一修改是三个模块的 `PROMPT_VERSION` 常量；不是另换一套预条件方法。
++
++## 2. 旧版冻结与可审阅差异
++
++- [旧版冻结清单](baseline_manifest.json)：38 个文件的精确副本与 SHA-256，包括全部 20 个运行 Python 源文件、四份 Prompt、三个配置、CLI、原验收脚本、涉及的测试及说明。
++- `baseline/` 使用仓库相对路径保存副本；用于追溯与恢复原文件，不是脱离仓库依赖的独立运行环境。
++- 清单还记录历史 v28.5 campaign／automation／evaluation 的 48 个顶层 JSON／Markdown 身份文件哈希；离线检查确认未变化。既有实验目录没有被本次接入写入。
++- [Prompt 差异](prompts.diff)、[运行绑定差异](binding.diff)、[接入完整差异](implementation.diff)。Editor 在 Prompt diff 中没有变化。
++- [当前文件清单与哈希](release_manifest.json)，以及 [已采纳的方案](../../proposals/searchqa_guidance_20261105/README.md)。方案和当时的静态验证记录保持冻结，本次运行接入检查以本页报告为准。
++
++上游材料及许可保存在 [SkillAdam 来源快照](../../proposals/searchqa_guidance_20261105/reference/skilladam/)。本次没有修改 SkillAdam 或 SkillOpt 的实现、Prompt 或实验结果。
++
++## 3. 参数与机制保持范围
++
++当前默认 [batch60 配置](../../../../../experiments/configs/v28_5_searchqa_train600_batch60.json) 仅改变三个 `method.prompts` 值。优化池、题目顺序、10×60、训练／测试并发 60/15、Actor max_tokens=32,768、四个方法模块 max_tokens=65,536、初始 104 字符 Skill、重试和容量限制均保持。
++
++Preconditioner 从 `Historical Memory by round` 到文件末尾的原正文逐字保留，包含完整 Parent／Original／引用执行／Memory 的输入、历史解释、D/S/C、KEEP／REPLACE／WITHDRAW、编译和输出合同。新增领域分类只是自然语言分析词汇，不进入字段或 Gate 条件。
++
++程序仍执行：当前 Parent 批次 → Diagnosis → Preconditioner → Editor → 完整 Candidate 批次 → Replay → 原逐 Update Gate → Memory 与 Selected 发布。没有新增模型阶段、压缩器、分类状态、Selected 子集复测或 Memory 重写。
++
++旧 batch30／batch50 配置和实验内部的冻结配置保留原文。新实现拒绝旧 Prompt v1 配置；不能通过在旧检查点中替换标识来继续训练。未来若运行 v2，应创建独立目录、使用共同初始 Skill 和空 Memory；本次未创建真实 campaign。
++
++## 4. 离线验证结果
++
++[机器报告](../../../../../artifacts/verification/v28_5_prompt_v2_20261105/validation.json) / [逐项测试日志](../../../../../artifacts/verification/v28_5_prompt_v2_20261105/unittest.log)
++
++- **260 项全部通过**：v28.3 回归 129 项、v28.5 回归与修订隔离检查 131 项；失败、错误、跳过均为 0。
++- 四份运行时渲染 Prompt 与最终审阅稿逐字一致。
++- 对比旧版冻结源文件：20 个运行源文件只允许三个版本常量变化；CLI 未变；Parent＋Memory、Gate、Memory 和执行算法未变。
++- 检查当前真实数据配置、10×60 顺序和 1,400 题测试划分，但不执行这些任务。
++- CLI `--validate-only` 通过，凭据读取和真实 train/test 函数均被阻断，临时目标 campaign 未创建。
++- 新增检查覆盖旧 Prompt 标识拒绝、旧 v1 检查点在 v2 下拒绝恢复，并验证没有 Actor／生成器调用及检查点改写。
++- 现有合成回归覆盖 Parent／Memory 传递、提案和 patch 合同、Replay 的 EM-only 事件、F1-only 不投票、null 关联、Gate 选择、原子发布及恢复。
++- 网络连接和子进程创建在离线检查期间被阻断；尝试次数为 0。真实模型调用为 0，真实训练／Test 启动为 false；没有新增或唤醒自动化。
++
++合成测试使用本地手写响应，临时目录中的流程不属于 benchmark 实验。这些结果验证接线和软件合同，不证明模型会遵循领域指导，也不证明泛化或准确率提高。历史 1150/1400 是 Prompt v1 的结果，当前 v2 没有实验成绩。
++
++## 5. 离线复核入口
++
++在仓库根目录执行以下命令，只运行离线检查；输出目录可换成新的审计目录：
++
++```sh
++PYTHONDONTWRITEBYTECODE=1 /Users/didi/miniforge3/envs/SearchQA/bin/python scripts/verification/verify_v28_5_prompt_v2.py --output artifacts/verification/v28_5_prompt_v2_20261105
++```
++
++原 `verify_v28_5_campaign.py` 保留为初次实现时的历史脚本，其中旧版配置假设不适用于本修订；当前应使用上面的新入口。
++
++本次授权的冻结、接入、离线验证均已完成，实验维持未启动状态。

@@ -1,0 +1,34 @@
+--- baseline/prompts/preconditioner.md
++++ prompts/preconditioner.md
+@@ -43,6 +43,31 @@
+ </actor_base_protocol>
+ 
+ The frozen Actor uses deepseek-flash with thinking enabled, reasoning_effort=medium and temperature=1.0. It has one model round, no tools and a per-request output limit of 32,768 tokens, including any provider-accounted reasoning tokens. Request timeout is 300 seconds and connection timeout is 10 seconds. Technical failures and length termination share at most six total request attempts, including the first, with no hidden SDK retries. A length response is archived and retried with identical messages and output budget, even if it contains a parseable answer. Only a stop response is scored. Exhausting all six attempts stops the task without a score; resume never resets this budget. Wrong answers and format noncompliance in a stop response do not trigger corrective generation. These are execution constraints, not new Skill instructions or output fields. Independent reasoning_content is unavailable to the method modules regardless of its token usage.
++
++## SearchQA domain guidance
++
++Use the following distinctions to interpret the evidence supplied to this module. They are analytical vocabulary, not new output fields, a per-task classification report, or proof of an internal cause. Use the relevant terms in reason when helpful; retain uncertainty when the observations do not distinguish explanations. The vocabulary does not expand this module's role or evidence access.
++
++### Failure patterns
++
++- **rule_missing**: No relevant guidance covers the observed decision problem. Consider a scoped addition for the transferable gap, not a rule that reproduces one reference answer.
++- **rule_wrong**: Existing guidance directs behavior inconsistent with the task. Consider revising or removing the misleading requirement rather than adding a competing rule. Distinguish an observable conflict from proof that the Actor followed it.
++- **rule_ignored**: Relevant guidance exists, but the visible response does not satisfy it. Consider making its trigger or action concrete instead of adding an equivalent rule. A short answer alone does not establish which internal instruction was followed or why it was missed.
++- **answer_format**: The evidence supports the same underlying entity or fact, but the submitted answer form differs: unnecessary expansion, singular/plural, common versus full name, spelling, diacritics, abbreviation, punctuation or tokenization. Check the actual normalization before treating a surface difference as a scoring difference; capitalization and many punctuation differences are already ignored. Do not infer a wrong entity solely from EM=0.
++- **other**: Ambiguous evidence, capability limits, possible sampling variability or reference/scoring limitations may leave no supported Skill correction. Do not force a rule or declare noise merely because the cause is unclear.
++
++### Successful patterns worth preserving or transferring
++
++- **applied_rule**: Visible behavior is consistent with relevant guidance. Preserve the useful behavior; do not infer internal rule use from success alone or duplicate an already adequate instruction.
++- **disambiguation**: Resolve the requested answer type in a Jeopardy-style “this X” clue, subject/object or inverse relationships, the encompassing entity versus an example, or a historical versus current name. Transfer the decision relationship and its observable conditions, not the particular answer.
++- **concise_normalization**: Select the conventional answer form supported by the question and context. Prefer the smallest sufficient answer unit; shorten only by removing genuinely redundant content. Preserve required name components, feature/company designators, units, ranges, meaningful spelling and grammatical number. Brevity does not authorize dropping information needed to identify the requested referent; neither a full name nor a shorter form is always preferable.
++- **other**: A correct answer may reflect background knowledge, an answer stated directly in the passages or an uncertain choice. Success alone does not warrant a new rule; identify a transferable behavior before proposing one.
++
++Prefer recurring decision patterns over collections of case-specific exceptions. Multiple supporting cases strengthen transfer, but a single clear case may still justify a scoped proposal under the existing method. Reference answers diagnose current discrepancies; they do not establish a universal naming preference. All applicability conditions must be available to the Actor from the question, context or its own response. Do not copy this vocabulary, scoring terms or illustrative answers into the deployed Skill as boilerplate.
++
++## Apply domain guidance through Parent and Memory
++
++Use the domain distinctions only to interpret each frozen Original and its supplied evidence. Parent determines whether the relevant behavior is absent, already covered, misleading or in conflict with other guidance. Relevant Memory informs how comparable interventions changed observed behavior under their reported conditions. A shared type label is not evidence that two cases share the same mechanism or that a historical effect transfers. A reference-form gain does not by itself justify extending a naming preference to other conditions. Make the existing integrated D/S/C judgment; no type predetermines KEEP, REPLACE or WITHDRAW. Do not diagnose unrelated cases, add a classification field, reclassify stored Memory, or require a historical match when none is relevant. Every necessary behavioral condition and coordination change still belongs in effective text because Editor does not receive reason.
+ 
+ ## Historical Memory by round
+ 
