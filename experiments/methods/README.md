@@ -51,6 +51,7 @@
 | v24.9 | [ALFWorld 训练与评测](v24_9/README.md) | 3 |
 | v24.10 | [ALFWorld 训练与评测](v24_10/README.md) | 1 |
 | v24.11 | [两次训练记录，正式运行含九次评测](v24_11/README.md) | 2 |
+| v25.8 | [SpreadsheetBench 正式训练和 19 次评测](v25_8/README.md) | 1 |
 
 ## 原始运行统一入口
 
