@@ -1,0 +1,54 @@
+# OfficeQA Skill
+
+## Retrieval Discipline
+- Start by narrowing to the most likely candidate file before reading long passages.
+
+- Confirm the exact document path before searching. The document tools require the full docs-root path (e.g., `<officeqa-docs>/treasury_bulletin_YYYY_MM.txt`); a bare filename or `**/filename` can return 'no matches' or 'path not allowed'. Run a single glob (`*`, `*.txt`, or `*YYYY*`) to discover the mounted directory/prefix, then reuse that exact full path for every grep/read; stop globbing once a working path is found and do not probe absolute or personal-machine paths. If local path access remains unavailable, use supplied oracle parsed pages and source hints as primary evidence, extracting from them first and using file tools only to confirm or fill gaps.
+- Match the retrieval surface to the data shape: some series (e.g., quarterly GDP in the 'Profile of the Economy' narrative) are described only relative to a chart and are not tabulated in text. If targeted searches for the values fail, do not guess and do not chase `.pdf`/`.png`/`.jpg` scans; look for an adjacent data table or figure data elsewhere in the same bulletin, and if none exists state that the series is not textually available. Keep tool turns bounded; prefer a few targeted greps over speculative globbing.
+
+- Chart- or figure-only questions: when the question cites a specific chart and the parsed text contains only its title (no numbers or labeled components), do not recall a peak year/value from memory and do not invent a category grouping (e.g., 'service-related' vs other) to force the chart's percentage out of an unrelated table. Use only labels/values actually present; if the chart's exact components are missing, state that the specific breakdown is not textually available.
+- When a question asks you to count, rank, or otherwise inspect features of a chart or line plot (e.g. 'how many local maxima/peaks are on the plots'), the tabulated text cannot encode those visual features — do not invent a count; if the underlying series is not tabulated, state that the plot data is not textually recoverable.
+- Never produce a final numeric answer without at least one confirming retrieval of the specific requested values. A single-step answer with no evidence gathering, or a value recalled from memory / eyeballed as plausible, is fabrication and will be wrong; search first, then compute.
+- Prefer targeted search terms that name the exact entity, period, measure, or table concept from the question.
+- After a promising match, read only a small surrounding span and verify it matches the requested year, basis, and unit.
+
+- Use source hints and oracle page numbers to jump to the likely table, then grep the exact table title or a distinctive column phrase rather than a generic entity word.
+- Search numbers without thousands separators: parsed tables often strip commas and trailing decimal zeros, so grep `3554` not `3,554`.
+- When a page holds several tables, or one table has multiple row sections (fiscal year vs. calendar year vs. month) or parallel tables in different units, confirm the section, header hierarchy, row key, measure column, unit, and basis that match the question before extracting any number; ignore adjacent fiscal-year, calendar-year, percent, and total columns unless explicitly named.
+- In flattened multi-period tables where period headers are lost, read a short span around the header row to verify row/column mapping instead of assuming the first numeric block is the requested year.
+- Use OCR-tolerant matching for dates and labels: try partial tokens or the nearest date (e.g. 12/18 vs. 12/19) and inspect issue or maturity context to confirm the row.
+
+## Evidence Discipline
+- Extract the exact value from the retrieved text before doing any arithmetic.
+- Keep track of each operand's period, unit, and semantic role so nearby proxy values are not mixed in.
+- If the question asks for a transformed or derived quantity, compute only after confirming every operand.
+
+- Read the table title/unit line and every footnote: qualifiers such as 'includes emergency ship construction', 'due or callable 20 years and after', 'population standard deviation', 'nominal', or 'as published in the subsequent quarter' determine which column or value is valid. Never use a figure without checking the footnote that governs it.
+- In wide tables with stacked multi-level headers, locate the target column by counting across every header row; confirm the measure's exact basis (e.g., 'net of refunds' is the net column, not gross collections).
+- Never substitute a value from memory (exchange rates, CPI/index levels) or from an adjacent period: every operand must be traceable to a retrieved span or the provided oracle parsing. If a required year/measure is genuinely absent from the provided files, state that it is unavailable rather than reusing the nearest year's figure.
+
+## Final Answer Discipline
+- Return the final answer only after one last consistency check against the retrieved evidence.
+- Copy the final answer from a checked value, not from an unverified intermediate guess.
+
+## Derived-Quantity Discipline
+- For regression, geometric mean, coefficient of variation, exponential smoothing, percentile/VaR, currency conversion, or other derived statistics, first list every required input (all raw observations, projection/confidence parameters, and auxiliary rates). Write out the complete ordered operand list with periods and units, confirm the count matches the requested span (e.g., 8 annual values, 39 months), and fix the formula up front (population vs sample standard deviation; product/root vs log-mean).
+- When a range spans multiple bulletin issues, take each period from the issue that reports it as a final (not preliminary/estimate) value, and count any overlapping anchor period (e.g. a month-end shown in two issues, or a fiscal year repeated across bulletins) only once; keep units consistent (thousands vs millions) through the whole calculation.
+- Auxiliary parameters such as foreign-exchange rates often sit in a separate section or table of the same bulletin (e.g., 'Foreign Exchange Rates', 'Foreign Currency Positions'); search those by concept rather than concluding they are absent.
+- For rolling-window questions, reuse overlapping monthly rows and add or remove only the endpoint months. If a table reports cumulative values, difference consecutive rows to obtain monthly changes; for z-score/unusualness questions, use exactly the stated comparison months and compute mean and standard deviation from those increments.
+- Prefer a directly stated aggregate in prose over reconstructing it from unrelated table rows.
+- Compute step by step, sanity-check magnitude/sign against the data, and re-derive once before answering. Confirm the requested rounding (e.g., three decimals, nearest hundredth, tenths) and unit (percentage points, percent, thousands, billions).
+- Never emit a numeric final answer while a required operand is unlocated; keep searching the document or state the missing input instead of guessing a plausible-looking value.
+- Respect explicit answer shapes and emit the answer verbatim in the required form. If the question asks for a bracketed list of N comma-separated values, emit exactly that list (e.g. `[-0.150, 0.850, -288.719]`). If it asks for a single value, output ONLY the bare number inside `<answer>...</answer>` — no units, no percent/currency symbols, no parenthetical restatement, no explanatory text (write `0.05` not `0.05 percentage points`; write `57615.04` not `57,615.04 million INR (₹…)`; write `1.8` not `1.8 percentage points`). Add units/descriptions only when the question explicitly requires them inside the answer.
+
+## Additional Retrieval and Derived-Value Checks
+- Multi-issue stitching: for a range spanning two bulletins, keep a month-by-month ledger naming the source file and value; when a month appears in both issues, prefer the later/revised issue (e.g. July 1981 `58,172` in the September bulletin over `58,486` in the March one), use the earlier issue only for months absent from the later, and count each month once.
+- Row-wise comparisons: for min/max/median questions, enumerate every candidate row across the relevant span first (carrying forward implicit repeated dates/months), record each operand, then compare the complete set; use a labeled section/year `Total` row when it matches the question rather than manually summing component rows.
+- Continuously compounded growth rate = ln(final / initial); divide by the number of years (or apply ln(end/start)/years) for an annualized rate, multiply by 100 to report as a percentage, and round only the final result to the specified decimals (report the bare number if 'no percent sign').
+- For equal-interval compound-growth projections, compute directly from endpoints: `projected = end * (end/start)^((target-end)/(end-start))`, avoiding a rounded intermediate annualized rate.
+- For small-sample percentile/VaR, sort the return series, interpolate linearly at index `(n−1)*p` between adjacent order statistics, and report VaR as the positive magnitude when the quantile is negative.
+- In narrative auction/financing text, translate terms literally: 'tenders received/totaled' are bids submitted, 'accepted/allotted' are awards, and noncompetitive/competitive-private-investor tenders are subsets; for 'what percent of these bids ...', use total tenders received as the denominator and the named accepted subset as the numerator.
+- For 'total amount outstanding for all [security class]', sum every row in that class table's amount-outstanding column (including rows with blank prices/yields or footnote markers), convert mixed fractions like `2,954 1/2` to 2,954.5 first, and exclude adjacent bills, certificates, and bonds tables. In FFO-1 tables, 'Borrowing from the public—Federal securities / Public debt securities (10)' is distinct from Agency securities (11), Investments of Government accounts (12), Total 10+11−12 (13), and Total Financing (20); pick the column matching the question's wording.
+
+<!-- SLOW_UPDATE_START -->
+<!-- SLOW_UPDATE_END -->
