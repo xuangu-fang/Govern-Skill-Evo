@@ -1,9 +1,37 @@
+from hashlib import sha256
+
 import pytest
 
 from scripts.runs.v24.read_archived_test import archive_path
-from scripts.runs.v24_2.run_v24_2_test import prepare_test
+from scripts.runs.v24_2.run_v24_2_test import checkpoint_bundle, prepare_test
 from src.skill_evolution.v24_2 import campaign
 from src.skill_evolution.v24_2.storage import read, save, same_contract
+
+
+@pytest.mark.parametrize('label, skill', [('R00', 'initial'), ('R01', 'published')])
+def test_checkpoint_uses_the_published_skill_and_reference_test(tmp_path, label, skill):
+    root = tmp_path / 'training'
+    config = root / 'config.json'
+    save(config, dict(batches=[['task']], initial_skill=dict(text='initial')))
+    directory = root / 'rounds/R01'
+    save(directory / 'publication.json', dict(selected='published'))
+    selected = directory / 'selected.md'
+    selected.write_text('published')
+    bundle = dict(campaign=str(root), skill_text='final')
+    reference = tmp_path / 'reference'
+    save(reference / 'input.json', bundle)
+    output = tmp_path / 'checkpoints' / label
+    checkpoint = dict(round=label, source=str(config if label == 'R00' else selected),
+                      skill_sha256=sha256(skill.encode()).hexdigest(), reference_evaluation=str(reference))
+    assert checkpoint_bundle(root, output, bundle, checkpoint) == dict(bundle, skill_text=skill, checkpoint=checkpoint)
+    with pytest.raises(ValueError, match='digest'):
+        checkpoint_bundle(root, output, bundle, dict(checkpoint, skill_sha256='wrong'))
+    with pytest.raises(ValueError, match='reference Test'):
+        checkpoint_bundle(root, output, dict(bundle, campaign=str(tmp_path)), checkpoint)
+    if label == 'R01':
+        selected.write_text('unpublished candidate')
+        with pytest.raises(ValueError, match='export differs'):
+            checkpoint_bundle(root, output, bundle, checkpoint)
 
 
 def test_read_archived_paths_from_another_checkout(tmp_path):

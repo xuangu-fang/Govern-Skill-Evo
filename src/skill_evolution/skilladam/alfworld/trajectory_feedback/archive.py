@@ -1,10 +1,41 @@
-"""Read one feedback training run and its own final evaluations, offline."""
+"""Read a feedback training run and its final and checkpoint evaluations offline."""
 import argparse
+from hashlib import sha256
 import json
 
 from scripts.runs.alfworld.alfworld_aligned_common import read, require
-from src.skill_evolution.shared.experiment_paths import ROOT
+from src.skill_evolution.shared.experiment_paths import ROOT, resolve_experiment_path
 from ..archive import read_evaluation, read_training
+
+
+def checkpoint_evaluations(output, results, training, final_skill, items, actor):
+    archive = output / 'evaluations'
+    reports = {p.relative_to(results) for p in results.glob('*/*/summary.json')}
+    require(reports == {p.relative_to(archive) for p in archive.glob('*/*/summary.json')},
+            'Checkpoint index differs from archived evaluations')
+    rounds = len(training['iterations'])
+    round_numbers = {f'R{n:02}': n for n in range(rounds + 1)}
+    for report in sorted(reports):
+        entry = read(results / report)
+        run = report.parent
+        root = archive / run
+        inputs = read(root / 'inputs.json')
+        label = run.name
+        require(label in round_numbers and label == entry['round'] == inputs['round']
+                and resolve_experiment_path(inputs['training']) == output, 'Checkpoint training or round differs')
+        number = round_numbers[label]
+        # The next training rollout starts with the Skill retained by this round's gate.
+        skill = final_skill if number == rounds else (
+            output / f'shared_actor/iter_{number:03}/training_rollout_0/actor_skill.md').read_text()
+        skill_path = (results / run / entry['evaluated_skill']).resolve()
+        require(skill_path.is_relative_to(results.parent) and skill_path.read_bytes() == skill.encode()
+                and sha256(skill.encode()).hexdigest() == entry['skill_sha256'] == inputs['skill_sha256'],
+                'Checkpoint Skill differs from training')
+        verified = read_evaluation(root, output.name, items, actor, skill)
+        del verified['final_skill']
+        verified['run_id'] = run.as_posix()
+        require(all(entry[k] == value for k, value in verified.items()), 'Checkpoint summary differs from trajectories')
+        yield entry
 
 
 def read_archive(run_id):
@@ -27,6 +58,7 @@ def read_archive(run_id):
                 require((root / 'training_snapshot' / filename).read_bytes() == (output / filename).read_bytes(),
                         f'Retest training snapshot differs in {filename}')
         evaluations.append(read_evaluation(root, run_id, items, actor, skill))
+    evaluations.extend(checkpoint_evaluations(output, experiments / run_id / 'results', training, skill, items, actor))
     return training, evaluations
 
 

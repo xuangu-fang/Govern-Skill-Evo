@@ -1,5 +1,6 @@
 """Evaluate the final published V24.2 Skill with V24.1's held-out ALFWorld runner."""
 import argparse
+from hashlib import sha256
 from pathlib import Path
 import sys
 
@@ -111,12 +112,37 @@ def completed_archive(output, bundle, *, relative_receipts=False, read_only=Fals
     return result
 
 
+def checkpoint_bundle(root, output, bundle, checkpoint):
+    """Bind the archived Test to a published round of this training campaign."""
+    config = read(root / 'config.json')
+    label = checkpoint['round']
+    require(label == output.name and label in {f'R{n:02}' for n in range(len(config['batches']) + 1)},
+            'Checkpoint round differs')
+    if label == 'R00':
+        source = root / 'config.json'
+        skill = config['initial_skill']['text']
+    else:
+        directory = root / 'rounds' / label
+        source = directory / 'selected.md'
+        skill = read(directory / 'publication.json')['selected']
+        require(source.read_bytes() == skill.encode(), 'Checkpoint export differs from publication')
+    require(archive_path(checkpoint['source']) == source
+            and checkpoint['skill_sha256'] == sha256(skill.encode()).hexdigest(),
+            'Checkpoint Skill source or digest differs')
+    reference = read(archive_path(checkpoint['reference_evaluation']) / 'input.json')
+    require(dict(reference, campaign=str(archive_path(reference['campaign']))) == bundle,
+            'Checkpoint reference Test differs')
+    return dict(bundle, skill_text=skill, checkpoint=checkpoint)
+
+
 def read_archived_test(root, output, adapter, version, load_skill, relative_receipts):
-    """Read an already finished Test, including its historical Prompt or ablation Skill."""
+    """Read a finished Test using its historical final, checkpoint or ablation Skill."""
     loader = published_history if load_skill is published_skill else load_skill
     bundle = prepare_test(root, adapter, version=version, load_skill=loader)
     saved = read(output / 'input.json')
-    if 'ablation' in saved:
+    if 'checkpoint' in saved:
+        bundle = checkpoint_bundle(root, output, bundle, saved['checkpoint'])
+    elif 'ablation' in saved:
         base = archive_path(saved['ablation']['base_evaluation'])
         original = read(base / 'input.json')
         require(dict(original, campaign=str(root)) == bundle and
@@ -132,7 +158,7 @@ def main(*, version=campaign, description=__doc__, load_skill=published_skill, e
     parser.add_argument('--evaluation', required=True, type=Path, help='separate Test output directory')
     parser.add_argument('--resume', action='store_true', help='reuse verified episodes in this evaluation')
     parser.add_argument('--validate-only', action='store_true', help='check Test inputs without running any episode')
-    parser.add_argument('--read-archive', action='store_true', help='read a finished historical Test or ablation without running tasks')
+    parser.add_argument('--read-archive', action='store_true', help='read a finished final, checkpoint or ablation Test without running tasks')
     args = parser.parse_args()
     if args.read_archive and (args.resume or args.validate_only):
         parser.error('--read-archive is a separate read-only action')
