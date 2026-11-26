@@ -23,9 +23,11 @@ class EvidencePath(type(Path())):
             if absolute.is_relative_to(ROOT):
                 relative = absolute.relative_to(ROOT)
                 if relative.parts[:1] in (('artifacts',), ('experiments',), ('output',), ('outputs',)):
-                    row = archive.db.execute(SELECT + ' WHERE r.path=?', (relative.as_posix(),)).fetchone()
+                    key = archive.archive_key(relative)
+                    source = archive.source_path(key)
+                    row = archive.db.execute(SELECT + ' WHERE r.path=?', (key,)).fetchone()
                     if row is not None:
-                        with super().open('rb') as stream:
+                        with source.open('rb') as stream:
                             data = stream.read()
                         original = io.BytesIO()
                         archive.verify_bytes(row, data, original)
@@ -33,6 +35,8 @@ class EvidencePath(type(Path())):
                         if mode == 'rb':
                             return original
                         return io.TextIOWrapper(original, encoding=encoding, errors=errors, newline=newline)
+                    if source != absolute:
+                        return source.open(mode, buffering, encoding, errors, newline)
         return super().open(mode, buffering, encoding, errors, newline)
 
 

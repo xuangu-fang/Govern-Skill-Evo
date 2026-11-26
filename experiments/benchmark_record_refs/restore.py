@@ -2,6 +2,7 @@
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 import hashlib
+import io
 import json
 import mmap
 import os
@@ -14,7 +15,7 @@ import subprocess
 ARCHIVE = Path(__file__).resolve().parent
 ROOT = ARCHIVE.parents[1]
 FIELD = b'qa-field:sha256:'
-BENCHMARKS = ('officeqa', 'searchqa', 'spreadsheetbench', 'alfworld')
+BENCHMARKS = ('officeqa', 'searchqa', 'spreadsheetbench', 'alfworld', 'lmb')
 SELECT = """SELECT r.path, r.sha, v.original_size, v.compact_sha, v.compact_size,
                    v.offsets, v.pool_pos, r.original_blocks
             FROM records r JOIN versions v ON v.sha=r.sha"""
@@ -27,11 +28,46 @@ def file_reference(digest):
 class Archive:
     def __init__(self, benchmark):
         self.directory = ARCHIVE / benchmark
+        self.relocations = {}
+        if benchmark == 'lmb':
+            mapping = json.loads((ROOT / 'experiments/methods/canonical-paths.json').read_bytes())
+            self.relocations = {row['old']: row['new'] for row in mapping['relocations']
+                                if row.get('archive') == benchmark}
+        self.archive_keys = {new: old for old, new in self.relocations.items()}
         self.db = sqlite3.connect((self.directory / 'manifest.sqlite3').as_uri() + '?mode=ro', uri=True)
         self.file = (self.directory / 'payloads.pack').open('rb')
         self.pool = mmap.mmap(self.file.fileno(), 0, access=mmap.ACCESS_READ)
         self.fields = {digest: (pos, size) for digest, pos, size in
                        self.db.execute('SELECT sha,pos,size FROM fields')}
+
+    @staticmethod
+    def _mapped_name(name, mapping):
+        path = Path(name)
+        if path.is_absolute() or '..' in path.parts or not path.parts:
+            raise ValueError(f'Expected a repository-relative archive path: {name}')
+        for parent in (path, *path.parents):
+            target = mapping.get(parent.as_posix())
+            if target is not None:
+                return (Path(target) / path.relative_to(parent)).as_posix()
+        return path.as_posix()
+
+    def archive_key(self, name):
+        """Translate a canonical path to the historical key in the archive."""
+        return self._mapped_name(name, self.archive_keys)
+
+    def source_path(self, name):
+        """Locate compact bytes while leaving the SQLite identity unchanged."""
+        return ROOT / self._mapped_name(name, self.relocations)
+
+    def read_bytes(self, name):
+        key = self.archive_key(name)
+        data = self.source_path(key).read_bytes()
+        row = self.db.execute(SELECT + ' WHERE r.path=?', (key,)).fetchone()
+        if row is None:
+            return data
+        original = io.BytesIO()
+        self.verify_bytes(row, data, original)
+        return original.getvalue()
 
     def validate_pool(self):
         if self.db.execute('PRAGMA integrity_check').fetchone() != ('ok',):
@@ -83,7 +119,7 @@ class Archive:
         path = Path(record[0])
         if path.is_absolute() or '..' in path.parts:
             raise ValueError('Unsafe archive path')
-        source = ROOT / path
+        source = self.source_path(path)
         with source.open('rb') as f:
             data = f.read()
             blocks = os.fstat(f.fileno()).st_blocks * 512
@@ -114,9 +150,9 @@ def restore_assets(archive, selected, destination, tracked):
             for name, size, blocks, mode, mtime, atime in entries:
                 if selected and selected != name:
                     continue
-                suffix = Path(name).suffix.lower() if archive.directory.name in ('spreadsheetbench', 'alfworld') else ''
+                suffix = Path(name).suffix.lower() if archive.directory.name in ('spreadsheetbench', 'alfworld', 'lmb') else ''
                 target = archive.directory / 'assets' / (digest + suffix)
-                path = ROOT / name
+                path = archive.source_path(name)
                 if path.is_symlink():
                     if name in tracked or os.readlink(path) != os.path.relpath(target, path.parent):
                         raise ValueError('Asset link mismatch: ' + name)
@@ -150,10 +186,12 @@ def main():
     args = parser.parse_args()
     archive = Archive(args.benchmark)
     archive.validate_pool()
+    if args.file:
+        args.file = archive.archive_key(args.file)
     query = SELECT + (' WHERE r.path=?' if args.file else '')
     rows = archive.db.execute(query, (args.file,) if args.file else ())
     tracked = set()
-    if args.verify and args.benchmark in ('alfworld', 'spreadsheetbench') and (ROOT / '.git').exists():
+    if (args.benchmark in ('lmb') or (args.verify and args.benchmark in ('alfworld', 'spreadsheetbench'))) and (ROOT / '.git').exists():
         names = subprocess.check_output(['git', '-C', str(ROOT), 'ls-files', '-z'])
         tracked = set(os.fsdecode(names).split('\0'))
     if args.output:
