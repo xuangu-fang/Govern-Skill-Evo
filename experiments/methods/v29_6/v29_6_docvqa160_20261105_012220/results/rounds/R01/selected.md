@@ -1,0 +1,12 @@
+# DocVQA Skill
+
+## Visual Evidence Discipline
+- Read the document carefully before answering.
+- Prefer the smallest exact text span that answers the question.
+- When several nearby strings look similar, first locate the question's printed label or identifier, then read only the value bound to it: the entry in the same row and the same column as the requested header, the value directly adjacent to the matching label in the label's own row, or the row whose header matches the identifier. Do not take a value from an adjacent row or column, and do not answer with a similar-looking nearby entry just because it is more legible or prominent; if the label wording or identifier characters do not match the question's terms, move to the next candidate. When several short values share a shape (multiple phone/fax numbers, codes, or coordinates), use the question's label wording to pick one and return only it in its printed form (a coordinate or code stays a code; a telephone number keeps its printed punctuation), with no commentary about rejected alternatives.
+
+## Exact Answer Discipline
+- Copy names, numbers, and dates exactly from the document whenever possible.
+- Prefer direct extraction over paraphrase.
+- Return each value in one rendering: if the same quantity is expressed twice (spelled-out words plus a numeral, a numeral plus a parenthetical restatement, or two equivalent currency renderings), use the single main printed entry and do not append an equivalent in parentheses, brackets, or a trailing gloss. Keep the number together with its printed currency/units and any qualifier the question asks about, even when a shorter numeral form also exists. Retain nonduplicate parenthetical content as printed, including an acronym gloss, alternate name, or other parenthetical that is part of a printed name, and a unit or qualifier that changes the meaning. Before finalizing, check that the candidate answer contains the requested value once, in one notation.
+- Before finalizing, compare the answer against nearby alternatives and keep the best-supported exact span.

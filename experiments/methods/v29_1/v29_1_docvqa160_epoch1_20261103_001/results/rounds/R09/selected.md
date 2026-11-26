@@ -1,0 +1,23 @@
+# DocVQA Skill
+
+## Visual Evidence Discipline
+- Read the document carefully before answering.
+- Prefer the smallest exact text span that contains the complete requested value, keeping the document's own wording, units, currency, and qualifiers. Do not shorten a written amount, name, or label into a symbol, abbreviation, or acronym when that changes the entry or drops required content.
+- When several nearby strings look similar, choose the one whose surrounding labels or layout best match the question.
+- For date, deadline, or year questions, use the temporal expression attached to the requested event or field: return a full printed date when that entry contains the year, but do not append a year or other missing component from a separate header, issue date, footer, or nearby context; when the question asks only for a year, return the year from that same entry.
+
+## Table and Labeled-Layout Lookup
+- For questions about a table, list, or labeled layout that identify a row or record by an explicit label (such as a numbered building, a study phase or year, a named person, or a numbered sector), first locate the entry whose identifier matches the question, then return only the value in the column or attribute the question names.
+- Do not take a value from a nearby row, a similarly numbered record, or an adjacent column. When labels and cells are visually close, answer from the intersection of the matching row label and the requested column heading.
+- Keep the selected value in its original format and units. Apply this row-and-column procedure only when the question and the visible layout present such a structure.
+
+## Exact Answer Discipline
+- Copy names, numbers, and dates exactly from the document whenever possible.
+- When the answer is a short printed label, title, or date span containing internal punctuation, preserve the document's internal punctuation and spacing as part of the selected exact span: keep apostrophes, hyphens, slashes, and attached punctuation joined to the adjacent characters when they are printed that way, do not insert a space before an attached apostrophe or two-digit year suffix, and copy a date-range separator as printed rather than substituting a different dash. Apply this only to punctuation and spacing inside the selected value; do not add outer quotation marks unless the selected short label is visibly enclosed in quotation marks, in which case follow the existing straight-double-quote rule for quoted labels; do not change capitalization or normalize units.
+- Prefer direct extraction over paraphrase.
+- When the requested answer is a multi-digit identifier, phone, voice-mail, account, or code number, verify the selected string digit by digit against the printed entry before returning it; do not substitute a visually similar digit or rely only on the overall shape of the number. Apply this verification only to the already selected numeric answer, keep it as one answer unit, and do not add alternative numbers or change row selection.
+- When a requested tagline, slogan, or other short quoted label is visibly enclosed in quotation marks, return that label with the same wording inside straight double quotation marks ("), not curly typographic quotes (“ ”); if the label is not visibly enclosed in quotation marks, do not add them. This exception to exact copying applies only to the answer's outer quotation marks, not to internal punctuation, internal quotation marks, names, units, or parenthetical text.
+- Before finalizing, compare the answer against nearby alternatives and keep the best-supported exact span.
+- When the question requests a single value (such as an amount, name, count, date, identifier, or code), return exactly one answer unit inside the answer element. Do not append a second equivalent representation, a spelled-out duplicate, a currency conversion, or a parenthetical alternative unless the question itself asks for multiple values or forms.
+- If the same requested value appears in more than one notation, answer with the single form in the field, line, or entry tied to the question's named entity or attribute, and do not merge two forms into one answer.
+- Use explanatory parentheses only when they belong to the requested printed label or are needed to keep a qualifier; do not add an explanatory parenthetical of your own. Parentheses that are part of the printed value itself, such as those in a phone or fax number, must be copied as printed. If a requested name itself carries a parenthetical acronym or qualifier, copy it as one continuous literal string with the printed spacing and quotation marks, without inserting a space before the parenthesis or substituting a different quotation style.

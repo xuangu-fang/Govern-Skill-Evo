@@ -1,5 +1,7 @@
 # 方法实验总索引
 
+[DocVQA 三组主对照与离线复算](DOCVQA.md)
+
 [LiveMathematicianBench 主对照与离线读回](lmb/README.md)
 
 [LiveMathematicianBench SkillAdam 历史训练与评测](skilladam/lmb/README.md) · [LiveMathematicianBench SkillOpt 历史训练与评测](skillopt/lmb/README.md)
