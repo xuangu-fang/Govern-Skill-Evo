@@ -1,0 +1,122 @@
+{
+  "v26.7": {
+    "adjustments": [
+      {
+        "target": "u1",
+        "action": "KEEP",
+        "text": null,
+        "reason": "The current Parent has no rule for which rows a colon-ended caption governs; its Evidence Discipline only guards period/unit mixing. In `Evidence:P8:5_t1` the actor read the ESF table and answered 39.67% (`Evidence:P8:7`), which equals (Euro 6,868,478 + yen 9,221,534 + accounts receivable 147,016) / total 40,931,821; the 'Foreign exchange and securities:' caption governs only the Euro and yen lines, whose share is 39.31%, so adding the adjacent 'Accounts receivable' line inflated the subtotal and produced EM=0 (`Evidence:P8:outcome`). The proposal is scoped to operand selection and supplies a labelled-total fallback plus a narrower-set tie-breaker that matches this cue. Uncertainty: the other cited runs do not independently show a membership error (`Evidence:P3:4_t1` is a percent-format loss and P9 succeeded), so support rests mainly on P8 and the 'consult another edition' branch is unexercised; the rule should stay scoped to a recognisable colon-ended caption rather than becoming a universal summing rule."
+      },
+      {
+        "target": "u2",
+        "action": "REPLACE",
+        "text": "- When a question names the requested quantity as a percent (for example a 'percent change') or as a percentage-point difference but does not ask for the answer to be expressed or reported as a percent, put a bare numeric value in the answer element: the number rounded exactly as the question specifies, using only digits, a decimal point and any required leading minus, with no percent symbol and no scale conversion. Append a percent sign only when the question asks for the answer itself in percentage terms, such as 'what percentage of ...', 'what percent of ...' or 'express as a percent'; in that case include it. Continue to derive the figure from the retrieved operands before emitting it.",
+        "reason": "`Evidence:P3:5` answers a 'percent change' question with '4.815%' and scores EM=0 (`Evidence:P3:outcome`), supporting the useful clarification that a percent-named change not requesting a percent-formatted answer should be a bare number; `Evidence:P2:1` already succeeds with bare '0.42' for percentage points, and `Evidence:P4:4` succeeds with '2.23%' only because that question explicitly asks for 'simple percentage terms'. But the Original also lists 'a share of a total expressed in percent' as a bare-number case, which `Memory:M2` contradicts: a 'what percentage' question scored EM=1 for '69%' and EM=0 for '69'. That clause is internally ambiguous with the Original's own 'asks for the answer in percentage terms' exception and risks stripping a required percent sign; the 'fractional proportion' clause has no supporting run. Replace keeps the percent-change/percentage-point bare-number clarification while preserving the percent sign when the question asks for the answer in percentage terms."
+      },
+      {
+        "target": "u3",
+        "action": "KEEP",
+        "text": null,
+        "reason": "Across the batch, a bare filename passed to grep/read returns 'path not allowed' (`Evidence:P3:1_t1`, `Evidence:P7:1_t1`, `Evidence:P8:1_t1`, `Evidence:P10:1_t1`) and '**/' globs return no matches, while a bare-name glob or a single '*' listing returns the usable '<officeqa-docs>/...' path (`Evidence:P3:2_t1`, `Evidence:P7:3_t1`, `Evidence:P8:3_t1`, `Evidence:P9:2_t1`, `Evidence:P10:2_t1`). The rule is confined to resolving the path before search/read, does not treat empty results as document-wide absence, and preserves the targeted-search-and-small-read behavior. The current Parent's Retrieval Discipline does not cover this path-resolution step, so the change is a recognisable new precondition rather than a duplicate."
+      }
+    ],
+    "field_order": {
+      "u1": [
+        "target",
+        "action",
+        "text",
+        "reason"
+      ],
+      "u2": [
+        "target",
+        "action",
+        "text",
+        "reason"
+      ],
+      "u3": [
+        "target",
+        "action",
+        "text",
+        "reason"
+      ]
+    },
+    "editor": [
+      {
+        "update_id": "u1",
+        "patch": "--- a/SKILL.md\n+++ b/SKILL.md\n@@\n - Keep track of each operand's period, unit, and semantic role so nearby proxy values are not mixed in.\n+- Before summing items that the source presents under a caption, establish which rows belong to that caption. When a heading line (a category name ending in a colon, such as a securities/asset group) is followed by itemized lines and then by further lines at the parent level of the same list, include only the itemized lines the caption governs; exclude neighbouring parent-level lines even when the parsed text reproduces every line at identical indentation, since flattened extraction removes the visual nesting. If membership is ambiguous, resolve it with evidence available to you rather than by assuming the nearest lines belong: compare the itemized rows against a subtotal or grand total the table already reports, or consult another edition/table that displays the same grouping with clearer structure; when a table supplies an explicitly labelled total or subtotal row or column for the requested aggregate, read that labelled entry instead of assembling the aggregate yourself. Where the ambiguity cannot be resolved from the retrieved text, prefer the narrower membership (only the lines explicitly itemized under the caption), because adding parent-level lines inflates a subtotal.\n - When a monthly or other period statistic is computed from more than one supplied bulletin, first choose the table that actually contains every requested period and extract the full set from it. Then check the other supplied bulletins for overlapping periods; if a later bulletin shows a revised value for an overlapping period, use the later revised value for that period while retaining the complete table's values for periods it alone covers. Do not switch to a different fiscal-versus-calendar series merely because a later table exists. Reconcile the complete monthly set before computing the statistic.\n",
+        "reason": "Added a grouped-caption operand-selection rule in Evidence Discipline, with ambiguity resolution and a narrower-membership fallback, before the existing multi-bulletin computation guidance."
+      },
+      {
+        "update_id": "u2",
+        "patch": "--- a/SKILL.md\n+++ b/SKILL.md\n@@\n-- In the final answer element, return only the requested value(s): the numeric result(s), rounded as specified, without derivations, equations, explanatory sentences, markdown emphasis, restated units, alternative conversions, intervening dates, or method. A unit or scale that the question uses only to define the requested quantity, such as a percentage-point or million-dollar basis, is not itself part of the answer string; do not append spelled-out unit phrases. Include a percent sign only when the question explicitly asks for an answer as a percent; when it asks for a difference in percentage points as a decimal, give the decimal alone. If the question provides an explicit output template, reproduce it exactly with only the requested entries, preserving its brackets, commas, spacing, ordering, and any required no-comma or no-decimal formatting. Before finishing, re-read the answer element and confirm it contains the requested value(s) and nothing else; continue to derive and verify the value from retrieved evidence before emitting it.\n+- In the final answer element, return only the requested value(s): the numeric result(s), rounded as specified, without derivations, equations, explanatory sentences, markdown emphasis, restated units, alternative conversions, intervening dates, or method. A unit or scale that the question uses only to define the requested quantity, such as a percentage-point or million-dollar basis, is not itself part of the answer string; do not append spelled-out unit phrases. When a question names the requested quantity as a percent, such as a 'percent change', or as a percentage-point difference, but does not ask for the answer to be expressed or reported as a percent, give a bare numeric value: the number rounded exactly as the question specifies, using only digits, a decimal point, and any required leading minus, with no percent symbol and no scale conversion. Append a percent sign only when the question asks for the answer itself in percentage terms, such as 'what percentage of ...', 'what percent of ...', or 'express as a percent'. If the question provides an explicit output template, reproduce it exactly with only the requested entries, preserving its brackets, commas, spacing, ordering, and any required no-comma or no-decimal formatting. Before finishing, re-read the answer element and confirm it contains the requested value(s) and nothing else; continue to derive and verify the value from retrieved evidence before emitting it.\n - Copy the final answer from a checked value, not from an unverified intermediate guess.\n",
+        "reason": "Revised the final-answer percent-sign rule in place to distinguish percent-named quantities from questions asking for a percent answer and to require bare numeric output by default."
+      },
+      {
+        "update_id": "u3",
+        "patch": "--- a/SKILL.md\n+++ b/SKILL.md\n@@\n - Start by narrowing to the most likely candidate file before reading long passages.\n+- Treat candidate file names in the question as names to locate, not as usable tool arguments. Resolve a file before searching inside it: call glob once with a simple pattern (the bare file name, or a single listing of available documents) and pass the exact path that glob returns, including any directory prefix, to every later grep or read. After a rejected-path observation, do not repeat grep/read against the same bare name and do not escalate to broad patterns that return no matches; if a name-based glob finds nothing, list the corpus once and continue with the returned path. This path resolution comes before the search-and-read steps, and the retrieved text, not the path, remains the evidence.\n - Prefer targeted search terms that name the exact entity, period, measure, or table concept from the question.\n",
+        "reason": "Added a file-path resolution step in Retrieval Discipline before targeted search and reading, using glob's returned path and avoiding repeated bare-name or rejected-path attempts."
+      }
+    ],
+    "candidate_sha256": "23445f727727f8f18bb4c218c1a093238a5e45da719398a712d7bb0e82271d39"
+  },
+  "v26.8": {
+    "adjustments": [
+      {
+        "target": "u1",
+        "action": "KEEP",
+        "reason": "P8 supplies the direct counterexample for caption membership: `Evidence:P8:5_t1` returns the ESF table where 'Foreign exchange and securities:2' precedes European Euro, Japanese yen, and then Accounts receivable; `Evidence:P8:7` answers the wider sum 39.67 that includes Accounts receivable, and `Evidence:P8:outcome` is EM 0. The supplied reference value is unavailable, so the exact gold cannot be asserted, but the observed membership choice is a concrete candidate for the loss. `Evidence:P9:4_t2` and `Evidence:P9:5_t2` show a labelled total-funds column/row, and `Evidence:P9:outcome` is credited while using the directly reported annual DoD figure; `Evidence:P3:4_t1` also exposes a labelled Total assets row, though P3's loss is formatting rather than operand selection. The Original is scoped to operand selection, preserves the clean-answer requirement, and adds usable fallback guidance for flattened tables.",
+        "text": null
+      },
+      {
+        "target": "u2",
+        "action": "REPLACE",
+        "reason": "P3's final `Evidence:P3:5` is 4.815% and `Evidence:P3:outcome` is EM 0, while P2's `Evidence:P2:1` is bare 0.42 with `Evidence:P2:outcome` EM 1, and P4's `Evidence:P4:4` is 2.23% with `Evidence:P4:outcome` EM 1 after the question explicitly asks for percentage terms. That supports a narrow rule: merely naming a 'percent change' does not require a percent sign; explicit percentage or percentage-terms wording does. `Memory:M2` shows the converse risk when an explicit percentage request is stripped, and `Memory:M4`, `Memory:M5`, `Memory:M9`, and `Memory:M11` show bare decimals winning for percentage-point differences. The Original's additional 'share of a total expressed in percent' category has no cited execution and can collide with questions that explicitly ask 'what percent'; the replacement removes that unsupported scope while preserving the explicit-percent exception and the no-fraction-alternative clarification already consistent with Parent.",
+        "text": "- For a question that names the requested quantity as a 'percent change' or asks for a difference in percentage points but does not otherwise direct formatting, put a bare numeric value in the answer element: the number of percent (or, for a percentage-point difference, the decimal difference) rounded exactly as the question specifies, with no percent symbol, unit word or scale conversion. A question that merely calls the quantity a percent change is not by itself a request to append a percent sign; append one only when the question asks for the answer itself to be expressed, reported or given as a percent or in percentage terms. Do not re-express the figure as a fractional proportion or the reverse; the stated rounding precision applies to the figure in the scale the question names. Continue to derive that figure from the retrieved operands before emitting it."
+      },
+      {
+        "target": "u3",
+        "action": "KEEP",
+        "reason": "Repeated current traces show bare candidate filenames failing as tool paths: `Evidence:P3:1_t1`, `Evidence:P4:1_t1`, `Evidence:P4:1_t2`, `Evidence:P5:1_t1`, `Evidence:P7:1_t1`, `Evidence:P8:1_t1`, `Evidence:P9:1_t1`, and `Evidence:P10:1_t1`. A glob then returned the allowed prefix (`Evidence:P3:2_t1`, `Evidence:P9:2_t1`, `Evidence:P10:2_t1`) or a single listing did (`Evidence:P7:3_t1`, `Evidence:P8:3_t1`), after which path-based grep/read worked (`Evidence:P3:3_t1`, `Evidence:P7:4_t1`). Nested filename globs also returned no matches before a listing succeeded (`Evidence:P4:2_t1`, `Evidence:P4:3_t1`; `Evidence:P5:2_t1`, `Evidence:P5:3_t1`, `Evidence:P5:4_t1`). The Original states the needed resolution order and the post-error stopping condition, and it applies only before searching inside a named file, so it does not conflict with cases where the pre-parsed pages already sufficed.",
+        "text": null
+      }
+    ],
+    "field_order": {
+      "u1": [
+        "target",
+        "action",
+        "reason",
+        "text"
+      ],
+      "u2": [
+        "target",
+        "action",
+        "reason",
+        "text"
+      ],
+      "u3": [
+        "target",
+        "action",
+        "reason",
+        "text"
+      ]
+    },
+    "editor": [
+      {
+        "update_id": "u1",
+        "patch": "--- a/SKILL.md\n+++ b/SKILL.md\n@@\n - Keep track of each operand's period, unit, and semantic role so nearby proxy values are not mixed in.\n+- Before summing items that the source presents under a caption, establish which rows belong to that caption. When a heading line (a category name ending in a colon, such as a securities/asset group) is followed by itemized lines and then by further lines at the parent level of the same list, include only the itemized lines the caption governs; exclude neighbouring parent-level lines even when the parsed text reproduces every line at identical indentation, since flattened extraction removes the visual nesting. If membership is ambiguous, resolve it with evidence available to you rather than by assuming the nearest lines belong: compare the itemized rows against a subtotal or grand total the table already reports, or consult another edition/table that displays the same grouping with clearer structure; when a table supplies an explicitly labelled total or subtotal row or column for the requested aggregate, read that labelled entry instead of assembling the aggregate yourself. Where the ambiguity cannot be resolved from the retrieved text, prefer the narrower membership (only the lines explicitly itemized under the caption), because adding parent-level lines inflates a subtotal. This governs operand selection only; the answer element still contains just the requested value.\n - When a monthly or other period statistic is computed from more than one supplied bulletin, first choose the table that actually contains every requested period and extract the full set from it. Then check the other supplied bulletins for overlapping periods; if a later bulletin shows a revised value for an overlapping period, use the later revised value for that period while retaining the complete table's values for periods it alone covers. Do not switch to a different fiscal-versus-calendar series merely because a later table exists. Reconcile the complete monthly set before computing the statistic.\n",
+        "reason": "Added an operand-selection bullet in Evidence Discipline before the multi-bulletin reconciliation rule, covering caption membership, subtotal evidence, the narrower fallback, and the answer-element scope."
+      },
+      {
+        "update_id": "u2",
+        "patch": "--- a/SKILL.md\n+++ b/SKILL.md\n@@\n-- In the final answer element, return only the requested value(s): the numeric result(s), rounded as specified, without derivations, equations, explanatory sentences, markdown emphasis, restated units, alternative conversions, intervening dates, or method. A unit or scale that the question uses only to define the requested quantity, such as a percentage-point or million-dollar basis, is not itself part of the answer string; do not append spelled-out unit phrases. Include a percent sign only when the question explicitly asks for an answer as a percent; when it asks for a difference in percentage points as a decimal, give the decimal alone. If the question provides an explicit output template, reproduce it exactly with only the requested entries, preserving its brackets, commas, spacing, ordering, and any required no-comma or no-decimal formatting. Before finishing, re-read the answer element and confirm it contains the requested value(s) and nothing else; continue to derive and verify the value from retrieved evidence before emitting it.\n+- In the final answer element, return only the requested value(s): the numeric result(s), rounded as specified, without derivations, equations, explanatory sentences, markdown emphasis, restated units, alternative conversions, intervening dates, or method. A unit or scale that the question uses only to define the requested quantity, such as a percentage-point or million-dollar basis, is not itself part of the answer string; do not append spelled-out unit phrases. For a question that names the requested quantity as a 'percent change' or asks for a difference in percentage points but does not otherwise direct formatting, give a bare numeric value: the number of percent (or, for a percentage-point difference, the decimal difference) rounded exactly as specified, with no percent symbol, unit word, or scale conversion. A question that merely calls the quantity a percent change is not by itself a request to append a percent sign; append one only when the question asks for the answer itself to be expressed, reported, or given as a percent or in percentage terms. Do not re-express the figure as a fractional proportion or the reverse; the stated rounding precision applies to the figure in the scale the question names. If the question provides an explicit output template, reproduce it exactly with only the requested entries, preserving its brackets, commas, spacing, ordering, and any required no-comma or no-decimal formatting. Before finishing, re-read the answer element and confirm it contains the requested value(s) and nothing else; continue to derive and verify the value from retrieved evidence before emitting it.\n - Copy the final answer from a checked value, not from an unverified intermediate guess.\n",
+        "reason": "Revised the final-answer formatting sentence in place, replacing the percent-sign rule with percent-change and percentage-point defaults, the sign-only-when-requested exception, and the no-fractional-re-expression rule."
+      },
+      {
+        "update_id": "u3",
+        "patch": "--- a/SKILL.md\n+++ b/SKILL.md\n@@\n ## Retrieval Discipline\n+- Treat the candidate file names in the question as names to locate, not as usable tool arguments. Resolve a file before searching inside it: call glob once with a simple pattern, either the bare file name or a single listing of available documents; if a name-based glob finds nothing, list the corpus once and continue with the path that listing returns. Pass the exact path that glob returns, including any directory prefix, to every later grep or read. After a rejected-path observation, do not repeat grep or read against the same bare name, and do not escalate to broad patterns that return no matches. This path resolution comes before the search-and-read steps, and the retrieved text, not the path, remains the evidence.\n - Start by narrowing to the most likely candidate file before reading long passages.\n",
+        "reason": "Added a retrieval-discipline bullet before the narrowing rule requiring filename resolution through glob and exact returned paths, with rejected-path and no-match fallbacks."
+      }
+    ],
+    "candidate_sha256": "15a13ce398679692c43966d3e6e736cdd68f5d0f2b6c86c710d3917b8a14a3b1"
+  }
+}

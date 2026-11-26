@@ -1,0 +1,1 @@
+../../v26_5/prompts/editor.md

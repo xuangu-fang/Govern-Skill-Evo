@@ -1,0 +1,29 @@
+{
+  "format": "v26_1_final_test_v1",
+  "method": "v26_9_campaign_v1",
+  "campaign": "/Users/didi/Desktop/Govern-Skill-Evo/experiments/campaigns/v26_9_officeqa_train74_20261118_180409",
+  "selected_skill": "/Users/didi/Desktop/Govern-Skill-Evo/experiments/campaigns/v26_9_officeqa_train74_20261118_180409/rounds/R06/selected.md",
+  "skill": "# OfficeQA Skill\n\n## Retrieval Discipline\n- Start by narrowing to the most likely candidate file before reading long passages.\n- Prefer targeted search terms that name the exact entity, period, measure, or table concept from the question.\n- After a promising match, read only a small surrounding span and verify it matches the requested year, basis, and unit.\n\n## Evidence Discipline\n- Extract the exact value from the retrieved text before doing any arithmetic.\n- Keep track of each operand's period, unit, and semantic role so nearby proxy values are not mixed in.\n- When the requested quantity is a rate derived from two dated values (a log return, a constant hazard or growth rate, a compound rate), fix the chronological direction before dividing: the earlier period is the base and the later period is the ending value, so growth yields a positive rate and decline a negative one. After computing, compare the rate's sign with the direction of the two values actually extracted from the text; if they disagree, the ratio is inverted, so recompute instead of returning it.\n- If the question asks for a transformed or derived quantity, apply the transformation directly from the definition implied by the question only after both operands are confirmed. If one targeted search for the method's name returns no definitional text, stop looking for a formula, auxiliary file or data file in the corpus and compute from the extracted values, so remaining rounds are available for checking operands, direction and rounding.\n\n## Final Answer Discipline\n- After retrieval and computation, put only the requested value inside `<answer>`. For a numeric quantity, return the number at the precision the question requests, with a minus sign only if the value is negative; do not wrap it in a sentence, add a currency symbol, or append unit words the question supplies (for example \"thousand,\" \"percentage points,\" or a scale word such as \"million\"), except as directed by the percentage rule below.\n- Decide the final answer's expression from the question's explicit instruction about how to state the answer, not from the units of the quantity being measured. Use a trailing \"%\" only when the question directs you to report the result in percentage terms or as a percent; when the question merely names a percent-based quantity (a percent change, percentage points, or a share phrased as \"what percent of X is Y\") and asks for rounding to a stated precision, return the bare number at that precision with no percent sign and no unit words. Keep the sign the question calls for: when it asks for an absolute difference or magnitude, return a nonnegative number, and when it asks for a signed change, retain the minus sign for a decrease. Before emitting, re-read the question's final sentence and check that each symbol or unit placed inside `<answer>` was requested there.\n- When the question asks for a period, answer \"Month Year\" or the year. When the answer is not a quantity, answer in ordinary prose.\n- When a table's sign convention already encodes direction, return the signed number without spelling out \"inflow\" or \"outflow,\" and do not add a second explanatory sentence inside `<answer>`.\n- Return the final answer only after one last consistency check against the retrieved evidence.\n- Copy the final answer from a checked value, not from an unverified intermediate guess.\n",
+  "tasks": [
+    "UID0111"
+  ],
+  "actor": {
+    "model": "deepseek-flash",
+    "max_completion_tokens": 65536,
+    "temperature": 1.0,
+    "reasoning_effort": "medium",
+    "reasoning_mode": "deepseek_thinking",
+    "token_limit_field": "max_tokens",
+    "request_timeout_seconds": 300,
+    "connect_timeout_seconds": 10,
+    "retry_policy": "six_attempts_temporary_format_feedback_v1",
+    "request_attempts_total": 6,
+    "transport": "direct_http",
+    "endpoint": "https://api.deepseek.com/chat/completions"
+  },
+  "workers": 1,
+  "revision": "763a8366abf2a3605c381d53586d844dc60fa756",
+  "scorer_profile": "officeqa_em_f1_no_reference_answers_v1",
+  "original_evaluation": "/Users/didi/Desktop/Govern-Skill-Evo/experiments/evaluations/v26_9_officeqa_final_test172_w20_20261118_180409",
+  "started_at": "2026-11-18T19:42:25.078251+08:00"
+}

@@ -1,0 +1,136 @@
+--- before/src/skill_evolution/v26_1/evolution.py
++++ after/src/skill_evolution/v26_1/evolution.py
+@@ -90,8 +90,7 @@
+ def _check_contract(root, config):
+     freeze(root / 'config.json', config, read_only=True)
+     freeze(root / 'initial_config.json', config, read_only=True)
+-    require(read(root / 'implementation.json')['prompts'] == settings.render_prompts(),
+-            'Campaign method prompts differ')
++    freeze(root / 'implementation.json', _implementation(), read_only=True)
+     freeze(root / 'runtime.json', current().runtime_snapshot(config), read_only=True)
+     current().verify_memory_operation()
+ 
+--- before/src/skill_evolution/v26_1/output_feedback.py
++++ after/src/skill_evolution/v26_1/output_feedback.py
+@@ -1,10 +1,44 @@
+ """Narrow v29.4 output-error boundary; source and implementation errors are fatal."""
++from copy import deepcopy
++import json
++from pathlib import Path
++
+ from src.skill_evolution.v27.facts import require
+ from src.skill_evolution.v27.json_response import parse_json_response
+ from . import evidence, protocol
+-from src.skill_evolution.v29.output_feedback import (POLICY, TIMELINE, OutputValidationError,
+-                                                     TechnicalValidationError, request_messages)
++from src.skill_evolution.v29.output_feedback import (POLICY, OutputValidationError,
++                                                     TechnicalValidationError, policy)
+ from . import facts, diagnosis, preconditioner, editor, replay
++
++TIMELINE = protocol.IDENTITY['evidence_version']
++
++
++def request_messages(base, context):
++    policy(context)
++    messages = deepcopy(base)
++    view = None if context is None else context.get('execution_view')
++    require(view in (None, TIMELINE), 'Unsupported execution input view')
++    # OfficeQA builders already project and encode the authorized formal facts.
++    if context is None or context.get('feedback_from') is None:
++        return messages
++    require(context['policy'] == POLICY, 'Feedback requires its versioned policy')
++    source = Path(context['feedback_from'])
++    previous = json.loads((source/'response.json').read_text())
++    error = json.loads((source/'error.json').read_text())
++    require(error['kind'] == 'output_validation' and previous['finish_reason'] == 'stop',
++            'Feedback source is not a complete output validation failure')
++    diagnostic = error['diagnostic']
++    require(isinstance(previous['content'], str), 'Feedback source has no response body')
++    messages.extend([
++        {'role': 'assistant', 'content': previous['content']},
++        {'role': 'user', 'content': (
++            '# Previous Output Validation Error\n\n'
++            f"Location: {diagnostic['location']}\nError: {diagnostic['error']}\n\n"
++            'Correct the reported error and return the complete JSON object under the original '
++            'output contract. Preserve unaffected content. This diagnostic is not task evidence '
++            'and does not expand reference permissions.')},
++    ])
++    return messages
+ 
+ 
+ def output_call(location, function, *args, **kwargs):
+--- before/tests/skill_evolution/v26_1/test_campaign.py
++++ after/tests/skill_evolution/v26_1/test_campaign.py
+@@ -5,6 +5,36 @@
+ from src.skill_evolution.v26_1 import evolution as ev, memory, facts, diagnosis, config
+ from scripts.runs.run_v26_1_campaign import run_training
+ from src.skill_evolution.v26_1.evaluation import run_test
++
++
++@pytest.mark.parametrize('changed', ['runtime_version', 'sources'])
++def test_round_boundary_identity_change_blocks_new_requests(tmp_path, monkeypatch, changed):
++    method, actor, _ = make(tmp_path / 'fixture')
++    tasks = method.dataset.splits['train']
++    method.dataset.batches = [tasks[:2], tasks[2:]]
++    cfg = config.campaign_config(method)
++    provider = MethodProvider()
++    root = tmp_path / 'campaign'
++    with method.using():
++        ev.run_round(root, config=cfg, generate=provider)
++        before = (len(actor.requests), len(provider.calls))
++        state = ev.read(root / 'state.json')
++        identity = (root / 'implementation.json').read_bytes()
++        assert before == (2, 1) and state['next_round'] == 2
++        with monkeypatch.context() as patch:
++            if changed == 'runtime_version':
++                patch.setattr(ev, 'RUNTIME_VERSION', ev.RUNTIME_VERSION + '_changed')
++            else:
++                sources = {**ev.stages._source_hashes(), ev.__file__: '0' * 64}
++                patch.setattr(ev.stages, '_source_hashes', lambda: sources)
++            with pytest.raises(ValueError, match='implementation.json'):
++                ev.run_campaign(root, generate=provider, resume=True)
++        assert (len(actor.requests), len(provider.calls)) == before
++        assert ev.read(root / 'state.json') == state
++        assert (root / 'implementation.json').read_bytes() == identity
++        assert not (root / 'rounds/R02').exists()
++        assert ev.run_campaign(root, generate=provider, resume=True)['status'] == 'complete'
++        assert (len(actor.requests), len(provider.calls)) == (4, 2)
+ 
+ 
+ @pytest.mark.parametrize('mode,outcome,commits,requests', [
+--- before/tests/skill_evolution/v26_1/test_stages.py
++++ after/tests/skill_evolution/v26_1/test_stages.py
+@@ -2,7 +2,7 @@
+ import json
+ import pytest
+ from .support import make, batch, MethodProvider
+-from src.skill_evolution.v26_1 import stages, diagnosis, facts
++from src.skill_evolution.v26_1 import stages, diagnosis, facts, output_feedback as feedback
+ from src.skill_evolution.v26.transport import RequestFailure, http_failure
+ 
+ 
+@@ -31,8 +31,24 @@
+         assert path.name=='004' and [len(m) for m in seen]==[2,4,4,4]
+         assert waits==[2,4,6] and seen[1]==seen[2] and seen[3][-2]['content']=='not json'
+         assert 'HIDDEN_SENTINEL' not in json.dumps(seen) and 'GOLD_ONLY_SENTINEL' not in json.dumps(seen)
++        assert stages.read(tmp_path/'stage/identity.json')['execution_view'] == 'v26_officeqa_formal_evidence_v1'
++        for context in (tmp_path/'stage/attempts').glob('*/request_context.json'):
++            assert stages.read(context)['execution_view'] == 'v26_officeqa_formal_evidence_v1'
+         assert stages.run_stage(tmp_path/'stage',call,resume=True,read_only=True,**options(cfg))[1]==result
+         assert len(seen)==4
++
++
++def test_feedback_view_is_officeqa_and_rejects_docvqa():
++    from src.skill_evolution.v29 import output_feedback as legacy
++    base = [{'role': 'user', 'content': 'OfficeQA formal runs'}]
++    context = {'policy': feedback.POLICY, 'feedback_from': None,
++               'execution_view': 'v26_officeqa_formal_evidence_v1'}
++    assert feedback.TIMELINE == context['execution_view']
++    assert feedback.request_messages(base, context) == base
++    with pytest.raises(ValueError, match='execution input view'):
++        feedback.request_messages(base, {**context, 'execution_view': legacy.TIMELINE})
++    assert legacy.TIMELINE == 'v29_docvqa_facts_v1'
++    assert legacy.request_messages(base, {**context, 'execution_view': legacy.TIMELINE}) == base
+ 
+ 
+ def test_shared_six_attempts_never_reset(tmp_path):

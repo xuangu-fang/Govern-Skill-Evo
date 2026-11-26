@@ -1,0 +1,243 @@
+{
+  "optimization_pool": "officeqa_train50_validation24_v1",
+  "optimization_splits": [
+    "train"
+  ],
+  "initial_skill": {
+    "source": "/Users/didi/Desktop/Govern-Skill-Evo/experiments/configs/v26_officeqa_initial_skill.md",
+    "text": "# OfficeQA Skill\n\n## Retrieval Discipline\n- Start by narrowing to the most likely candidate file before reading long passages.\n- Prefer targeted search terms that name the exact entity, period, measure, or table concept from the question.\n- After a promising match, read only a small surrounding span and verify it matches the requested year, basis, and unit.\n\n## Evidence Discipline\n- Extract the exact value from the retrieved text before doing any arithmetic.\n- Keep track of each operand's period, unit, and semantic role so nearby proxy values are not mixed in.\n- If the question asks for a transformed or derived quantity, compute only after confirming every operand.\n\n## Final Answer Discipline\n- Return the final answer only after one last consistency check against the retrieved evidence.\n- Copy the final answer from a checked value, not from an unverified intermediate guess.\n"
+  },
+  "gate_metric": "officeqa_em_exact_v1",
+  "method": {
+    "version": "v26_campaign_v1",
+    "prompts": {
+      "grouping": "v26_officeqa_grouping_v1",
+      "diagnosis": "v26_officeqa_diagnosis_evidence_scoped_updates_v1",
+      "preconditioner": "v26_officeqa_preconditioner_evidence_decision_boundaries_v1",
+      "editor": "v26_officeqa_editor_scope_fidelity_v1",
+      "replay": "v26_officeqa_replay_decision_fidelity_v1",
+      "verifier": "v26_officeqa_obvious_fact_verifier_v1",
+      "repair": "v26_officeqa_targeted_repair_v1"
+    },
+    "preconditioner_contract": "v25_explicit_references_v2",
+    "patch_contract": "unnumbered_diff_v1",
+    "memory_contract": "entries_sources_multi_knowledge_v1",
+    "memory_view": "memory_knowledge_only_v1",
+    "replay_input_view": "v26_officeqa_pairs_formal_v1",
+    "model_input_view": "v26_officeqa_lossless_input_v2",
+    "gate_rule": "ACCEPT iff candidate_success > parent_success; otherwise RETAIN",
+    "retry_policy": "previous_output_validation_error_v1",
+    "knowledge_review": "obvious_fact_verifier_targeted_repair_v1",
+    "semantic_resampling": false,
+    "memory_publication": "review_before_commit"
+  },
+  "benchmark": {
+    "name": "OfficeQA",
+    "execution_profile": "officeqa_skilladam_aligned_v2",
+    "evidence_version": "v26_officeqa_formal_evidence_v1"
+  },
+  "actor": {
+    "model": "deepseek-flash",
+    "max_completion_tokens": 32768,
+    "temperature": 1.0,
+    "reasoning_effort": "medium",
+    "reasoning_mode": "deepseek_thinking",
+    "token_limit_field": "max_tokens",
+    "request_timeout_seconds": 300,
+    "connect_timeout_seconds": 10,
+    "retry_policy": "six_attempts_temporary_format_feedback_v1",
+    "request_attempts_total": 6,
+    "transport": "direct_http",
+    "endpoint": "https://api.deepseek.com/chat/completions"
+  },
+  "batches": [
+    [
+      "UID0002",
+      "UID0007",
+      "UID0014",
+      "UID0017",
+      "UID0018",
+      "UID0019",
+      "UID0026",
+      "UID0028",
+      "UID0030",
+      "UID0031"
+    ],
+    [
+      "UID0033",
+      "UID0034",
+      "UID0044",
+      "UID0046",
+      "UID0049",
+      "UID0056",
+      "UID0063",
+      "UID0065",
+      "UID0073",
+      "UID0079"
+    ],
+    [
+      "UID0083",
+      "UID0085",
+      "UID0087",
+      "UID0092",
+      "UID0098",
+      "UID0101",
+      "UID0110",
+      "UID0115",
+      "UID0122",
+      "UID0123"
+    ],
+    [
+      "UID0133",
+      "UID0141",
+      "UID0144",
+      "UID0145",
+      "UID0150",
+      "UID0151",
+      "UID0162",
+      "UID0163",
+      "UID0165",
+      "UID0166"
+    ],
+    [
+      "UID0169",
+      "UID0189",
+      "UID0195",
+      "UID0202",
+      "UID0212",
+      "UID0222",
+      "UID0228",
+      "UID0229",
+      "UID0238",
+      "UID0241"
+    ],
+    [
+      "UID0001",
+      "UID0027",
+      "UID0039",
+      "UID0041",
+      "UID0052",
+      "UID0070",
+      "UID0072",
+      "UID0086",
+      "UID0091",
+      "UID0109"
+    ],
+    [
+      "UID0142",
+      "UID0154",
+      "UID0159",
+      "UID0161",
+      "UID0170",
+      "UID0190",
+      "UID0213",
+      "UID0217",
+      "UID0220",
+      "UID0233"
+    ],
+    [
+      "UID0234",
+      "UID0235",
+      "UID0239",
+      "UID0240"
+    ]
+  ],
+  "epoch_schedule": {
+    "epochs": 1,
+    "round_epochs": [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    "batch_size": 10
+  },
+  "max_attempts": 6,
+  "retry_delay_seconds": 2,
+  "continue_no_change": true,
+  "max_input_chars": 4000000,
+  "max_message_utf8_bytes": 6000000,
+  "module_calls": {
+    "grouping": {
+      "endpoint": "https://api.deepseek.com/chat/completions",
+      "model": "deepseek-flash",
+      "max_tokens": 16384,
+      "timeout_seconds": 300,
+      "temperature": 1.0,
+      "reasoning_effort": "medium",
+      "thinking": {
+        "type": "enabled"
+      }
+    },
+    "diagnosis": {
+      "endpoint": "https://api.deepseek.com/chat/completions",
+      "model": "deepseek-flash",
+      "max_tokens": 32768,
+      "timeout_seconds": 300,
+      "temperature": 1.0,
+      "reasoning_effort": "medium",
+      "thinking": {
+        "type": "enabled"
+      }
+    },
+    "preconditioner": {
+      "endpoint": "https://api.deepseek.com/chat/completions",
+      "model": "deepseek-flash",
+      "max_tokens": 32768,
+      "timeout_seconds": 300,
+      "temperature": 1.0,
+      "reasoning_effort": "medium",
+      "thinking": {
+        "type": "enabled"
+      }
+    },
+    "editor": {
+      "endpoint": "https://api.deepseek.com/chat/completions",
+      "model": "deepseek-flash",
+      "max_tokens": 16384,
+      "timeout_seconds": 300,
+      "temperature": 1.0,
+      "reasoning_effort": "medium",
+      "thinking": {
+        "type": "enabled"
+      }
+    },
+    "replay": {
+      "endpoint": "https://api.deepseek.com/chat/completions",
+      "model": "deepseek-flash",
+      "max_tokens": 32768,
+      "timeout_seconds": 300,
+      "temperature": 1.0,
+      "reasoning_effort": "medium",
+      "thinking": {
+        "type": "enabled"
+      }
+    },
+    "verifier": {
+      "endpoint": "https://api.deepseek.com/chat/completions",
+      "model": "deepseek-flash",
+      "max_tokens": 32768,
+      "timeout_seconds": 300,
+      "temperature": 1.0,
+      "reasoning_effort": "medium",
+      "thinking": {
+        "type": "enabled"
+      }
+    },
+    "repair": {
+      "endpoint": "https://api.deepseek.com/chat/completions",
+      "model": "deepseek-flash",
+      "max_tokens": 32768,
+      "timeout_seconds": 300,
+      "temperature": 1.0,
+      "reasoning_effort": "medium",
+      "thinking": {
+        "type": "enabled"
+      }
+    }
+  }
+}

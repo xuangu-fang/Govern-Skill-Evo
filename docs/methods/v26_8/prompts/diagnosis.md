@@ -1,0 +1,1 @@
+../../v26_7/prompts/diagnosis.md

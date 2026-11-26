@@ -1,0 +1,240 @@
+--- a/docs/methods/v26_1/prompts/replay.md
++++ b/docs/methods/v26_1/prompts/replay.md
+@@ -1,6 +1,47 @@
+ # Replay
+ 
+ Analyze the supplied current EM-transition tasks from one joint Candidate execution. Produce exactly one event Knowledge per task, linking it to one implemented Update only when a clear behavioral connection is supported. Do not execute independent Updates, decide Gate, revise historical Memory or prescribe the next Plan.
++
++## OfficeQA domain guidance for optimization
++
++Apply this guidance within the current module's inputs and responsibilities. Use the examples when relevant to the question, the evidence supplied to this module, or the authorized Update. They impose no fixed Actor workflow, category labels or output fields.
++
++The Actor may already have sufficient bulletin text in its initial messages. When additional evidence is needed, it can narrow the allowed files with glob, search with literal grep, and read a small window around a match. A source-page locator is not a TXT line number. A truncated window or empty search leaves the rest of the document unresolved. The Actor has at most 24 accepted model rounds including its final answer round. Weigh the cost of further retrieval against the evidence already available.
++
++**Permitted domain-specific content** (not considered case-specific):
++- Treasury financing terminology: offered amount, tenders received,
++  tenders accepted, competitive/noncompetitive, refunding, new cash
++  raised — when describing role disambiguation as a general skill.
++- Table structure patterns: multi-row headers, fiscal-vs-calendar sections,
++  amount-vs-percent adjacent columns — when describing alignment rules.
++- Statistical/financial method conventions: population vs sample std dev,
++  32nds quotation format, compound growth formula — when describing
++  computation discipline.
++- Output format heuristics: when to include/exclude %, unit words, commas.
++
++- **Evidence targeting**: After finding the right document, does the agent locate the precise evidence span (table row, paragraph) needed for the answer?
++- **Operand extraction**: When arithmetic is required, does the agent extract the correct operands from the text? Common failure: reading a different row/column or confusing similar-looking values.
++- **Calculation accuracy**: Does the agent compute correctly after extraction? Watch for sign errors, unit conversions, and off-by-one in time periods.
++
++Use the question to determine the requested components, ordering, range, precision, sign, unit, or percent symbol in the answer element. In time-series calculations, the observation count and elapsed periods can affect the result. Normalized EM and token F1 alone cannot reveal a reference value, identify a wrong operand, or establish a formatting-only failure.
++
++Optional failure vocabulary: retrieval_miss, evidence_miss, operand_error, calculation_error, answer_format, other. Distinguish searching the wrong bulletin from missing a decisive row or paragraph in the right one. Distinguish selecting a value with the wrong semantic role from applying the wrong formula to correctly extracted values. Use these distinctions only as far as the visible record supports them.
++
++Successful behavior can also help identify what to preserve. Examples from SkillAdam:
++- **efficient_retrieval**: The agent narrowed to the correct bulletin and evidence span with targeted glob, grep, and bounded reads.
++- **evidence_alignment**: The agent correctly aligned the requested period, entity, row, column, chart mark, and unit.
++- **calculation_verification**: The agent verified operand roles, formula convention, observation count, and arithmetic before answering.
++- **concise_format**: The agent returned only the requested value with the correct precision, sign, unit, or percent convention.
++
++A correct answer alone cannot establish which rule was used or which calculation was performed. Treat rule use and computation as claims requiring supporting behavior in the supplied record.
++
++Rules must apply to the general class of tasks represented by the
++trajectories, not to individual cases. Extract the underlying principle
++from a specific failure — do not encode a case-specific patch.
++
++Do not preserve case IDs, literal local paths, bulletin issue dates, source
++URLs, one-off values, gold answers, evaluator thresholds, or benchmark
++bookkeeping in the skill.
+ 
+ ## OfficeQA execution and evidence boundary
+ 
+--- a/docs/methods/v26_1/prompts/editor.md
++++ b/docs/methods/v26_1/prompts/editor.md
+@@ -1,6 +1,47 @@
+ # Editor
+ 
+ Given Parent and the Effective Plan, implement each Effective Update through its own exact unnumbered patch. All patches target the same original Parent. Do not reconsider the strategy, diagnose executions or add independent requirements. The program jointly constructs one Candidate. Per-Update mapping enables traceability and later selection; it does not establish independent behavioral effects.
++
++## OfficeQA domain guidance for optimization
++
++Apply this guidance within the current module's inputs and responsibilities. Use the examples when relevant to the question, the evidence supplied to this module, or the authorized Update. They impose no fixed Actor workflow, category labels or output fields.
++
++The Actor may already have sufficient bulletin text in its initial messages. When additional evidence is needed, it can narrow the allowed files with glob, search with literal grep, and read a small window around a match. A source-page locator is not a TXT line number. A truncated window or empty search leaves the rest of the document unresolved. The Actor has at most 24 accepted model rounds including its final answer round. Weigh the cost of further retrieval against the evidence already available.
++
++**Permitted domain-specific content** (not considered case-specific):
++- Treasury financing terminology: offered amount, tenders received,
++  tenders accepted, competitive/noncompetitive, refunding, new cash
++  raised — when describing role disambiguation as a general skill.
++- Table structure patterns: multi-row headers, fiscal-vs-calendar sections,
++  amount-vs-percent adjacent columns — when describing alignment rules.
++- Statistical/financial method conventions: population vs sample std dev,
++  32nds quotation format, compound growth formula — when describing
++  computation discipline.
++- Output format heuristics: when to include/exclude %, unit words, commas.
++
++- **Evidence targeting**: After finding the right document, does the agent locate the precise evidence span (table row, paragraph) needed for the answer?
++- **Operand extraction**: When arithmetic is required, does the agent extract the correct operands from the text? Common failure: reading a different row/column or confusing similar-looking values.
++- **Calculation accuracy**: Does the agent compute correctly after extraction? Watch for sign errors, unit conversions, and off-by-one in time periods.
++
++Use the question to determine the requested components, ordering, range, precision, sign, unit, or percent symbol in the answer element. In time-series calculations, the observation count and elapsed periods can affect the result. Normalized EM and token F1 alone cannot reveal a reference value, identify a wrong operand, or establish a formatting-only failure.
++
++Optional failure vocabulary: retrieval_miss, evidence_miss, operand_error, calculation_error, answer_format, other. Distinguish searching the wrong bulletin from missing a decisive row or paragraph in the right one. Distinguish selecting a value with the wrong semantic role from applying the wrong formula to correctly extracted values. Use these distinctions only as far as the visible record supports them.
++
++Successful behavior can also help identify what to preserve. Examples from SkillAdam:
++- **efficient_retrieval**: The agent narrowed to the correct bulletin and evidence span with targeted glob, grep, and bounded reads.
++- **evidence_alignment**: The agent correctly aligned the requested period, entity, row, column, chart mark, and unit.
++- **calculation_verification**: The agent verified operand roles, formula convention, observation count, and arithmetic before answering.
++- **concise_format**: The agent returned only the requested value with the correct precision, sign, unit, or percent convention.
++
++A correct answer alone cannot establish which rule was used or which calculation was performed. Treat rule use and computation as claims requiring supporting behavior in the supplied record.
++
++Rules must apply to the general class of tasks represented by the
++trajectories, not to individual cases. Extract the underlying principle
++from a specific failure — do not encode a case-specific patch.
++
++Do not preserve case IDs, literal local paths, bulletin issue dates, source
++URLs, one-off values, gold answers, evaluator thresholds, or benchmark
++bookkeeping in the skill.
+ 
+ ## OfficeQA editing boundary
+ 
+--- a/docs/methods/v26_1/prompts/diagnosis.md
++++ b/docs/methods/v26_1/prompts/diagnosis.md
+@@ -1,6 +1,47 @@
+ # Diagnosis
+ 
+ Produce one evidence-grounded Original Plan for the current batch of Parent executions. Identify behavioral improvements that can reasonably be implemented through the Skill while preserving valid capabilities. Historical edit-response adjustment belongs to Preconditioner. Do not read historical Memory or impose a fixed Update count.
++
++## OfficeQA domain guidance for optimization
++
++Apply this guidance within the current module's inputs and responsibilities. Use the examples when relevant to the question, the evidence supplied to this module, or the authorized Update. They impose no fixed Actor workflow, category labels or output fields.
++
++The Actor may already have sufficient bulletin text in its initial messages. When additional evidence is needed, it can narrow the allowed files with glob, search with literal grep, and read a small window around a match. A source-page locator is not a TXT line number. A truncated window or empty search leaves the rest of the document unresolved. The Actor has at most 24 accepted model rounds including its final answer round. Weigh the cost of further retrieval against the evidence already available.
++
++**Permitted domain-specific content** (not considered case-specific):
++- Treasury financing terminology: offered amount, tenders received,
++  tenders accepted, competitive/noncompetitive, refunding, new cash
++  raised — when describing role disambiguation as a general skill.
++- Table structure patterns: multi-row headers, fiscal-vs-calendar sections,
++  amount-vs-percent adjacent columns — when describing alignment rules.
++- Statistical/financial method conventions: population vs sample std dev,
++  32nds quotation format, compound growth formula — when describing
++  computation discipline.
++- Output format heuristics: when to include/exclude %, unit words, commas.
++
++- **Evidence targeting**: After finding the right document, does the agent locate the precise evidence span (table row, paragraph) needed for the answer?
++- **Operand extraction**: When arithmetic is required, does the agent extract the correct operands from the text? Common failure: reading a different row/column or confusing similar-looking values.
++- **Calculation accuracy**: Does the agent compute correctly after extraction? Watch for sign errors, unit conversions, and off-by-one in time periods.
++
++Use the question to determine the requested components, ordering, range, precision, sign, unit, or percent symbol in the answer element. In time-series calculations, the observation count and elapsed periods can affect the result. Normalized EM and token F1 alone cannot reveal a reference value, identify a wrong operand, or establish a formatting-only failure.
++
++Optional failure vocabulary: retrieval_miss, evidence_miss, operand_error, calculation_error, answer_format, other. Distinguish searching the wrong bulletin from missing a decisive row or paragraph in the right one. Distinguish selecting a value with the wrong semantic role from applying the wrong formula to correctly extracted values. Use these distinctions only as far as the visible record supports them.
++
++Successful behavior can also help identify what to preserve. Examples from SkillAdam:
++- **efficient_retrieval**: The agent narrowed to the correct bulletin and evidence span with targeted glob, grep, and bounded reads.
++- **evidence_alignment**: The agent correctly aligned the requested period, entity, row, column, chart mark, and unit.
++- **calculation_verification**: The agent verified operand roles, formula convention, observation count, and arithmetic before answering.
++- **concise_format**: The agent returned only the requested value with the correct precision, sign, unit, or percent convention.
++
++A correct answer alone cannot establish which rule was used or which calculation was performed. Treat rule use and computation as claims requiring supporting behavior in the supplied record.
++
++Rules must apply to the general class of tasks represented by the
++trajectories, not to individual cases. Extract the underlying principle
++from a specific failure — do not encode a case-specific patch.
++
++Do not preserve case IDs, literal local paths, bulletin issue dates, source
++URLs, one-off values, gold answers, evaluator thresholds, or benchmark
++bookkeeping in the skill.
+ 
+ ## OfficeQA execution and evidence boundary
+ 
+@@ -133,8 +174,6 @@
+ 
+ For each proposed change, connect a visible task requirement, an observed behavior/result discrepancy and the behavior intended to address it. Separate the discrepancy from its hypothesized cause. Source text and tool traces can support a testable hypothesis about retrieval, evidence selection or checking; ordinary explanations do not prove hidden arithmetic or attention. No reference answers are available. Do not fabricate a missing value or mechanism; uncertainty alone does not invalidate a reasonable experiment.
+ 
+-Distinguish discrepancies in retrieval and evidence selection, interpretation of the requested quantity and answer scope, and calculation or submission from selected evidence. These are analytical distinctions, not mandatory categories or established internal causes; multiple explanations may remain plausible. Use visible headings, rows, periods, fiscal/calendar basis, units, operand roles and question requirements where relevant. When extra or missing answer content is supported by the supplied question and trace, address what constitutes a complete answer before adding copying or formatting instructions. Prefer the smallest sufficient answer unit, not the shortest string or the entire table. Preserve required signs, units, components, ordering, ranges and precision. EM failure alone cannot identify which value or operation was wrong, because references are not supplied.
+-
+ For each proposed Update, inspect the relevant Parent/base guidance, headings and scope, and identify the concrete decision the change would alter: what the Actor selects, excludes, compares, preserves or returns, and under which observable condition. A narrower task label, stronger wording or another request to "check carefully" is not by itself a behavioral increment. If existing guidance already addresses the discrepancy, consider whether its trigger, decision procedure, priority or interaction with another instruction needs revision. Existing coverage does not prove adequacy, and another failure does not by itself justify repetition. Explain the decisive increment concisely in reason; do not add output fields.
+ 
+ ## Construct complete, scoped Updates
+@@ -145,7 +184,7 @@
+ 
+ Applicability must depend on the Actor-visible question, actual source text, available local-tool observations or its own response, never a gold answer, grade or hidden optimizer state. Do not prescribe online lookup, code execution, new tools or scorer-assisted correction. A question or stated rationale can motivate a strategy but cannot establish unseen document contents or prove that preferring a table, date, field or longer answer is generally correct. Describe an unobserved document condition as a condition for the Actor to assess. Make a proposed procedure conditional and justify its burden within the real tool limits and 24-round budget.
+ 
+-Preserve requested field roles, entity, relation, temporal basis, units, arithmetic operation and answer-granularity requirements. Do not replace the requested answer with an explanation, a list of guesses or a weaker deliverable. Answer completeness does not mean maximum length. Keep answer-element restrictions scoped to that element and preserve the no-further-tool final-answer protocol; no extra explanation is required. Differences in units, punctuation, date or numeric representation may explain a string mismatch only where observable evidence supports it and the native scorer distinguishes it; they do not justify universal normalization rules.
++Keep answer-element restrictions scoped to that element and preserve the no-further-tool final-answer protocol; no extra explanation is required.
+ 
+ Goal states the intended improvement and necessary preservation boundaries without making an untested strategy immutable. Every Update carries its material trigger, action, strength, exceptions, dependencies and preservation conditions. Distinguish permission, preference and obligation. Do not encode task IDs, instance answers or question-to-answer lookup keys, nor turn an isolated observed spelling into a universal rule.
+ 
+--- a/docs/methods/v26_1/prompts/preconditioner.md
++++ b/docs/methods/v26_1/prompts/preconditioner.md
+@@ -1,6 +1,47 @@
+ # Preconditioner
+ 
+ Refine the frozen Original Updates through Direction, Scope and Coordination (D/S/C), using relevant historical Knowledge, current supporting evidence, Parent and actual OfficeQA execution conditions. History may guide correction or development of a reasonable proposal. A concrete current defect can justify adjustment without history. Do not perform a new Diagnosis, add independent repairs or edit Parent directly.
++
++## OfficeQA domain guidance for optimization
++
++Apply this guidance within the current module's inputs and responsibilities. Use the examples when relevant to the question, the evidence supplied to this module, or the authorized Update. They impose no fixed Actor workflow, category labels or output fields.
++
++The Actor may already have sufficient bulletin text in its initial messages. When additional evidence is needed, it can narrow the allowed files with glob, search with literal grep, and read a small window around a match. A source-page locator is not a TXT line number. A truncated window or empty search leaves the rest of the document unresolved. The Actor has at most 24 accepted model rounds including its final answer round. Weigh the cost of further retrieval against the evidence already available.
++
++**Permitted domain-specific content** (not considered case-specific):
++- Treasury financing terminology: offered amount, tenders received,
++  tenders accepted, competitive/noncompetitive, refunding, new cash
++  raised — when describing role disambiguation as a general skill.
++- Table structure patterns: multi-row headers, fiscal-vs-calendar sections,
++  amount-vs-percent adjacent columns — when describing alignment rules.
++- Statistical/financial method conventions: population vs sample std dev,
++  32nds quotation format, compound growth formula — when describing
++  computation discipline.
++- Output format heuristics: when to include/exclude %, unit words, commas.
++
++- **Evidence targeting**: After finding the right document, does the agent locate the precise evidence span (table row, paragraph) needed for the answer?
++- **Operand extraction**: When arithmetic is required, does the agent extract the correct operands from the text? Common failure: reading a different row/column or confusing similar-looking values.
++- **Calculation accuracy**: Does the agent compute correctly after extraction? Watch for sign errors, unit conversions, and off-by-one in time periods.
++
++Use the question to determine the requested components, ordering, range, precision, sign, unit, or percent symbol in the answer element. In time-series calculations, the observation count and elapsed periods can affect the result. Normalized EM and token F1 alone cannot reveal a reference value, identify a wrong operand, or establish a formatting-only failure.
++
++Optional failure vocabulary: retrieval_miss, evidence_miss, operand_error, calculation_error, answer_format, other. Distinguish searching the wrong bulletin from missing a decisive row or paragraph in the right one. Distinguish selecting a value with the wrong semantic role from applying the wrong formula to correctly extracted values. Use these distinctions only as far as the visible record supports them.
++
++Successful behavior can also help identify what to preserve. Examples from SkillAdam:
++- **efficient_retrieval**: The agent narrowed to the correct bulletin and evidence span with targeted glob, grep, and bounded reads.
++- **evidence_alignment**: The agent correctly aligned the requested period, entity, row, column, chart mark, and unit.
++- **calculation_verification**: The agent verified operand roles, formula convention, observation count, and arithmetic before answering.
++- **concise_format**: The agent returned only the requested value with the correct precision, sign, unit, or percent convention.
++
++A correct answer alone cannot establish which rule was used or which calculation was performed. Treat rule use and computation as claims requiring supporting behavior in the supplied record.
++
++Rules must apply to the general class of tasks represented by the
++trajectories, not to individual cases. Extract the underlying principle
++from a specific failure — do not encode a case-specific patch.
++
++Do not preserve case IDs, literal local paths, bulletin issue dates, source
++URLs, one-off values, gold answers, evaluator thresholds, or benchmark
++bookkeeping in the skill.
+ 
+ ## OfficeQA execution and evidence boundary
+ 
+--- a/docs/methods/v26_1/PROMPT_REVIEW.md
++++ b/docs/methods/v26_1/PROMPT_REVIEW.md
+@@ -1,6 +1,19 @@
+ # OfficeQA v26.1 四模块联合审阅
+ 
+ 四份Prompt由保存的v29.4 Diagnosis／Preconditioner和其沿用的v29.2 Editor／Replay原文适配，文件完整展开，可分别阅读。实际Actor基础协议由本地OfficeQA `VENDOR_PROMPT.format(skill_section="")`提取，工具schema来自同一来源。源文件不在运行时自动升级本稿。
++
++## 2026-11-05 共享 OfficeQA 领域指导
++
++四个模块在职责说明后嵌入相同的英文段落。来源为仓库内 [SkillAdam OfficeQA prompts](../../../external/SkillAdam/skilladam/benchmarks/officeqa/prompts/)（[许可](../../../external/SkillAdam/LICENSE)）。逐字摘录及环境适配如下：
++
++| 来源 | 采用方式 |
++|---|---|
++| `skill_writing_policy.md` 第 54–63、67–69 行；`stage0_extra_section.md` 第 7–9 行 | 原样摘录允许的金融术语、表格、计算与输出格式四项，以及泛化和禁止写入个案内容的要求。 |
++| `metric_interpretation.md` 第 38–40 行 | 原样摘录证据定位、操作数提取和计算准确度三项。检索适配初始消息已有文本、字面 grep、TXT 行号和截断；24 轮含最终回答。答案格式由问题决定，EM/F1 单独不能定位错因。 |
++| `failure_types.md` 第 5–10 行 | 沿用六个名称作可选词汇。依据实际文本区分检索、表格定位、取数和计算；证据不足时保留不确定性。 |
++| `success_types.md` 第 6–9 行 | 原样摘录四类成功行为作为例子。仅凭答对无法确认规则使用或计算过程，规则采纳由现有机制决定。 |
++
++Diagnosis 删除旧的错误分类长段和“先定答案范围再处理格式”的顺序要求；另一段关于字段角色和答复长度的指导仅保留答案元素作用域与最终提交协议。其余三个模块只插入共享段。原有 v29 迁移 diff 记录初稿，这次修改见 [修订前后 diff](diffs/officeqa_shared_guidance.diff)。
+ 
+ ## 方法保留
+ 
