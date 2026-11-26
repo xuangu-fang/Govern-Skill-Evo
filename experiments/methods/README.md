@@ -10,6 +10,8 @@
 
 [OfficeQA 正式实验与离线评分核验](OFFICEQA.md)
 
+[SearchQA 主对照、历史实验与离线复算](SEARCHQA.md)
+
 按方法版本和原实验 ID 组织配置、冻结证据及精选结果。版本号不表示已完成正式实验，目录存在也不代表实验成功。
 
 当前结构为 `experiments/methods/<版本>/<实验ID>/{config,results,reports}`，只建立实际存在的材料子目录。完整运行产物已统一归入 `artifacts/methods/`，见[运行导航](RUNTIME.md)。
