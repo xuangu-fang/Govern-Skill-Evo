@@ -1,0 +1,23 @@
+# SkillAdam · ALFWorld 逐步轨迹反馈 · 第三次独立训练
+
+从双官方模型基线的初始 Skill 开始，使用逐步轨迹反馈完成六轮训练，共 57 道优化任务。前五轮通过 Gate，第六轮拒绝候选，R05 与 R06 共用同一份最终 Skill。[配置来源](config/baseline_reference.json) · [运行时入口快照](config/provenance/run_alfworld_skilladam_v24_9_feedback.py) · [逐轮训练摘要](results/training_summary.json) · [最终 Skill](results/final_skill.md)
+
+启动回执记录了入口补回 `official` 导入，以及第三轮 Momentum 使用相同配置重试的经过。[启动回执](../../../../../../artifacts/methods/skilladam/alfworld/trajectory_feedback/launch/skilladam_alfworld_v24_9_feedback_rerun_20261112_000402/run_receipt.json) · [恢复记录](../../../../../../artifacts/methods/skilladam/alfworld/trajectory_feedback/skilladam_alfworld_v24_9_feedback_rerun_20261112_000402/recovery/momentum_round3_same_config_retry_20261112_004632/recovery.json) · [运行日志](../../../../../../artifacts/methods/skilladam/alfworld/trajectory_feedback/launch/skilladam_alfworld_v24_9_feedback_rerun_20261112_000402/run.log)
+
+## 逐轮评测
+
+每次评测均用同一 Actor 执行同一组 134 道留出题。R00 是本次复测的共用初始 Skill。R05 和 R06 的三次评测按执行时间列出，最终 Skill 的首测为 111/134，三次中位数为 109/134。
+
+| 轮次 | 评测 | 成功题数 | 归档 |
+|---|---|---:|---|
+| R00 | 复测 | 111/134 | [受测 Skill](config/provenance/initial_skill.md) · [摘要](results/alfworld_skilladam_third_retest_20261112/R00/summary.json) · [逐题记录](../../../../../evaluations/alfworld_skilladam_third_retest_20261112/R00/results.jsonl) |
+| R01 | 首测 | 111/134 | [受测 Skill](results/R01_skill.md) · [摘要](results/alfworld_skilladam_third_checkpoints_20261112/R01/summary.json) · [逐题记录](../../../../../evaluations/alfworld_skilladam_third_checkpoints_20261112/R01/results.jsonl) |
+| R02 | 首测 | 117/134 | [受测 Skill](results/R02_skill.md) · [摘要](results/alfworld_skilladam_third_checkpoints_20261112/R02/summary.json) · [逐题记录](../../../../../evaluations/alfworld_skilladam_third_checkpoints_20261112/R02/results.jsonl) |
+| R02 | 复测 | 116/134 | [受测 Skill](results/R02_skill.md) · [摘要](results/alfworld_skilladam_third_retest_20261112/R02/summary.json) · [逐题记录](../../../../../evaluations/alfworld_skilladam_third_retest_20261112/R02/results.jsonl) |
+| R03 | 首测 | 109/134 | [受测 Skill](results/R03_skill.md) · [摘要](results/alfworld_skilladam_third_checkpoints_20261112/R03/summary.json) · [逐题记录](../../../../../evaluations/alfworld_skilladam_third_checkpoints_20261112/R03/results.jsonl) |
+| R03 | 复测 | 112/134 | [受测 Skill](results/R03_skill.md) · [摘要](results/alfworld_skilladam_third_retest_20261112/R03/summary.json) · [逐题记录](../../../../../evaluations/alfworld_skilladam_third_retest_20261112/R03/results.jsonl) |
+| R04 | 首测 | 117/134 | [受测 Skill](results/R04_skill.md) · [摘要](results/alfworld_skilladam_third_checkpoints_20261112/R04/summary.json) · [逐题记录](../../../../../evaluations/alfworld_skilladam_third_checkpoints_20261112/R04/results.jsonl) |
+| R04 | 复测 | 115/134 | [受测 Skill](results/R04_skill.md) · [摘要](results/alfworld_skilladam_third_retest_20261112/R04/summary.json) · [逐题记录](../../../../../evaluations/alfworld_skilladam_third_retest_20261112/R04/results.jsonl) |
+| R05、R06 | 首测 | 111/134 | [受测 Skill](results/final_skill.md) · [摘要](results/skilladam_alfworld_v24_9_feedback_rerun_20261112_000402_test134/summary.json) · [逐题记录](../../../../../../artifacts/methods/skilladam/alfworld/trajectory_feedback/skilladam_alfworld_v24_9_feedback_rerun_20261112_000402_test134/results.jsonl) |
+| R05、R06 | 复测 | 109/134 | [受测 Skill](results/final_skill.md) · [摘要](results/alfworld_skilladam_third_retest_20261112/R06/summary.json) · [逐题记录](../../../../../evaluations/alfworld_skilladam_third_retest_20261112/R06/results.jsonl) |
+| R05、R06 | 第二次复测 | 103/134 | [受测 Skill](results/final_skill.md) · [摘要](results/alfworld_skilladam_third_training_R06_test134_20261119_224436/R06/summary.json) · [逐题记录](../../../../../evaluations/alfworld_skilladam_third_training_R06_test134_20261119_224436/R06/results.jsonl) |

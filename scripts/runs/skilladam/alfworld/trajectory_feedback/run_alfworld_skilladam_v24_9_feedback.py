@@ -10,7 +10,7 @@ from scripts.runs.alfworld.alfworld_aligned_common import read, require, run_bat
 from src.skill_evolution.shared.experiment_paths import resolve_experiment_path
 from src.skill_evolution.skilladam.alfworld.shared_actor.paths import historical_input
 from src.skill_evolution.skilladam.alfworld.trajectory_feedback.backend import (
-    BASELINE, NATIVE, ROOT, FeedbackBackend, bridge,
+    BASELINE, NATIVE, ROOT, FeedbackBackend, bridge, official,
 )
 
 ARTIFACTS = ROOT / 'artifacts/methods/skilladam/alfworld/trajectory_feedback'
