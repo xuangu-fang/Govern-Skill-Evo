@@ -2,6 +2,7 @@
 import json
 
 from scripts.runs.alfworld.alfworld_aligned_common import read, require, result_from_record, validate_trajectory
+from scripts.runs.v24.read_archived_test import archive_path
 from src.skill_evolution.shared.experiment_paths import ROOT, resolve_experiment_path
 
 
@@ -25,7 +26,7 @@ def read_evaluation(root, training_run, items, actor, skill):
             'Incomplete Test or inconsistent results')
     successes = 0
     for item, row in zip(items, rows):
-        path = resolve_experiment_path(row['trajectory'])
+        path = archive_path(row['trajectory'])
         task_root = root / 'episodes' / item['id'].replace(':', '_')
         require(path.is_relative_to(task_root), 'Unexpected trajectory location')
         record = validate_trajectory(path, actor, item, skill)

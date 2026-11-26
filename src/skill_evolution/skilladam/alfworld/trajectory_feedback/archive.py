@@ -4,7 +4,8 @@ from hashlib import sha256
 import json
 
 from scripts.runs.alfworld.alfworld_aligned_common import read, require
-from src.skill_evolution.shared.experiment_paths import ROOT, resolve_experiment_path
+from scripts.runs.v24.read_archived_test import archive_path
+from src.skill_evolution.shared.experiment_paths import ROOT
 from ..archive import offline_alfworld, read_evaluation, read_training
 
 
@@ -22,7 +23,7 @@ def checkpoint_evaluations(output, results, training, final_skill, items, actor)
         inputs = read(root / 'inputs.json')
         label = run.name
         require(label in round_numbers and label == entry['round'] == inputs['round']
-                and resolve_experiment_path(inputs['training']) == output, 'Checkpoint training or round differs')
+                and archive_path(inputs['training']) == output, 'Checkpoint training or round differs')
         number = round_numbers[label]
         # The next training rollout starts with the Skill retained by this round's gate.
         skill = final_skill if number == rounds else (
