@@ -1,0 +1,96 @@
+--- before/prompts/diagnosis.md
++++ prompts/diagnosis.md
+@@ -1,6 +1,75 @@
+ # Diagnosis
+ 
+ Produce one evidence-grounded Original Plan from the current batch of Parent executions. Propose concrete behavioral corrections and their current evidential boundaries. Relevant Parent guidance provides execution context; integration with the whole Parent and historical edit-response adjustment belong to Preconditioner. Do not read historical Memory or impose a fixed Update count.
++
++<!-- DOCVQA_DOMAIN_GUIDE_START -->
++This shared section supplies domain guidance for optimization. Apply it within this module's existing responsibility, authorized input and output contract. It does not change Parent/Memory access, D/S/C decisions, patch ownership or Gate/Replay rules.
++
++## DocVQA optimization domain guide
++
++### Answer-time decision rules
++
++- **Domain-aware**: The Actor receives one document image and one question
++  and produces its answer in a single model round, without tools, online
++  search, or feedback-driven answer revision. Skill workflow steps describe
++  *answer-time decision rules* — how to inspect the image, locate the
++  relevant region, select the answer span, and format the output —
++  rather than multi-step procedures.
++
++### Domain patterns
++
++**Permitted domain-specific content** (not considered case-specific):
++- Document-layout patterns: forms (label/value pairs), tables (row/column
++  alignment, merged headers), figures and charts (axis labels, legend,
++  caption), free text paragraphs, handwritten annotations, signatures,
++  stamps — when describing where to look for the answer.
++- Question-type patterns: "what is the value of X" (label-to-value lookup),
++  "which year/date/page" (numeric span), "yes/no" (binary), "list all"
++  (enumerate from a region) — when describing how to interpret the question.
++- Answer-format conventions: when to include/omit units, currency symbols,
++  punctuation; when to keep original capitalization vs normalize; how to
++  format numbers (decimals, thousands separators, dates).
++- Visual extraction discipline: read the smallest sufficient region, prefer
++  printed text over inferred values, distinguish similar-looking glyphs
++  (`O` vs `0`, `l` vs `1`, `,` vs `.`) — when grounded in observed errors.
++
++### Learning focus
++
++- Grounding discipline: read the right region of the image, not memory.
++- Answer-span selection: when several candidate spans look plausible, pick
++  the one the document supports best (label-to-value alignment, table
++  row/column mapping, caption-to-figure correspondence).
++- Output formatting: emit exactly one `<answer>...</answer>`; keep the span
++  short and verbatim; determine the answer's level of detail from the
++  question and visible document evidence, including units, date components,
++  and identifying name components.
++- Avoid invented content: if the visible evidence is ambiguous or missing,
++  prefer the most-supported visible span over a confident guess.
++
++### Failure vocabulary
++
++- **evidence_miss**: The model overlooked the relevant visible region or line.
++- **near_match_confusion**: The model selected a nearby but incorrect text span.
++- **normalization_error**: The answer differed mainly in formatting, spacing, punctuation, or minor text normalization.
++- **reading_error**: The model misread the document content.
++- **other**: None of the above.
++
++### Generalization and content boundary
++
++The skill applies to the general class of DocVQA questions, not to
++individual cases. The skill body must NOT contain:
++
++- Evaluator-internal terminology (e.g. ANLS, Levenshtein, "hard"/"soft" as
++  score names) — describe the underlying behavior, not the metric labels.
++- Any literal value lifted from an input trajectory's image, question, or
++  response: specific entity names, amounts, dates, weights, percentages,
++  identifiers, or quoted phrases. These are case data, not patterns.
++- Benchmark bookkeeping (trajectory numbers, response excerpts, case IDs).
++
++When a workflow step or Error Avoidance rule needs an example, use
++synthetic placeholders or generic schema phrasing instead of values
++observed in the input trajectories.
++<!-- DOCVQA_DOMAIN_GUIDE_END -->
+ 
+ ## DocVQA execution and text evidence boundary
+ 
+@@ -57,8 +126,6 @@
+ 
+ For each proposed change, connect a visible task requirement, an observed response/result discrepancy and the behavior intended to address it. Separate the discrepancy from its hypothesized cause. Short-answer-only runs can support a testable hypothesis from input/output distinctions without proving a visual-selection, character-recognition or reasoning mechanism. Do not fabricate that mechanism; uncertainty alone does not invalidate a reasonable experiment.
+ 
+-Distinguish discrepancies in answer selection, answer scope and transcription within the selected scope. These are analytical distinctions, not mandatory categories or established visual causes; more than one explanation may remain plausible. When excess or missing answer content is supported by the supplied question, response and references, address what constitutes a complete answer before adding character-copying instructions. Prefer the smallest sufficient answer unit, not the shortest string or the entire sentence containing it. Preserve qualifiers, units, name components and ranges when needed to answer the question. A reference mismatch does not establish what is printed in the unseen image.
+-
+ For each proposed Update, identify what the Actor should select, exclude, compare, preserve or return differently, and under which observable condition. Use relevant Parent/base guidance as execution context: failure does not establish missing guidance, and existing coverage does not prove adequacy. Identify an apparent conflict when the current evidence supports it, without claiming that it caused the response. Do not perform a comprehensive Parent audit or settle all integration details. A narrower task label, stronger wording or another request to "check carefully" is not by itself a behavioral increment. Explain the decisive grounds and uncertainty concisely in reason; do not add output fields.
+ 
+ ## Construct complete, scoped Updates
+@@ -70,8 +137,6 @@
+ Keep the actions, conditions, exceptions and behavioral dependencies needed for one correction together, including behaviors that must work together. Separate materially different corrections when their grounds and intended behavior differ, not because individual tasks or clauses might later succeed, fail, be retained or be withdrawn separately. Impose no fixed Update count and do not split mechanically by sentence. Keep necessary dependencies intact; independent clause-level causal proof is not required. Per-Update patches support traceability, not proof of independent causal effects.
+ 
+ Applicability must depend on the Actor-visible question/document or its own response, never a gold answer, grade or hidden optimizer state. Do not prescribe online lookup, scorer-assisted correction or tools. The question or the Actor's stated rationale can motivate a strategy; it does not establish the unseen document's contents or prove that preferring a field, label, visual region or longer answer is generally correct. A proposed image-dependent condition must be described as a condition for the Actor to assess, not as a feature this module has observed. Make a proposed procedure conditional and justify its actual burden.
+-
+-Preserve requested field roles, entity, relation, temporal and answer-granularity requirements. Do not replace a requested answer with an explanation, a list of guesses or a weaker deliverable. Answer completeness does not mean maximum length. Keep formatting rules scoped to the intended part of the response. The base protocol requires a final answer element and does not explicitly forbid ordinary text outside it; this does not require adding an explanation. A difference in units, punctuation, date format or numeric formatting may explain a string-score mismatch, but does not by itself justify a universal normalization rule.
+ 
+ Goal states the intended improvement and necessary preservation boundaries without making an untested strategy immutable. Keep each Original complete as a behavioral proposal: state the intended change, its material task-visible conditions, strength, necessary behavioral dependencies, and preservation boundaries supported by current evidence. It need not be a complete Skill-editing plan; Preconditioner determines necessary treatment of existing guidance. Distinguish permission, preference and obligation. Do not encode task IDs, instance answers or question-to-answer lookup keys, nor turn a reference-only spelling into a universal rule.
+ 

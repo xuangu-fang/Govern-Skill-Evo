@@ -1,0 +1,154 @@
+--- baseline/prompts/preconditioner.md
++++ prompts/preconditioner.md
+@@ -1,6 +1,75 @@
+ # Preconditioner
+ 
+-Refine the frozen Original Updates through Direction, Scope and Coordination (D/S/C), using relevant historical Knowledge, current supporting evidence, Parent and actual DocVQA execution conditions. History may guide correction or development of a reasonable proposal. A concrete current defect can justify adjustment without history. Do not perform a new Diagnosis, add independent repairs or edit Parent directly.
++Transform the frozen Original Updates into effective behavioral corrections for the current Parent Skill through Direction, Scope and Coordination (D/S/C). Use Parent to determine existing coverage, necessary behavioral change and instruction interactions. Use relevant Memory and current evidence to adjust direction, applicability, strength and preservation boundaries. Evaluate each proposal as a change to the current Skill, not only as a standalone suggestion. Aim for sufficient, coherent guidance without redundant restatement or unnecessary decision branches. Do not perform a new Diagnosis, introduce independent repairs or edit Parent directly.
++
++<!-- DOCVQA_DOMAIN_GUIDE_START -->
++This shared section supplies domain guidance for optimization. Apply it within this module's existing responsibility, authorized input and output contract. It does not change Parent/Memory access, D/S/C decisions, patch ownership or Gate/Replay rules.
++
++## DocVQA optimization domain guide
++
++### Answer-time decision rules
++
++- **Domain-aware**: The Actor receives one document image and one question
++  and produces its answer in a single model round, without tools, online
++  search, or feedback-driven answer revision. Skill workflow steps describe
++  *answer-time decision rules* — how to inspect the image, locate the
++  relevant region, select the answer span, and format the output —
++  rather than multi-step procedures.
++
++### Domain patterns
++
++**Permitted domain-specific content** (not considered case-specific):
++- Document-layout patterns: forms (label/value pairs), tables (row/column
++  alignment, merged headers), figures and charts (axis labels, legend,
++  caption), free text paragraphs, handwritten annotations, signatures,
++  stamps — when describing where to look for the answer.
++- Question-type patterns: "what is the value of X" (label-to-value lookup),
++  "which year/date/page" (numeric span), "yes/no" (binary), "list all"
++  (enumerate from a region) — when describing how to interpret the question.
++- Answer-format conventions: when to include/omit units, currency symbols,
++  punctuation; when to keep original capitalization vs normalize; how to
++  format numbers (decimals, thousands separators, dates).
++- Visual extraction discipline: read the smallest sufficient region, prefer
++  printed text over inferred values, distinguish similar-looking glyphs
++  (`O` vs `0`, `l` vs `1`, `,` vs `.`) — when grounded in observed errors.
++
++### Learning focus
++
++- Grounding discipline: read the right region of the image, not memory.
++- Answer-span selection: when several candidate spans look plausible, pick
++  the one the document supports best (label-to-value alignment, table
++  row/column mapping, caption-to-figure correspondence).
++- Output formatting: emit exactly one `<answer>...</answer>`; keep the span
++  short and verbatim; determine the answer's level of detail from the
++  question and visible document evidence, including units, date components,
++  and identifying name components.
++- Avoid invented content: if the visible evidence is ambiguous or missing,
++  prefer the most-supported visible span over a confident guess.
++
++### Failure vocabulary
++
++- **evidence_miss**: The model overlooked the relevant visible region or line.
++- **near_match_confusion**: The model selected a nearby but incorrect text span.
++- **normalization_error**: The answer differed mainly in formatting, spacing, punctuation, or minor text normalization.
++- **reading_error**: The model misread the document content.
++- **other**: None of the above.
++
++### Generalization and content boundary
++
++The skill applies to the general class of DocVQA questions, not to
++individual cases. The skill body must NOT contain:
++
++- Evaluator-internal terminology (e.g. ANLS, Levenshtein, "hard"/"soft" as
++  score names) — describe the underlying behavior, not the metric labels.
++- Any literal value lifted from an input trajectory's image, question, or
++  response: specific entity names, amounts, dates, weights, percentages,
++  identifiers, or quoted phrases. These are case data, not patterns.
++- Benchmark bookkeeping (trajectory numbers, response excerpts, case IDs).
++
++When a workflow step or Error Avoidance rule needs an example, use
++synthetic placeholders or generic schema phrasing instead of values
++observed in the input trajectories.
++<!-- DOCVQA_DOMAIN_GUIDE_END -->
+ 
+ ## DocVQA execution and text evidence boundary
+ 
+@@ -63,11 +132,7 @@
+ 
+ Input contains exactly parent, plan, runs, memory and shared_initial. parent is the complete Parent Skill supplied independently of runs; do not rely on selected executions to provide it. Use it to assess duplication, conflicts and coordination independently of which executions are selected. plan has exactly goal and updates; each Original Update has id, text and basis. Goal, Original IDs and Original texts are frozen inputs. Output adjustments separately; never overwrite the Original Plan. runs contains whole current executions selected through direct references anywhere in the Plan and may cover only part of the batch. This includes cited successes and counterexamples. Diagnosis reason is not a Plan source.
+ 
+-Understand each Update's correction strategy as well as its behavior, condition, strength, completion boundary and necessary capabilities. Compare the visible problem with actual Parent guidance and the proposed treatment of that guidance: addition, revision, consolidation, replacement or removal as appropriate. No operation is preferred by default.
+-
+-Check whether the chosen treatment addresses the supported problem while preserving valid behavior; relevant current evidence or history may justify changing that treatment within the Original problem. Do not reduce a correction of existing guidance to another appended warning that leaves the old problem active.
+-
+-Keep assessment tied to the Original problem; do not scan the selected runs for unrelated repairs or introduce a separate shortening objective. An unexecuted proposal is not an intervention, and a reference answer does not reveal how the Actor reasoned.
++Identify each Original's supported problem and proposed behavioral correction. Read all relevant Parent guidance, including conditions and exceptions outside the nearest paragraph. Determine what is already covered, what meaningful behavioral change remains, and where the proposal would overlap with or conflict with existing guidance. Existing coverage does not prove adequacy: if execution failed despite relevant guidance, consider whether its trigger, action, strength, priority or interaction needs correction. Repetition or stronger wording alone does not establish that a proposal addresses the observed problem; evidence-grounded adjustments to instruction strength or priority remain valid options. Keep assessment tied to the Original problem; do not scan selected runs for unrelated repairs. An unexecuted proposal is not an intervention, and a reference answer does not reveal how the Actor reasoned.
+ 
+ ## Relate historical edits and observable responses
+ 
+@@ -81,39 +146,31 @@
+ 
+ ## Decide Direction Scope and Coordination
+ 
+-Make one integrated behavioral decision before choosing KEEP, REPLACE or WITHDRAW. Direction, Scope and Coordination guide reasoning; do not output D/S/C labels or separate fields.
+-
+-D — Direction: decide which behavior to promote, discourage or replace for the Original problem. A supported correction or useful development may strengthen, redirect or withdraw a requirement. Evidence against one strategy does not prove a replacement works.
+-
+-S — Scope: decide applicable task-visible conditions and instruction strength. Broaden, narrow, relax or strengthen with reasons grounded in current semantics or relevant reported history. Preserve question qualifiers, entity distinctions, temporal conditions and required answer granularity. Removing a case name is not evidence for universal applicability. New thresholds, priorities, ordering and stopping conditions are substantive decisions.
+-
+-C — Coordination: resolve concrete conflicts, missing prerequisites and redundancy among Originals and Parent. Specify in the resulting Update text the treatment of existing guidance required by the correction, including which behavior must change or cease to apply and which valid conditions must remain. Adding, revising, consolidating, replacing and removing guidance are available means, not quotas or preferences.
+-
+-Do not rely on an additional bullet to override conflicting Parent text. When changing one clause would leave a conflicting condition active elsewhere, coordinate through the affected Originals. Necessary follow-through belongs with the supported repair; optional independent improvements need their own grounds. Limit consolidation to guidance affected by the Original, without unrelated cleanup.
+-
+-Consolidating related Skill guidance is different from merging Original Updates: do not split or merge Update IDs, move an independent repair into another ID, or add new IDs. If an essential conflict cannot be resolved within the existing problem boundaries, withdraw the affected proposal and account for dependent Updates rather than leave an incomplete repair.
++Make one integrated decision using Parent, current evidence and relevant Memory before choosing KEEP, REPLACE or WITHDRAW. D/S/C guide reasoning; do not output separate fields or a mandatory checklist. History need not be relevant to every proposal, and neither Parent nor Memory must force a change.
++
++D — Direction: determine the behavior worth promoting, changing or discontinuing for the Original problem. Historical support or a counterexample can redirect the proposal, but evidence against one strategy does not prove a replacement works.
++
++S — Scope: retain the task-visible conditions and instruction strength supported by current evidence and relevant reported history. Preserve question qualifiers, entity distinctions, temporal conditions and answer granularity. Remove unsupported extensions rather than defending them with speculative exceptions. Include a protection or exception when it resolves a material risk; do not enumerate unrelated capabilities merely to say that they remain unchanged. New thresholds, priorities, ordering and stopping conditions are substantive decisions, not wording changes.
++
++C — Coordination: determine how the correction fits the existing Skill and the other Originals. When it changes existing guidance, identify that guidance by its behavior or recognizable wording and state what must be replaced, qualified, consolidated or removed, together with the valid branches that remain. Do not leave an old conflicting condition active and rely on an additional warning to override it. Necessary related changes belong to the supported correction; unrelated cleanup is not authorized.
++
++When related Parent passages repeat the same decision, consider whether the correction can express that decision once with its necessary branches. Consolidation may replace affected redundant wording, but must stay within the Original problem and preserve meaningful distinctions. Do not turn consolidation into a broader unsupported rule, pack distinct decisions into an opaque sentence, or repeat whole preservation lists. When a new behavioral decision is needed, allow new guidance. Neither fewer bullets nor a shorter string alone establishes improvement; impose no length target or add/revise quota.
++
++Review the intended combined behavior of Parent and all surviving Updates. If conditions overlap, make the necessary priority or exception explicit in effective text. Preserve existing IDs and problem boundaries; do not merge IDs, move an independent repair into another ID or duplicate a shared modification across Updates. Do not assume another Update will necessarily be retained to complete an otherwise incomplete correction. Resolve necessary coordination within the existing boundaries, or withdraw affected proposals when no complete supported correction can be expressed; this does not establish independent causal effects or guarantee every patch subset is semantically valid.
+ 
+ Distinguish permission, preference and obligation. One successful comparison does not justify making every step compulsory. Exhaustively checking every image region or numeric field, adding verification rituals or forcing longer answers can create burden or suppress a valid route. Consider actual one-round capabilities and budget. Preserve task requirements on main and fallback paths; never replace a useful behavior with reference lookup, guessing or answer padding.
+ 
+-## Choose one adjustment for every Original
+-
+-Choose KEEP when the Original remains a justified experiment as written after considering Parent/base guidance, supplied current evidence and any relevant historical Knowledge. Empty or irrelevant Memory neither requires KEEP nor prevents it; current evidence can suffice. Adjust when the comparison supports a better direction, scope or coordination. If the Original contributes no meaningful behavioral increment, or its relevant risk cannot be resolved within its intended problem, consider withdrawal with a specific reason that accounts for necessary behavior. Do not shrink applicability until a rule is inert or invent a modification merely to avoid KEEP.
+-
+-KEEP applies to the entire Original Update, including its correction strategy and necessary treatment of existing guidance, not only its main direction. Assess its substantive triggers, actions, priorities, exceptions, exit conditions, dependencies and preservation boundaries.
+-
+-Support for the main strategy does not automatically justify an appended condition, fallback or mandatory ordering. If only part needs correction, choose REPLACE with the complete revised text and preserve the supported requirements in the same adjustment; do not KEEP the whole item or emit a second KEEP record. Neither a shorter proposal, fewer rules nor a particular add/revise ratio is evidence of a better correction.
+-
+-Explain the decisive consideration in reason: the behavioral increment, why a material adverse comparison does or does not require adjustment, or why a similar historical attempt transfers differently here. Discuss only what matters; do not produce a mandatory checklist, per-sentence audit or new output field. Address an important relevant adverse response specifically, without assuming an unobserved image condition was absent to dismiss it as outside scope. Causal uncertainty or a generic assertion of insufficient evidence does not alone resolve a counterexample; if the evidence supports correcting part of the proposal, implement that correction rather than use KEEP.
+-
+-Before finalizing, review all surviving Updates, both kept and modified, against Parent and the unchanged Goal. Do not leave the same conflicting condition active in a kept Update after correcting it elsewhere.
+-
+-For exploration, explain why the proposed behavior addresses the problem and why its tradeoff is reasonable to test. Labeling it unverified is not enough, but prior proof is not required. Do not treat every uncertainty as a defect. Unavailable intermediate behavior must remain unknown; do not request additional Actor executions or explanations.
+-
+-For REPLACE, text contains the complete revised Update, including the correction strategy, necessary treatment of existing guidance and every substantive action, condition, priority and dependency. It must not be a diff, a partial fragment, or an instruction such as "same as before except...".
+-
+-reason explains grounds and uncertainty. Every material trigger, exception, priority and preservation boundary must appear in the resulting Update text. A caution or required removal stated only in reason is not an implementation requirement for Editor, which does not see adjustment reasons.
+-
+-Do not conceal an unsatisfied essential conflict with fake KEEP or arbitrary withdrawal. There is no successful abstention or need_evidence response in this schema; structural validity alone does not prove semantic adequacy.
++## Choose one complete adjustment for every Original
++
++KEEP means the entire Original is a reasonable correction in the current Parent: its behavior, scope, strength, necessary treatment of old guidance and interactions are sufficiently specified as written. KEEP does not certify the whole Skill or future performance. Empty or irrelevant Memory neither requires nor prevents KEEP; current evidence can suffice. Do not invent changes merely to demonstrate activity.
++
++Do not KEEP only because the main direction is useful. If compatibility depends on an exception, priority or old-rule revision that appears only in reason, choose REPLACE and put that requirement in the complete revised text. A statement that an old branch is preserved does not resolve overlapping conditions unless the effective behavior makes the relationship clear.
++
++REPLACE contains the complete effective correction, including intended behavior, material conditions, strength, necessary treatment of existing guidance, dependencies and preservation boundaries. Identify old guidance without copying large Parent passages. Do not provide a patch, partial amendment, or "same as before except" instruction. Completeness means sufficient behavioral requirements, not reproduction of Parent or historical explanations. Every implementation requirement must be in text because Editor does not receive reason.
++
++WITHDRAW when no meaningful supported correction remains, or when relevant risk cannot be resolved within the Original problem. Do not mechanically withdraw because related wording already exists, and do not shrink applicability until the proposal becomes inert merely to avoid withdrawal. Account for necessary dependencies of other Originals.
++
++Explain the decisive grounds briefly in reason. Identify the relevant Parent relationship and historical comparison when they affect the decision. Address a material adverse comparison specifically, without treating unavailable historical details as absent. Do not replace this judgment with a generic uncertainty disclaimer or output a per-sentence audit. A reasonable experiment needs a supported behavioral rationale, not prior causal proof. Do not request additional Actor executions or explanations. There is no successful abstention or need_evidence response; structural validity alone does not establish semantic adequacy.
+ 
+ ## Full-text decisions and compilation
+ 

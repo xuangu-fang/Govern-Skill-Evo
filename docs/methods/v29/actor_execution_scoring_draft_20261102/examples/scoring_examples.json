@@ -1,0 +1,213 @@
+[
+  {
+    "case": "exact",
+    "finish_reason": "stop",
+    "ordinary_content": "<answer>1,320</answer>",
+    "reference_answers": [
+      "1,320"
+    ],
+    "expected_prediction": "1,320",
+    "expected_score": {
+      "hard": 1,
+      "anls": 1.0
+    },
+    "note_zh": "完整标签及精确匹配。"
+  },
+  {
+    "case": "no_tag",
+    "finish_reason": "stop",
+    "ordinary_content": "I select the total.\n1,320",
+    "reference_answers": [
+      "1,320"
+    ],
+    "expected_prediction": "1,320",
+    "expected_score": {
+      "hard": 1,
+      "anls": 1.0
+    },
+    "note_zh": "没有完整标签，取最后非空行；缺标签不自动判错。"
+  },
+  {
+    "case": "last_tag",
+    "finish_reason": "stop",
+    "ordinary_content": "<answer>1,200</answer>\n<ANSWER>1,320</ANSWER>",
+    "reference_answers": [
+      "1,320"
+    ],
+    "expected_prediction": "1,320",
+    "expected_score": {
+      "hard": 1,
+      "anls": 1.0
+    },
+    "note_zh": "大小写不敏感，取最后一个完整匹配。"
+  },
+  {
+    "case": "multiline",
+    "finish_reason": "stop",
+    "ordinary_content": "<answer>\n  ACME   LTD \n</answer>",
+    "reference_answers": [
+      "acme ltd"
+    ],
+    "expected_prediction": "ACME   LTD",
+    "expected_score": {
+      "hard": 1,
+      "anls": 1.0
+    },
+    "note_zh": "跨行匹配；抽取去首尾空白，评分小写化并合并空白。"
+  },
+  {
+    "case": "punctuation",
+    "finish_reason": "stop",
+    "ordinary_content": "<answer>1,320</answer>",
+    "reference_answers": [
+      "1320"
+    ],
+    "expected_prediction": "1,320",
+    "expected_score": {
+      "hard": 0,
+      "anls": 0.8
+    },
+    "note_zh": "保留逗号，ANLS=0.8，hard=0。"
+  },
+  {
+    "case": "unit",
+    "finish_reason": "stop",
+    "ordinary_content": "<answer>100 USD</answer>",
+    "reference_answers": [
+      "100"
+    ],
+    "expected_prediction": "100 USD",
+    "expected_score": {
+      "hard": 0,
+      "anls": 0.0
+    },
+    "note_zh": "保留单位，编辑距离比例超过阈值；不据此制定通用删单位规则。"
+  },
+  {
+    "case": "articles",
+    "finish_reason": "stop",
+    "ordinary_content": "<answer>The Bank</answer>",
+    "reference_answers": [
+      "Bank"
+    ],
+    "expected_prediction": "The Bank",
+    "expected_score": {
+      "hard": 0,
+      "anls": 0.0
+    },
+    "note_zh": "保留冠词；距离比例恰好0.5，ANLS=0。"
+  },
+  {
+    "case": "date",
+    "finish_reason": "stop",
+    "ordinary_content": "<answer>12 May 2022</answer>",
+    "reference_answers": [
+      "12 May 2021"
+    ],
+    "expected_prediction": "12 May 2022",
+    "expected_score": {
+      "hard": 0,
+      "anls": 0.9090909090909091
+    },
+    "note_zh": "一字符差异，ANLS=10/11，hard=0。"
+  },
+  {
+    "case": "references",
+    "finish_reason": "stop",
+    "ordinary_content": "<answer>ACME LTD</answer>",
+    "reference_answers": [
+      "Acme Limited",
+      "Acme Ltd"
+    ],
+    "expected_prediction": "ACME LTD",
+    "expected_score": {
+      "hard": 1,
+      "anls": 1.0
+    },
+    "note_zh": "多参考答案取最高ANLS，不输出匹配参考的身份。"
+  },
+  {
+    "case": "empty_tag",
+    "finish_reason": "stop",
+    "ordinary_content": "<answer> </answer>",
+    "reference_answers": [
+      "1,320"
+    ],
+    "expected_prediction": "",
+    "expected_score": {
+      "hard": 0,
+      "anls": 0.0
+    },
+    "note_zh": "合法字符串内容，抽取为空，评分零，不基于得分补答。"
+  },
+  {
+    "case": "empty_content",
+    "finish_reason": "stop",
+    "ordinary_content": "",
+    "reference_answers": [
+      "1,320"
+    ],
+    "expected_prediction": "",
+    "expected_score": {
+      "hard": 0,
+      "anls": 0.0
+    },
+    "note_zh": "正常stop的空字符串与缺失content不同；前者评分零。"
+  },
+  {
+    "case": "incomplete_tag",
+    "finish_reason": "stop",
+    "ordinary_content": "<answer>1,320",
+    "reference_answers": [
+      "1,320"
+    ],
+    "expected_prediction": "<answer>1,320",
+    "expected_score": {
+      "hard": 0,
+      "anls": 0.0
+    },
+    "note_zh": "没有完整标签，末行回退仍含未闭合标签，不额外修复。"
+  },
+  {
+    "case": "complete_then_incomplete",
+    "finish_reason": "stop",
+    "ordinary_content": "<answer>1,320</answer>\n<answer>1,200",
+    "reference_answers": [
+      "1,320"
+    ],
+    "expected_prediction": "1,320",
+    "expected_score": {
+      "hard": 1,
+      "anls": 1.0
+    },
+    "note_zh": "已有完整匹配时使用最后完整匹配，不被后面的未闭合标签覆盖。"
+  },
+  {
+    "case": "half_distance",
+    "finish_reason": "stop",
+    "ordinary_content": "<answer>ab</answer>",
+    "reference_answers": [
+      "ac"
+    ],
+    "expected_prediction": "ab",
+    "expected_score": {
+      "hard": 0,
+      "anls": 0.0
+    },
+    "note_zh": "归一化距离恰好0.5时为零，不是0.5。"
+  },
+  {
+    "case": "near_exact_hard",
+    "finish_reason": "stop",
+    "ordinary_content": "<answer>aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab</answer>",
+    "reference_answers": [
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    ],
+    "expected_prediction": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+    "expected_score": {
+      "hard": 1,
+      "anls": 0.999000999000999
+    },
+    "note_zh": "合成边界：字符串不完全相同但ANLS>=0.999，hard仍为1。"
+  }
+]

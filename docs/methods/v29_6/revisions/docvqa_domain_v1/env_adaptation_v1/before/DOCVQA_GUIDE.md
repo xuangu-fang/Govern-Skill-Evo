@@ -1,0 +1,64 @@
+## DocVQA optimization domain guide
+
+### Answer-time decision rules
+
+- **Domain-aware**: The agent receives one document image plus one
+  question and must produce a single-turn answer with no tools, no
+  retries, and no second look at the image. Skill workflow steps describe
+  *answer-time decision rules* — how to inspect the image, locate the
+  relevant region, select the answer span, and format the output —
+  rather than multi-step procedures.
+
+### Domain patterns
+
+**Permitted domain-specific content** (not considered case-specific):
+- Document-layout patterns: forms (label/value pairs), tables (row/column
+  alignment, merged headers), figures and charts (axis labels, legend,
+  caption), free text paragraphs, handwritten annotations, signatures,
+  stamps — when describing where to look for the answer.
+- Question-type patterns: "what is the value of X" (label-to-value lookup),
+  "which year/date/page" (numeric span), "yes/no" (binary), "list all"
+  (enumerate from a region) — when describing how to interpret the question.
+- Answer-format conventions: when to include/omit units, currency symbols,
+  punctuation; when to keep original capitalization vs normalize; how to
+  format numbers (decimals, thousands separators, dates).
+- Visual extraction discipline: read the smallest sufficient region, prefer
+  printed text over inferred values, distinguish similar-looking glyphs
+  (`O` vs `0`, `l` vs `1`, `,` vs `.`) — when grounded in observed errors.
+
+### Learning focus
+
+- Grounding discipline: read the right region of the image, not memory.
+- Answer-span selection: when several candidate spans look plausible, pick
+  the one the document supports best (label-to-value alignment, table
+  row/column mapping, caption-to-figure correspondence).
+- Output formatting: emit exactly one `<answer>...</answer>`; keep the span
+  short and verbatim; match the gold's level of detail (number alone vs.
+  number plus unit, date format, capitalization conventions of named
+  entities).
+- Avoid invented content: if the visible evidence is ambiguous or missing,
+  prefer the most-supported visible span over a confident guess.
+
+### Failure vocabulary
+
+- **evidence_miss**: The model overlooked the relevant visible region or line.
+- **near_match_confusion**: The model selected a nearby but incorrect text span.
+- **normalization_error**: The answer differed mainly in formatting, spacing, punctuation, or minor text normalization.
+- **reading_error**: The model misread the document content.
+- **other**: None of the above.
+
+### Generalization and content boundary
+
+The skill applies to the general class of DocVQA questions, not to
+individual cases. The skill body must NOT contain:
+
+- Evaluator-internal terminology (e.g. ANLS, Levenshtein, "hard"/"soft" as
+  score names) — describe the underlying behavior, not the metric labels.
+- Any literal value lifted from an input trajectory's image, question, or
+  response: specific entity names, amounts, dates, weights, percentages,
+  identifiers, or quoted phrases. These are case data, not patterns.
+- Benchmark bookkeeping (trajectory numbers, response excerpts, case IDs).
+
+When a workflow step or Error Avoidance rule needs an example, use
+synthetic placeholders or generic schema phrasing instead of values
+observed in the input trajectories.

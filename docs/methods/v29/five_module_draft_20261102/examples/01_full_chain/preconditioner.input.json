@@ -1,0 +1,112 @@
+{
+  "parent": "# DocVQA Skill\n\n## Visual Evidence Discipline\n- Read the document carefully before answering.\n- Prefer the smallest exact text span that answers the question.\n- When several nearby strings look similar, choose the one whose surrounding labels or layout best match the question.\n\n## Exact Answer Discipline\n- Copy names, numbers, and dates exactly from the document whenever possible.\n- Prefer direct extraction over paraphrase.\n- Before finalizing, compare the answer against nearby alternatives and keep the best-supported exact span.\n",
+  "plan": {
+    "goal": "Improve amount-role selection when the question distinguishes financial amounts, while preserving valid answers to other questions.",
+    "updates": [
+      {
+        "id": "u1",
+        "text": "- For an amount question, distinguish the requested role (such as subtotal, total, or balance due) before selecting a value; prefer a value explicitly labeled for that role when present.\n",
+        "basis": [
+          "G1",
+          "P1:0",
+          "P1:1",
+          "P1:outcome"
+        ]
+      }
+    ],
+    "checks": [
+      {
+        "id": "c1",
+        "update_ids": [
+          "u1"
+        ],
+        "question": "How do the submitted amount answer and hard/ANLS change, and do other supplied questions retain their correct answers? If either response states an amount role, report that statement with attribution; do not infer actual label presence, field association or visual selection from it."
+      }
+    ]
+  },
+  "runs": [
+    {
+      "ref": "P1",
+      "task_id": "synthetic:amount",
+      "run_id": "synthetic-amount-P1",
+      "initial": {
+        "ref": "P1:0",
+        "task": {
+          "question": "What is the total amount due?",
+          "image_path": "images/amount.png"
+        },
+        "messages": [
+          {
+            "role": "system",
+            "content": "You are an expert visual document question answering agent.\n\n## Skill\n# DocVQA Skill\n\n## Visual Evidence Discipline\n- Read the document carefully before answering.\n- Prefer the smallest exact text span that answers the question.\n- When several nearby strings look similar, choose the one whose surrounding labels or layout best match the question.\n\n## Exact Answer Discipline\n- Copy names, numbers, and dates exactly from the document whenever possible.\n- Prefer direct extraction over paraphrase.\n- Before finalizing, compare the answer against nearby alternatives and keep the best-supported exact span.\n\nYou will receive a document image and a question about the document.\nRead the visual evidence carefully and answer concisely.\n\nRules:\n- Ground the answer in the visible document content.\n- Prefer exact spans, numbers, dates, and names from the document.\n- Do not invent content that is not visible.\n- If multiple near-matches exist, choose the one best supported by the document.\n\nReturn the final answer inside <answer>...</answer>.\n"
+          },
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "text",
+                "text": "What is the total amount due?\n\nReturn the final answer inside <answer>...</answer>."
+              },
+              {
+                "type": "text",
+                "text": "[Image attached to Actor: images/amount.png; image pixels are not supplied to this module.]"
+              }
+            ]
+          }
+        ]
+      },
+      "attempts": [
+        {
+          "ref": "P1:1",
+          "request_context": "docvqa_single_turn_v1",
+          "request_messages": [
+            {
+              "role": "system",
+              "content": "You are an expert visual document question answering agent.\n\n## Skill\n# DocVQA Skill\n\n## Visual Evidence Discipline\n- Read the document carefully before answering.\n- Prefer the smallest exact text span that answers the question.\n- When several nearby strings look similar, choose the one whose surrounding labels or layout best match the question.\n\n## Exact Answer Discipline\n- Copy names, numbers, and dates exactly from the document whenever possible.\n- Prefer direct extraction over paraphrase.\n- Before finalizing, compare the answer against nearby alternatives and keep the best-supported exact span.\n\nYou will receive a document image and a question about the document.\nRead the visual evidence carefully and answer concisely.\n\nRules:\n- Ground the answer in the visible document content.\n- Prefer exact spans, numbers, dates, and names from the document.\n- Do not invent content that is not visible.\n- If multiple near-matches exist, choose the one best supported by the document.\n\nReturn the final answer inside <answer>...</answer>.\n"
+            },
+            {
+              "role": "user",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "What is the total amount due?\n\nReturn the final answer inside <answer>...</answer>."
+                },
+                {
+                  "type": "text",
+                  "text": "[Image attached to Actor: images/amount.png; image pixels are not supplied to this module.]"
+                }
+              ]
+            }
+          ],
+          "assistant": {
+            "role": "assistant",
+            "content": "I will use the subtotal as the total.\n<answer>1,200</answer>"
+          }
+        }
+      ],
+      "outcome": {
+        "ref": "P1:outcome",
+        "status": "completed",
+        "termination": "stop",
+        "answer": {
+          "raw_content": "I will use the subtotal as the total.\n<answer>1,200</answer>",
+          "extracted_answer": "1,200"
+        },
+        "reference_answers": [
+          "1,320"
+        ],
+        "model_rounds": 1,
+        "tool_calls": 0,
+        "api_requests": 1,
+        "score": {
+          "hard": 0,
+          "anls": 0.6
+        }
+      }
+    }
+  ],
+  "memory": {
+    "format": "memory_knowledge_only_v1",
+    "entries": []
+  }
+}

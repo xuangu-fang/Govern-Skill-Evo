@@ -1,0 +1,52 @@
+--- src/skill_evolution/v29_2/prompts/diagnosis.md
++++ src/skill_evolution/v29_4/prompts/diagnosis.md
+@@ -22,7 +22,7 @@
+ 
+ ## Lossless execution input view
+ 
+-The input view is v29_2_shared_execution_text_v1. shared_initial has exactly format (execution_shared_initial_v1) and messages. Each messages entry stores one complete original system message, including its actual execution Skill and any message metadata. In runs[].initial.messages, {"shared_message":"system_1"} stands for that exact message at that exact position; resolve the reference in this request's shared_initial.messages. User messages remain inline. Different system messages have different references. Sharing is local to this call, not across stages or rounds.
++The input view is v29_4_shared_execution_text_v1. shared_initial has exactly format (execution_shared_initial_v1) and messages. Each messages entry stores one complete original system message, including its actual execution Skill and any message metadata. In runs[].initial.messages, {"shared_message":"system_1"} stands for that exact message at that exact position; resolve the reference in this request's shared_initial.messages. User messages remain inline. Different system messages have different references. Sharing is local to this call, not across stages or rounds.
+ 
+ The duplicate attempts[0].request_messages is omitted only after exact equality with initial.messages has been verified. It is precisely the initial message list after resolving shared references, with the same roles, text, metadata and order. outcome.answer.raw_content is omitted only after exact equality with attempts[0].assistant.content has been verified; read that full ordinary response instead. All other execution fields remain present. No response or system text is summarized, truncated, normalized or reconstructed from Parent. Top-level parent remains the complete Parent Skill, independently of the shared system message. Complete original facts remain in the archive.
+ 
+@@ -51,7 +51,9 @@
+ 
+ ## Examine current evidence
+ 
+-Input contains exactly parent, runs, grouping and shared_initial. Compare question requirements, complete ordinary output, extracted answer, reference agreement and existing Parent/base guidance. The image itself is unavailable to this module. Distinguish missing guidance, existing guidance whose adherence is unobserved, visible behavior that did not resolve the problem, capability limits and insufficient evidence. Failure alone does not prove a Skill defect; success or high ANLS does not establish compliance with every instruction.
++Compare common decision problems and important differences across current-batch executions. Use relevant and available successes, failures and counterexamples to form evidence-grounded Updates and determine their applicability conditions and preservation boundaries. A single execution can also support a reasonable proposal. Put direct execution references supporting these judgments in the corresponding Update basis. Not every execution needs to produce an Update.
++
++Input contains exactly parent, runs and shared_initial. Compare question requirements, complete ordinary output, extracted answer, reference agreement and existing Parent/base guidance. The image itself is unavailable to this module. Distinguish missing guidance, existing guidance whose adherence is unobserved, visible behavior that did not resolve the problem, capability limits and insufficient evidence. Failure alone does not prove a Skill defect; success or high ANLS does not establish compliance with every instruction.
+ 
+ For each proposed change, connect a visible task requirement, an observed response/result discrepancy and the behavior intended to address it. Separate the discrepancy from its hypothesized cause. Short-answer-only runs can support a testable hypothesis from input/output distinctions without proving a visual-selection, character-recognition or reasoning mechanism. Do not fabricate that mechanism; uncertainty alone does not invalidate a reasonable experiment.
+ 
+@@ -77,9 +79,9 @@
+ 
+ ## Evidence
+ 
+-Each Update basis is a nonempty duplicate-free array of exact supplied group/run/input/round/outcome IDs and contains direct execution evidence. A Group alone is insufficient; citing a Group requires direct evidence from one of its members in that same basis. When successes or counterexamples determine preservation boundaries, include their direct execution references in the corresponding Update basis so Preconditioner receives the supporting runs. Do not mechanically cite the entire batch.
++Each Update basis is a nonempty duplicate-free array of exact supplied run/input/round/outcome IDs and contains direct execution evidence. When successes or counterexamples determine preservation boundaries, include their direct execution references in the corresponding Update basis so Preconditioner receives the supporting runs. Do not mechanically cite the entire batch.
+ 
+-Preconditioner receives complete runs selected through direct references in the Plan; Group IDs do not expand to all members. Do not use historical references or Preconditioner's namespaced prose markers in place of structured basis IDs.
++Preconditioner receives complete runs selected through direct references in the Plan. Do not use historical references or Preconditioner's namespaced prose markers in place of structured basis IDs.
+ 
+ No separate Checks are produced. Put every implementation condition, exception, priority, dependency and preservation boundary in the Update text itself, not only in reason. Include the direct references for any material success or counterexample in basis. Diagnose the entire current Parent batch, including successes; the downstream restriction to hard-transition pairs does not restrict Diagnosis input. Do not demand a new Actor explanation or an extra execution to justify a proposal.
+ 
+@@ -89,7 +91,7 @@
+ - decision is revise or no_change, with no need_evidence alternative.
+ - reason is nonempty and explains the justified direction, relevant Parent guidance and important uncertainty. Avoid a per-task report.
+ - revise requires plan with exactly goal and updates. goal is nonempty; updates is nonempty.
+-- Each Update has exactly id, text, basis. IDs are unique and do not collide with evidence or group IDs; text is nonempty.
++- Each Update has exactly id, text, basis. IDs are unique and do not collide with evidence IDs; text is nonempty.
+ - no_change requires plan=null. It means no reasonably justified update was formed, not that the Skill is flawless.
+ 
+ If a direction is blocked but other justified complete Updates remain, propose those and explain the relevant unresolved direction. Do not omit a necessary dependency to make an incomplete repair appear complete. Technical/parsing failures are not semantic no_change decisions.
+@@ -98,7 +100,7 @@
+ 
+ Shape illustration only:
+ ```json
+-{"decision":"revise","reason":"A current discrepancy supports testing a scoped change; the internal cause remains unobserved.","plan":{"goal":"Improve a supported decision while preserving valid alternatives.","updates":[{"id":"u1","text":"- A complete conditional behavioral change.\n","basis":["G1","P1:1","P1:outcome"]}]}}
++{"decision":"revise","reason":"A current discrepancy supports testing a scoped change; the internal cause remains unobserved.","plan":{"goal":"Improve a supported decision while preserving valid alternatives.","updates":[{"id":"u1","text":"- A complete conditional behavioral change.\n","basis":["P1:1","P1:outcome"]}]}}
+ ```
+ 
+ ## Execution reference lists

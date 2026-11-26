@@ -1,0 +1,128 @@
+--- baseline/prompts/diagnosis.md
++++ prompts/diagnosis.md
+@@ -1,6 +1,75 @@
+ # Diagnosis
+ 
+-Produce one evidence-grounded Original Plan for the current batch of Parent executions. Identify behavioral improvements that can reasonably be implemented through the Skill while preserving valid capabilities. Historical edit-response adjustment belongs to Preconditioner. Do not read historical Memory or impose a fixed Update count.
++Produce one evidence-grounded Original Plan from the current batch of Parent executions. Propose concrete behavioral corrections and their current evidential boundaries. Relevant Parent guidance provides execution context; integration with the whole Parent and historical edit-response adjustment belong to Preconditioner. Do not read historical Memory or impose a fixed Update count.
++
++<!-- DOCVQA_DOMAIN_GUIDE_START -->
++This shared section supplies domain guidance for optimization. Apply it within this module's existing responsibility, authorized input and output contract. It does not change Parent/Memory access, D/S/C decisions, patch ownership or Gate/Replay rules.
++
++## DocVQA optimization domain guide
++
++### Answer-time decision rules
++
++- **Domain-aware**: The Actor receives one document image and one question
++  and produces its answer in a single model round, without tools, online
++  search, or feedback-driven answer revision. Skill workflow steps describe
++  *answer-time decision rules* — how to inspect the image, locate the
++  relevant region, select the answer span, and format the output —
++  rather than multi-step procedures.
++
++### Domain patterns
++
++**Permitted domain-specific content** (not considered case-specific):
++- Document-layout patterns: forms (label/value pairs), tables (row/column
++  alignment, merged headers), figures and charts (axis labels, legend,
++  caption), free text paragraphs, handwritten annotations, signatures,
++  stamps — when describing where to look for the answer.
++- Question-type patterns: "what is the value of X" (label-to-value lookup),
++  "which year/date/page" (numeric span), "yes/no" (binary), "list all"
++  (enumerate from a region) — when describing how to interpret the question.
++- Answer-format conventions: when to include/omit units, currency symbols,
++  punctuation; when to keep original capitalization vs normalize; how to
++  format numbers (decimals, thousands separators, dates).
++- Visual extraction discipline: read the smallest sufficient region, prefer
++  printed text over inferred values, distinguish similar-looking glyphs
++  (`O` vs `0`, `l` vs `1`, `,` vs `.`) — when grounded in observed errors.
++
++### Learning focus
++
++- Grounding discipline: read the right region of the image, not memory.
++- Answer-span selection: when several candidate spans look plausible, pick
++  the one the document supports best (label-to-value alignment, table
++  row/column mapping, caption-to-figure correspondence).
++- Output formatting: emit exactly one `<answer>...</answer>`; keep the span
++  short and verbatim; determine the answer's level of detail from the
++  question and visible document evidence, including units, date components,
++  and identifying name components.
++- Avoid invented content: if the visible evidence is ambiguous or missing,
++  prefer the most-supported visible span over a confident guess.
++
++### Failure vocabulary
++
++- **evidence_miss**: The model overlooked the relevant visible region or line.
++- **near_match_confusion**: The model selected a nearby but incorrect text span.
++- **normalization_error**: The answer differed mainly in formatting, spacing, punctuation, or minor text normalization.
++- **reading_error**: The model misread the document content.
++- **other**: None of the above.
++
++### Generalization and content boundary
++
++The skill applies to the general class of DocVQA questions, not to
++individual cases. The skill body must NOT contain:
++
++- Evaluator-internal terminology (e.g. ANLS, Levenshtein, "hard"/"soft" as
++  score names) — describe the underlying behavior, not the metric labels.
++- Any literal value lifted from an input trajectory's image, question, or
++  response: specific entity names, amounts, dates, weights, percentages,
++  identifiers, or quoted phrases. These are case data, not patterns.
++- Benchmark bookkeeping (trajectory numbers, response excerpts, case IDs).
++
++When a workflow step or Error Avoidance rule needs an example, use
++synthetic placeholders or generic schema phrasing instead of values
++observed in the input trajectories.
++<!-- DOCVQA_DOMAIN_GUIDE_END -->
+ 
+ ## DocVQA execution and text evidence boundary
+ 
+@@ -57,11 +126,7 @@
+ 
+ For each proposed change, connect a visible task requirement, an observed response/result discrepancy and the behavior intended to address it. Separate the discrepancy from its hypothesized cause. Short-answer-only runs can support a testable hypothesis from input/output distinctions without proving a visual-selection, character-recognition or reasoning mechanism. Do not fabricate that mechanism; uncertainty alone does not invalidate a reasonable experiment.
+ 
+-Distinguish discrepancies in answer selection, answer scope and transcription within the selected scope. These are analytical distinctions, not mandatory categories or established visual causes; more than one explanation may remain plausible. When excess or missing answer content is supported by the supplied question, response and references, address what constitutes a complete answer before adding character-copying instructions. Prefer the smallest sufficient answer unit, not the shortest string or the entire sentence containing it. Preserve qualifiers, units, name components and ranges when needed to answer the question. A reference mismatch does not establish what is printed in the unseen image.
+-
+-For each proposed Update, inspect the relevant Parent/base guidance, including its scope, conditions and interactions. Identify where that guidance is missing, misleading, conflicting or insufficiently actionable for the observed problem, or why the evidence does not justify changing it. Existing coverage does not prove adequacy; another failure does not by itself justify repeating the rule. A narrower task label, stronger wording or another request to "check carefully" is not by itself a behavioral increment.
+-
+-Choose the correction that best addresses this relationship: add guidance, revise existing guidance, consolidate related guidance, replace problematic guidance, remove it, or leave guidance unchanged when no correction is justified. Do not prefer addition or revision by default, and do not require any mix of operations. Consolidation or deletion needs a supported behavioral purpose, such as resolving conflicting choices or removing an unjustified restriction; shortening or restyling unchanged behavior is not the objective. Identify what the Actor would select, exclude, compare, preserve or return differently, under which observable condition, and why that change may help. Explain the decisive grounds and uncertainty in reason. Put the chosen correction and its implementation requirements in Update text; Editor implements that decision rather than choosing a different strategy. Do not add output fields.
++For each proposed Update, identify what the Actor should select, exclude, compare, preserve or return differently, and under which observable condition. Use relevant Parent/base guidance as execution context: failure does not establish missing guidance, and existing coverage does not prove adequacy. Identify an apparent conflict when the current evidence supports it, without claiming that it caused the response. Do not perform a comprehensive Parent audit or settle all integration details. A narrower task label, stronger wording or another request to "check carefully" is not by itself a behavioral increment. Explain the decisive grounds and uncertainty concisely in reason; do not add output fields.
+ 
+ ## Construct complete, scoped Updates
+ 
+@@ -69,23 +134,15 @@
+ 
+ Organize Updates around common decision problems and their correction directions. Different executions can support one correction; executions, task types and error labels do not determine Update boundaries. The same error label may need different corrections. Each Update needs its own grounds and an actionable behavioral correction.
+ 
+-Keep the actions, conditions, exceptions and treatment of existing guidance needed for one correction together, including coordinated changes in different locations. Separate materially different corrections when their grounds and intended behavior differ, not because individual tasks or clauses might later succeed, fail, be retained or be withdrawn separately. Impose no fixed Update count and do not split mechanically by sentence. Keep necessary dependencies intact; independent clause-level causal proof is not required. Per-Update patches support traceability, not proof of independent causal effects.
++Keep the actions, conditions, exceptions and behavioral dependencies needed for one correction together, including behaviors that must work together. Separate materially different corrections when their grounds and intended behavior differ, not because individual tasks or clauses might later succeed, fail, be retained or be withdrawn separately. Impose no fixed Update count and do not split mechanically by sentence. Keep necessary dependencies intact; independent clause-level causal proof is not required. Per-Update patches support traceability, not proof of independent causal effects.
+ 
+ Applicability must depend on the Actor-visible question/document or its own response, never a gold answer, grade or hidden optimizer state. Do not prescribe online lookup, scorer-assisted correction or tools. The question or the Actor's stated rationale can motivate a strategy; it does not establish the unseen document's contents or prove that preferring a field, label, visual region or longer answer is generally correct. A proposed image-dependent condition must be described as a condition for the Actor to assess, not as a feature this module has observed. Make a proposed procedure conditional and justify its actual burden.
+ 
+-Preserve requested field roles, entity, relation, temporal and answer-granularity requirements. Do not replace a requested answer with an explanation, a list of guesses or a weaker deliverable. Answer completeness does not mean maximum length. Keep formatting rules scoped to the intended part of the response. The base protocol requires a final answer element and does not explicitly forbid ordinary text outside it; this does not require adding an explanation. A difference in units, punctuation, date format or numeric formatting may explain a string-score mismatch, but does not by itself justify a universal normalization rule.
+-
+-Goal states the intended improvement and necessary preservation boundaries without making an untested strategy immutable. Every Update states its intended behavioral correction and carries the material trigger, action, strength, exceptions, dependencies and preservation conditions.
+-
+-When correctness requires changing existing guidance, identify the relevant behavior or wording, what must be revised, consolidated, replaced or removed, and which valid branches must remain. Specify the affected guidance clearly enough for implementation without requiring line numbers, an operation field or a draft patch. An addition should likewise make its scope and interaction with existing guidance clear.
+-
+-Distinguish permission, preference and obligation. Do not encode task IDs, instance answers or question-to-answer lookup keys, nor turn a reference-only spelling into a universal rule.
++Goal states the intended improvement and necessary preservation boundaries without making an untested strategy immutable. Keep each Original complete as a behavioral proposal: state the intended change, its material task-visible conditions, strength, necessary behavioral dependencies, and preservation boundaries supported by current evidence. It need not be a complete Skill-editing plan; Preconditioner determines necessary treatment of existing guidance. Distinguish permission, preference and obligation. Do not encode task IDs, instance answers or question-to-answer lookup keys, nor turn a reference-only spelling into a universal rule.
+ 
+ Use text as one string, with clear paragraphs or bullets as useful. Keep each condition close to its action and preserve necessary branches and exceptions; neither one sentence per Update nor one Update per sentence is required. Do not pack distinct conditions into an opaque sentence to reduce apparent rule count. No per-line IDs or new schemas are needed. This is generation guidance, not permission to rewrite historical strings.
+ 
+-Resolve overlap, conflicts and prerequisites across proposed Updates. If the correction requires changing an existing rule, include that treatment in the Update instead of leaving a new warning to compete with the old rule. If new guidance is the appropriate correction, allow it without forcing a rewrite or merge.
+-
+-Required local follow-through belongs to the same complete correction; unrelated cleanup is not authorized. Do not leave Editor to infer a substantive repair from reason or justify an unsupported addition. A reasonable proposal can remain unproven; identify uncertainty without weakening a necessary requirement or demanding prior causal proof.
++Resolve contradictions and prerequisites among your own proposed behaviors, and keep necessary dependencies together. Do not copy unrelated Parent rules or precautionary lists into an Update merely to assert that they remain unchanged. Leave Parent-wide duplication, precedence and old-rule integration to Preconditioner, but do not leave the proposed behavior vague or rely on a later module to justify an unsupported addition. A reasonable proposal can remain unproven; identify uncertainty without demanding prior causal proof.
+ 
+ ## Evidence
+ 
+@@ -93,7 +150,7 @@
+ 
+ Preconditioner receives complete runs selected through direct references in the Plan. Do not use historical references or Preconditioner's namespaced prose markers in place of structured basis IDs.
+ 
+-No separate Checks are produced. Put every implementation condition, exception, priority, dependency and preservation boundary in the Update text itself, not only in reason. Include the direct references for any material success or counterexample in basis. Diagnose the entire current Parent batch, including successes; the downstream restriction to hard-transition pairs does not restrict Diagnosis input. Do not demand a new Actor explanation or an extra execution to justify a proposal.
++No separate Checks are produced. Put the material conditions, strength, exceptions, behavioral dependencies and preservation boundaries of the proposed correction in Update text, not only in reason. Include direct references for the successes or counterexamples that support these boundaries in basis, so Preconditioner receives the relevant complete executions. Diagnose the entire current Parent batch, including successes; the downstream restriction to hard-transition pairs does not restrict Diagnosis input. Do not demand a new Actor explanation or an extra execution to justify a proposal.
+ 
+ ## Decisions and exact output
+ 

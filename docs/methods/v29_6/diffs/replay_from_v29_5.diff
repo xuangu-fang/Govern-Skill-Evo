@@ -1,0 +1,110 @@
+--- baseline/prompts/replay.md
++++ prompts/replay.md
+@@ -1,6 +1,75 @@
+ # Replay
+ 
+ Analyze the supplied current hard-transition tasks from one joint Candidate execution. Produce exactly one event Knowledge per task, linking it to one implemented Update only when a clear behavioral connection is supported. Do not execute independent Updates, decide Gate, revise historical Memory or prescribe the next Plan.
++
++<!-- DOCVQA_DOMAIN_GUIDE_START -->
++This shared section supplies domain guidance for optimization. Apply it within this module's existing responsibility, authorized input and output contract. It does not change Parent/Memory access, D/S/C decisions, patch ownership or Gate/Replay rules.
++
++## DocVQA optimization domain guide
++
++### Answer-time decision rules
++
++- **Domain-aware**: The Actor receives one document image and one question
++  and produces its answer in a single model round, without tools, online
++  search, or feedback-driven answer revision. Skill workflow steps describe
++  *answer-time decision rules* — how to inspect the image, locate the
++  relevant region, select the answer span, and format the output —
++  rather than multi-step procedures.
++
++### Domain patterns
++
++**Permitted domain-specific content** (not considered case-specific):
++- Document-layout patterns: forms (label/value pairs), tables (row/column
++  alignment, merged headers), figures and charts (axis labels, legend,
++  caption), free text paragraphs, handwritten annotations, signatures,
++  stamps — when describing where to look for the answer.
++- Question-type patterns: "what is the value of X" (label-to-value lookup),
++  "which year/date/page" (numeric span), "yes/no" (binary), "list all"
++  (enumerate from a region) — when describing how to interpret the question.
++- Answer-format conventions: when to include/omit units, currency symbols,
++  punctuation; when to keep original capitalization vs normalize; how to
++  format numbers (decimals, thousands separators, dates).
++- Visual extraction discipline: read the smallest sufficient region, prefer
++  printed text over inferred values, distinguish similar-looking glyphs
++  (`O` vs `0`, `l` vs `1`, `,` vs `.`) — when grounded in observed errors.
++
++### Learning focus
++
++- Grounding discipline: read the right region of the image, not memory.
++- Answer-span selection: when several candidate spans look plausible, pick
++  the one the document supports best (label-to-value alignment, table
++  row/column mapping, caption-to-figure correspondence).
++- Output formatting: emit exactly one `<answer>...</answer>`; keep the span
++  short and verbatim; determine the answer's level of detail from the
++  question and visible document evidence, including units, date components,
++  and identifying name components.
++- Avoid invented content: if the visible evidence is ambiguous or missing,
++  prefer the most-supported visible span over a confident guess.
++
++### Failure vocabulary
++
++- **evidence_miss**: The model overlooked the relevant visible region or line.
++- **near_match_confusion**: The model selected a nearby but incorrect text span.
++- **normalization_error**: The answer differed mainly in formatting, spacing, punctuation, or minor text normalization.
++- **reading_error**: The model misread the document content.
++- **other**: None of the above.
++
++### Generalization and content boundary
++
++The skill applies to the general class of DocVQA questions, not to
++individual cases. The skill body must NOT contain:
++
++- Evaluator-internal terminology (e.g. ANLS, Levenshtein, "hard"/"soft" as
++  score names) — describe the underlying behavior, not the metric labels.
++- Any literal value lifted from an input trajectory's image, question, or
++  response: specific entity names, amounts, dates, weights, percentages,
++  identifiers, or quoted phrases. These are case data, not patterns.
++- Benchmark bookkeeping (trajectory numbers, response excerpts, case IDs).
++
++When a workflow step or Error Avoidance rule needs an example, use
++synthetic placeholders or generic schema phrasing instead of values
++observed in the input trajectories.
++<!-- DOCVQA_DOMAIN_GUIDE_END -->
+ 
+ ## DocVQA execution and text evidence boundary
+ 
+@@ -55,9 +124,11 @@
+ 
+ ## Relate each hard transition to actual behavior
+ 
+-For every supplied task, compare the Parent and Candidate ordinary response, extracted answer, task requirement and actual hard transition. Preserve the asymmetric facts: which side produced which relevant answer and whether the result changed from 0 to 1 or 1 to 0. Do not replace a regression with a generic failure statement or infer a missing outcome. ANLS can describe string similarity but does not add eligible tasks or establish semantic correctness, visual grounding or instruction adherence.
++For every supplied task, compare the actual Parent and Candidate ordinary response, extracted answer, task requirement and hard transition before explaining it. Preserve which side produced which answer and whether hard changed from 0 to 1 or 1 to 0. Identify all observable differences material to the explanation, including answer selection, added or removed content, transcription, punctuation and spacing when relevant. Do not report only the difference that best matches the Update or replace a regression with a generic failure statement. ANLS can describe string similarity but does not add eligible tasks or establish semantic correctness, visual grounding or instruction adherence.
+ 
+-Read each relevant Update's authorized condition, action, strength and preservation boundary, its mapped patch, and the full actual diff in Parent context. Relate a specific implemented behavior change to an observable response difference and the hard transition. Matching task topics, intended scope, a changed score, or the existence of a patch is insufficient by itself. Conditions must not be broadened after observing a result to create support for retention.
++Read each relevant Update's condition, action, strength and preservation boundary, its mapped patch, and the full actual diff in Parent context. Separate the observed answer change, its connection to an implemented Update, and the explanation of the score transition. When several answer features changed together, state which change the Update addresses and which additional changes limit explaining the entire transition by that behavior alone. Matching topics, intended scope, a changed score or the existence of a patch is insufficient by itself. Do not broaden conditions after observing a result to create support for retention.
++
++Apply the stated DocVQA scorer normalization before explaining a string-score difference: it lowercases and collapses whitespace after trimming, but does not remove articles, punctuation, units or other characters. Do not infer semantic correctness, a question-required qualifier or unseen image content solely from reference agreement. Describe concrete observable behavior instead of imposing an imprecise analytical label. Multiple answer changes do not automatically require null attribution; apply the existing behavioral-connection rule and state the specific limit.
+ 
+ Consider both intended-scope effects and related out-of-scope regressions. A task outside the expected scope can expose a side effect if the changed behavior clearly connects to the actual modification. Do not discard such a regression solely because it falls outside the proposed condition. Conversely, an unexplained regression in Candidate is not automatically evidence against every Update.
+ 
+@@ -69,7 +140,7 @@
+ 
+ ## Self-contained event Knowledge
+ 
+-Each Knowledge contains exactly task_id, update_id and text. task_id is the exact supplied paired task ID; update_id is one supplied nonempty-patch Update ID or null. text describes the relevant task condition, actual Parent/Candidate behavior difference, hard direction, connection to the implemented Update or reason it cannot be determined, and necessary uncertainty. Do not merely repeat grades, restate the Update, or turn an instance reference into a universal answer rule.
++Each Knowledge contains exactly task_id, update_id and text. task_id is the exact supplied paired task ID; update_id is one supplied nonempty-patch Update ID or null. Keep text concise and self-contained: relevant task condition, actual Parent/Candidate answer difference, hard direction, supported Update connection or why it cannot be determined, and material uncertainty. Describe conditions only to the extent supported by this event; do not copy the Update's full applicability range as if all of it had been validated. Do not merely repeat grades, restate the Update or turn an instance reference into a universal answer rule. A generic causal disclaimer does not replace an omitted fact or an incomplete explanation; state the specific limitation when one is visible.
+ 
+ Write one event per task, not one theme per Update. Keep each Knowledge useful without access to other Knowledge items. Cite only the current event's supplied P/Q run, input, round or outcome IDs; actual edit claims may reference diff. Do not cite other-task executions, omitted tasks, historical sources or shared table keys. Update IDs identify proposals, not execution evidence. Do not add a separate evidence or attribution_reason field.
+ 
+@@ -81,7 +152,7 @@
+ 
+ No attributions, revises, evidence arrays, Memory IDs, round IDs, scores, confidence, G/L, Gate decisions, archive actions, extra fields or mandatory next Plan. A legal null association is still a required event Knowledge. Do not return an empty entries array when transition tasks are supplied. When there are no transitions the program skips this model call and produces {"entries":[]} itself; parsing failures never mean no transitions. An entry with an empty knowledge array is never valid, including the no-transition branch.
+ 
+-Before finalizing, check task coverage, the actual hard direction, patch implementation, behavioral connection and attribution limits. Do not claim an independently verified causal effect or erase observations because attribution is uncertain. If validation feedback is supplied, correct the errors and return the complete object; do not silently drop tasks to pass validation.
++Before finalizing, check task coverage, answer fidelity, actual hard direction, material simultaneous changes, normalization claims, patch implementation and attribution limits. Verify that each condition and conclusion in Knowledge is supported by this event rather than inferred from the intended rule. Do not claim an independently verified causal effect or erase observations because attribution is uncertain. If validation feedback is supplied, correct the errors and return the complete object; do not silently drop tasks to pass validation.
+ 
+ Shape illustration only; use the actual supplied task and Update IDs:
+ ```json

@@ -1,0 +1,160 @@
+--- before/src/skill_evolution/v29/config.py
++++ after/src/skill_evolution/v29/config.py
+@@ -12,8 +12,9 @@
+ REVIEW_DISABLED = 'disabled_v1'
+ 
+ 
+-def method_config():
+-    return {'version': 'v29_campaign_v1', 'prompts': dict(prompting.PROMPT_VERSIONS),
++def method_config(adapter=None):
++    return {'version': getattr(adapter, 'method_version', 'v29_campaign_v1'),
++            'prompts': dict(getattr(adapter, 'prompt_versions', prompting.PROMPT_VERSIONS)),
+             'preconditioner_contract': CONTRACT_VERSION, 'patch_contract': PATCH_CONTRACT,
+             'memory_contract': memory.MULTI_KNOWLEDGE_CONTRACT, 'memory_view': 'memory_knowledge_only_v1',
+             'replay_input_view': replay_input_view.INPUT_VIEW, 'model_input_view': p.MODEL_INPUT_VIEW,
+@@ -29,7 +30,7 @@
+ 
+ 
+ def campaign_config(adapter, *, module_calls=None):
+-    return {'method': method_config(), 'actor': p.actor_config(), 'revision': p.REVISION,
++    return {'method': method_config(adapter), 'actor': p.actor_config(), 'revision': p.REVISION,
+             'gate_metric': p.GATE_PROFILE, 'optimization_pool': adapter.dataset.optimization_pool,
+             'batches': deepcopy(adapter.dataset.batches), 'initial_skill': p.initial_skill(),
+             'max_attempts': 6, 'continue_no_change': True, 'retry_delay_seconds': 2.0,
+@@ -42,7 +43,7 @@
+                      'initial_skill', 'max_attempts', 'continue_no_change', 'retry_delay_seconds',
+                      'max_input_chars', 'max_message_utf8_bytes', 'module_calls'), 'Campaign config')
+     dataset = current().dataset
+-    p.require(config['method'] == method_config(), 'Method contract or Prompt differs')
++    p.require(config['method'] == method_config(current()), 'Method contract or Prompt differs')
+     p.validate_config(config['actor'])
+     p.require(config['revision'] == p.REVISION and config['gate_metric'] == p.GATE_PROFILE, 'DocVQA protocol differs')
+     p.require(config['optimization_pool'] == dataset.optimization_pool, 'Optimization pool differs')
+--- before/src/skill_evolution/v29/stages.py
++++ after/src/skill_evolution/v29/stages.py
+@@ -101,7 +101,7 @@
+             type(max_message_utf8_bytes) is int and max_message_utf8_bytes > 0, 'Invalid input capacity')
+     directory = Path(directory)
+     check_contract()
+-    identity = {'module': call.name, 'prompt': prompting.PROMPT_VERSIONS[call.name], 'call_config': call_config,
++    identity = {'module': call.name, 'prompt': prompting.prompt_versions()[call.name], 'call_config': call_config,
+                 'retry_policy': feedback.POLICY, 'execution_view': feedback.TIMELINE,
+                 'retry_delay_seconds': retry_delay_seconds,
+                 'max_attempts': max_attempts, 'max_input_chars': max_input_chars,
+--- before/src/skill_evolution/v29/benchmarks/docvqa/prompting.py
++++ after/src/skill_evolution/v29/benchmarks/docvqa/prompting.py
+@@ -10,6 +10,11 @@
+ RESOURCE_NAMES = frozenset(f'{name}.md' for name in PROMPT_VERSIONS)
+ 
+ 
++def prompt_versions():
++    """Version IDs belong to the context-local adapter, never process-global state."""
++    return dict(getattr(current(), 'prompt_versions', PROMPT_VERSIONS))
++
++
+ def resource_path(key):
+     p.require(key in RESOURCE_NAMES, 'Unknown DocVQA module resource')
+     return Path(__file__).with_name('prompts') / key
+@@ -17,7 +22,7 @@
+ 
+ def render(module, background, *, prompt_version=None):
+     p.require(module in PROMPT_VERSIONS, 'Unknown or disabled method module')
+-    p.require(prompt_version in (None, PROMPT_VERSIONS[module]), 'Unknown Prompt version')
++    p.require(prompt_version in (None, prompt_versions()[module]), 'Unknown Prompt version')
+     text = current().resource(f'{module}.md').read_text(encoding='utf-8')
+     base = text.split('<actor_base_protocol>\n')[1].split('\n</actor_base_protocol>')[0]
+     p.require(base == p.actor_base_protocol(), 'Method/Actor base protocol differs')
+--- before/scripts/runs/run_v29_campaign.py
++++ after/scripts/runs/run_v29_campaign.py
+@@ -17,6 +17,7 @@
+ from src.skill_evolution.v29.benchmarks.docvqa.adapter import DocVQAActorAdapter
+ from src.skill_evolution.v29.benchmarks.docvqa.dataset import DocVQADataset
+ from src.skill_evolution.v29.benchmarks.docvqa.scoring import summarize_scores
++from src.skill_evolution.v29.benchmarks.docvqa import prompting
+ 
+ 
+ def run_training(directory, config, *, generate, resume=False):
+@@ -67,11 +68,11 @@
+         return summary
+ 
+ 
+-def main(argv=None):
++def main(argv=None, *, adapter_type=None, default_config=None):
+     parser = argparse.ArgumentParser(description=__doc__)
+     parser.add_argument('command', choices=('train', 'test'))
+     parser.add_argument('campaign')
+-    parser.add_argument('--config', default=str(ROOT / 'experiments/configs/v29_docvqa_optimization160.json'))
++    parser.add_argument('--config', default=str(default_config or ROOT / 'experiments/configs/v29_docvqa_optimization160.json'))
+     parser.add_argument('--output', help='Separate Test output directory')
+     parser.add_argument('--env-file', default=str(ROOT / '.env'))
+     parser.add_argument('--resume', action='store_true')
+@@ -80,12 +81,16 @@
+     config = ev.read(args.config if args.command == 'train' else Path(args.campaign) / 'config.json')
+     actor = DocVQAActorAdapter(DocVQADataset())
+     actor.workers = 15  # Test retains the agreed upper bound of 60 workers.
+-    with CampaignAdapter(actor).using():
++    with (adapter_type or CampaignAdapter)(actor).using():
+         validate_config(config, executable=True)
++        # Validate every selected prompt before credentials or any Actor request.
++        for name in prompting.PROMPT_VERSIONS:
++            prompting.render(name, config['actor'])
+         if args.command == 'test':
+             ev.require(bool(args.output), 'Test requires --output')
+         if args.validate_only:
+             print(json.dumps({'status': 'valid', 'batch_sizes': list(map(len, config['batches'])),
++                              'method': config['method']['version'], 'prompts': config['method']['prompts'],
+                               'train_workers': actor.workers, 'test_workers': actor.test_workers,
+                               'actor_max_tokens': config['actor']['max_tokens'],
+                               'method_max_tokens': {k: v['max_tokens'] for k, v in config['module_calls'].items()}}))
+--- /dev/null
++++ after/src/skill_evolution/v29_1/__init__.py
+@@ -0,0 +1 @@
++"""v29.1 selects two revised prompts; all learning and execution uses v29."""
+--- /dev/null
++++ after/src/skill_evolution/v29_1/campaign.py
+@@ -0,0 +1,25 @@
++"""Explicit v29.1 binding with unchanged Actor, contracts and campaign engine."""
++from pathlib import Path
++
++from src.skill_evolution.v29.campaign import CampaignAdapter as V29CampaignAdapter
++from src.skill_evolution.v29.benchmarks.docvqa import prompting, protocol
++
++PROMPT_ROOT = protocol.ROOT / 'docs/methods/v29_1/prompts'
++METHOD_VERSION = 'v29_1_campaign_v1'
++PROMPT_VERSIONS = dict(prompting.PROMPT_VERSIONS,
++    diagnosis='v29_1_docvqa_diagnosis_v1',
++    preconditioner='v29_1_docvqa_preconditioner_v1')
++DEFAULT_CONFIG = protocol.ROOT / 'experiments/configs/v29_1_docvqa_optimization160.json'
++
++
++class CampaignAdapter(V29CampaignAdapter):
++    method_version = METHOD_VERSION
++    prompt_versions = PROMPT_VERSIONS
++
++    def resource(self, key):
++        if key in ('diagnosis.md', 'preconditioner.md'):
++            return PROMPT_ROOT / key
++        return super().resource(key)
++
++    def validation_sources(self):
++        return super().validation_sources() | {Path(__file__).resolve()}
+--- /dev/null
++++ after/scripts/runs/run_v29_1_campaign.py
+@@ -0,0 +1,17 @@
++"""Train/test v29.1 explicitly; --validate-only is offline and creates no run."""
++from pathlib import Path
++import sys
++
++ROOT = Path(__file__).resolve().parents[2]
++sys.path[:0] = [str(ROOT), str(ROOT / 'external/SkillAdam')]
++
++from scripts.runs import run_v29_campaign as shared
++from src.skill_evolution.v29_1.campaign import CampaignAdapter, DEFAULT_CONFIG
++
++
++def main(argv=None):
++    return shared.main(argv, adapter_type=CampaignAdapter, default_config=DEFAULT_CONFIG)
++
++
++if __name__ == '__main__':
++    main()
