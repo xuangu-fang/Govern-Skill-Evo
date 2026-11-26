@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 import subprocess
 
-from .project import ROOT, read, write, require, sha
+from .project import ROOT, campaign_path, runtime_config, read, write, require, sha
 
 
 class ActorInterrupted(BaseException):
@@ -79,7 +79,8 @@ def build_adapter(root, *, episode_runner=None):
     from skillopt.envs.alfworld.adapter import ALFWorldAdapter, ALFWorldBatchRun
     from skillopt.model.openai_compatible_backend import tracker
     root = Path(root).resolve()
-    cfg, actor = read(root / 'skillopt.json'), read(root / 'actor.json')
+    cfg, actor = runtime_config(root), read(root / 'actor.json')
+    campaign = campaign_path(root)
     canonical = {i['id']: i for s in ('train', 'val', 'test') for i in read(root / f'splits/{s}/items.json')}
     runner = episode_runner or run_episode
 
@@ -109,14 +110,14 @@ def build_adapter(root, *, episode_runner=None):
             splits = {i['id'].split(':')[0] for i in items}
             require(len(splits) == 1, 'Mixed split batch')
             if splits == {'test'}:
-                require(output.resolve() == root / 'campaign/test_eval', 'Only Best Test is allowed')
-                history = read(root / 'campaign/history.json')
+                require(output.resolve() == campaign / 'test_eval', 'Only Best Test is allowed')
+                history = read(campaign / 'history.json')
                 require([h['step'] for h in history] == [1, 2, 3, 4], 'Test before four native steps')
-                require(skill == (root / 'campaign/best_skill.md').read_text(), 'Test Skill is not selected Best')
+                require(skill == (campaign / 'best_skill.md').read_text(), 'Test Skill is not selected Best')
                 require({i['id'] for i in items} == {k for k in canonical if k.startswith('test:')}, 'Test must cover all 134 tasks')
                 for e in range(1, 5):
-                    require((root / f'campaign/slow_update/epoch_{e:02d}/slow_result.json').is_file()
-                            and (root / f'campaign/meta_skill/epoch_{e:02d}/meta_skill_result.json').is_file(), 'Test before epoch completion')
+                    require((campaign / f'slow_update/epoch_{e:02d}/slow_result.json').is_file()
+                            and (campaign / f'meta_skill/epoch_{e:02d}/meta_skill_result.json').is_file(), 'Test before epoch completion')
             output.mkdir(parents=True, exist_ok=True)
             binding = {'tasks': items, 'skill': skill, 'actor_sha256': sha(root / 'actor.json'),
                        'manifest_sha256': sha(root / 'manifest.json')}

@@ -8,9 +8,9 @@
 | [SkillAdam 第一次](../../../experiments/methods/skilladam/alfworld/trajectory_feedback/skilladam_alfworld_v24_9_feedback_20261109_001507/README.md) | 120 | 121 | — |
 | [SkillAdam 第二次](../../../experiments/methods/skilladam/alfworld/trajectory_feedback/skilladam_alfworld_v24_9_feedback_rerun_20261109_125648/README.md) | 110 | — | — |
 | [SkillAdam 第三次](../../../experiments/methods/skilladam/alfworld/trajectory_feedback/skilladam_alfworld_v24_9_feedback_rerun_20261112_000402/README.md) | 111 | 109、103 | 109/134（81.34%），取三次评测的中位数 |
-| [SkillOpt 第一次](../../../experiments/baselines/skillopt_alfworld_native_best_only_20261030_001/README.md) | 120 | 118 | — |
-| [SkillOpt 第二次](../../../experiments/baselines/skillopt_alfworld_native_best_only_repeat_20261123_001/README.md) | 117 | 120、121、121（相同文本的逐轮评测） | — |
-| [SkillOpt 第三次](../../../experiments/baselines/skillopt_alfworld_native_best_only_third_20261124_001/README.md) | 122 | 116、120、118 | 118/134（88.06%），取三次复测的中位数 |
+| [SkillOpt 第一次](../../../experiments/methods/skillopt/alfworld/skillopt_alfworld_native_best_only_20261030_001/README.md) | 120 | 118 | — |
+| [SkillOpt 第二次](../../../experiments/methods/skillopt/alfworld/skillopt_alfworld_native_best_only_repeat_20261123_001/README.md) | 117 | 120、121、121（相同文本的逐轮评测） | — |
+| [SkillOpt 第三次](../../../experiments/methods/skillopt/alfworld/skillopt_alfworld_native_best_only_third_20261124_001/README.md) | 122 | 116、120、118 | 118/134（88.06%），取三次复测的中位数 |
 
 按各份最终 Skill 成功数最高的一次评测统计，v24.11 成功任务平均用 10.87 步（两次并列最高，取首测）。SkillAdam 三次训练对应的平均步数依次为 9.30、11.65、10.85。
 
@@ -33,11 +33,11 @@
 
 ![三种方法各轮保留 Skill 的留出集成功率](../../figures/ALFWorld-retained-skill-by-method-round-SkillOpt-training3.png)
 
-R00 共用初始 Skill 的一次复测为 107/134（79.85%）。图中实心点表示采纳更新，空心点表示初始或沿用。各面板按该方法自己的更新顺序排列。[初始 Skill 本地评测摘要](../../../experiments/evaluations/alfworld_v24_10_R00_R01_retest_20261113_133823/R00/summary.json)
+R00 共用初始 Skill 的一次复测为 107/134（79.85%）。图中实心点表示采纳更新，空心点表示初始或沿用。各面板按该方法自己的更新顺序排列。[初始 Skill 本地评测摘要](../../../artifacts/methods/v24_10/alfworld_v24_10_R00_R01_retest_20261113_133823/R00/summary.json)
 
 - **v24.11** 的 R02、R04 首测都是 129/134。图中取 11 月 24 日复测的 123 和 125，R03、R05 各沿用前一轮。R06 共测五次，图中取首测 127。[九次评测及受测 Skill](../../../experiments/methods/v24_11/v24_11_alfworld_20261116_124450/README.md)
 - **SkillAdam** 使用第三次训练。R01 取首测 111，R02 至 R04 取复测 116、112、115。R06 拒绝候选，与 R05 共用最终 Skill，两轮均画在 109/134。[逐轮评测](../../../experiments/methods/skilladam/alfworld/trajectory_feedback/skilladam_alfworld_v24_9_feedback_rerun_20261112_000402/README.md)
-- **SkillOpt** 使用第三次训练。R01 取加入空占位段前的候选 120/134，轮末保存的文本另外测得 119/134。R02 取 121/134，此后沿用到 R04 普通更新。第四轮慢更新 S4 发布最终 Skill。[普通更新、慢更新及复测](../../../experiments/baselines/skillopt_alfworld_native_best_only_third_20261124_001/README.md)
+- **SkillOpt** 使用第三次训练。R01 取加入空占位段前的候选 120/134，轮末保存的文本另外测得 119/134。R02 取 121/134，此后沿用到 R04 普通更新。第四轮慢更新 S4 发布最终 Skill。[普通更新、慢更新及复测](../../../experiments/methods/skillopt/alfworld/skillopt_alfworld_native_best_only_third_20261124_001/README.md)
 
 ## 训练与选优的累计执行题次
 
@@ -59,5 +59,5 @@ R00 共用初始 Skill 的一次复测为 107/134（79.85%）。图中实心点�
 |---|---:|---|---|
 | [v24.11 R06](../../../experiments/methods/v24_11/v24_11_alfworld_20261116_124450/results/final_skill.md) | 112 | 111、108 | [首测](../../../artifacts/analysis/alfworld_gpt54mini_final_20261116_200755/v24.11/results.jsonl) · [复测 1](../../../artifacts/analysis/alfworld_gpt54mini_final_20261116_200755/v24.11_retest_20261124_144807/results.jsonl) · [复测 2](../../../artifacts/analysis/alfworld_gpt54mini_final_20261116_200755/v24.11_retest_20261125_194338/results.jsonl) |
 | [SkillAdam 第三次 R06](../../../experiments/methods/skilladam/alfworld/trajectory_feedback/skilladam_alfworld_v24_9_feedback_rerun_20261112_000402/results/final_skill.md) | 104 | — | [首测](../../../artifacts/analysis/alfworld_gpt54mini_final_20261116_200755/SkillAdam/results.jsonl) |
-| [SkillOpt 第二次 Best](../../../experiments/baselines/skillopt_alfworld_native_best_only_repeat_20261123_001/campaign/best_skill.md) | 115 | 114 | [首测](../../../artifacts/analysis/alfworld_gpt54mini_final_20261116_200755/SkillOpt/results.jsonl) · [复测 1](../../../artifacts/analysis/alfworld_gpt54mini_final_20261116_200755/SkillOpt_retest_20261124_151502/results.jsonl) |
-| [SkillOpt 第三次 Best](../../../experiments/baselines/skillopt_alfworld_native_best_only_third_20261124_001/campaign/best_skill.md) | 114 | — | [首测](../../../artifacts/analysis/alfworld_gpt54mini_final_20261116_200755/SkillOpt_third_training_20261124_195821/results.jsonl) |
+| [SkillOpt 第二次 Best](../../../experiments/methods/skillopt/alfworld/skillopt_alfworld_native_best_only_repeat_20261123_001/results/best_skill.md) | 115 | 114 | [首测](../../../artifacts/analysis/alfworld_gpt54mini_final_20261116_200755/SkillOpt/results.jsonl) · [复测 1](../../../artifacts/analysis/alfworld_gpt54mini_final_20261116_200755/SkillOpt_retest_20261124_151502/results.jsonl) |
+| [SkillOpt 第三次 Best](../../../experiments/methods/skillopt/alfworld/skillopt_alfworld_native_best_only_third_20261124_001/results/best_skill.md) | 114 | — | [首测](../../../artifacts/analysis/alfworld_gpt54mini_final_20261116_200755/SkillOpt_third_training_20261124_195821/results.jsonl) |

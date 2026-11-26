@@ -9,7 +9,8 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
-from src.skillopt_alfworld_native.project import DEFAULT, check, prepare, read, write, require, sha
+from src.skill_evolution.shared.experiment_paths import resolve_experiment_path
+from src.skillopt_alfworld_native.project import DEFAULT, campaign_path, runtime_config, check, prepare, read, write, require, sha
 
 
 def run(root, *, resume=False):
@@ -18,18 +19,20 @@ def run(root, *, resume=False):
     from src.skillopt_alfworld_native.actor import build_adapter
     from src.skillopt_alfworld_native.transport import provider, usage_summary
     from skillopt.engine.trainer import ReflACTTrainer
-    cfg = read(root / 'skillopt.json')
+    cfg = runtime_config(root)
     actor = read(root / 'actor.json')
-    with (root / 'run.lock').open('a') as lock:
+    campaign = campaign_path(root)
+    campaign.parent.mkdir(parents=True, exist_ok=True)
+    with (campaign.parent / 'run.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        campaign = root / 'campaign'
         binding = {'manifest_sha256': sha(root / 'manifest.json'), 'test_roles': ['best']}
         if resume:
             require(read(campaign / 'run_binding.json') == binding, 'Resume binding changed')
             require(not (campaign / 'completion.json').exists(), 'Run is already complete')
             require((campaign / 'runtime_state.json').is_file(), 'No native checkpoint; no implicit restart')
         else:
-            require(not campaign.exists(), 'Fresh run requires a new campaign directory')
+            require(not campaign.exists() and not (root / 'results/completion.json').exists(),
+                    'Fresh run requires a new campaign directory')
         # Credentials are only read inside explicitly requested live execution.
         load_dotenv(ROOT / '.env', override=True)
         require(os.environ.get('OPENAI_BASE_URL', '').rstrip('/') == actor['base_url'], 'Official route mismatch')
@@ -63,7 +66,7 @@ def main(argv=None):
     parser.add_argument('--start', action='store_true')
     parser.add_argument('--resume', action='store_true')
     args = parser.parse_args(argv)
-    root = args.experiment.resolve()
+    root = resolve_experiment_path(args.experiment.resolve())
     require(not args.start or args.mode == 'run', '--start is only valid with run')
     require(not args.resume or (args.mode == 'run' and args.start), 'Resume requires run --start')
     if args.mode == 'prepare':

@@ -4,9 +4,9 @@
 
 | 训练 | Best 首测 |
 |---|---:|
-| [2026-10-30](../../../experiments/baselines/skillopt_alfworld_native_best_only_20261030_001/README.md) | 120/134 |
-| [2026-11-23](../../../experiments/baselines/skillopt_alfworld_native_best_only_repeat_20261123_001/README.md) | 117/134 |
-| [2026-11-24](../../../experiments/baselines/skillopt_alfworld_native_best_only_third_20261124_001/README.md) | 122/134 |
+| [2026-10-30](../../../experiments/methods/skillopt/alfworld/skillopt_alfworld_native_best_only_20261030_001/README.md) | 120/134 |
+| [2026-11-23](../../../experiments/methods/skillopt/alfworld/skillopt_alfworld_native_best_only_repeat_20261123_001/README.md) | 117/134 |
+| [2026-11-24](../../../experiments/methods/skillopt/alfworld/skillopt_alfworld_native_best_only_third_20261124_001/README.md) | 122/134 |
 
 11 月 24 日的 Best Skill 经三次复测，分别成功 116、120、118 题。逐轮对照图取这三次的中位数 118/134。
 
@@ -14,7 +14,7 @@
 
 - 入口：`scripts/runs/run_skillopt_alfworld_native.py`。
 - 接入代码：`src/skillopt_alfworld_native/`。
-- 已准备配置：`experiments/baselines/skillopt_alfworld_native_best_only_20261030_001/`。
+- 已准备配置：`experiments/methods/skillopt/alfworld/skillopt_alfworld_native_best_only_20261030_001/`。
 - 上游：`https://github.com/microsoft/SkillOpt`，commit `7da46ae693ee0329b80225c0128a37d65db10e9e`。
 - 配置包内的 `upstream/` 从这个 commit 的 Git 对象导出，不从带本地改动的工作区复制。现有 `external/SkillOpt` 不变。
 - `upstream_source.json` 保存原始文件哈希；唯一修改的上游文件是独立副本中的 `skillopt/engine/trainer.py`，差异保存在 `best_only.patch`。
@@ -30,9 +30,9 @@
   skillopt_tmp=$(mktemp -d)
   skillopt_python=/Users/didi/miniforge3/envs/skillopt/bin/python
   "$skillopt_python" -B scripts/runs/run_skillopt_alfworld_native.py prepare --experiment "$skillopt_tmp/prepared"
-  for run in experiments/baselines/skillopt_alfworld_native_best_only_20261030_001 \
-             experiments/baselines/skillopt_alfworld_native_best_only_repeat_20261123_001 \
-             experiments/baselines/skillopt_alfworld_native_best_only_third_20261124_001
+  for run in experiments/methods/skillopt/alfworld/skillopt_alfworld_native_best_only_20261030_001 \
+             experiments/methods/skillopt/alfworld/skillopt_alfworld_native_best_only_repeat_20261123_001 \
+             experiments/methods/skillopt/alfworld/skillopt_alfworld_native_best_only_third_20261124_001
   do
     if [ ! -e "$run/upstream" ]; then
       cp -R "$skillopt_tmp/prepared/upstream" "$run/upstream"
@@ -43,6 +43,8 @@
 ```
 
 `prepare` 从固定 Git 对象导出源码，并生成实验使用的 Best Test 版本 Trainer。`check` 对照各自当时的 manifest 校验文件。历史配置保存了原机器的绝对路径。
+
+训练入口从 `experiments/methods/skillopt/alfworld/<训练ID>/` 读取配置，把正式运行写入 `artifacts/methods/skillopt/alfworld/<训练ID>/campaign/`。逐轮补测保留原 ID，集中在同一训练的 `evaluations/` 下。冻结的配置和历史回执保留当时的路径，由仓库路径映射定位。
 
 ## 对齐的已完成实验
 

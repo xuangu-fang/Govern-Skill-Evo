@@ -53,7 +53,7 @@ class NativeTests(unittest.TestCase):
         spec = importlib.util.spec_from_file_location('native_cli', ROOT / 'scripts/runs/run_skillopt_alfworld_native.py')
         cli = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(cli)
-        campaign = p.DEFAULT / 'campaign'
+        campaign = p.campaign_path(p.DEFAULT)
         modified_before = campaign.stat().st_mtime_ns if campaign.exists() else None
         with patch.object(p, 'actor_runtime', return_value=p.read(p.DEFAULT / 'actor_runtime.json')), \
              patch('subprocess.run', side_effect=AssertionError('process forbidden')), \
@@ -93,7 +93,7 @@ class NativeTests(unittest.TestCase):
         self.assertEqual(cmd[cmd.index('--request-attempts') + 1], '6')
         self.assertTrue({'--strict-response', '--retry-invalid-actions', '--action-feedback', '--archive-responses'} <= set(cmd))
         adapter = build_adapter(p.DEFAULT)
-        adapter.setup(p.read(p.DEFAULT / 'skillopt.json'))
+        adapter.setup(p.runtime_config(p.DEFAULT))
         loader = adapter.get_dataloader()
         for epoch in range(1, 5):
             batches = loader.plan_train_epoch(epoch=epoch, steps_per_epoch=1, accumulation=1, batch_size=40, seed=42)
@@ -251,7 +251,9 @@ class NativeTests(unittest.TestCase):
     def test_four_epoch_native_pipeline_with_mock_http_and_episodes(self):
         import httpx
         from skillopt.engine.trainer import ReflACTTrainer
-        with fixture() as root, patch('subprocess.run', side_effect=AssertionError('real Actor forbidden')), \
+        with fixture() as root, tempfile.TemporaryDirectory() as archives, \
+             patch.object(p, 'EXPERIMENTS', root.resolve().parent), patch.object(p, 'ARTIFACTS', Path(archives).resolve()), \
+             patch('subprocess.run', side_effect=AssertionError('real Actor forbidden')), \
              contextlib.redirect_stdout(io.StringIO()):
             episodes = []
             def episode(actor, item, directory, skill_file):
@@ -269,19 +271,25 @@ class NativeTests(unittest.TestCase):
                            'reasoning': 'offline', 'slow_update_content': 'OFFLINE_SLOW',
                            'meta_skill_content': 'OFFLINE_META'}
                 return httpx.Response(200, json=response(json.dumps(content)))
+            campaign = Path(archives).resolve() / root.name / 'campaign'
             cfg = p.read(root / 'skillopt.json')
+            cfg['out_root'] = str(campaign)
+            p.write(root / 'skillopt.json', cfg)
             with provider(root, api_key='offline', http_transport=httpx.MockTransport(handler)):
                 summary = ReflACTTrainer(cfg, build_adapter(root, episode_runner=episode)).train()
+            self.assertTrue((campaign / 'test_eval/summary.json').is_file())
+            self.assertTrue((campaign / 'model_calls').is_dir())
+            self.assertFalse((root / 'campaign').exists())
             self.assertEqual(summary['total_steps'], 4)
             self.assertEqual(summary['test_roles'], ['best'])
             self.assertIsNone(summary['baseline_test_hard'])
             self.assertIsNone(summary['final_test_hard'])
             self.assertIsNone(summary['test_delta_hard'])
             self.assertEqual(sum(x.startswith('test:') for x in episodes), 134)
-            self.assertFalse((root / 'campaign/test_eval_baseline').exists())
-            self.assertFalse((root / 'campaign/test_eval_final').exists())
+            self.assertFalse((campaign / 'test_eval_baseline').exists())
+            self.assertFalse((campaign / 'test_eval_final').exists())
             for e in range(2, 5):
-                slow = p.read(root / f'campaign/slow_update/epoch_{e:02d}/slow_result.json')
+                slow = p.read(campaign / f'slow_update/epoch_{e:02d}/slow_result.json')
                 self.assertIn(slow['action'], ('accept', 'accept_new_best', 'reject'))
                 self.assertIn('selection_hard', slow)
             self.assertGreater(usage_summary(root)['optimizer']['http_requests'], 0)

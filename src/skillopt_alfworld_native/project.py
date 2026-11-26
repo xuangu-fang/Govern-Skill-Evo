@@ -16,7 +16,9 @@ from src.skill_evolution.shared.experiment_paths import resolve_experiment_path
 ROOT = Path(__file__).resolve().parents[2]
 COMMIT = '7da46ae693ee0329b80225c0128a37d65db10e9e'
 SOURCE = ROOT / 'external/SkillOpt'
-DEFAULT = ROOT / 'experiments/baselines/skillopt_alfworld_native_best_only_20261030_001'
+EXPERIMENTS = ROOT / 'experiments/methods/skillopt/alfworld'
+ARTIFACTS = ROOT / 'artifacts/methods/skillopt/alfworld'
+DEFAULT = EXPERIMENTS / 'skillopt_alfworld_native_best_only_20261030_001'
 ADAM = ROOT / 'experiments/methods/skilladam/alfworld/native_retry/skilladam_alfworld_official_actor_optimizer_deepseek_flash_20261030_001/config'
 ADAM_TEST = ROOT / 'artifacts/methods/skilladam/alfworld/native_retry/skilladam_alfworld_official_actor_optimizer_deepseek_flash_20261030_001_test134'
 V24 = ROOT / 'experiments/methods/v24_1/alfworld_reviewed_no_review_workers10_official_deepseek_flash_20261030_001/config/campaign.json'
@@ -83,6 +85,21 @@ def select_upstream(root):
     sys.path.insert(0, str(upstream))
 
 
+def campaign_path(root):
+    root = Path(root).resolve()
+    if root.parent == EXPERIMENTS:
+        return ARTIFACTS / root.name / 'campaign'
+    return root / 'campaign'
+
+
+def runtime_config(root):
+    """Resolve stored locations while preserving the original configuration on disk."""
+    cfg = read(root / 'skillopt.json')
+    for field in ('skill_init', 'split_dir', 'out_root'):
+        cfg[field] = str(resolve_experiment_path(cfg[field]))
+    return cfg
+
+
 def native_config(root):
     select_upstream(root)
     from skillopt.config import flatten_config, load_config
@@ -92,7 +109,7 @@ def native_config(root):
                target_backend='openai_compatible', optimizer_model='deepseek-flash',
                target_model='deepseek-flash', workers=10, max_api_workers=10,
                slow_update_gate_with_selection=True, skill_init=str(root / 'initial_skill.md'),
-               split_dir=str(root / 'splits'), out_root=str(root / 'campaign'),
+               split_dir=str(root / 'splits'), out_root=str(campaign_path(root)),
                eval_test=True, eval_initial_skill=False, eval_final_skill=False,
                require_final_selection=True)
     return cfg
@@ -209,6 +226,8 @@ def prepare(root):
 def check(root):
     root = Path(root).resolve()
     manifest = read(root / 'manifest.json')
+    old_root = ROOT / 'experiments/baselines' / root.name
+    historical = (root.parent == EXPERIMENTS and str(old_root / 'skillopt.json') in manifest['files'])
     for section in ('files', 'environment_files'):
         for p, expected in manifest[section].items():
             source = resolve_experiment_path(p)
@@ -216,13 +235,17 @@ def check(root):
                 Path(__file__).resolve(), ROOT / 'tests/adapters/alfworld/test_skillopt_native.py'
             ):
                 source = DEFAULT / 'configuration_revisions/before_native_retry_layout' / source.relative_to(ROOT)
+            elif historical and source.is_relative_to(ROOT):
+                snapshot = DEFAULT / 'configuration_revisions/before_method_layout' / source.relative_to(ROOT)
+                if snapshot.is_file():
+                    source = snapshot
             require(source.is_file() and sha(source) == expected, 'Frozen input changed: ' + p)
     require(optimizer_runtime() == manifest['optimizer_runtime'], 'Optimizer runtime drift')
     actor = read(root / 'actor.json')
     require(actor == reference_actor(), 'Actor config drift')
     validate_alignment(actor, read(V24))
     require(actor_runtime(actor['python']) == read(root / 'actor_runtime.json'), 'Actor runtime drift')
-    cfg = read(root / 'skillopt.json')
+    cfg = runtime_config(root)
     require(cfg == native_config(root), 'Unexpected native optimizer override')
     from .actor import build_adapter
     adapter = build_adapter(root)
@@ -241,4 +264,4 @@ def check(root):
             'ordinary_updates': 4, 'test_roles': ['best'], 'actor_request_attempts': 6,
             'optimizer_retry_policy': 'upstream_callsite_and_sdk_defaults',
             'slow_update_gate_with_selection': True, 'model_requests': 0, 'environment_episodes': 0,
-            'campaign_exists': (root / 'campaign').exists()}
+            'campaign_exists': campaign_path(root).exists()}

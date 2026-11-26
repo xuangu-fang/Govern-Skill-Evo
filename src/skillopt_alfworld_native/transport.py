@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 from uuid import uuid4
 
-from .project import read, write, require
+from .project import campaign_path, read, write, require
 
 
 @contextmanager
@@ -62,7 +62,7 @@ def provider(root, *, api_key, http_transport=None):
         return client
 
     def audited(messages, max_completion_tokens, retries, stage, **kwargs):
-        directory = root / 'campaign/model_calls' / uuid4().hex
+        directory = campaign_path(root) / 'model_calls' / uuid4().hex
         write(directory / 'input.json', {'messages': messages, 'max_completion_tokens': max_completion_tokens,
               'retries': retries, 'stage': stage, 'role': kwargs.get('role'),
               'timeout': kwargs.get('timeout')})
@@ -96,7 +96,7 @@ def usage_summary(root):
                            'prompt_tokens': 0, 'completion_tokens': 0},
               'actor': {'episodes': 0, 'http_requests': 0, 'unknown_usage_requests': 0,
                         'prompt_tokens': 0, 'completion_tokens': 0}}
-    for folder in (root / 'campaign/model_calls').glob('*'):
+    for folder in (campaign_path(root) / 'model_calls').glob('*'):
         if not folder.is_dir():
             continue
         total = result['optimizer']
@@ -110,7 +110,7 @@ def usage_summary(root):
             else:
                 for key in ('prompt_tokens', 'completion_tokens'):
                     total[key] += usage.get(key, 0)
-    for path in (root / 'campaign').glob('**/episodes/*/*/trajectory.json'):
+    for path in campaign_path(root).glob('**/episodes/*/*/trajectory.json'):
         total = result['actor']
         total['episodes'] += 1
         for step in read(path)['steps']:

@@ -105,8 +105,8 @@
 | [ALFWORLD_NATIVE.md](../methods/skillopt/ALFWORLD_NATIVE.md) | 留给原生 SkillOpt | 文中已更新双官方模型 SkillAdam 配置的读取位置；其余内容是原生 SkillOpt 方法和启动说明，适合随其可运行入口交付。 |
 | [当前 project.py](../../src/skillopt_alfworld_native/project.py) | 留给原生 SkillOpt | 为 SkillOpt 读取迁移后的 SkillAdam 配置及首测，在检查旧实验清单时还要读取下面两份历史源码。 |
 | [当前 test_skillopt_native.py](../../tests/adapters/alfworld/test_skillopt_native.py) | 留给原生 SkillOpt | 轨迹复用测试已从新首测目录取样；整份测试还需要原生 SkillOpt 的 Actor、传输实现、启动器和本机实验材料。 |
-| [历史 project.py](../../experiments/baselines/skillopt_alfworld_native_best_only_20261030_001/configuration_revisions/before_native_retry_layout/src/skillopt_alfworld_native/project.py) | 与原生 SkillOpt 实现一同保留 | 与迁移前实现逐字节相同，旧实验清单登记了该实现；当前检查器按旧清单读取此副本。 |
-| [历史 test_skillopt_native.py](../../experiments/baselines/skillopt_alfworld_native_best_only_20261030_001/configuration_revisions/before_native_retry_layout/tests/adapters/alfworld/test_skillopt_native.py) | 与原生 SkillOpt 测试一同保留 | 与迁移前测试逐字节相同，旧实验清单也登记了该测试；保留当时的路径属于其历史用途。 |
+| [历史 project.py](../../experiments/methods/skillopt/alfworld/skillopt_alfworld_native_best_only_20261030_001/configuration_revisions/before_native_retry_layout/src/skillopt_alfworld_native/project.py) | 与原生 SkillOpt 实现一同保留 | 与迁移前实现逐字节相同，旧实验清单登记了该实现；当前检查器按旧清单读取此副本。 |
+| [历史 test_skillopt_native.py](../../experiments/methods/skillopt/alfworld/skillopt_alfworld_native_best_only_20261030_001/configuration_revisions/before_native_retry_layout/tests/adapters/alfworld/test_skillopt_native.py) | 与原生 SkillOpt 测试一同保留 | 与迁移前测试逐字节相同，旧实验清单也登记了该测试；保留当时的路径属于其历史用途。 |
 
 本机原生 SkillOpt 的离线预检通过，模型请求和环境执行均为 0；上述测试模块的 11 项测试全部通过。此次只更新提交范围。SpreadsheetBench 的 `scripts/runs/run_skillopt_spreadsheetbench_aligned.py` 已明确排除。
 
